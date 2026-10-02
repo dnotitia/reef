@@ -106,7 +106,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const canManageRequestedVault =
     requestedVault?.role === "owner" || requestedVault?.role === "admin";
   const showBlockedInstallationDiagnostics =
-    authStatus === "active" &&
+    canRenderAuthenticatedTree &&
     vaultsQuery.isSuccess &&
     canManageRequestedVault &&
     requestedVault.installation_status !== "ready" &&
@@ -131,10 +131,10 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
-  // A verified owner/admin may inspect the selected workspace's setup
-  // diagnostics while it is unavailable. Keep this exception on one route:
-  // ordinary feature pages and settings remain readiness-gated, and the URL
-  // does not become the remembered active workspace.
+  // An established-session owner/admin may inspect the selected workspace's
+  // setup diagnostics while it is unavailable. Keep this exception on one
+  // route: ordinary feature pages and settings remain readiness-gated, and
+  // the URL does not become the remembered active workspace.
   if (showBlockedInstallationDiagnostics) {
     return (
       <BlockedWorkspaceInstallationSettings
@@ -146,7 +146,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
 
   // Keep the access-denied surface outside the dashboard shell so its
   // dedicated account utility and recovery layout stay unchanged.
-  if (authStatus === "active" && vaultsQuery.isSuccess && !isMember) {
+  if (canRenderAuthenticatedTree && vaultsQuery.isSuccess && !isMember) {
     return (
       <WorkspaceAccessDenied
         appVersion={appVersion}

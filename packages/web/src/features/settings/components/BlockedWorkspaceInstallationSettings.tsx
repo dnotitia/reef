@@ -36,14 +36,6 @@ export function BlockedWorkspaceInstallationSettings({
           >
             {t("button.returnToAccess")}
           </Link>
-          <div className="flex flex-col gap-1">
-            <h2 className="type-settings-section text-foreground">
-              {t("diagnostics.title")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {t("diagnostics.description")}
-            </p>
-          </div>
           <WorkspaceInstallationSection vault={vault} readOnly />
         </PageBody>
       </main>

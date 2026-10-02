@@ -91,6 +91,11 @@ describe("WorkspaceInstallationDetails", () => {
     );
     const details = await screen.findByTestId("installation-details");
     expect(details).toHaveAttribute("data-overall-drift", "drifted");
+    expect(
+      screen.getByText(
+        "Workspace remains available. The latest installation check found a difference.",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("2.0.0")).toBeVisible();
     expect(screen.getByTestId("installation-overall-drift")).toHaveTextContent(
       "Overall drift: Drift detected",
@@ -144,5 +149,86 @@ describe("WorkspaceInstallationDetails", () => {
     expect(
       screen.queryByTestId("installation-overall-drift"),
     ).not.toHaveTextContent("In sync");
+  });
+
+  it.each(["drifted", "unknown"] as const)(
+    "does not claim availability for blocked installations with %s drift",
+    async (overall) => {
+      mockApiFetch.mockResolvedValue(
+        response({
+          installation_status: "blocked",
+          installation: {
+            ...installation,
+            lifecycle: "blocked",
+            blockedReason: "worker_timeout",
+            drift: { ...installation.drift, overall },
+          },
+        }),
+      );
+      render(
+        <IntlTestProvider>
+          <WorkspaceInstallationDetails vault="reef-current" />
+        </IntlTestProvider>,
+      );
+
+      const disclosure = screen.getByTestId("installation-details-disclosure");
+      fireEvent.click(screen.getByText("Technical details"));
+      fireEvent(disclosure, new Event("toggle"));
+
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("installation-overall-drift"),
+        ).toHaveAttribute("data-drift-status", overall),
+      );
+      expect(
+        screen.queryByText(/Workspace remains available/),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(["installing", "upgrading", "unknown"] as const)(
+    "does not infer availability from active lifecycle when canonical status is %s",
+    async (installationStatus) => {
+      mockApiFetch.mockResolvedValue(
+        response({
+          installation_status: installationStatus,
+          installation,
+        }),
+      );
+      render(
+        <IntlTestProvider>
+          <WorkspaceInstallationDetails vault="reef-current" />
+        </IntlTestProvider>,
+      );
+
+      const disclosure = screen.getByTestId("installation-details-disclosure");
+      fireEvent.click(screen.getByText("Technical details"));
+      fireEvent(disclosure, new Event("toggle"));
+
+      await screen.findByTestId("installation-details");
+      expect(
+        screen.queryByText(/Workspace remains available/),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not claim availability when the details lookup fails", async () => {
+    mockApiFetch.mockRejectedValue(new Error("offline"));
+    render(
+      <IntlTestProvider>
+        <WorkspaceInstallationDetails vault="reef-current" />
+      </IntlTestProvider>,
+    );
+
+    const disclosure = screen.getByTestId("installation-details-disclosure");
+    fireEvent.click(screen.getByText("Technical details"));
+    fireEvent(disclosure, new Event("toggle"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not check the workspace status.",
+    );
+    expect(
+      screen.queryByText(/Workspace remains available/),
+    ).not.toBeInTheDocument();
   });
 });

@@ -17,18 +17,20 @@ const InstallationResponseSchema = z.object({
   installation_status: WorkspaceInstallationStatusEnum,
   installation: ControlPlaneInstallationSchema.optional(),
 });
+type InstallationResponse = z.infer<typeof InstallationResponseSchema>;
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 
 export function WorkspaceInstallationDetails({ vault }: { vault: string }) {
   const t = useTranslations("workspaceInstallation");
-  const [installation, setInstallation] = useState<
-    ControlPlaneInstallation | undefined
-  >();
+  const [installationResponse, setInstallationResponse] = useState<
+    InstallationResponse | undefined
+  >(undefined);
   const [loadState, setLoadState] = useState<LoadState>("idle");
 
   const loadDetails = useCallback(async () => {
     setLoadState("loading");
+    setInstallationResponse(undefined);
     try {
       const response = await apiFetch(
         `/api/vaults/${encodeURIComponent(vault)}/installation`,
@@ -41,7 +43,7 @@ export function WorkspaceInstallationDetails({ vault }: { vault: string }) {
         );
       }
       const result = InstallationResponseSchema.parse(await response.json());
-      setInstallation(result.installation);
+      setInstallationResponse(result);
       setLoadState("loaded");
     } catch {
       setLoadState("error");
@@ -71,8 +73,11 @@ export function WorkspaceInstallationDetails({ vault }: { vault: string }) {
           {t("button.checkStatus")}
         </Button>
       </div>
-    ) : installation ? (
-      <InstallationDetailsContent installation={installation} />
+    ) : installationResponse?.installation ? (
+      <InstallationDetailsContent
+        installation={installationResponse.installation}
+        installationStatus={installationResponse.installation_status}
+      />
     ) : loadState === "loaded" ? (
       <p className="pt-3 text-sm text-muted-foreground">
         {t("details.noObservation")}
@@ -96,8 +101,10 @@ export function WorkspaceInstallationDetails({ vault }: { vault: string }) {
 
 function InstallationDetailsContent({
   installation,
+  installationStatus,
 }: {
   installation: ControlPlaneInstallation;
+  installationStatus: InstallationResponse["installation_status"];
 }) {
   const t = useTranslations("workspaceInstallation.details");
   const locale = useLocale();
@@ -120,10 +127,10 @@ function InstallationDetailsContent({
       data-overall-drift={drift?.overall ?? "unknown"}
     >
       <div className="flex flex-col gap-1">
-        {overallStatus === "drifted" && (
+        {installationStatus === "ready" && overallStatus === "drifted" && (
           <p className="text-sm text-muted-foreground">{t("impact.drifted")}</p>
         )}
-        {overallStatus === "unknown" && (
+        {installationStatus === "ready" && overallStatus === "unknown" && (
           <p className="text-sm text-muted-foreground">{t("impact.unknown")}</p>
         )}
         <p

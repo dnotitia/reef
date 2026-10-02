@@ -269,10 +269,6 @@
       "returnToAccess": "워크스페이스 접근 화면으로 돌아가기",
       "finish": "워크스페이스로 이동"
     },
-    "diagnostics": {
-      "title": "워크스페이스 설정",
-      "description": "이 워크스페이스의 설정 상태와 기술 정보를 확인하세요."
-    },
     "acknowledgementAccepted": "설정 요청을 받았습니다. 워크스페이스 상태를 확인하고 있습니다.",
     "acknowledgementReplayed": "설정 요청을 확인했습니다. 워크스페이스 상태를 확인하고 있습니다.",
     "stillRunning": "아직 설정 중입니다. 잠시 후 상태를 다시 확인하세요.",

@@ -269,10 +269,6 @@
       "returnToAccess": "Return to workspace access",
       "finish": "Continue to workspace"
     },
-    "diagnostics": {
-      "title": "Workspace setup",
-      "description": "Review the setup status and technical details for this workspace."
-    },
     "acknowledgementAccepted": "Setup request received. Checking the workspace status.",
     "acknowledgementReplayed": "Setup request confirmed. Checking the workspace status.",
     "stillRunning": "Setup is still in progress. Check its status again shortly.",

@@ -175,6 +175,8 @@ test.describe("installation drift and readiness guidance", () => {
     await setInstallationControl(request, {
       lifecycle: "blocked",
       blockedReason: "worker_timeout",
+      drift: { release: "mismatch", schema: "mismatch", grant: "mismatch" },
+      observation: "stale",
     });
     await signInAsAlice(page);
     await page.goto("/workspace/reef-e2e/issues");
@@ -213,6 +215,12 @@ test.describe("installation drift and readiness guidance", () => {
     await expect(
       page.getByTestId("workspace-installation-diagnostics"),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Settings" }),
+    ).toBeVisible();
+    const diagnostics = page.getByTestId("workspace-installation-section");
+    await expect(diagnostics.getByRole("heading", { level: 2 })).toHaveCount(0);
+    await expect(diagnostics.getByRole("heading", { level: 3 })).toHaveCount(1);
     await expect(page.getByTestId("settings-tabs")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Set up Reef" })).toHaveCount(
       0,
@@ -223,10 +231,17 @@ test.describe("installation drift and readiness guidance", () => {
     await expect(
       page.getByRole("button", { name: "Request fresh setup" }),
     ).toHaveCount(0);
-    const diagnostics = page.getByTestId("workspace-installation-section");
     await expect(diagnostics).toBeVisible();
+    await expect(
+      diagnostics.getByText("People can't use this workspace right now."),
+    ).toBeVisible();
     const details = diagnostics.getByTestId("installation-details-disclosure");
     await details.locator("summary").click();
+    await expect(page.getByTestId("installation-details")).toHaveAttribute(
+      "data-overall-drift",
+      "drifted",
+    );
+    await expect(page.getByText(/Workspace remains available/)).toHaveCount(0);
     await expect(
       page.getByTestId("installation-blocked-guidance"),
     ).toBeVisible();

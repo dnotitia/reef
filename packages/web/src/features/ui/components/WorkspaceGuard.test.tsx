@@ -338,6 +338,54 @@ describe("WorkspaceGuard (REEF-315)", () => {
     },
   );
 
+  it.each([
+    ["owner", "diagnostics"],
+    ["admin", "diagnostics"],
+    ["writer", "denied"],
+    ["reader", "denied"],
+  ] as const)(
+    "keeps blocked %s settings out of normal children when established auth revalidation is unavailable",
+    (role, expectedSurface) => {
+      authStatusRef.current = "unavailable";
+      establishedSessionRef.current = true;
+      pathnameRef.current = "/workspace/reef-acme/settings/workspace";
+      vaultsRef.current = {
+        isPending: false,
+        isSuccess: true,
+        isError: false,
+        data: [
+          {
+            name: "reef-acme",
+            installation_status: "blocked",
+            role,
+          },
+        ],
+      };
+
+      render(
+        <WorkspaceGuard appVersion="1.0.0">
+          <span data-testid="normal-workspace-settings" />
+        </WorkspaceGuard>,
+      );
+
+      expect(screen.queryByTestId("dashboard-shell")).toBeNull();
+      expect(screen.queryByTestId("normal-workspace-settings")).toBeNull();
+      if (expectedSurface === "diagnostics") {
+        expect(
+          screen.getByTestId("workspace-installation-diagnostics"),
+        ).toHaveTextContent("reef-acme");
+        expect(screen.queryByTestId("workspace-access-denied")).toBeNull();
+      } else {
+        expect(screen.getByTestId("workspace-access-denied")).toHaveTextContent(
+          "reef-acme",
+        );
+        expect(
+          screen.queryByTestId("workspace-installation-diagnostics"),
+        ).toBeNull();
+      }
+    },
+  );
+
   it.each(["reader", "writer"] as const)(
     "keeps blocked %s settings denied",
     (role) => {
