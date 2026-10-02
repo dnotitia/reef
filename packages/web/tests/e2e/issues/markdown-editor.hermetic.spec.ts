@@ -69,118 +69,6 @@ async function setTheme(
   });
 }
 
-function colorAlpha(color: string): number {
-  const channels = color.match(/[-+]?\d*\.?\d+(?:e[-+]?\d+)?/giu);
-  return channels && channels.length >= 4 ? Number(channels[3]) : 1;
-}
-
-function parseCssColor(
-  color: string,
-): { channels: [number, number, number]; alpha: number } | undefined {
-  const values = color.match(/[-+]?\d*\.?\d+(?:e[-+]?\d+)?/giu)?.map(Number);
-  if (!values || values.length < 3) return undefined;
-  const alpha = values.length >= 4 ? (values[3] ?? 1) : 1;
-
-  if (color.startsWith("oklab(")) {
-    const [lightness = 0, a = 0, b = 0] = values;
-    const lRoot = lightness + 0.3963377774 * a + 0.2158037573 * b;
-    const mRoot = lightness - 0.1055613458 * a - 0.0638541728 * b;
-    const sRoot = lightness - 0.0894841775 * a - 1.291485548 * b;
-    const l = lRoot ** 3;
-    const m = mRoot ** 3;
-    const s = sRoot ** 3;
-    const linear = [
-      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-    ];
-    const channels = linear.map((channel) => {
-      const clipped = Math.min(1, Math.max(0, channel));
-      return (
-        (clipped <= 0.0031308
-          ? clipped * 12.92
-          : 1.055 * clipped ** (1 / 2.4) - 0.055) * 255
-      );
-    });
-    return {
-      channels: [channels[0] ?? 0, channels[1] ?? 0, channels[2] ?? 0],
-      alpha,
-    };
-  }
-
-  if (color.startsWith("hsl(")) {
-    const hue = ((((values[0] ?? 0) % 360) + 360) % 360) / 360;
-    const saturation = (values[1] ?? 0) / 100;
-    const lightness = (values[2] ?? 0) / 100;
-    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
-    const secondary = chroma * (1 - Math.abs(((hue * 6) % 2) - 1));
-    const offset = lightness - chroma / 2;
-    const sector = Math.floor(hue * 6);
-    const base =
-      sector === 0
-        ? [chroma, secondary, 0]
-        : sector === 1
-          ? [secondary, chroma, 0]
-          : sector === 2
-            ? [0, chroma, secondary]
-            : sector === 3
-              ? [0, secondary, chroma]
-              : sector === 4
-                ? [secondary, 0, chroma]
-                : [chroma, 0, secondary];
-    return {
-      channels: [
-        ((base[0] ?? 0) + offset) * 255,
-        ((base[1] ?? 0) + offset) * 255,
-        ((base[2] ?? 0) + offset) * 255,
-      ],
-      alpha,
-    };
-  }
-
-  if (color.startsWith("rgb")) {
-    return {
-      channels: [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0],
-      alpha,
-    };
-  }
-  return undefined;
-}
-
-function contrastRatio(foreground: string, background: string): number {
-  const foregroundColor = parseCssColor(foreground);
-  const backgroundColor = parseCssColor(background);
-  if (!foregroundColor || !backgroundColor || backgroundColor.alpha < 1)
-    return 0;
-
-  const composite = foregroundColor.channels.map(
-    (channel, index) =>
-      channel * foregroundColor.alpha +
-      (backgroundColor.channels[index] ?? 0) * (1 - foregroundColor.alpha),
-  );
-  const luminance = (channels: number[]) =>
-    channels
-      .map((channel) => {
-        const normalized = channel / 255;
-        return normalized <= 0.04045
-          ? normalized / 12.92
-          : ((normalized + 0.055) / 1.055) ** 2.4;
-      })
-      .reduce((sum, channel, index) => {
-        const weight = [0.2126, 0.7152, 0.0722][index] ?? 0;
-        return sum + channel * weight;
-      }, 0);
-  const lighter = Math.max(
-    luminance(composite),
-    luminance(backgroundColor.channels),
-  );
-  const darker = Math.min(
-    luminance(composite),
-    luminance(backgroundColor.channels),
-  );
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
 async function readMarkdownSurface(editor: Locator) {
   return editor.evaluate((root: HTMLElement) => {
     const resolveColor = (property: string) => {
@@ -667,6 +555,14 @@ const MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH =
   "/api/e2e/assets/reef-markdown-editor-transparent.svg";
 const MARKDOWN_FIXTURE_FILE_URI = "akb://reef-e2e/issues/file/incident-log";
 
+// The editor joins consecutive image-only paragraphs when it serializes Source after reload.
+function normalizeAdjacentImageOnlyBlocks(markdown: string): string {
+  return markdown.replace(
+    /^([ \t]*!\[[^\]\r\n]*\]\([^\r\n)]*\)[ \t]*)\r?\n[ \t]*\r?\n(?=[ \t]*!\[[^\]\r\n]*\]\([^\r\n)]*\)[ \t]*$)/gmu,
+    "$1",
+  );
+}
+
 function expectMarkdownFileProxyUrl(href: string, pageUrl: string): URL {
   const url = new URL(href, pageUrl);
   expect(url.pathname).toBe("/api/files");
@@ -893,50 +789,6 @@ test.describe("Hermetic Markdown editor fixture", () => {
           selectedDetailForeground: getComputedStyle(selectedDetail).color,
         };
       });
-      const failures: string[] = [];
-      if (colorAlpha(styles.dialogBackground) < 1)
-        failures.push("dialog background is transparent");
-      if (
-        styles.inputBackgrounds.some((background) => colorAlpha(background) < 1)
-      )
-        failures.push("an input background is transparent");
-      if (colorAlpha(styles.resultsBackground) < 1)
-        failures.push("results background is transparent");
-      if (colorAlpha(styles.selectedBackground) < 1)
-        failures.push("selected result background is transparent");
-      if (contrastRatio(styles.dialogForeground, styles.dialogBackground) < 4.5)
-        failures.push("dialog text contrast is below 4.5:1");
-      if (
-        contrastRatio(
-          styles.inputForeground,
-          styles.inputBackgrounds[0] ?? "",
-        ) < 4.5
-      )
-        failures.push("search input text contrast is below 4.5:1");
-      if (
-        contrastRatio(
-          styles.inputPlaceholder,
-          styles.inputBackgrounds[0] ?? "",
-        ) < 4.5
-      )
-        failures.push("search placeholder contrast is below 4.5:1");
-      if (
-        contrastRatio(styles.selectedForeground, styles.selectedBackground) <
-        4.5
-      )
-        failures.push("selected result text contrast is below 4.5:1");
-      if (
-        contrastRatio(
-          styles.selectedDetailForeground,
-          styles.selectedBackground,
-        ) < 4.5
-      )
-        failures.push("selected result detail contrast is below 4.5:1");
-      expect(
-        failures,
-        `${theme.preference} link popup styles: ${JSON.stringify(styles)}`,
-      ).toEqual([]);
-
       await setMarkdownLinkSearchControl(request, {
         query: "missing resource",
         failureStatus: 503,
@@ -953,13 +805,127 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect((await errorResponse).status()).toBe(502);
       const alert = popup.getByRole("alert");
       await expect(alert).toBeVisible();
-      const errorForeground = await alert.evaluate(
-        (element) => getComputedStyle(element).color,
-      );
+      const checks = await popup.evaluate((dialog, colors) => {
+        const alertElement =
+          dialog.querySelector<HTMLElement>('[role="alert"]');
+        if (!alertElement) throw new Error("Markdown search error is missing");
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext("2d");
+        if (!context)
+          throw new Error("Canvas 2D color conversion is unavailable");
+
+        const rgba = (value: string) => {
+          if (!CSS.supports("color", value)) return undefined;
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          const pixel = context.getImageData(0, 0, 1, 1).data;
+          return {
+            channels: [pixel[0] ?? 0, pixel[1] ?? 0, pixel[2] ?? 0],
+            alpha: (pixel[3] ?? 0) / 255,
+          };
+        };
+        const isOpaque = (value: string) => rgba(value)?.alpha === 1;
+        const contrastRatio = (foreground: string, background: string) => {
+          const foregroundColor = rgba(foreground);
+          const backgroundColor = rgba(background);
+          if (
+            !foregroundColor ||
+            !backgroundColor ||
+            backgroundColor.alpha < 1
+          ) {
+            return 0;
+          }
+
+          const composite = foregroundColor.channels.map(
+            (channel, index) =>
+              channel * foregroundColor.alpha +
+              (backgroundColor.channels[index] ?? 0) *
+                (1 - foregroundColor.alpha),
+          );
+          const luminance = (channels: number[]) =>
+            channels
+              .map((channel) => {
+                const normalized = channel / 255;
+                return normalized <= 0.04045
+                  ? normalized / 12.92
+                  : ((normalized + 0.055) / 1.055) ** 2.4;
+              })
+              .reduce(
+                (sum, channel, index) =>
+                  sum + channel * ([0.2126, 0.7152, 0.0722][index] ?? 0),
+                0,
+              );
+          const lighter = Math.max(
+            luminance(composite),
+            luminance(backgroundColor.channels),
+          );
+          const darker = Math.min(
+            luminance(composite),
+            luminance(backgroundColor.channels),
+          );
+          return (lighter + 0.05) / (darker + 0.05);
+        };
+
+        return {
+          dialogOpaque: isOpaque(colors.dialogBackground),
+          inputsOpaque: colors.inputBackgrounds.every(isOpaque),
+          resultsOpaque: isOpaque(colors.resultsBackground),
+          selectedOpaque: isOpaque(colors.selectedBackground),
+          dialogTextContrast: contrastRatio(
+            colors.dialogForeground,
+            colors.dialogBackground,
+          ),
+          inputTextContrast: contrastRatio(
+            colors.inputForeground,
+            colors.inputBackgrounds[0] ?? "",
+          ),
+          placeholderContrast: contrastRatio(
+            colors.inputPlaceholder,
+            colors.inputBackgrounds[0] ?? "",
+          ),
+          selectedTextContrast: contrastRatio(
+            colors.selectedForeground,
+            colors.selectedBackground,
+          ),
+          selectedDetailContrast: contrastRatio(
+            colors.selectedDetailForeground,
+            colors.selectedBackground,
+          ),
+          errorTextContrast: contrastRatio(
+            getComputedStyle(alertElement).color,
+            colors.dialogBackground,
+          ),
+        };
+      }, styles);
+      const failures: string[] = [];
+      if (!checks.dialogOpaque)
+        failures.push("dialog background is transparent");
+      if (!checks.inputsOpaque)
+        failures.push("an input background is transparent");
+      if (!checks.resultsOpaque)
+        failures.push("results background is transparent");
+      if (!checks.selectedOpaque)
+        failures.push("selected result background is transparent");
+      if (checks.dialogTextContrast < 4.5)
+        failures.push("dialog text contrast is below 4.5:1");
+      if (checks.inputTextContrast < 4.5)
+        failures.push("search input text contrast is below 4.5:1");
+      if (checks.placeholderContrast < 4.5)
+        failures.push("search placeholder contrast is below 4.5:1");
+      if (checks.selectedTextContrast < 4.5)
+        failures.push("selected result text contrast is below 4.5:1");
+      if (checks.selectedDetailContrast < 4.5)
+        failures.push("selected result detail contrast is below 4.5:1");
+      if (checks.errorTextContrast < 4.5)
+        failures.push("search error text contrast is below 4.5:1");
       expect(
-        contrastRatio(errorForeground, styles.dialogBackground),
-        `${theme.preference} search error text contrast`,
-      ).toBeGreaterThanOrEqual(4.5);
+        failures,
+        `${theme.preference} link popup checks: ${JSON.stringify(checks)}`,
+      ).toEqual([]);
       await popup.getByRole("button", { name: "Cancel" }).click();
     }
   });
@@ -1140,12 +1106,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await sourceToggle.click();
     const reopenedSource = page.getByTestId("markdown-source-textarea");
-    // The editor normalizes blank lines between image-only blocks on reload.
-    // The fixture state above checks the exact saved body; preserve the
-    // canonical resource targets through the editor's source serialization.
     const reopenedMarkdown = await reopenedSource.inputValue();
-    expect(reopenedMarkdown).toContain(MARKDOWN_FIXTURE_FILE_URI);
-    expect(reopenedMarkdown).toContain(documentUri);
+    expect(normalizeAdjacentImageOnlyBlocks(reopenedMarkdown)).toBe(
+      normalizeAdjacentImageOnlyBlocks(finalMarkdown),
+    );
+    expect(reopenedMarkdown).toContain(
+      `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(reopenedMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
     await setMarkdownLinkSearchControl(request, {
       query: "incident",
     });
