@@ -720,9 +720,13 @@ export function KanbanBoard({
     const isPointerDrag =
       event.activatorEvent?.type === "pointerdown" ||
       event.activatorEvent?.type === "mousedown";
-    const pointerTarget = isPointerDrag
+    const detectedPointerTarget = isPointerDrag
       ? pointerDropTargetAtLastPointer(issue.id)
       : null;
+    const pointerTarget =
+      detectedPointerTarget?.issue?.id === issue.id
+        ? null
+        : detectedPointerTarget;
     // Pointer collision data can lag behind auto-scroll. Keyboard drags have
     // no pointer target and continue to use dnd-kit `over` as before.
     const usePointerTarget = pointerTarget !== null;

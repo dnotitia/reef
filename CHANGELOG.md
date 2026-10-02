@@ -27,8 +27,10 @@ explicitly in the entries below.
 ### Fixed
 
 - **Pointer drags on large Board columns keep the card under the pointer as the
-  target through auto-scroll.** Reorders no longer fall through to the column
-  tail when collision data lags. (REEF-616)
+  target through auto-scroll.** If hit testing finds only the dragged card,
+  Board follows dnd-kit's valid target instead of rejecting the drop as a
+  self-drop. Reorders also no longer fall through to the column tail when
+  collision data lags. (REEF-616)
 - **Board navigation restores the focused issue occurrence and its column position.**
   When an already-focused card matches its saved position, restoration skips
   the intermediate scroll. The in-memory anchor is scoped to the signed-in

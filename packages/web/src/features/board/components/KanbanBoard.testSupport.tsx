@@ -7,6 +7,7 @@ import { vi } from "vitest";
 export interface CapturedDragEvent {
   active: { data: { current?: unknown } };
   over?: { id: string } | null;
+  activatorEvent?: { type: string };
 }
 
 export interface CapturedDndContextProps {
