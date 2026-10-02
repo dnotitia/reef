@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AKB_FILE_URI_RE } from "../files";
 
 /**
  * The akb knowledge-graph relation type reef uses to model an issue → akb
@@ -72,3 +73,39 @@ const DocumentSearchHitSchema = z.object({
 });
 
 export type DocumentSearchHit = z.infer<typeof DocumentSearchHitSchema>;
+
+/**
+ * One canonical document or file result for the shared Markdown link picker.
+ * Runtime and signed URLs are deliberately not part of this contract.
+ */
+export const MarkdownResourceSearchResultSchema = z
+  .object({
+    uri: z.string().min(1),
+    title: z.string().min(1),
+    kind: z.enum(["document", "file"]),
+    snippet: z.string().optional(),
+  })
+  .superRefine((result, context) => {
+    const uriPattern =
+      result.kind === "document" ? AKB_DOCUMENT_URI_RE : AKB_FILE_URI_RE;
+    if (!uriPattern.test(result.uri)) {
+      context.addIssue({
+        code: "custom",
+        message: `uri must be a canonical akb ${result.kind} URI`,
+        path: ["uri"],
+      });
+    }
+  });
+
+/** Response returned to the shared Markdown link-search adapter. */
+export const MarkdownResourceSearchResponseSchema = z.object({
+  results: z.array(MarkdownResourceSearchResultSchema),
+});
+
+export type MarkdownResourceSearchResult = z.infer<
+  typeof MarkdownResourceSearchResultSchema
+>;
+
+export type MarkdownResourceSearchResponse = z.infer<
+  typeof MarkdownResourceSearchResponseSchema
+>;

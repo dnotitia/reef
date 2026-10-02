@@ -57,6 +57,17 @@ export function runtimeDiscovery(state) {
           ],
         },
       },
+      markdown_link_search_control: {
+        method: "POST",
+        path: "/__e2e/markdown-link-search-control",
+        content_type: "application/json",
+        body: {
+          vault: "<vault>",
+          query: "<query>",
+          delay_ms: "<milliseconds>",
+          failure_status: "null|500|503",
+        },
+      },
       issue_list_failure: {
         method: "POST",
         path: "/__e2e/issue-list-failure",
@@ -123,6 +134,11 @@ export function runtimeDiscovery(state) {
         path: IMAGE_UPLOAD_FIXTURE_PATH,
         file_name: IMAGE_UPLOAD_FIXTURE_FILE_NAME,
         content_type: IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
+      },
+      markdown_link_search: {
+        scenario: "markdown_fixture",
+        document_query: "Alpha",
+        file_query: "incident",
       },
     },
     scenarios: SUPPORTED_SCENARIOS,
@@ -346,10 +362,15 @@ export function runtimeDiscovery(state) {
         scenario: "markdown_fixture",
         workspace: REEF_VAULT,
         start_path: markdownFixtureStartPath(state),
+        controls: {
+          markdown_link_search_control: [
+            "delay or fail one AKB search query while preserving the real Reef search route",
+          ],
+        },
         interaction: {
           type: "markdown_editor",
           operation:
-            "open the fixture issue, inspect the supported Markdown elements, switch to Source, return to WYSIWYG, and compare the preserved structure",
+            "open the fixture issue, search for the confirmed incident.log file and Alpha reference document from the link toolbar, select and apply a link, inspect the saved canonical target in Source, then switch back to WYSIWYG",
         },
       },
       large_issue_list: {

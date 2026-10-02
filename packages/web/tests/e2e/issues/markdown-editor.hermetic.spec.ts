@@ -11,6 +11,9 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setMarkdownLinkSearchControl,
+  waitForMarkdownLinkSearchIdle,
+  waitForMarkdownLinkSearchPending,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 
@@ -552,6 +555,23 @@ const MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH =
   "/api/e2e/assets/reef-markdown-editor-transparent.svg";
 const MARKDOWN_FIXTURE_FILE_URI = "akb://reef-e2e/issues/file/incident-log";
 
+// The editor joins consecutive image-only paragraphs when it serializes Source after reload.
+function normalizeAdjacentImageOnlyBlocks(markdown: string): string {
+  return markdown.replace(
+    /^([ \t]*!\[[^\]\r\n]*\]\([^\r\n)]*\)[ \t]*)\r?\n[ \t]*\r?\n(?=[ \t]*!\[[^\]\r\n]*\]\([^\r\n)]*\)[ \t]*$)/gmu,
+    "$1",
+  );
+}
+
+function expectMarkdownFileProxyUrl(href: string, pageUrl: string): URL {
+  const url = new URL(href, pageUrl);
+  expect(url.pathname).toBe("/api/files");
+  expect(url.searchParams.get("vault")).toBe(REEF_E2E_VAULT);
+  expect(url.searchParams.get("uri")).toBe(MARKDOWN_FIXTURE_FILE_URI);
+  expect(url.searchParams.get("download")).toBe("1");
+  return url;
+}
+
 test.describe("Hermetic Markdown editor fixture", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -677,6 +697,426 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(focusIntersection).toMatchSnapshot(
       "markdown-focused-toolbar-intersection.png",
     );
+  });
+
+  test("keeps link search surfaces opaque and readable in light and dark themes", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(90_000);
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+
+    const editor = page.locator(".reef-markdown-editor");
+    const toolbar = page.getByTestId("markdown-toolbar");
+    const openLinkPopup = () =>
+      toolbar.getByRole("group", { name: "Insert" }).getByRole("button").last();
+    const themes: Array<{
+      preference: ThemePreference;
+      colorScheme: "light" | "dark";
+    }> = [
+      { preference: "light", colorScheme: "light" },
+      { preference: "dark", colorScheme: "dark" },
+    ];
+
+    for (const theme of themes) {
+      await setTheme(page, theme.preference, theme.colorScheme);
+      await editor.locator("p").first().click();
+      await openLinkPopup().click();
+
+      const popup = page.locator("[data-markdown-link-popup]");
+      await expect(popup).toBeVisible();
+      const search = popup.getByRole("combobox", {
+        name: "Search Vault resources",
+      });
+      const searchResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/api/documents/search" &&
+          url.searchParams.get("q") === "incident"
+        );
+      });
+      await search.fill("incident");
+      expect((await searchResponse).status()).toBe(200);
+
+      const option = popup.getByRole("option", {
+        name: "incident.log (File)",
+      });
+      await expect(option).toBeVisible();
+      await search.focus();
+      await search.press("ArrowDown");
+      await search.press("ArrowDown");
+      await expect(option).toHaveAttribute("aria-selected", "true");
+      await page.mouse.move(0, 0);
+
+      const styles = await popup.evaluate((dialog) => {
+        const searchInput = dialog.querySelector<HTMLInputElement>(
+          'input[role="combobox"]',
+        );
+        const inputs = Array.from(
+          dialog.querySelectorAll<HTMLInputElement>("input"),
+        );
+        const results = dialog.querySelector<HTMLElement>('[role="listbox"]');
+        const selected = results?.querySelector<HTMLElement>(
+          '[role="option"][aria-selected="true"]',
+        );
+        const selectedDetail = selected?.querySelector<HTMLElement>("span");
+        const title = dialog.querySelector<HTMLElement>("h2");
+        if (
+          !searchInput ||
+          !results ||
+          !selected ||
+          !selectedDetail ||
+          !title
+        ) {
+          throw new Error(
+            "Markdown link search did not render its expected surfaces",
+          );
+        }
+        return {
+          dialogBackground: getComputedStyle(dialog).backgroundColor,
+          dialogForeground: getComputedStyle(title).color,
+          inputBackgrounds: inputs.map(
+            (input) => getComputedStyle(input).backgroundColor,
+          ),
+          inputForeground: getComputedStyle(searchInput).color,
+          inputPlaceholder: getComputedStyle(searchInput, "::placeholder")
+            .color,
+          resultsBackground: getComputedStyle(results).backgroundColor,
+          selectedBackground: getComputedStyle(selected).backgroundColor,
+          selectedForeground: getComputedStyle(selected).color,
+          selectedDetailForeground: getComputedStyle(selectedDetail).color,
+        };
+      });
+      await setMarkdownLinkSearchControl(request, {
+        query: "missing resource",
+        failureStatus: 503,
+      });
+      const errorResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/api/documents/search" &&
+          url.searchParams.get("q") === "missing resource"
+        );
+      });
+      await search.fill("missing resource");
+      // The Reef Route Handler collapses upstream AKB 5xx responses to 502.
+      expect((await errorResponse).status()).toBe(502);
+      const alert = popup.getByRole("alert");
+      await expect(alert).toBeVisible();
+      const checks = await popup.evaluate((dialog, colors) => {
+        const alertElement =
+          dialog.querySelector<HTMLElement>('[role="alert"]');
+        if (!alertElement) throw new Error("Markdown search error is missing");
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext("2d");
+        if (!context)
+          throw new Error("Canvas 2D color conversion is unavailable");
+
+        const rgba = (value: string) => {
+          if (!CSS.supports("color", value)) return undefined;
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          const pixel = context.getImageData(0, 0, 1, 1).data;
+          return {
+            channels: [pixel[0] ?? 0, pixel[1] ?? 0, pixel[2] ?? 0],
+            alpha: (pixel[3] ?? 0) / 255,
+          };
+        };
+        const isOpaque = (value: string) => rgba(value)?.alpha === 1;
+        const contrastRatio = (foreground: string, background: string) => {
+          const foregroundColor = rgba(foreground);
+          const backgroundColor = rgba(background);
+          if (
+            !foregroundColor ||
+            !backgroundColor ||
+            backgroundColor.alpha < 1
+          ) {
+            return 0;
+          }
+
+          const composite = foregroundColor.channels.map(
+            (channel, index) =>
+              channel * foregroundColor.alpha +
+              (backgroundColor.channels[index] ?? 0) *
+                (1 - foregroundColor.alpha),
+          );
+          const luminance = (channels: number[]) =>
+            channels
+              .map((channel) => {
+                const normalized = channel / 255;
+                return normalized <= 0.04045
+                  ? normalized / 12.92
+                  : ((normalized + 0.055) / 1.055) ** 2.4;
+              })
+              .reduce(
+                (sum, channel, index) =>
+                  sum + channel * ([0.2126, 0.7152, 0.0722][index] ?? 0),
+                0,
+              );
+          const lighter = Math.max(
+            luminance(composite),
+            luminance(backgroundColor.channels),
+          );
+          const darker = Math.min(
+            luminance(composite),
+            luminance(backgroundColor.channels),
+          );
+          return (lighter + 0.05) / (darker + 0.05);
+        };
+
+        return {
+          dialogOpaque: isOpaque(colors.dialogBackground),
+          inputsOpaque: colors.inputBackgrounds.every(isOpaque),
+          resultsOpaque: isOpaque(colors.resultsBackground),
+          selectedOpaque: isOpaque(colors.selectedBackground),
+          dialogTextContrast: contrastRatio(
+            colors.dialogForeground,
+            colors.dialogBackground,
+          ),
+          inputTextContrast: contrastRatio(
+            colors.inputForeground,
+            colors.inputBackgrounds[0] ?? "",
+          ),
+          placeholderContrast: contrastRatio(
+            colors.inputPlaceholder,
+            colors.inputBackgrounds[0] ?? "",
+          ),
+          selectedTextContrast: contrastRatio(
+            colors.selectedForeground,
+            colors.selectedBackground,
+          ),
+          selectedDetailContrast: contrastRatio(
+            colors.selectedDetailForeground,
+            colors.selectedBackground,
+          ),
+          errorTextContrast: contrastRatio(
+            getComputedStyle(alertElement).color,
+            colors.dialogBackground,
+          ),
+        };
+      }, styles);
+      const failures: string[] = [];
+      if (!checks.dialogOpaque)
+        failures.push("dialog background is transparent");
+      if (!checks.inputsOpaque)
+        failures.push("an input background is transparent");
+      if (!checks.resultsOpaque)
+        failures.push("results background is transparent");
+      if (!checks.selectedOpaque)
+        failures.push("selected result background is transparent");
+      if (checks.dialogTextContrast < 4.5)
+        failures.push("dialog text contrast is below 4.5:1");
+      if (checks.inputTextContrast < 4.5)
+        failures.push("search input text contrast is below 4.5:1");
+      if (checks.placeholderContrast < 4.5)
+        failures.push("search placeholder contrast is below 4.5:1");
+      if (checks.selectedTextContrast < 4.5)
+        failures.push("selected result text contrast is below 4.5:1");
+      if (checks.selectedDetailContrast < 4.5)
+        failures.push("selected result detail contrast is below 4.5:1");
+      if (checks.errorTextContrast < 4.5)
+        failures.push("search error text contrast is below 4.5:1");
+      expect(
+        failures,
+        `${theme.preference} link popup checks: ${JSON.stringify(checks)}`,
+      ).toEqual([]);
+      await popup.getByRole("button", { name: "Cancel" }).click();
+    }
+  });
+
+  test("searches permitted documents and files and applies canonical Markdown links", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(90_000);
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editorRoot = page.getByTestId("markdown-editor");
+    const editor = page.locator(".reef-markdown-editor");
+    const toolbar = editorRoot.getByTestId("markdown-toolbar");
+    const openLinkPopup = () =>
+      toolbar.getByRole("group", { name: "Insert" }).getByRole("button").last();
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+
+    const applySearchResult = async (
+      paragraphIndex: number,
+      query: string,
+      optionName: string,
+      targetUri: string,
+      expectedText: string,
+    ) => {
+      const paragraph = editor.locator("p").nth(paragraphIndex);
+      await paragraph.click();
+      await openLinkPopup().click();
+      const popup = page.locator("[data-markdown-link-popup]");
+      await expect(popup).toBeVisible();
+      const search = popup.getByRole("combobox", {
+        name: "Search Vault resources",
+      });
+      const resultsResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/api/documents/search" &&
+          url.searchParams.get("q") === query
+        );
+      });
+      await search.click();
+      await expect(search).toBeFocused();
+      await page.keyboard.type(query);
+      await expect(search).toHaveValue(query);
+      const response = await resultsResponse;
+      expect(response.status()).toBe(200);
+      const payload = (await response.json()) as {
+        results: Array<{ uri: string }>;
+      };
+      expect(payload.results).toEqual(
+        expect.arrayContaining([expect.objectContaining({ uri: targetUri })]),
+      );
+      const option = popup.getByRole("option", { name: optionName });
+      await expect(option).toBeVisible();
+      await option.click();
+      await expect(popup.getByLabel("URL")).toHaveValue(targetUri);
+      await expect(popup.getByLabel("Text")).toHaveValue(expectedText);
+      await popup.getByRole("button", { name: "Insert link" }).click();
+      await expect(popup).not.toBeVisible();
+      return expectedText;
+    };
+
+    const documentUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
+    const previousDocumentUri = "akb://reef-e2e/coll/docs/doc/spec-overview.md";
+    const fileLinkText = await applySearchResult(
+      0,
+      "incident",
+      "incident.log (File)",
+      MARKDOWN_FIXTURE_FILE_URI,
+      "incident.log",
+    );
+    const documentLinkText = await applySearchResult(
+      1,
+      "Alpha reference",
+      "Alpha reference (Document)",
+      documentUri,
+      "Alpha reference",
+    );
+    await expect(
+      editor.locator('a[data-markdown-target*="/file/"]').first(),
+    ).toHaveAttribute("href", /^\/api\/files\?/);
+
+    const lastParagraph = editor.locator("p").last();
+    await lastParagraph.click();
+    await openLinkPopup().click();
+    const pendingPopup = page.locator("[data-markdown-link-popup]");
+    const pendingSearch = pendingPopup.getByRole("combobox", {
+      name: "Search Vault resources",
+    });
+    await setMarkdownLinkSearchControl(request, {
+      query: "incident",
+      delayMs: 500,
+    });
+    await pendingSearch.fill("incident");
+    await waitForMarkdownLinkSearchPending(request, "incident");
+    await pendingPopup.getByRole("button", { name: "Cancel" }).click();
+    await expect(pendingPopup).not.toBeVisible();
+    await expect(editor).toBeFocused();
+    await waitForMarkdownLinkSearchIdle(request, "incident");
+
+    await setMarkdownLinkSearchControl(request, {
+      query: "missing resource",
+      failureStatus: 503,
+    });
+    await openLinkPopup().click();
+    const errorPopup = page.locator("[data-markdown-link-popup]");
+    await errorPopup
+      .getByRole("combobox", { name: "Search Vault resources" })
+      .fill("missing resource");
+    await expect(errorPopup.getByRole("alert")).toHaveText(
+      "Unable to search resources. Check your access and try again.",
+    );
+    await errorPopup.getByRole("button", { name: "Cancel" }).click();
+    await setMarkdownLinkSearchControl(request, {
+      query: "missing resource",
+    });
+
+    await sourceToggle.click();
+    const source = page.getByTestId("markdown-source-textarea");
+    const appliedMarkdown = await source.inputValue();
+    expect(appliedMarkdown).toContain(
+      `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(appliedMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
+    expect(appliedMarkdown).not.toContain("/api/assets/");
+    expect(appliedMarkdown).not.toContain("signed");
+    await sourceToggle.click();
+
+    const toolbarUndo = toolbar.getByRole("button", { name: "Undo" });
+    const toolbarRedo = toolbar.getByRole("button", { name: "Redo" });
+    await expect(toolbarUndo).toBeEnabled();
+    await toolbarUndo.click();
+    await sourceToggle.click();
+    expect(await source.inputValue()).not.toContain(documentUri);
+    expect(await source.inputValue()).toContain(previousDocumentUri);
+    await sourceToggle.click();
+    await expect(toolbarRedo).toBeEnabled();
+    await toolbarRedo.click();
+    await sourceToggle.click();
+    const finalMarkdown = await source.inputValue();
+    expect(finalMarkdown).toContain(
+      `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(finalMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
+
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === finalMarkdown;
+    });
+    await page.getByTestId("issue-title-input").click();
+    const saved = await saveResponse;
+    expect(saved.ok(), `save failed with ${saved.status()}`).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path === "issues/reef-001.md")
+          ?.content;
+      })
+      .toBe(finalMarkdown);
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await sourceToggle.click();
+    const reopenedSource = page.getByTestId("markdown-source-textarea");
+    const reopenedMarkdown = await reopenedSource.inputValue();
+    expect(normalizeAdjacentImageOnlyBlocks(reopenedMarkdown)).toBe(
+      normalizeAdjacentImageOnlyBlocks(finalMarkdown),
+    );
+    expect(reopenedMarkdown).toContain(
+      `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(reopenedMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
+    await setMarkdownLinkSearchControl(request, {
+      query: "incident",
+    });
   });
 
   test("renders the discovered fixture through theme and Source round trips", async ({
@@ -912,13 +1352,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
     if (!fileProxyHref)
       throw new Error("Markdown fixture file link has no href");
     expect(fileProxyHref).not.toContain(MARKDOWN_FIXTURE_FILE_URI);
-    expect(fileProxyHref).toContain(
-      "/api/issues/REEF-001/attachments/file?vault=reef-e2e&uri=",
-    );
-    expect(fileProxyHref).toContain("download=1");
-    const fileResponse = await page.request.get(
-      new URL(fileProxyHref, page.url()).toString(),
-    );
+    const fileProxyUrl = expectMarkdownFileProxyUrl(fileProxyHref, page.url());
+    const fileResponse = await page.request.get(fileProxyUrl.toString());
     expect(fileResponse.status()).toBe(200);
     expect(fileResponse.headers()["content-type"]).toContain("text/plain");
     expect(fileResponse.headers()["content-disposition"]).toContain(
@@ -1467,9 +1902,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(await reference.getAttribute("target")).toBeNull();
       expect(await reference.getAttribute("rel")).toBeNull();
     }
-    expect(await reopenedFileLink.getAttribute("href")).toContain(
-      "/api/issues/REEF-001/attachments/file?",
-    );
+    const reopenedFileHref = await reopenedFileLink.getAttribute("href");
+    if (!reopenedFileHref)
+      throw new Error("Reopened Markdown fixture file link has no href");
+    expectMarkdownFileProxyUrl(reopenedFileHref, page.url());
 
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);

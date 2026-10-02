@@ -121,6 +121,10 @@ export {
   type UploadIssueAttachmentParams,
 } from "./issues/attachments";
 export {
+  downloadAkbResourceFile,
+  type DownloadAkbFileResult,
+} from "./core/files";
+export {
   copyFileToDocumentAsset,
   discardDocumentAsset,
   getDocumentAssetMetadata,

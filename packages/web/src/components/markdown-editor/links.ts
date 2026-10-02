@@ -122,14 +122,16 @@ export function openEditorLinkOnMouseUp(
 /**
  * Normalize a user-typed link target. Returns null for empty input so the
  * caller can leave the current selection untouched (no link applied). Bare
- * domains gain an https:// scheme; anchors, absolute paths, mailto, and
- * explicit http(s) URLs pass through unchanged.
+ * domains gain an https:// scheme; canonical AKB documents/files, anchors,
+ * absolute paths, mailto, and explicit http(s) URLs pass through unchanged.
  */
 export function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   if (/^akb:\/\//i.test(trimmed)) {
-    return parseAkbDocumentUri(trimmed) ? trimmed : null;
+    return isAkbFileUri(trimmed) || parseAkbDocumentUri(trimmed)
+      ? trimmed
+      : null;
   }
   if (/^(https?:\/\/|mailto:|\/|#)/i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;

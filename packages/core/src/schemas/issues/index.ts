@@ -28,9 +28,13 @@ export {
 
 export {
   AddIssueReferenceRequestSchema,
+  MarkdownResourceSearchResponseSchema,
+  MarkdownResourceSearchResultSchema,
   ResolveDocumentTitlesRequestSchema,
   type AkbDocumentReference,
   type DocumentSearchHit,
+  type MarkdownResourceSearchResponse,
+  type MarkdownResourceSearchResult,
 } from "./references";
 
 export {

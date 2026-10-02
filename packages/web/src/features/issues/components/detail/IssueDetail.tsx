@@ -16,7 +16,7 @@ import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import {
-  createIssueMarkdownTargetResolver,
+  createMarkdownTargetResolver,
   uploadIssueMarkdownFiles,
 } from "@/features/issues/lib/markdownEditor.actions";
 import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
@@ -178,13 +178,12 @@ function IssueDetailLoaded({
   const akbWebBase = useAkbWebUrl();
   const markdownAdapters = useMemo(
     () => ({
-      targetResolver: createIssueMarkdownTargetResolver({
-        issueId,
+      targetResolver: createMarkdownTargetResolver({
         vault,
         akbWebBase,
       }),
     }),
-    [akbWebBase, issueId, vault],
+    [akbWebBase, vault],
   );
   const resolveBodyImageSrc = useMemo(
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),

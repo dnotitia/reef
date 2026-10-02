@@ -1924,6 +1924,8 @@
   },
   "markdownEditor": {
     "attachFile": "첨부파일 삽입",
+    "linkSearchInputLabel": "볼트 자료 검색",
+    "linkSearchInputPlaceholder": "문서 또는 파일 찾기",
     "source": "소스",
     "toggleSourceMode": "소스 모드 전환",
     "uploading": "첨부파일 업로드 중…",

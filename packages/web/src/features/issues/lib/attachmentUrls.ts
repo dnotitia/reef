@@ -1,5 +1,7 @@
+import { AkbFileUriSchema } from "@reef/core";
+
 export function isAkbFileUri(url: string): boolean {
-  return /^akb:\/\/.+\/file\/[^/]+$/u.test(url);
+  return AkbFileUriSchema.safeParse(url).success;
 }
 
 const DOCUMENT_ASSET_TARGET_RE =
@@ -64,6 +66,20 @@ export function issueAttachmentFileHref({
     fileUri,
   )}`;
   return download ? `${href}&download=1` : href;
+}
+
+export function akbFileResourceHref({
+  vault,
+  fileUri,
+  download = false,
+}: {
+  vault: string;
+  fileUri: string;
+  download?: boolean;
+}): string {
+  const query = new URLSearchParams({ vault, uri: fileUri });
+  if (download) query.set("download", "1");
+  return `/api/files?${query.toString()}`;
 }
 
 export function resolveIssueAttachmentUrl({

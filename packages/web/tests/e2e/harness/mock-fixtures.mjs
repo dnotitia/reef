@@ -507,6 +507,19 @@ function markdownFixtureVault(name) {
         confirmed: true,
       },
     ],
+    [
+      "incident-log-unconfirmed",
+      {
+        id: "incident-log-unconfirmed",
+        uri: `akb://${name}/issues/file/incident-log-unconfirmed`,
+        filename: "incident-draft.log",
+        mimeType: "text/plain",
+        sizeBytes: 0,
+        body: null,
+        contentHash: "unconfirmed-fixture",
+        confirmed: false,
+      },
+    ],
   ]);
   vault.attachments = [
     {

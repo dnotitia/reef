@@ -18,7 +18,10 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setMarkdownLinkSearchControl,
   signInAsAlice,
+  waitForMarkdownLinkSearchIdle,
+  waitForMarkdownLinkSearchPending,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 import fixtureLogin from "../harness/fixture-login.json";
@@ -687,6 +690,17 @@ test.describe("Hermetic runtime discovery", () => {
             failures: "<count>",
           },
         },
+        markdown_link_search_control: {
+          method: "POST",
+          path: "/__e2e/markdown-link-search-control",
+          content_type: "application/json",
+          body: {
+            vault: "<vault>",
+            query: "<query>",
+            delay_ms: "<milliseconds>",
+            failure_status: "null|500|503",
+          },
+        },
         notification_control: {
           method: "POST",
           path: "/__e2e/notification-control",
@@ -706,6 +720,11 @@ test.describe("Hermetic runtime discovery", () => {
           path: "/__e2e/assets/reef-markdown-editor-image.png",
           file_name: "reef-markdown-editor-image.png",
           content_type: "image/png",
+        },
+        markdown_link_search: {
+          scenario: "markdown_fixture",
+          document_query: "Alpha",
+          file_query: "incident",
         },
       },
       tasks: {
@@ -867,9 +886,14 @@ test.describe("Hermetic runtime discovery", () => {
           start_path: expect.stringMatching(
             /^\/workspace\/reef-e2e\/issues\/[^/]+$/u,
           ),
+          controls: {
+            markdown_link_search_control: [
+              expect.stringContaining("real Reef search route"),
+            ],
+          },
           interaction: {
             type: "markdown_editor",
-            operation: expect.stringContaining("Source"),
+            operation: expect.stringContaining("incident.log"),
           },
         },
         empty_states: {
@@ -938,6 +962,88 @@ test.describe("Hermetic runtime discovery", () => {
     );
     expect(loginResponse.ok()).toBeTruthy();
     expect((await loginResponse.json()).user.username).toBe(username);
+
+    const markdownSearchInput = contract.fixture_inputs?.markdown_link_search;
+    expect(markdownSearchInput).toEqual({
+      scenario: "markdown_fixture",
+      document_query: "Alpha",
+      file_query: "incident",
+    });
+    await resetFixture(request, "markdown_fixture");
+    const markdownFixture = await readFixtureState(request);
+    const markdownVault = markdownFixture.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(markdownVault?.files).toEqual(
+      expect.arrayContaining([
+        {
+          uri: "akb://reef-e2e/issues/file/incident-log",
+          filename: "incident.log",
+          mime_type: "text/plain",
+          confirmed: true,
+        },
+        {
+          uri: "akb://reef-e2e/issues/file/incident-log-unconfirmed",
+          filename: "incident-draft.log",
+          mime_type: "text/plain",
+          confirmed: false,
+        },
+      ]),
+    );
+    const markdownLoginResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+      { data: { username, password } },
+    );
+    const markdownSession = await markdownLoginResponse.json();
+    const searchHeaders = {
+      authorization: `Bearer ${markdownSession.token}`,
+    };
+    const fixtureSearchUrl = (query: string) =>
+      `${E2E_MOCK_URL}/akb/api/v1/search?vault=reef-e2e&q=${encodeURIComponent(query)}&limit=10`;
+
+    await setMarkdownLinkSearchControl(request, {
+      query: "incident",
+      delayMs: 120,
+    });
+    const delayedSearch = request.get(fixtureSearchUrl("incident"), {
+      headers: searchHeaders,
+    });
+    await waitForMarkdownLinkSearchPending(request, "incident");
+    const delayedSearchResponse = await delayedSearch;
+    expect(delayedSearchResponse.status()).toBe(200);
+    await waitForMarkdownLinkSearchIdle(request, "incident");
+    const fileSearchResponse = await request.get(fixtureSearchUrl("incident"), {
+      headers: searchHeaders,
+    });
+    expect(fileSearchResponse.status()).toBe(200);
+    const fileSearch = await fileSearchResponse.json();
+    expect(
+      fileSearch.results.filter(
+        (hit: { source_type?: string }) => hit.source_type === "file",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        uri: "akb://reef-e2e/issues/file/incident-log",
+        title: "incident.log",
+        source_type: "file",
+      }),
+    ]);
+    expect(fileSearch.results).not.toContainEqual(
+      expect.objectContaining({
+        uri: "akb://reef-e2e/issues/file/incident-log-unconfirmed",
+      }),
+    );
+
+    await setMarkdownLinkSearchControl(request, {
+      query: "forced failure",
+      failureStatus: 503,
+    });
+    const forcedFailureResponse = await request.get(
+      fixtureSearchUrl("forced failure"),
+      { headers: searchHeaders },
+    );
+    expect(forcedFailureResponse.status()).toBe(503);
+    await setMarkdownLinkSearchControl(request, { query: "forced failure" });
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",

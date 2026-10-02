@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   attachmentFileTypeLabel,
+  akbFileResourceHref,
   isDocumentAssetTarget,
   isAkbFileUri,
   issueDocumentAssetHref,
@@ -44,6 +45,18 @@ describe("attachmentUrls (REEF-349)", () => {
       }),
     ).toBe(
       "/api/issues/REEF-001/attachments/file?vault=reef%20test&uri=akb%3A%2F%2Freef-test%2Fissues%2Ffile%2Ffile-1",
+    );
+  });
+
+  it("builds a vault-scoped AKB file resource URL", () => {
+    expect(
+      akbFileResourceHref({
+        vault: "reef test",
+        fileUri: "akb://reef-test/coll/incidents/file/file-1",
+        download: true,
+      }),
+    ).toBe(
+      "/api/files?vault=reef+test&uri=akb%3A%2F%2Freef-test%2Fcoll%2Fincidents%2Ffile%2Ffile-1&download=1",
     );
   });
 

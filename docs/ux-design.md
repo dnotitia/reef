@@ -416,6 +416,14 @@ therefore keep the same semantic roles without sharing a renderer or changing
 the stored plain Markdown. The issue body remains 14px/22px; comments remain
 the denser 13px/20px projection.
 
+The shared Markdown link popup searches documents and confirmed files that the
+current AKB Vault permits the user to read. Selecting a result fills the
+existing link fields with its title and canonical `akb://` URI; Apply stores
+that URI in Markdown. Search controls, loading and error states, cancellation,
+and selection restoration stay in the shared editor, while Reef supplies the
+authenticated current-Vault search adapter. The issue reference picker remains
+document-only.
+
 The contract is checked in Light, Dark, and both System outcomes at 1440×900
 and 1024×800. At the 720px CSS viewport (the 200% equivalent), the document
 must not widen: long URLs wrap, fenced code owns its horizontal scrollport,

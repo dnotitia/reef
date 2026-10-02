@@ -8,14 +8,15 @@ import { runRouteSpan } from "@/lib/api/routeTracing";
 import { logger } from "@/lib/logging/logger";
 import {
   type DocumentSearchHit,
+  MarkdownResourceSearchResponseSchema,
   akbSearchDocuments as searchDocuments,
 } from "@reef/core";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 25;
 // akb search ranks documents/tables/files together and exposes no source-type
-// filter, so over-fetch and keep the top `limit` documents AFTER filtering;
-// otherwise tables/files in the top slice could crowd out real documents.
+// filter, so over-fetch before selecting the requested document/file kinds.
+// Otherwise tables and other resources can crowd out link-picker results.
 const AKB_MAX_LIMIT = 100;
 const OVERFETCH_FACTOR = 4;
 
@@ -36,7 +37,10 @@ export async function GET(request: Request): Promise<Response> {
 
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get("q") ?? "").trim();
-  if (!query) return Response.json({ documents: [] });
+  const includeFiles = searchParams.get("include_files") === "true";
+  if (!query) {
+    return Response.json(includeFiles ? { results: [] } : { documents: [] });
+  }
 
   const limitRaw = Number.parseInt(searchParams.get("limit") ?? "", 10);
   const limit = Number.isFinite(limitRaw)
@@ -49,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
-    const documents = await runRouteSpan({
+    const searchResults = await runRouteSpan({
       name: "route.search_documents",
       attributes: { vault },
       run: async () => {
@@ -59,9 +63,37 @@ export async function GET(request: Request): Promise<Response> {
           query,
           limit: fetchLimit,
         });
-        // akb search is generalized over documents / tables / files; just a
-        // document can be linked as a reference, so drop non-document hits and
-        // keep the top `limit` (the mutation boundary also rejects non-doc URIs).
+        if (includeFiles) {
+          const results = hits
+            .flatMap((hit) => {
+              if (
+                (hit.source_type !== "document" &&
+                  hit.source_type !== "file") ||
+                !hit.uri.startsWith(`akb://${vault}/`)
+              ) {
+                return [];
+              }
+              const title = hit.title?.trim();
+              if (!title) return [];
+              return [
+                {
+                  uri: hit.uri,
+                  title,
+                  kind: hit.source_type,
+                  snippet:
+                    hit.source_type === "document"
+                      ? (hit.summary ?? hit.matched_section ?? undefined)
+                      : undefined,
+                },
+              ];
+            })
+            .slice(0, limit);
+          return MarkdownResourceSearchResponseSchema.parse({ results })
+            .results;
+        }
+
+        // The existing document-reference picker intentionally remains
+        // document-only. The shared link picker opts into files separately.
         return hits
           .filter((hit) => hit.source_type === "document")
           .slice(0, limit)
@@ -77,7 +109,9 @@ export async function GET(request: Request): Promise<Response> {
           );
       },
     });
-    return Response.json({ documents });
+    return includeFiles
+      ? Response.json({ results: searchResults })
+      : Response.json({ documents: searchResults });
   } catch (err) {
     logger.error({ err, vault }, "search_documents failed");
     return respondWithError(err, { resourceKind: "workspace" });

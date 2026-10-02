@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
+import { AkbFileUriSchema } from "../../../schemas/files";
 import type { AkbAdapter } from "./http";
+import { withSpan } from "./tracing";
 
 const AkbFileUploadInitResponseSchema = z.looseObject({
   uri: z.string().min(1),
@@ -173,6 +175,32 @@ export async function downloadAkbFile(
     filename: metadata.name,
     sizeBytes: metadata.size_bytes,
   };
+}
+
+/** Download a canonical AKB file URI after enforcing its vault boundary. */
+export async function downloadAkbResourceFile({
+  adapter,
+  vault,
+  fileUri,
+}: {
+  adapter: AkbAdapter;
+  vault: string;
+  fileUri: string;
+}): Promise<DownloadAkbFileResult> {
+  if (
+    !AkbFileUriSchema.safeParse(fileUri).success ||
+    !fileUri.startsWith(`akb://${vault}/`)
+  ) {
+    throw new SchemaValidationError({
+      issues: [
+        "file_uri must be a canonical AKB file URI in the current vault",
+      ],
+    });
+  }
+
+  return withSpan("akb.files.download_resource", { vault }, () =>
+    downloadAkbFile(adapter, vault, fileUri),
+  );
 }
 
 export async function deleteAkbFile(

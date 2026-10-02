@@ -1,4 +1,5 @@
 export * from "./issues";
+export * from "./files";
 export * from "./notifications";
 export * from "./workspace";
 export * from "./planning";
