@@ -353,9 +353,12 @@ function InstallationComparisonGroup({
           {t(`driftStatus.${status ?? "unknown"}`)}
         </span>
       </div>
-      <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2 sm:gap-y-2">
         {fields.map(({ labels, value }) => (
-          <div key={labels.join("|")} className="min-w-0">
+          <div
+            key={labels.join("|")}
+            className="min-w-0 sm:row-span-2 sm:grid sm:grid-rows-subgrid"
+          >
             <dt className="text-xs text-muted-foreground">
               {labels.join(" · ")}
             </dt>

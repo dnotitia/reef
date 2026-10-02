@@ -101,6 +101,21 @@ test.describe("installation drift and readiness guidance", () => {
     await expect(
       schema.getByText("Observed drift fingerprint", { exact: true }),
     ).toBeVisible();
+    for (const dimension of ["release", "schema"] as const) {
+      const values = details
+        .getByTestId(`installation-comparison-${dimension}`)
+        .locator("dd");
+      await expect(values).toHaveCount(2);
+      const [firstValueTop, secondValueTop] = await Promise.all([
+        values
+          .nth(0)
+          .evaluate((element) => element.getBoundingClientRect().top),
+        values
+          .nth(1)
+          .evaluate((element) => element.getBoundingClientRect().top),
+      ]);
+      expect(Math.abs(firstValueTop - secondValueTop)).toBeLessThan(1);
+    }
     for (const value of [
       E2E_REEF_OLD_SCHEMA_FINGERPRINT,
       E2E_REEF_SCHEMA_FINGERPRINT,
