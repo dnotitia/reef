@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const workspaces = vi.hoisted(() => ({
+  resolving: false,
   current: [] as Array<{
     name: string;
     role: string;
@@ -13,11 +14,17 @@ const workspaces = vi.hoisted(() => ({
 }));
 
 vi.mock("@/features/settings/hooks/useWorkspaceAccess", () => ({
-  useWorkspaceAccess: () => ({ role: "owner", isResolving: false }),
+  useWorkspaceAccess: () => ({
+    role: "owner",
+    isResolving: workspaces.resolving,
+  }),
 }));
 
 vi.mock("@/features/settings/hooks/useVaults", () => ({
-  useVaults: () => ({ data: workspaces.current }),
+  useVaults: () => ({
+    data: workspaces.current,
+    isPending: workspaces.resolving,
+  }),
 }));
 
 import { WorkspaceInstallationSection } from "./WorkspaceInstallationSection";
@@ -35,6 +42,7 @@ function wrap(ui: ReactNode) {
 
 describe("WorkspaceInstallationSection", () => {
   beforeEach(() => {
+    workspaces.resolving = false;
     workspaces.current = [
       { name: "reef-current", role: "owner", installation_status: "ready" },
       {
@@ -49,6 +57,16 @@ describe("WorkspaceInstallationSection", () => {
         installation_status: "ready",
       },
     ];
+  });
+
+  it("holds installation space while workspace access is resolving", () => {
+    workspaces.resolving = true;
+    render(wrap(<WorkspaceInstallationSection vault="reef-current" />));
+
+    expect(screen.getByTestId("workspace-installation-loading")).toBeVisible();
+    expect(
+      screen.queryByTestId("workspace-installation-reef-current"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps restore actions reachable for other accessible uninstalled workspaces", () => {

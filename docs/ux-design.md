@@ -1022,11 +1022,32 @@ description and monitored repositories, and create. Reef then asks the owner
 or admin to approve its registered AKB app release before initializing tables,
 templates, configuration, and managed instructions. Raw vaults do not count as
 configured workspaces and therefore do not bypass onboarding. An existing
-member can enter an active workspace after Reef initialization is complete;
-members see only whether Reef is ready, while owners and admins manage install,
-restore, and fresh-install actions. A blocked install requires an AKB operator
-to resolve its state. Uninstall revokes Reef's grant but keeps the vault data;
-full vault deletion remains a separate owner-only, typed-name confirmation.
+member can enter an active workspace after Reef initialization is complete.
+Installation guidance leads with the workspace's user-facing state. Readers
+and writers see whether the workspace is ready in everyday language; otherwise
+they are asked to contact a workspace owner or admin, without receiving
+installation reasons or technical actions. Owners and admins see the current
+state first, followed by its effect on use and the next step with its
+responsible person. An active installation with drift remains usable when the
+existing readiness checks pass, and its summary says people can continue while
+the AKB installation operator reviews the reported difference.
+
+The installation status card uses left-aligned body copy in onboarding,
+Settings, and the unavailable-workspace screen; only the access-denied page
+heading stays centered. Owners and admins can expand release, schema, and grant
+comparisons grouped by meaning. Each group carries its own dimension status;
+duplicate reason and unknown lists do not repeat that result. The last
+observation time is localized, missing values remain unknown, and matching
+schema drift and installation snapshot fingerprints appear once. Distinct
+canonical fingerprints stay separately labelled. A blocked workspace asks
+people to contact the installation operator; technical details give the
+operator's checks as a short ordered list and distinguish same-release resume
+from registering a new release after a Manifest or Transition Plan change.
+Checking status only refreshes information; it does not repair or resume setup.
+Expanded details can extend and scroll the page without covering the heading or
+cutting off the card. Unknown or unavailable states do not imply an unreported
+cause. Uninstall revokes Reef's grant but keeps the vault data; full vault
+deletion remains a separate owner-only, typed-name confirmation.
 Monitored repository access comes from deployment-managed GitHub
 credentials, so onboarding configures a *workspace*, not a Git repo, and no
 issue is committed under anyone's GitHub identity.

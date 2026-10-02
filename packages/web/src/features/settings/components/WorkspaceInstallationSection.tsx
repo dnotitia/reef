@@ -4,6 +4,7 @@ import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useTranslations } from "next-intl";
 import { WorkspaceInstallationActions } from "@/features/onboarding/components/WorkspaceInstallationActions";
+import { WorkspaceInstallationLoading } from "@/features/onboarding/components/WorkspaceInstallationLoading";
 
 export function WorkspaceInstallationSection({ vault }: { vault: string }) {
   const t = useTranslations("settings.routes");
@@ -11,11 +12,14 @@ export function WorkspaceInstallationSection({ vault }: { vault: string }) {
   const vaultsQuery = useVaults();
   const workspaces = vaultsQuery.data ?? [];
   const workspace = workspaces.find((entry) => entry.name === vault);
+  const canManage = role === "owner" || role === "admin";
   const otherInstallations = workspaces.filter(
     (entry) => entry.name !== vault && entry.installation_status !== "ready",
   );
 
-  if (!vault || isResolving || !workspace) return null;
+  if (!vault) return null;
+  if (isResolving) return <WorkspaceInstallationLoading />;
+  if (!workspace) return null;
 
   return (
     <section
@@ -29,9 +33,10 @@ export function WorkspaceInstallationSection({ vault }: { vault: string }) {
         {t("general.installation")}
       </h3>
       <WorkspaceInstallationActions
+        key={`${vault}:${canManage ? "manager" : "member"}`}
         vault={vault}
         initialStatus={workspace.installation_status}
-        canManage={role === "owner" || role === "admin"}
+        canManage={canManage}
       />
       {otherInstallations.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -40,7 +45,7 @@ export function WorkspaceInstallationSection({ vault }: { vault: string }) {
           </h4>
           {otherInstallations.map((entry) => (
             <WorkspaceInstallationActions
-              key={entry.name}
+              key={`${entry.name}:${entry.role === "owner" || entry.role === "admin" ? "manager" : "member"}`}
               vault={entry.name}
               initialStatus={entry.installation_status}
               canManage={entry.role === "owner" || entry.role === "admin"}

@@ -5,6 +5,7 @@ import {
   SchemaValidationError,
 } from "../../../errors";
 import {
+  ControlPlaneBlockedReasonEnum,
   ControlPlaneIdSchema,
   ControlPlaneInstallationSchema,
   type ControlPlaneInstallation,
@@ -72,16 +73,30 @@ const WireObservedSchema = z.looseObject({
   recent_error: z.unknown().nullable().optional(),
 });
 
-const WireDriftDimensionSchema = z.looseObject({
-  status: z.enum(["in_sync", "mismatch", "unknown"]),
-  expected: z.unknown().optional(),
-  actual: z.unknown().optional(),
+const WireDriftStatusSchema = z.enum(["in_sync", "mismatch", "unknown"]);
+
+const WireReleaseDriftSchema = z.looseObject({
+  status: WireDriftStatusSchema,
+  desired: WireReleaseReferenceSchema.nullable().optional(),
+  observed: WireReleaseReferenceSchema.nullable().optional(),
+});
+
+const WireSchemaDriftSchema = z.looseObject({
+  status: WireDriftStatusSchema,
+  expected: z.string().min(1).nullable().optional(),
+  observed: z.string().min(1).nullable().optional(),
+});
+
+const WireGrantDriftSchema = z.looseObject({
+  status: WireDriftStatusSchema,
+  desired_generation: z.number().int().nonnegative().nullable().optional(),
+  observed_generation: z.number().int().nonnegative().nullable().optional(),
 });
 
 const WireDriftSchema = z.looseObject({
-  release: WireDriftDimensionSchema,
-  schema: WireDriftDimensionSchema,
-  grant: WireDriftDimensionSchema,
+  release: WireReleaseDriftSchema,
+  schema: WireSchemaDriftSchema,
+  grant: WireGrantDriftSchema,
   overall: z.enum(["in_sync", "drifted", "unknown"]),
   reasons: z.array(z.string()),
   unknown_dimensions: z.array(z.string()),
@@ -98,7 +113,7 @@ const WireInstallationSchema = z.looseObject({
     "blocked",
     "uninstalled",
   ]),
-  blocked_reason: z.string().nullable().optional(),
+  blocked_reason: z.unknown().optional(),
   desired_release: WireReleaseReferenceSchema.nullable().optional(),
   current_release: WireReleaseReferenceSchema.nullable().optional(),
   observed: WireObservedSchema.nullable().optional(),
@@ -349,17 +364,61 @@ function mapObserved(
   };
 }
 
+const DRIFT_REASONS = new Set([
+  "release_mismatch",
+  "schema_mismatch",
+  "grant_mismatch",
+]);
+const UNKNOWN_DIMENSIONS = new Set(["release", "schema", "grant"]);
+
+function mapDriftReasons(
+  values: string[],
+): ("release_mismatch" | "schema_mismatch" | "grant_mismatch")[] {
+  return [...new Set(values.filter((value) => DRIFT_REASONS.has(value)))].slice(
+    0,
+    3,
+  ) as ("release_mismatch" | "schema_mismatch" | "grant_mismatch")[];
+}
+
+function mapUnknownDimensions(
+  values: string[],
+): ("release" | "schema" | "grant")[] {
+  return [
+    ...new Set(values.filter((value) => UNKNOWN_DIMENSIONS.has(value))),
+  ].slice(0, 3) as ("release" | "schema" | "grant")[];
+}
+
+function mapBlockedReason(
+  value: unknown,
+): ControlPlaneInstallation["blockedReason"] {
+  if (value === undefined || value === null) return value;
+  const parsed = ControlPlaneBlockedReasonEnum.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 function mapDrift(
   value: WireDrift | null | undefined,
 ): ControlPlaneInstallation["drift"] {
   if (value === null || value === undefined) return value;
   return {
-    release: { status: value.release.status },
-    schema: { status: value.schema.status },
-    grant: { status: value.grant.status },
+    release: {
+      status: value.release.status,
+      desired: mapReleaseReference(value.release.desired),
+      observed: mapReleaseReference(value.release.observed),
+    },
+    schema: {
+      status: value.schema.status,
+      expected: value.schema.expected,
+      observed: value.schema.observed,
+    },
+    grant: {
+      status: value.grant.status,
+      desiredGeneration: value.grant.desired_generation,
+      observedGeneration: value.grant.observed_generation,
+    },
     overall: value.overall,
-    reasons: value.reasons,
-    unknownDimensions: value.unknown_dimensions,
+    reasons: mapDriftReasons(value.reasons),
+    unknownDimensions: mapUnknownDimensions(value.unknown_dimensions),
   };
 }
 
@@ -369,7 +428,7 @@ function mapInstallation(value: WireInstallation): ControlPlaneInstallation {
     appId: value.app_id,
     vaultId: value.vault_id,
     lifecycle: value.lifecycle,
-    blockedReason: value.blocked_reason,
+    blockedReason: mapBlockedReason(value.blocked_reason),
     desiredRelease: mapReleaseReference(value.desired_release),
     currentRelease: mapReleaseReference(value.current_release),
     observed: mapObserved(value.observed),

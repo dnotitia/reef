@@ -38,6 +38,7 @@ import {
   endIssueListRequest,
   endIssueUpdateRequest,
   issueUpdateKey,
+  installationLookupMode,
   markdownLinkSearchKey,
   nextCommit,
   rememberSqlCall,
@@ -81,6 +82,30 @@ function installationWire(vault) {
           version: installation.currentReleaseVersion,
         }
       : null,
+    blocked_reason: installation.blockedReason ?? null,
+    desired_release: installation.desiredReleaseId
+      ? {
+          id: installation.desiredReleaseId,
+          version: installation.desiredReleaseVersion,
+        }
+      : undefined,
+    desired_grant_generation: installation.desiredGrantGeneration,
+    latest_grant: installation.latestGrant,
+    active_grant: installation.activeGrant,
+    observed: installation.observed
+      ? {
+          generation: installation.observed.generation,
+          observed_at: installation.observed.observedAt,
+          release: {
+            id: installation.observed.releaseId,
+            version: installation.observed.releaseVersion,
+          },
+          schema_fingerprint: installation.observed.schemaFingerprint,
+          grant_generation: installation.observed.grantGeneration,
+        }
+      : null,
+    drift: installation.drift,
+    drift_classification: installation.driftClassification,
   };
 }
 
@@ -211,6 +236,24 @@ export async function handleAkb(req, res, url, state) {
       if (!["owner", "admin", "writer", "reader"].includes(memberRole)) {
         return json(res, 403, { error: "vault membership required" });
       }
+      if (state.scenario === "installation_drift") {
+        const lookupMode = installationLookupMode(
+          state,
+          vault.name,
+          "member_lookup",
+        );
+        if (lookupMode === "forbidden") {
+          return json(res, 403, { error: "installation availability denied" });
+        }
+        if (lookupMode === "unavailable") {
+          return json(res, 503, {
+            error: "installation availability unavailable",
+          });
+        }
+        if (lookupMode === "invalid") {
+          return json(res, 200, { active: "unknown" });
+        }
+      }
       const active =
         appId === E2E_REEF_APP_ID &&
         vault.installation?.appId === appId &&
@@ -231,6 +274,25 @@ export async function handleAkb(req, res, url, state) {
       roleForVault(vault, state, username) !== "admin"
     ) {
       return json(res, 403, { error: "installation management required" });
+    }
+    if (state.scenario === "installation_drift") {
+      const lookupMode = installationLookupMode(
+        state,
+        vault.name,
+        "detail_lookup",
+      );
+      if (lookupMode === "forbidden") {
+        return json(res, 403, { error: "installation detail denied" });
+      }
+      if (lookupMode === "unavailable") {
+        return json(res, 503, { error: "installation detail unavailable" });
+      }
+      if (lookupMode === "invalid") {
+        return json(res, 200, {
+          ...installationWire(vault),
+          lifecycle: "pending",
+        });
+      }
     }
     if (installationMatch[3] || req.method === "GET") {
       if (req.method !== "GET")

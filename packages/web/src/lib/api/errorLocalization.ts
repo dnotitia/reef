@@ -7,9 +7,9 @@
  * a PM-facing Response in the right language (AC1+AC2), falling back to en for
  * any key a locale omits (AC3, via the catalog merge in `i18n/messages.ts`).
  *
- * The response body shape is unchanged (`{ error, details? }`), so the client
- * `throwHttpError` → toast/dialog path is untouched; the `error` value is
- * localized. Locale is read from the request-scoped cookie + `Accept-Language`
+ * The client `throwHttpError` → toast/dialog path still receives a localized
+ * `error`; readiness errors additionally carry their stable `code`. Locale is
+ * read from the request-scoped cookie + `Accept-Language`
  * through `next/headers`, so callers avoid threading `request` — and outside a
  * request scope (a unit test calling a handler directly) detection falls back to
  * en, keeping existing English-asserting route tests green.
@@ -69,11 +69,24 @@ function errorsTranslator(locale: Locale): ErrorTranslator {
  * HTTP status, ICU params, and any caller-controlled `details`.
  */
 export async function localizeError(err: unknown): Promise<Response> {
-  const { code, status, params, details } = describeError(err);
+  const { code, status, params, details, machineCode, blockedReason } =
+    describeError(err);
   const locale = await detectServerLocale();
-  const body: { error: string; details?: string[] } = {
-    error: errorsTranslator(locale)(code, params),
+  const t = errorsTranslator(locale);
+  const localizedParams = {
+    ...params,
+    ...(code === "workspaceReadiness.installationBlocked"
+      ? {
+          reason: t(
+            `workspaceReadiness.blockedReasons.${blockedReason ?? "unknown"}`,
+          ),
+        }
+      : {}),
   };
+  const body: { error: string; code?: string; details?: string[] } = {
+    error: t(code, localizedParams),
+  };
+  if (machineCode) body.code = machineCode;
   if (details) body.details = details;
   return Response.json(body, { status });
 }

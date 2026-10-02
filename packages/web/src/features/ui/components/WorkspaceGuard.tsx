@@ -130,6 +130,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         vault={vault}
         vaults={vaultsQuery.data}
         installationStatus={requestedVault?.installation_status}
+        role={requestedVault?.role}
       />
     );
   }

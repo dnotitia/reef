@@ -18,6 +18,12 @@ describe("Settings loading surfaces", () => {
       screen.getByRole("heading", { name: "General", level: 2 }),
     ).toBeInTheDocument();
     expect(screen.getByText("Members")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("workspace-installation-loading"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("installation-details-loading"),
+    ).toBeInTheDocument();
     for (const label of [
       "Monitored Repositories",
       "Project",

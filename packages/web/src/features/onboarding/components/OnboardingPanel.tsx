@@ -72,14 +72,18 @@ export function OnboardingPanel({
           <div className="flex flex-col gap-3">
             {(vaultsQuery.data ?? [])
               .filter((vault) => vault.installation_status !== "ready")
-              .map((vault) => (
-                <WorkspaceInstallationActions
-                  key={vault.name}
-                  vault={vault.name}
-                  initialStatus={vault.installation_status}
-                  canManage={vault.role === "owner" || vault.role === "admin"}
-                />
-              ))}
+              .map((vault) => {
+                const canManage =
+                  vault.role === "owner" || vault.role === "admin";
+                return (
+                  <WorkspaceInstallationActions
+                    key={`${vault.name}:${canManage ? "manager" : "member"}`}
+                    vault={vault.name}
+                    initialStatus={vault.installation_status}
+                    canManage={canManage}
+                  />
+                );
+              })}
           </div>
         </section>
       )}

@@ -2,6 +2,7 @@
 
 import { ReefMark } from "@/components/ui/reef-mark";
 import { AccountMenu } from "@/features/auth/components/AccountMenu";
+import { WorkspaceInstallationActions } from "@/features/onboarding/components/WorkspaceInstallationActions";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import type {
@@ -19,6 +20,7 @@ interface WorkspaceAccessDeniedProps {
   /** The vaults the user CAN access, from `useVaults()`. */
   vaults: EnrichedVaultSummary[];
   installationStatus?: WorkspaceInstallationStatus;
+  role?: string | null;
 }
 
 /**
@@ -35,18 +37,33 @@ export function WorkspaceAccessDenied({
   vault,
   vaults,
   installationStatus,
+  role,
 }: WorkspaceAccessDeniedProps) {
   const t = useTranslations("workspace.accessDenied");
   const reefVaults = vaults.filter((v) => v.installation_status === "ready");
-  const hasInstallationState = installationStatus !== undefined;
-  const title = hasInstallationState ? t("installationTitle") : t("title");
-  const body = hasInstallationState
-    ? t(`installation.${installationStatus}`)
-    : t("body", { vault });
+  const canManage = role === "owner" || role === "admin";
+  const canReadWorkspaceStatus =
+    canManage || role === "writer" || role === "reader";
+  const visibleInstallationStatus = canManage
+    ? installationStatus
+    : canReadWorkspaceStatus
+      ? installationStatus === "ready"
+        ? "ready"
+        : "management_required"
+      : installationStatus;
+  const hasInstallationState = visibleInstallationStatus !== undefined;
+  const showInstallationState = canReadWorkspaceStatus && hasInstallationState;
+  const title = showInstallationState ? t("installationTitle") : t("title");
+  const body = showInstallationState ? null : t("body", { vault });
+  const safeInitialStatus = canManage
+    ? (visibleInstallationStatus ?? "unknown")
+    : visibleInstallationStatus === "ready"
+      ? "ready"
+      : "management_required";
 
   return (
     <div
-      className="relative flex h-screen flex-col items-center justify-center bg-surface-page px-6"
+      className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-6 py-16"
       data-testid="workspace-access-denied"
     >
       <div
@@ -55,14 +72,23 @@ export function WorkspaceAccessDenied({
       >
         <AccountMenu appVersion={appVersion} placement="utility" />
       </div>
-      <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
+      <div className="flex w-full max-w-md flex-col items-center gap-6">
         <ReefMark className="size-10" decorative />
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-display text-lg font-semibold text-foreground">
             {title}
           </h1>
-          <p className="text-sm text-muted-foreground">{body}</p>
+          {body && <p className="text-sm text-muted-foreground">{body}</p>}
         </div>
+
+        {canReadWorkspaceStatus && (
+          <WorkspaceInstallationActions
+            key={`${vault}:${canManage ? "manager" : "member"}`}
+            vault={vault}
+            initialStatus={safeInitialStatus}
+            canManage={canManage}
+          />
+        )}
 
         {reefVaults.length > 0 ? (
           <nav
@@ -86,7 +112,7 @@ export function WorkspaceAccessDenied({
             ))}
           </nav>
         ) : (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-muted-foreground">{t("empty")}</p>
             <Link
               href="/onboarding"

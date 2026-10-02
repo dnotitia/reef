@@ -10,6 +10,7 @@ import {
   NotFoundError,
   ReefError,
   SchemaValidationError,
+  WorkspaceReadinessError,
   describeError,
 } from ".";
 
@@ -316,6 +317,21 @@ describe("describeError", () => {
     expect(describeError(new ConflictError())).toEqual({
       code: "conflict",
       status: 409,
+    });
+  });
+
+  it("keeps canonical installation status machine codes separate from error copy", () => {
+    expect(
+      describeError(
+        new WorkspaceReadinessError({
+          reason: "upgrade_in_progress",
+          status: 409,
+        }),
+      ),
+    ).toEqual({
+      code: "workspaceReadiness.upgradeInProgress",
+      status: 409,
+      machineCode: "upgrade_required",
     });
   });
 

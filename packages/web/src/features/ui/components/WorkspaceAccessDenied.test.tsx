@@ -15,14 +15,26 @@ vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
 }));
 import { WorkspaceAccessDenied } from "./WorkspaceAccessDenied";
 
-function vault(name: string, ready: boolean): EnrichedVaultSummary {
+function vault(
+  name: string,
+  ready: boolean,
+  role?: string,
+): EnrichedVaultSummary {
   return {
     name,
     installation_status: ready ? "ready" : "not_installed",
+    role,
   } as EnrichedVaultSummary;
 }
 
-function renderDenied(vaults: EnrichedVaultSummary[], denied = "reef-other") {
+function renderDenied(
+  vaults: EnrichedVaultSummary[],
+  denied = "reef-other",
+  options: {
+    role?: string;
+    installationStatus?: EnrichedVaultSummary["installation_status"];
+  } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -33,6 +45,8 @@ function renderDenied(vaults: EnrichedVaultSummary[], denied = "reef-other") {
           appVersion="0.10.0"
           vault={denied}
           vaults={vaults}
+          role={options.role}
+          installationStatus={options.installationStatus}
         />
       </IntlTestProvider>
     </QueryClientProvider>,
@@ -72,6 +86,44 @@ describe("WorkspaceAccessDenied (REEF-315 AC5)", () => {
 
     expect(
       screen.getByRole("button", { name: "Account menu" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a reader's blocked Vault guidance minimal and exposes a status recheck", () => {
+    renderDenied([vault("reef-acme", true)], "reef-blocked", {
+      role: "reader",
+      installationStatus: "blocked",
+    });
+
+    expect(
+      screen.getByTestId("workspace-installation-reef-blocked"),
+    ).toHaveAttribute("data-status", "management_required");
+    expect(
+      screen.getByRole("heading", { name: "Workspace availability" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/ask a workspace owner or admin/i)).toHaveLength(
+      1,
+    );
+    expect(
+      screen.getByRole("button", { name: "Check status" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/AKB has blocked/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the access heading centered while the installation card has its own left alignment", () => {
+    renderDenied([vault("reef-acme", true)], "reef-blocked", {
+      role: "owner",
+      installationStatus: "blocked",
+    });
+
+    const surface = screen.getByTestId("workspace-access-denied");
+    expect(surface).toHaveClass("min-h-screen", "py-16");
+    expect(surface).not.toHaveClass("h-screen");
+    expect(
+      screen.getByTestId("workspace-installation-reef-blocked"),
+    ).toHaveClass("text-left");
+    expect(
+      screen.getByRole("heading", { name: "Workspace availability" }),
     ).toBeInTheDocument();
   });
 });

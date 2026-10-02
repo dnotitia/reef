@@ -33,6 +33,13 @@ explicitly in the entries below.
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
   AKB data, while full vault deletion remains separate. (REEF-418)
+- **Workspace readiness guidance leads with the next step for each role.**
+  Owners and admins first see whether people can work and who should act next;
+  bounded release, schema, grant, and recovery details stay collapsed. Readers
+  and writers see plain-language readiness and are directed to an owner or
+  admin when setup is incomplete. Active drift alone still leaves a ready
+  workspace usable, and checking status does not repair or resume setup.
+  (REEF-422)
 
 ### Fixed
 

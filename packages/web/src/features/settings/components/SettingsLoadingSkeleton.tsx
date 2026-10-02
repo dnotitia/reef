@@ -3,6 +3,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { WorkspaceInstallationLoading } from "@/features/onboarding/components/WorkspaceInstallationLoading";
 import { SettingsGroup } from "./SettingsGroup";
 
 function LoadingSection({
@@ -98,6 +99,7 @@ export function WorkspaceSettingsLoading() {
         description={routes("general.description")}
         testId="settings-workspace-loading-group"
       >
+        <WorkspaceInstallationLoading />
         <LoadingSection title={general("monitoredRepositories")}>
           <Skeleton aria-hidden="true" className="h-10 w-full" />
         </LoadingSection>
