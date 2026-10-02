@@ -10,6 +10,7 @@ import {
   ReleaseImageDigestSchema,
   ReleaseManifestTableSchema,
   type AppReleaseManifest,
+  type ReleaseAddIndexPayload,
   type FinalizedReleasePayload,
   type ReleaseBlueprint,
   type ReleaseCreateTablePayload,
@@ -30,7 +31,30 @@ const REEF_BASELINE_RELEASE_VERSION = "0.14.0";
 const REEF_BASELINE_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
 
-/** Explicit source releases that may use the schema no-op transition. */
+/** Indexes absent from Reef schema v3 and added by the v4 transition. */
+const REEF_SCHEMA_V3_ADDED_INDEXES: readonly ReleaseAddIndexPayload[] = [
+  {
+    table: "reef_activity",
+    columns: [
+      { name: "reef_id", order: "asc" },
+      { name: "event_key", order: "asc" },
+    ],
+  },
+  {
+    table: "reef_attachments",
+    columns: [{ name: "reef_id", order: "asc" }],
+  },
+  {
+    table: "reef_comments",
+    columns: [{ name: "reef_id", order: "asc" }],
+  },
+  ...["document_uri", "parent_id", "reef_id", "status"].map((name) => ({
+    table: "reef_issues",
+    columns: [{ name, order: "asc" as const }],
+  })),
+];
+
+/** Exact v3 schema sources supported by the v4 add_index transition. */
 export const REEF_SUPPORTED_TRANSITION_SOURCES: readonly ReleaseTransitionSource[] =
   Object.freeze([
     Object.freeze({
@@ -220,6 +244,66 @@ async function createTableStep(
   };
 }
 
+async function addIndexStep(
+  payload: ReleaseAddIndexPayload,
+): Promise<ReleaseManifestStep> {
+  const stepWithoutDigest = {
+    id: `add_index_${payload.table}_${payload.columns
+      .map((column) => column.name)
+      .join("_")}`,
+    phase: "expand" as const,
+    operation: "add_index" as const,
+    payload,
+  };
+  return {
+    ...stepWithoutDigest,
+    checksum: await sha256Hex(canonicalJson(stepWithoutDigest)),
+  };
+}
+
+async function validateSchemaV3Transition(
+  schema: ReleaseDesiredSchemaProjection,
+): Promise<void> {
+  const indexesByTable = new Map<string, Set<string>>();
+  for (const transitionIndex of REEF_SCHEMA_V3_ADDED_INDEXES) {
+    const targetTable = schema.tables.find(
+      (table) => table.name === transitionIndex.table,
+    );
+    const indexKey = canonicalJson(transitionIndex.columns);
+    const matches =
+      targetTable?.indexes.filter(
+        (index) => canonicalJson(index.columns) === indexKey,
+      ) ?? [];
+    if (matches.length !== 1) {
+      throw releaseValidationError(
+        `Schema v3 transition index does not match the ${transitionIndex.table} desired schema`,
+      );
+    }
+    const tableIndexes = indexesByTable.get(transitionIndex.table) ?? new Set();
+    tableIndexes.add(indexKey);
+    indexesByTable.set(transitionIndex.table, tableIndexes);
+  }
+
+  const sourceTables = schema.tables.map((table) => ({
+    ...table,
+    indexes: table.indexes.filter(
+      (index) =>
+        !indexesByTable.get(table.name)?.has(canonicalJson(index.columns)),
+    ),
+  }));
+  const sourceFingerprint = await tableSchemaFingerprint(sourceTables);
+  if (
+    sourceFingerprint !== REEF_BASELINE_SCHEMA_FINGERPRINT ||
+    REEF_SUPPORTED_TRANSITION_SOURCES.some(
+      (source) => source.schema_fingerprint !== sourceFingerprint,
+    )
+  ) {
+    throw releaseValidationError(
+      "Supported schema v3 sources do not converge through the declared add_index transition",
+    );
+  }
+}
+
 function releaseBoundBlueprint(blueprint: ReleaseBlueprint): JsonObject {
   return {
     app_key: blueprint.app_definition.app_key,
@@ -252,33 +336,32 @@ async function parseCurrentBlueprint(
   return blueprint;
 }
 
-/** Build the source-committed current Reef v3 release blueprint. */
+/** Build the current Reef v4 Release Blueprint from the canonical Core declaration. */
 export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
   const schema = await buildDesiredSchemaProjection();
+  await validateSchemaV3Transition(schema);
   const steps = await Promise.all(schema.tables.map(createTableStep));
-  for (const source of REEF_SUPPORTED_TRANSITION_SOURCES) {
-    if (source.schema_fingerprint !== schema.fingerprint) {
-      throw releaseValidationError(
-        `Supported transition source ${source.release_version} does not match the desired schema fingerprint`,
-      );
-    }
-  }
+  const upgradePlans = await Promise.all(
+    [...REEF_SUPPORTED_TRANSITION_SOURCES]
+      .sort((left, right) =>
+        canonicalJson(left) < canonicalJson(right)
+          ? -1
+          : canonicalJson(left) > canonicalJson(right)
+            ? 1
+            : 0,
+      )
+      .map(async (source) => ({
+        source,
+        steps: await Promise.all(
+          REEF_SCHEMA_V3_ADDED_INDEXES.map(addIndexStep),
+        ),
+      })),
+  );
   return ReleaseBlueprintSchema.parse({
     app_definition: { ...REEF_APP_DEFINITION },
     schema_version: REEF_SCHEMA_VERSION,
     schema,
-    transition_plans: [
-      { source: "fresh", steps },
-      ...[...REEF_SUPPORTED_TRANSITION_SOURCES]
-        .sort((left, right) =>
-          canonicalJson(left) < canonicalJson(right)
-            ? -1
-            : canonicalJson(left) > canonicalJson(right)
-              ? 1
-              : 0,
-        )
-        .map((source) => ({ source, steps: [] })),
-    ],
+    transition_plans: [{ source: "fresh", steps }, ...upgradePlans],
   });
 }
 
