@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   invalidJsonBodyResponse,
@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { vault, create, prefix, references } = parsed.data;
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
   const actorResult = await getAkbCurrentActor(request);
@@ -136,7 +136,7 @@ export async function GET(request: Request): Promise<Response> {
     query = parsed.data;
   }
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

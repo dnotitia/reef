@@ -1,3 +1,27 @@
+/* Reef owns the visible editor divider and maps the shared toolbar to its icon palette. */
+.reef-markdown-toolbar {
+  border-bottom-color: transparent;
+}
+
+.reef-markdown-toolbar button[data-markdown-toolbar-button] {
+  color: var(--muted-foreground);
+}
+
+.reef-markdown-toolbar
+  button[data-markdown-toolbar-button]:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.reef-markdown-toolbar
+  button[data-markdown-toolbar-button][aria-pressed="true"] {
+  background: var(--surface-hover);
+  color: var(--brand-text);
+}
+
+[data-markdown-link-popup] [role="listbox"] {
+  background-color: var(--surface-elevated);
+}
+
 /*
  * Keep the issue body compact without changing the global `prose-sm` rhythm.
  * These selectors intentionally address direct children: paragraphs and
@@ -34,7 +58,7 @@
 /* Images are block evidence in an issue body. Keep their intrinsic size until
  * the editor width or the 32rem height ceiling requires containment; the
  * semantic surface makes transparent screenshots legible in both themes. */
-.reef-markdown-editor > img {
+.reef-markdown-editor img {
   display: block;
   box-sizing: border-box;
   width: auto;
@@ -123,10 +147,10 @@
   color: color-mix(in srgb, var(--foreground) 78%, var(--brand-text));
 }
 
-/* The slash navigator is portaled by Tiptap's suggestion utility, so its
- * class is self-scoped rather than nested under the editor root. Width is
- * nominally 360px and clamps to the available viewport/editor inset. */
-.reef-slash-command-popup {
+/* The slash and reference menus are portaled by Tiptap's suggestion utility,
+ * so their classes are self-scoped rather than nested under the editor root.
+ * Width is nominally 360px and clamps to the available viewport/editor inset. */
+:is(.markdown-slash-command-popup, .markdown-reference-popup) {
   z-index: 60;
   width: 360px;
   max-width: calc(100vw - 16px);
@@ -134,7 +158,7 @@
   pointer-events: auto;
 }
 
-.reef-slash-command-menu {
+:is(.markdown-slash-command-menu, .markdown-reference-menu) {
   box-sizing: border-box;
   width: 100%;
   max-height: min(420px, calc(100vh - 16px));
@@ -148,8 +172,8 @@
   line-height: var(--type-control-line-height);
 }
 
-.reef-slash-command-header,
-.reef-slash-command-footer {
+:is(.markdown-slash-command-menu, .markdown-reference-menu) > div:first-child,
+:is(.markdown-slash-command-menu, .markdown-reference-menu) > div:last-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -157,25 +181,30 @@
   padding: 8px 10px;
 }
 
-.reef-slash-command-header {
+:is(.markdown-slash-command-menu, .markdown-reference-menu) > div:first-child {
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.reef-slash-command-escape,
-.reef-slash-command-footer {
+:is(.markdown-slash-command-menu, .markdown-reference-menu) > div:last-child {
   color: var(--muted-foreground);
   font-size: var(--type-card-metadata-size);
   line-height: var(--type-card-metadata-line-height);
+  justify-content: flex-start;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+  white-space: nowrap;
 }
 
-.reef-slash-command-escape {
+:is(.markdown-slash-command-menu, .markdown-reference-menu)
+  > div:first-child
+  kbd {
   border: 1px solid var(--border-subtle);
   border-radius: 0.25rem;
   padding: 1px 4px;
   font-family: var(--font-mono-stack);
 }
 
-.reef-slash-command-options {
+:is(.markdown-slash-command-options, .markdown-reference-options) {
   max-height: 320px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -183,13 +212,17 @@
   scrollbar-gutter: stable;
 }
 
-.reef-slash-command-section + .reef-slash-command-section {
+:is(.markdown-slash-command-options, .markdown-reference-options)
+  > section[aria-label]
+  + section[aria-label] {
   margin-top: 4px;
   border-top: 1px solid var(--border-subtle);
   padding-top: 4px;
 }
 
-.reef-slash-command-section-label {
+:is(.markdown-slash-command-options, .markdown-reference-options)
+  > section[aria-label]
+  > div:first-child {
   padding: 4px 8px 3px;
   color: var(--muted-foreground);
   font-size: var(--type-card-metadata-size);
@@ -199,7 +232,7 @@
   text-transform: uppercase;
 }
 
-.reef-slash-command-option {
+:is(.markdown-slash-command-option, .markdown-reference-option) {
   display: flex;
   width: 100%;
   align-items: flex-start;
@@ -211,7 +244,10 @@
   color: var(--foreground);
 }
 
-.reef-slash-command-option-selected {
+:is(
+  .markdown-slash-command-option-selected,
+  .markdown-reference-option-selected
+) {
   border-color: color-mix(
     in srgb,
     var(--brand-focus) 35%,
@@ -220,41 +256,50 @@
   background: color-mix(in srgb, var(--brand-fill) 10%, var(--surface-hover));
 }
 
-.reef-slash-command-option-selected {
+:is(
+  .markdown-slash-command-option-selected,
+  .markdown-reference-option-selected
+) {
   outline: 2px solid color-mix(in srgb, var(--brand-focus) 48%, transparent);
   outline-offset: -1px;
 }
 
-.reef-slash-command-label,
-.reef-slash-command-description {
+:is(.markdown-slash-command-option, .markdown-reference-option)
+  > span:last-child {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+
+:is(.markdown-slash-command-option, .markdown-reference-option)
+  > span:last-child
+  > span:first-child {
   display: block;
   overflow: hidden;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.reef-slash-command-label {
-  font-weight: 500;
-}
-
-.reef-slash-command-description {
+:is(.markdown-slash-command-option, .markdown-reference-option)
+  > span:last-child
+  > span:nth-child(2) {
+  display: block;
+  overflow: hidden;
   margin-top: 1px;
   color: var(--muted-foreground);
   font-size: var(--type-card-metadata-size);
   line-height: var(--type-card-metadata-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.reef-slash-command-empty {
+:is(.markdown-slash-command-options, .markdown-reference-options)
+  [role="status"],
+.markdown-reference-options [role="alert"] {
   padding: 18px 10px;
   color: var(--muted-foreground);
   text-align: center;
-}
-
-.reef-slash-command-footer {
-  justify-content: flex-start;
-  gap: 12px;
-  border-top: 1px solid var(--border-subtle);
-  white-space: nowrap;
 }
 
 /* Tiptap's ProseMirror base stylesheet opts pre into wrapping. The editor
@@ -372,15 +417,25 @@
 }
 
 .reef-markdown-editor a:hover,
+.reef-markdown-editor a:focus,
 .reef-markdown-editor a:focus-visible {
   text-decoration-color: var(--brand-text);
   text-decoration-thickness: 2px;
 }
 
-/* Issue, document, and file references share one compact surface while their
- * neutral data markers keep ordinary Markdown links on the branded underline
- * hierarchy above. The editor owns this surface. */
-.reef-markdown-editor [data-reference-kind] {
+.reef-markdown-editor a:focus {
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+}
+
+/* Style the shared editor's public reference markers without adding runtime
+ * attributes to its ProseMirror-owned nodes. Ordinary Markdown links keep the
+ * branded underline hierarchy above. */
+.reef-markdown-editor
+[data-markdown-reference="true"][data-markdown-reference-kind="issue"],
+.reef-markdown-editor a[href^="/workspace/"][target="_blank"][rel="noreferrer"],
+.reef-markdown-editor a[data-markdown-target*="/doc/"],
+.reef-markdown-editor a[data-markdown-target*="/file/"] {
   display: inline-flex;
   align-items: baseline;
   gap: 0.375rem;
@@ -398,34 +453,30 @@
   text-decoration: none;
 }
 
-.reef-markdown-editor [data-reference-glyph],
-.reef-markdown-editor [data-reference-id] {
+.reef-markdown-editor [data-markdown-reference-token] {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
   line-height: 1;
 }
 
-.reef-markdown-editor [data-reference-glyph] {
-  align-self: center;
-  font-size: 0.75em;
-}
-
-.reef-markdown-editor [data-reference-kind="issue"] > [data-reference-id] {
+.reef-markdown-editor
+  [data-markdown-reference-kind="issue"]
+  > [data-markdown-reference-token] {
   font-family: var(--font-mono-stack);
   font-size: 0.8125em;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.reef-markdown-editor [data-reference-title] {
+.reef-markdown-editor [data-markdown-reference-label] {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.reef-markdown-editor a[data-reference-kind="document"]::before {
+.reef-markdown-editor a[data-markdown-target*="/doc/"]::before {
   content: "▤";
   align-self: center;
   flex: 0 0 auto;
@@ -434,45 +485,12 @@
   line-height: 1;
 }
 
-/* Explicit AKB file links are compact inline actions, distinct from ordinary
- * Markdown URLs. The filename remains the accessible anchor text; the small
- * type badge and file glyph are visual affordances. */
-.reef-markdown-editor a[data-reef-file-link="true"] {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.375rem;
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-  padding: 0.125rem 0.375rem;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
-  vertical-align: baseline;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.25rem;
-  text-decoration: none;
-}
-
-.reef-markdown-editor a[data-reef-file-link="true"]::before {
+.reef-markdown-editor a[data-markdown-target*="/file/"]::before {
   content: "▱";
   align-self: center;
   flex: 0 0 auto;
   color: var(--muted-foreground);
   font-size: 0.75em;
-  line-height: 1;
-}
-
-.reef-markdown-editor
-  a[data-reef-file-link="true"]
-  > [data-reef-file-type]::after {
-  content: attr(data-reef-file-type);
-  flex: 0 0 auto;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono-stack);
-  font-size: var(--type-card-metadata-size);
-  font-weight: 600;
   line-height: 1;
 }
 
@@ -577,10 +595,10 @@
   font-weight: 500;
 }
 
-/* Issue-body mentions use the same sanitized marker as comment mentions. The
- * node is intentionally visual; the roster-backed suggestion menu owns
- * selection and keyboard focus while the editor retains the caret. */
-.reef-markdown-editor [data-reef-mention] {
+/* The shared editor marks roster-resolved people with its reference kind and
+ * status. The suggestion menu owns selection and keyboard focus. */
+.reef-markdown-editor
+[data-markdown-reference="true"][data-markdown-reference-kind="person"][data-markdown-reference-resolution="available"] {
   color: var(--brand-text);
   font-weight: 500;
   text-decoration-line: none;

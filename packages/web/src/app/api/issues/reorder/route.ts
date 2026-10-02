@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   invalidJsonBodyResponse,
@@ -29,7 +29,7 @@ export async function POST(request: Request): Promise<Response> {
   const { vault, scope, issue_id, before_id, after_id, expected, group } =
     parsed.data;
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
   // Resolve the actor server-side so the reorder's `updated_at` bump carries a

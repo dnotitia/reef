@@ -238,9 +238,8 @@ export async function writeIssue(
         content,
       ),
     };
-    // Assumes `reef_issues` exists (provisioned by `ensureReefTables` at vault
-    // creation / config write), mirroring `writeConfig`. A missing table
-    // surfaces loudly from the INSERT rather than being silently auto-healed.
+    // Workspace readiness checks required Reef tables before application
+    // operations reach this adapter. A missing table still surfaces from SQL.
     const body = buildPutRequestBody(vault, issue, content);
     let claimBeforeIssue: IssueMetadata | null = null;
     let claimDisposition: "created" | "existing" | null = null;

@@ -23,6 +23,7 @@ import {
   createState,
   attachmentReadKey,
   issueUpdateKey,
+  markdownLinkSearchKey,
   normalizeScenario,
   publicState,
   releaseAllAuthProbeHolds,
@@ -298,15 +299,43 @@ const server = createServer(async (req, res) => {
         0,
         Math.min(Number(body?.delay_ms ?? 0), 2_000),
       );
-      const vault = state.vaults.get(REEF_VAULT);
-      if (vault) {
-        if (mode === "missing-comments") vault.tables.delete("reef_comments");
-        else vault.tables.add("reef_comments");
-      }
       return json(res, 200, {
         ok: true,
         mode,
         delay_ms: state.contentSearchDelayMs,
+      });
+    }
+    if (
+      url.pathname === "/__e2e/markdown-link-search-control" &&
+      req.method === "POST"
+    ) {
+      if (state.scenario !== "markdown_fixture") {
+        return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      const body = await readJson(req);
+      const vault = String(body?.vault ?? REEF_VAULT);
+      if (!getVault(vault, res, state)) return;
+      const query = String(body?.query ?? "").trim();
+      if (!query || query.length > 120) {
+        return json(res, 400, { error: "invalid query" });
+      }
+      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const requestedStatus = Number(body?.failure_status);
+      const failureStatus = [500, 503].includes(requestedStatus)
+        ? requestedStatus
+        : null;
+      const key = markdownLinkSearchKey(vault, query);
+      if (delayMs === 0 && failureStatus === null) {
+        state.markdownLinkSearchControls.delete(key);
+      } else {
+        state.markdownLinkSearchControls.set(key, { delayMs, failureStatus });
+      }
+      return json(res, 200, {
+        ok: true,
+        vault,
+        query: query.toLowerCase(),
+        delay_ms: delayMs,
+        failure_status: failureStatus,
       });
     }
     if (

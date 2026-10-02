@@ -1,7 +1,7 @@
 import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   VaultNameSchema,
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   invalidJsonBodyResponse,
@@ -54,7 +54,7 @@ export async function PATCH(
   if (!parsed.success) return invalidBodyResponse(parsed.error);
   const { vault, state } = parsed.data;
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
   const actorResult = await getAkbCurrentActor(request);

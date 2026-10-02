@@ -1,7 +1,10 @@
 import { extractVault } from "@/lib/akb/extractVault";
 import { AUTH_ACCOUNT_ERROR_HEADER } from "@/lib/akb/headers";
 import { localizedAgentError } from "@/lib/api/errorLocalization";
-import { getAkbAdapter, getAkbCurrentActor } from "@/lib/api/requestHelpers";
+import {
+  getAkbCurrentActor,
+  getWorkspaceAkbAdapter,
+} from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
 import { resolveGroundingGitHubAdapter } from "@/server/adapters/githubCredentials/resolveGroundingGitHubAdapter";
@@ -89,12 +92,6 @@ export async function POST(request: Request): Promise<Response> {
   }
   const runRequest = parsed.data;
 
-  const akb = getAkbAdapter(request);
-  if ("response" in akb) {
-    const authResponse = await akb.response;
-    return agentAccountError(authResponse);
-  }
-
   // Validate every task before LLM or GitHub capability checks can short-circuit
   // the account boundary. This keeps account-denial cookies intact even when an
   // optional deployment capability is unavailable.
@@ -102,6 +99,22 @@ export async function POST(request: Request): Promise<Response> {
   if ("response" in account) {
     return agentAccountError(account.response);
   }
+
+  let vault: string;
+  try {
+    vault =
+      runRequest.task_id === "chat.workspace"
+        ? extractVault(request)
+        : runRequest.input.vault;
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return localizedAgentError("agent.vaultRequired", 401, "vault_required");
+    }
+    throw err;
+  }
+
+  const akb = await getWorkspaceAkbAdapter(request, vault);
+  if ("response" in akb) return agentAccountError(akb.response);
 
   let llmConfig: ReturnType<typeof getRequiredServerLlmConfig>;
   try {
@@ -123,20 +136,6 @@ export async function POST(request: Request): Promise<Response> {
   const llmAdapter = createServerLlmAdapter(llmConfig);
 
   if (runRequest.task_id === "chat.workspace") {
-    let vault: string;
-    try {
-      vault = extractVault(request);
-    } catch (err) {
-      if (err instanceof AuthError) {
-        return localizedAgentError(
-          "agent.vaultRequired",
-          401,
-          "vault_required",
-        );
-      }
-      throw err;
-    }
-
     // Server-managed GitHub App just; any GitHub unavailability degrades to
     // AKB scoped grounding (REEF-243 / REEF-244). The
     // credential does not reach the response or the LLM prompt.

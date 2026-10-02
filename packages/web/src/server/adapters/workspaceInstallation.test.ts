@@ -1,20 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockAkbHasReefVaultSkillDocuments,
+  mockAkbCheckWorkspaceReadiness,
   mockAkbInitializeReefWorkspace,
-  mockAkbListTemplates,
-  mockAkbReadConfig,
-  mockAkbReadInstallation,
-  mockAkbReadMemberInstallationActive,
   mockReadInstallationTarget,
 } = vi.hoisted(() => ({
-  mockAkbHasReefVaultSkillDocuments: vi.fn(),
+  mockAkbCheckWorkspaceReadiness: vi.fn(),
   mockAkbInitializeReefWorkspace: vi.fn(),
-  mockAkbListTemplates: vi.fn(),
-  mockAkbReadConfig: vi.fn(),
-  mockAkbReadInstallation: vi.fn(),
-  mockAkbReadMemberInstallationActive: vi.fn(),
   mockReadInstallationTarget: vi.fn(),
 }));
 
@@ -23,12 +15,8 @@ vi.mock("@reef/core", async () => {
     await vi.importActual<typeof import("@reef/core")>("@reef/core");
   return {
     ...actual,
-    akbHasReefVaultSkillDocuments: mockAkbHasReefVaultSkillDocuments,
+    akbCheckWorkspaceReadiness: mockAkbCheckWorkspaceReadiness,
     akbInitializeReefWorkspace: mockAkbInitializeReefWorkspace,
-    akbListTemplates: mockAkbListTemplates,
-    akbReadConfig: mockAkbReadConfig,
-    akbReadInstallation: mockAkbReadInstallation,
-    akbReadMemberInstallationActive: mockAkbReadMemberInstallationActive,
   };
 });
 
@@ -56,88 +44,65 @@ const vault = {
   role: "reader",
 };
 
-function completeTemplates() {
-  return DEFAULT_ISSUE_TEMPLATES.map((template) => ({ template }));
-}
+const active = {
+  state: "active",
+  initialization_complete: true,
+} as const;
 
 describe("readWorkspaceInstallationState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockReadInstallationTarget.mockReturnValue(target);
-    mockAkbReadConfig.mockResolvedValue({
-      exists: true,
-      config: { project_prefix: "ACME", monitored_repos: [] },
-    });
-    mockAkbListTemplates.mockResolvedValue(completeTemplates());
-    mockAkbHasReefVaultSkillDocuments.mockResolvedValue(true);
     mockAkbInitializeReefWorkspace.mockResolvedValue(undefined);
   });
 
-  it("lets an active reader reach Ready after read-only Reef initialization checks", async () => {
-    mockAkbReadMemberInstallationActive.mockResolvedValueOnce(true);
+  it("uses Core readiness for a member and reports Ready only after all checks pass", async () => {
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce(active);
+    const adapter = { request: vi.fn() } as never;
 
-    const state = await readWorkspaceInstallationState({
-      adapter: { request: vi.fn() } as never,
-      vault,
-    });
+    const state = await readWorkspaceInstallationState({ adapter, vault });
 
     expect(state).toEqual({ installation_status: "ready" });
-    expect(mockAkbReadMemberInstallationActive).toHaveBeenCalledWith({
-      adapter: expect.any(Object),
+    expect(mockAkbCheckWorkspaceReadiness).toHaveBeenCalledWith({
+      adapter,
       appId: target.appId,
       vaultId: vault.id,
-    });
-    expect(mockAkbReadInstallation).not.toHaveBeenCalled();
-    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
-  });
-
-  it("does not classify an inactive member installation as not installed", async () => {
-    mockAkbReadMemberInstallationActive.mockResolvedValueOnce(false);
-
-    const state = await readWorkspaceInstallationState({
-      adapter: { request: vi.fn() } as never,
-      vault,
-    });
-
-    expect(state).toEqual({ installation_status: "management_required" });
-    expect(mockAkbReadInstallation).not.toHaveBeenCalled();
-    expect(mockAkbReadConfig).not.toHaveBeenCalled();
-  });
-
-  it("does not report Ready when AKB is active but Reef initialization is incomplete", async () => {
-    mockAkbReadMemberInstallationActive.mockResolvedValueOnce(true);
-    mockAkbReadConfig.mockResolvedValueOnce({
-      exists: false,
-      config: { project_prefix: "REEF", monitored_repos: [] },
-    });
-
-    const state = await readWorkspaceInstallationState({
-      adapter: { request: vi.fn() } as never,
-      vault,
-    });
-
-    expect(state).toEqual({ installation_status: "management_required" });
-    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
-  });
-
-  it("does not treat missing managed skill documents as initialized", async () => {
-    mockAkbReadMemberInstallationActive.mockResolvedValueOnce(true);
-    mockAkbHasReefVaultSkillDocuments.mockResolvedValueOnce(false);
-
-    const state = await readWorkspaceInstallationState({
-      adapter: { request: vi.fn() } as never,
-      vault,
-    });
-
-    expect(state).toEqual({ installation_status: "management_required" });
-    expect(mockAkbHasReefVaultSkillDocuments).toHaveBeenCalledWith({
-      adapter: expect.any(Object),
       vault: vault.name,
+      canManage: false,
+      requiredTemplateNames: DEFAULT_ISSUE_TEMPLATES.map(({ name }) => name),
     });
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
   });
 
-  it("preserves the member endpoint's resource denial instead of treating it as inactive", async () => {
-    mockAkbReadMemberInstallationActive.mockRejectedValueOnce(
+  it("keeps an inactive canonical member installation behind the management gate", async () => {
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({ state: "inactive" });
+
+    const state = await readWorkspaceInstallationState({
+      adapter: { request: vi.fn() } as never,
+      vault,
+    });
+
+    expect(state).toEqual({ installation_status: "management_required" });
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("does not initialize product data for a member with incomplete setup", async () => {
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({
+      state: "active",
+      initialization_complete: false,
+    });
+
+    const state = await readWorkspaceInstallationState({
+      adapter: { request: vi.fn() } as never,
+      vault,
+    });
+
+    expect(state).toEqual({ installation_status: "management_required" });
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("preserves authentication and resource-denial errors from Core", async () => {
+    mockAkbCheckWorkspaceReadiness.mockRejectedValueOnce(
       new AuthError({ origin: "akb", status: 403 }),
     );
 
@@ -149,14 +114,17 @@ describe("readWorkspaceInstallationState", () => {
     ).rejects.toBeInstanceOf(AuthError);
   });
 
-  it("keeps a complete owner workspace ready without reinitializing it", async () => {
+  it("keeps an initialized owner workspace ready without writing product data", async () => {
     const installation = {
       installationId: "44444444-4444-4444-8444-444444444444",
       appId: target.appId,
       vaultId: vault.id,
       lifecycle: "active",
     };
-    mockAkbReadInstallation.mockResolvedValueOnce(installation);
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({
+      ...active,
+      installation,
+    });
 
     const state = await readWorkspaceInstallationState({
       adapter: { request: vi.fn() } as never,
@@ -164,34 +132,27 @@ describe("readWorkspaceInstallationState", () => {
     });
 
     expect(state).toEqual({ installation_status: "ready", installation });
-    expect(mockAkbReadInstallation).toHaveBeenCalledTimes(1);
-    expect(mockAkbReadMemberInstallationActive).not.toHaveBeenCalled();
     expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
   });
 
-  it("initializes an incomplete active owner workspace and verifies readiness", async () => {
+  it("initializes an incomplete active owner workspace only after Core verifies readiness", async () => {
     const installation = {
       installationId: "44444444-4444-4444-8444-444444444444",
       appId: target.appId,
       vaultId: vault.id,
       lifecycle: "active",
     };
-    mockAkbReadInstallation.mockResolvedValueOnce(installation);
-    mockAkbReadConfig
+    mockAkbCheckWorkspaceReadiness
       .mockResolvedValueOnce({
-        exists: false,
-        config: { project_prefix: "REEF", monitored_repos: [] },
+        state: "active",
+        initialization_complete: false,
+        installation,
       })
       .mockResolvedValueOnce({
-        exists: true,
-        config: { project_prefix: "REEF", monitored_repos: [] },
+        state: "active",
+        initialization_complete: true,
+        installation,
       });
-    mockAkbListTemplates
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(completeTemplates());
-    mockAkbHasReefVaultSkillDocuments
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
 
     const state = await readWorkspaceInstallationState({
       adapter: { request: vi.fn() } as never,
@@ -204,8 +165,16 @@ describe("readWorkspaceInstallationState", () => {
       vault: vault.name,
       defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
     });
-    expect(mockAkbReadConfig).toHaveBeenCalledTimes(2);
-    expect(mockAkbListTemplates).toHaveBeenCalledTimes(2);
-    expect(mockAkbHasReefVaultSkillDocuments).toHaveBeenCalledTimes(2);
+    expect(mockAkbCheckWorkspaceReadiness).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not call AKB when the selected vault has no canonical id", async () => {
+    const state = await readWorkspaceInstallationState({
+      adapter: { request: vi.fn() } as never,
+      vault: { ...vault, id: "" },
+    });
+
+    expect(state).toEqual({ installation_status: "unknown" });
+    expect(mockAkbCheckWorkspaceReadiness).not.toHaveBeenCalled();
   });
 });

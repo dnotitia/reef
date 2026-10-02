@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
-  ALL_REEF_TABLES,
   NotFoundError,
   REEF_COMMENTS_TABLE,
   SchemaValidationError,
@@ -9,7 +8,6 @@ import {
   deleteComment,
   listComments,
   makeAdapter,
-  makeListTablesResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   reconcileJiraImportedComment,
@@ -251,7 +249,6 @@ describe("createComment", () => {
           ],
         },
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -288,7 +285,7 @@ describe("createComment", () => {
     );
 
     expect(comment.mention_recipients).toEqual(["Alice Smith", "alice"]);
-    const body = sqlRequestBody(calls[2]);
+    const body = sqlRequestBody(calls[1]);
     expect(body.sql).toContain("SELECT $1, $2, $3::json");
     expect(body.params).toContain(
       JSON.stringify({
@@ -302,7 +299,7 @@ describe("createComment", () => {
     );
   });
 
-  it("fails closed before provisioning or inserting when a mention is unresolved", async () => {
+  it("fails closed before inserting when a mention is unresolved", async () => {
     const { calls } = setupFetch([
       {
         body: {
@@ -326,7 +323,6 @@ describe("createComment", () => {
 
   it("inserts only reef_id/body/meta and returns the row via RETURNING", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
       {
         body: makeSqlQueryResponse(
           [
@@ -372,7 +368,7 @@ describe("createComment", () => {
       thread_root_id: null,
     });
 
-    const body = sqlRequestBody(calls[1]);
+    const body = sqlRequestBody(calls[0]);
     const sql = body.sql;
     expect(sql).toContain(`INSERT INTO ${REEF_COMMENTS_TABLE}`);
     // Declared columns are used; akb reserved/auto columns are excluded.
@@ -403,10 +399,7 @@ describe("createComment", () => {
   });
 
   it("404s a comment on a non-existent issue (no orphan row)", async () => {
-    setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
-      { body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) },
-    ]);
+    setupFetch([{ body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) }]);
 
     await expect(
       createComment(
@@ -423,7 +416,6 @@ describe("createComment", () => {
     const rootId = "11111111-1111-4111-8111-111111111111";
     const replyId = "22222222-2222-4222-8222-222222222222";
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -467,7 +459,7 @@ describe("createComment", () => {
       thread_root_id: rootId,
     });
 
-    const body = sqlRequestBody(calls[1]);
+    const body = sqlRequestBody(calls[0]);
     const sql = body.sql;
     expect(sql).toContain("direct_parent AS");
     expect(sql).toContain("valid_reply AS");
@@ -486,14 +478,11 @@ describe("createComment", () => {
     expect(body.params).toContain("jira:reply:10002");
     expect(body.params).toContain("reply");
     expect(sql.match(/INSERT INTO reef_comments/g)).toHaveLength(1);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
   });
 
   it("returns the same parent-not-found error for missing, cross-issue, or malformed parents", async () => {
-    setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) },
-    ]);
+    setupFetch([{ body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) }]);
 
     const error = await createComment(
       makeAdapter(),
@@ -516,7 +505,6 @@ describe("updateComment", () => {
           members: [{ username: "alice", role: "member" }],
         },
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -546,14 +534,13 @@ describe("updateComment", () => {
     );
 
     expect(comment.mention_recipients).toEqual(["alice"]);
-    expect(sqlRequestBody(calls[2]).params).toContain(
+    expect(sqlRequestBody(calls[1]).params).toContain(
       JSON.stringify({ mention_recipients: ["alice"] }),
     );
   });
 
   it("edits the body, stamps meta.edited_at, and guards on author ownership", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
       {
         body: makeSqlQueryResponse(
           [
@@ -587,7 +574,7 @@ describe("updateComment", () => {
       edited_at: "2026-06-18T05:00:00.000Z",
     });
 
-    const body = sqlRequestBody(calls[1]);
+    const body = sqlRequestBody(calls[0]);
     const sql = body.sql;
     expect(sql).toContain(`UPDATE ${REEF_COMMENTS_TABLE}`);
     expect(sql).toContain("jsonb_set(meta::jsonb, '{edited_at}'");
@@ -604,7 +591,6 @@ describe("updateComment", () => {
 
   it("raises NotFound when no row matches (missing comment or not the author)", async () => {
     setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) }, // 0 rows updated
     ]);
 
@@ -622,7 +608,6 @@ describe("updateComment", () => {
 
   it("atomically preserves imported timestamps and idempotency metadata", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -655,7 +640,7 @@ describe("updateComment", () => {
       },
     );
 
-    const body = sqlRequestBody(calls[1]);
+    const body = sqlRequestBody(calls[0]);
     expect(body.sql).toContain("meta::jsonb || $2::jsonb");
     expect(body.params).toContain(
       JSON.stringify({
@@ -672,7 +657,6 @@ describe("updateComment", () => {
 describe("deleteComment", () => {
   it("deletes the authored subtree and its comment notifications in one recursive statement", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [{ id: "c-root" }, { id: "c-reply" }, { id: "c-nested" }],
@@ -693,7 +677,7 @@ describe("deleteComment", () => {
       deleted_comment_ids: ["c-root", "c-reply", "c-nested"],
     });
 
-    const body = sqlRequestBody(calls[1]);
+    const body = sqlRequestBody(calls[0]);
     const sql = body.sql;
     expect(sql).toMatch(/^WITH RECURSIVE/u);
     expect(sql).toContain("meta->>'author' = $3");
@@ -709,10 +693,7 @@ describe("deleteComment", () => {
   });
 
   it("raises the same not-found error for a missing or non-owned comment", async () => {
-    setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlQueryResponse([], ["id"]) },
-    ]);
+    setupFetch([{ body: makeSqlQueryResponse([], ["id"]) }]);
 
     await expect(
       deleteComment(
@@ -733,7 +714,6 @@ describe("reconcileJiraImportedComment", () => {
     const parentId = "22222222-2222-4222-8222-222222222222";
     const rootId = "33333333-3333-4333-8333-333333333333";
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -772,7 +752,7 @@ describe("reconcileJiraImportedComment", () => {
       thread_root_id: rootId,
     });
 
-    const body = sqlRequestBody(calls[1]);
+    const body = sqlRequestBody(calls[0]);
     const sql = body.sql;
     expect(sql).toContain(`UPDATE ${REEF_COMMENTS_TABLE}`);
     expect(sql).toContain("meta->>'jira_idempotency_key' = $5");
@@ -799,7 +779,6 @@ describe("reconcileJiraImportedComment", () => {
           members: [{ username: "Alice Smith", role: "member" }],
         },
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -834,7 +813,7 @@ describe("reconcileJiraImportedComment", () => {
       mention_recipients: ["Alice Smith"],
     });
 
-    expect(sqlRequestBody(calls[2]).params).toContain(
+    expect(sqlRequestBody(calls[1]).params).toContain(
       JSON.stringify({
         author: "hongchan",
         created_at: "2025-05-27T21:43:43.262+09:00",
@@ -891,7 +870,6 @@ describe("comment body parameter binding", () => {
     const original = String.raw`댓글 ' \\ 한글 🧪`;
     const edited = String.raw`수정 댓글 ' \\ 한글 🚀`;
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -911,7 +889,6 @@ describe("comment body parameter binding", () => {
       {
         body: makeSqlQueryResponse([commenterSubscriptionRow("alice")], ["id"]),
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -952,8 +929,8 @@ describe("comment body parameter binding", () => {
       ),
     ).resolves.toMatchObject({ body: edited });
 
-    const createRequest = sqlRequestBody(calls[1]);
-    const updateRequest = sqlRequestBody(calls[4]);
+    const createRequest = sqlRequestBody(calls[0]);
+    const updateRequest = sqlRequestBody(calls[2]);
     expect(createRequest.params).toContain(original);
     expect(updateRequest.params).toContain(edited);
     expect(createRequest.sql).not.toContain(original);

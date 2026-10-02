@@ -3,8 +3,47 @@ import {
   AddIssueReferenceRequestSchema,
   AkbDocumentReferenceSchema,
   IssueReferencesResponseSchema,
+  MarkdownResourceSearchResponseSchema,
   ResolveDocumentTitlesRequestSchema,
 } from "./references";
+
+describe("MarkdownResourceSearchResponseSchema", () => {
+  it("accepts canonical document and file targets", () => {
+    expect(
+      MarkdownResourceSearchResponseSchema.parse({
+        results: [
+          {
+            uri: "akb://v/coll/research/doc/plan.md",
+            title: "Plan",
+            kind: "document",
+            snippet: "A short summary",
+          },
+          {
+            uri: "akb://v/issues/file/evidence-1",
+            title: "evidence.log",
+            kind: "file",
+          },
+        ],
+      }).results,
+    ).toHaveLength(2);
+  });
+
+  it("rejects empty titles, unsupported resources, and runtime URLs", () => {
+    expect(
+      MarkdownResourceSearchResponseSchema.safeParse({
+        results: [
+          { uri: "akb://v/doc/x", title: "", kind: "document" },
+          { uri: "akb://v/table/x", title: "Table", kind: "table" },
+          {
+            uri: "https://akb.test/signed/file",
+            title: "File",
+            kind: "file",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+});
 
 describe("AddIssueReferenceRequestSchema", () => {
   it("accepts a canonical akb:// URI", () => {

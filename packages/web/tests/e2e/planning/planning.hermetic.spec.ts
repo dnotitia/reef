@@ -238,35 +238,48 @@ async function expectEditorBodyToOwnScroll(page: Page) {
 async function expectNotesControlsAccessible(page: Page) {
   const editor = page.getByTestId("markdown-editor");
   await expect(editor).toBeVisible();
-  const toolbar = editor.getByTestId("markdown-toolbar");
+  const toolbarContainer = editor.getByTestId("markdown-toolbar");
+  const toolbar = toolbarContainer.getByRole("toolbar", {
+    name: "Text formatting",
+  });
   for (const label of [
-    "Bold",
-    "Italic",
-    "Strikethrough",
-    "Inline Code",
+    "Paragraph",
     "Heading 1",
     "Heading 2",
     "Heading 3",
-    "Bullet List",
-    "Numbered List",
-    "Quote",
-    "Code Block",
-    "Divider",
-    "Link",
-    "Source",
+    "Bold",
+    "Italic",
+    "Strikethrough",
+    "Inline code",
+    "Bulleted list",
+    "Numbered list",
+    "Task list",
+    "Blockquote",
+    "Code block",
+    "Horizontal rule",
+    "Insert table",
+    "Insert link",
+    "Undo",
+    "Redo",
   ]) {
     await expect(toolbar.getByRole("button", { name: label })).toBeVisible();
   }
 
-  const toolbarButtons = toolbar.getByRole("button");
-  await expect(toolbarButtons).toHaveCount(14);
+  const toolbarButtons = toolbar.locator(
+    "button[data-markdown-toolbar-button]:not(:disabled)",
+  );
+  await expect(toolbar.getByRole("button")).toHaveCount(18);
+  await expect(toolbarButtons).toHaveCount(16);
   await toolbarButtons.first().focus();
-  for (let index = 0; index < 14; index += 1) {
+  for (let index = 0; index < 16; index += 1) {
     await expect(toolbarButtons.nth(index)).toBeFocused();
-    if (index < 13) await page.keyboard.press("Tab");
+    if (index < 15) await page.keyboard.press("ArrowRight");
   }
 
-  await toolbar.getByRole("button", { name: "Source" }).click();
+  const sourceButton = toolbarContainer.getByRole("button", { name: "Source" });
+  await page.keyboard.press("Tab");
+  await expect(sourceButton).toBeFocused();
+  await sourceButton.click();
   const source = editor.getByTestId("markdown-source-textarea");
   await expect(source).toBeVisible();
   await source.fill(
@@ -274,7 +287,7 @@ async function expectNotesControlsAccessible(page: Page) {
       "\n",
     ),
   );
-  await toolbar.getByRole("button", { name: "Source" }).click();
+  await sourceButton.click();
   await expect(editor.locator('[contenteditable="true"]')).toBeVisible();
 }
 
@@ -475,6 +488,170 @@ test.describe("Hermetic planning workflow", () => {
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=overview`);
     await expect(page.getByTestId("planning-overview")).toBeVisible();
     await expect(page.getByTestId("planning-kind-switcher")).toHaveCount(0);
+  });
+
+  test("restores milestone and release panels from URLs, history, reload, and compact layout", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openExistingWorkspace(page);
+    const vault = (await readFixtureState(request)).vaults.find(
+      (item) => item.name === REEF_E2E_VAULT,
+    );
+    const milestone = vault?.milestones.find(
+      (item) => item.name === "Coverage Complete",
+    );
+    const release = vault?.releases.find((item) => item.name === "June E2E");
+    if (!vault || !milestone || !release) {
+      throw new Error("Expected the planning fixture catalog to be populated");
+    }
+
+    const linkedMilestoneIssueIds = new Set(
+      vault.issues
+        .filter((issue) => issue.milestone_id === milestone.id)
+        .map((issue) => issue.id),
+    );
+
+    await page.goto("/workspace/reef-e2e/planning?view=list");
+    await page.getByRole("button", { name: "Milestones" }).click();
+    const milestoneLink = page.getByRole("link", {
+      name: "Open Coverage Complete in the Planning list",
+    });
+    await milestoneLink.click();
+    await expect(page).toHaveURL(
+      `/workspace/reef-e2e/planning?view=list&kind=milestones&detail=${milestone.id}`,
+    );
+
+    const panel = page.getByTestId("planning-detail-panel");
+    await expect(panel).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "Coverage Complete" }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "Description" }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "Linked issues" }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("link", { name: "View all linked issues" }),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/reef-e2e/issues?milestone_id=${milestone.id}`,
+    );
+    const preview = panel.getByTestId("planning-linked-issue-preview");
+    if (linkedMilestoneIssueIds.size > 0) {
+      await expect(preview).toBeVisible();
+      const previewIssueIds = await preview
+        .locator("a")
+        .evaluateAll((links) =>
+          links.map((link) => link.querySelector("span")?.textContent?.trim()),
+        );
+      expect(previewIssueIds.length).toBeGreaterThan(0);
+      expect(
+        previewIssueIds.every((id) => id && linkedMilestoneIssueIds.has(id)),
+      ).toBe(true);
+    } else {
+      await expect(
+        panel.getByText("No issues are linked to this item."),
+      ).toBeVisible();
+    }
+
+    // Each panel navigation is a real history entry; Back and Forward restore
+    // the URL-selected state without an independent client-side toggle.
+    await page.goBack();
+    await expect(page).toHaveURL(
+      "/workspace/reef-e2e/planning?view=list&kind=milestones",
+    );
+    await expect(panel).toHaveCount(0);
+    await page.goForward();
+    await expect(panel).toBeVisible();
+    await page.reload();
+    await expect(panel).toBeVisible();
+
+    // Closing returns focus to the stable item link after the URL is cleared.
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(
+      "/workspace/reef-e2e/planning?view=list&kind=milestones",
+    );
+    await expect(
+      page.locator(`#planning-item-milestones-${milestone.id}`),
+    ).toBeFocused();
+
+    // A direct release detail link follows the same frame and carries the
+    // release-specific exact filter into Issues.
+    await page.goto(
+      `/workspace/reef-e2e/planning?view=list&kind=releases&detail=${release.id}`,
+    );
+    await expect(panel).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "June E2E" }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "Release notes" }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("link", { name: "View all linked issues" }),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/reef-e2e/issues?release_id=${release.id}`,
+    );
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      `/workspace/reef-e2e/planning?view=list&kind=milestones&detail=${milestone.id}`,
+    );
+    await expect(page.getByTestId("planning-compact-list")).toBeVisible();
+    await expect(
+      panel.getByRole("heading", { name: "Coverage Complete" }),
+    ).toBeVisible();
+    const compactWidth = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
+    expect(compactWidth.documentWidth).toBeLessThanOrEqual(
+      compactWidth.viewportWidth,
+    );
+
+    const staleId = "00000000-0000-4000-8000-999999999999";
+    await page.goto(
+      `/workspace/reef-e2e/planning?view=list&kind=milestones&detail=${staleId}`,
+    );
+    await expect(
+      panel.getByRole("heading", { name: "Milestone not found" }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("link", { name: "Back to Planning" }),
+    ).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/planning?view=list&kind=milestones",
+    );
+  });
+
+  test("keeps a deep-linked item as a catalog error until retry succeeds", async ({
+    page,
+    request,
+  }) => {
+    await setPlanningCatalogFailure(request, true);
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/planning?view=list&kind=milestones&detail=missing",
+    );
+
+    await expect(page.getByTestId("planning-catalog-error")).toBeVisible();
+    await expect(page.getByTestId("planning-detail-panel")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Milestone not found" }),
+    ).toHaveCount(0);
+
+    await setPlanningCatalogFailure(request, false);
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Milestone not found" }),
+    ).toBeVisible();
   });
 
   test("keeps long Overview names single-line and readable by pointer and keyboard", async ({

@@ -15,7 +15,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
-  setWorkspaceInitializationControl,
+  setIssueReadControl,
   setAuthControl,
   signInAsAlice,
   signInAsUser,
@@ -519,15 +519,9 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
     await expect(
       page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-101"]'),
     ).toBeVisible();
-    await setWorkspaceInitializationControl(request, {
-      operation: "document_get",
-      failures: 4,
-    });
-    expect(
-      (await readFixtureState(request)).workspace_initialization,
-    ).toMatchObject({
-      failure_operation: "document_get",
-      failures_remaining: 4,
+    await setIssueReadControl(request, {
+      issueId: "REEF-101",
+      failureStatus: 503,
     });
 
     const issuePath = `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`;
@@ -553,6 +547,10 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
     await expect(page.getByTestId("issue-close")).toBeVisible();
     await expect(page.getByTestId("issue-detail")).toHaveCount(0);
     await expect(page.getByTestId("issue-title-input")).toHaveCount(0);
+    await setIssueReadControl(request, {
+      issueId: "REEF-101",
+      failureStatus: null,
+    });
 
     const recoveredRead = page.waitForResponse(
       (response) =>

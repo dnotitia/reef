@@ -10,7 +10,7 @@
 //   paths.ts      — slugify / path / resource-label helpers
 //   http.ts       — `AkbAdapter`, request factory, document/search envelopes
 //   sql.ts        — SQL parameters + identifiers, `runSql`, response schemas, value decode
-//   tables.ts     — table provisioning (`ensureReefTables`)
+//   verifyRequiredTables.ts — read-only verification of AKB-owned tables
 //   issueRows.ts  — `reef_issues` row ↔ Issue mapping + row reads/writes
 //   issueQuery.ts — issue-list WHERE / ORDER BY / keyset cursor / default view
 //   documents.ts  — akb document search / delete / put-body / response guards
@@ -27,5 +27,6 @@ export * from "../issues/issueQuery";
 export * from "../issues/issueRows";
 export * from "./paths";
 export * from "./sql";
-export * from "./tables";
+export * from "./verifyRequiredTables";
 export * from "./tracing";
+export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";

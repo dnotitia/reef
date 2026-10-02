@@ -27,6 +27,10 @@ export function attachmentReadKey(vault, issueId) {
   return `${vault}:${issueId.toUpperCase()}`;
 }
 
+export function markdownLinkSearchKey(vault, query) {
+  return `${vault}:${String(query).trim().toLowerCase()}`;
+}
+
 export function setIssueUpdateHold(state, key, held) {
   if (held) state.issueUpdateHolds.set(key, 1);
   else state.issueUpdateHolds.delete(key);
@@ -84,6 +88,19 @@ export function endAttachmentReadRequest(state, key) {
   const pending = state.attachmentReadPending.get(key) ?? 0;
   if (pending <= 1) state.attachmentReadPending.delete(key);
   else state.attachmentReadPending.set(key, pending - 1);
+}
+
+export function beginMarkdownLinkSearchRequest(state, key) {
+  state.markdownLinkSearchPending.set(
+    key,
+    (state.markdownLinkSearchPending.get(key) ?? 0) + 1,
+  );
+}
+
+export function endMarkdownLinkSearchRequest(state, key) {
+  const pending = state.markdownLinkSearchPending.get(key) ?? 0;
+  if (pending <= 1) state.markdownLinkSearchPending.delete(key);
+  else state.markdownLinkSearchPending.set(key, pending - 1);
 }
 
 export function waitForIssueUpdateRelease(state, key) {
@@ -184,6 +201,8 @@ export function createState(scenario) {
     issueReadPending: new Map(),
     attachmentReadControls: new Map(),
     attachmentReadPending: new Map(),
+    markdownLinkSearchControls: new Map(),
+    markdownLinkSearchPending: new Map(),
     planningCatalogFailure: false,
     planningCatalogDelayMs: 0,
     contentSearchMode: "healthy",
@@ -336,6 +355,9 @@ export function publicState(state) {
     issue_list_pending: Object.fromEntries(state.issueListPending),
     issue_read_pending: Object.fromEntries(state.issueReadPending),
     attachment_read_pending: Object.fromEntries(state.attachmentReadPending),
+    markdown_link_search_pending: Object.fromEntries(
+      state.markdownLinkSearchPending,
+    ),
     workspace_initialization: {
       failure_operation: state.workspaceInitFailureOperation,
       failures_remaining: state.workspaceInitFailureRemaining,
@@ -417,6 +439,12 @@ export function publicState(state) {
         content: doc.content,
         tags: doc.tags,
         current_commit: doc.current_commit,
+      })),
+      files: [...(vault.files ?? new Map()).values()].map((file) => ({
+        uri: file.uri,
+        filename: file.filename,
+        mime_type: file.mimeType,
+        confirmed: file.confirmed,
       })),
       assets: [...(vault.assets ?? new Map()).values()].map((asset) => ({
         id: asset.id,

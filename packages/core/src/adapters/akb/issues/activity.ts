@@ -67,7 +67,6 @@ import {
   REEF_ACTIVITY_TABLE,
   REEF_ISSUES_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   SqlParameterBuilder,
@@ -294,9 +293,9 @@ interface ActivityRowInput {
  * *simultaneous* inserts of the identical event_key both pass `NOT EXISTS`.
  * That needs concurrent
  * retries of the very same update; it is de-duplicated downstream on `event_key`
- * by the timeline (REEF-064). A DB-enforced unique index is an akb-layer
- * follow-up. Callers `ensureReefTables` first so a vault predating the table
- * self-heals on first write (REEF-125 AC7).
+ * by the timeline (REEF-064). A DB-enforced unique index is an AKB-layer
+ * concern. The workspace readiness boundary verifies the table schema before
+ * this product operation is allowed to run.
  */
 async function insertActivityEventRow(
   adapter: AkbAdapter,
@@ -345,7 +344,6 @@ export async function appendStatusChangeEvent(
     "akb.append_status_change_event",
     { vault, reef_id: event.reefId },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       const appended = await insertActivityEventRow(adapter, vault, {
         reefId: event.reefId,
         eventType: ACTIVITY_EVENT_STATUS_CHANGE,
@@ -383,7 +381,6 @@ export async function appendIssueBodyMentionsChangeEvent(
         removed: event.removed,
         document_commit: event.documentCommit,
       });
-      await ensureReefTables({ adapter, vault });
       const appended = await insertActivityEventRow(adapter, vault, {
         reefId: event.reefId,
         eventType: ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
@@ -435,7 +432,6 @@ export async function appendActivityEvents(
     "akb.append_activity_events",
     { vault, reef_id: first.reefId, count: events.length },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       let appended = 0;
       for (const [index, event] of events.entries()) {
         const ok = await insertActivityEventRow(adapter, vault, {
@@ -503,7 +499,6 @@ export async function reconcileJiraChangelogActivityEvents(
     "akb.reconcile_jira_changelog_activity_events",
     { vault, reef_id: first.reefId, count: events.length },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       let updated = 0;
       let inserted = 0;
       for (const [index, event] of events.entries()) {
@@ -594,7 +589,6 @@ export async function reconcileJiraImportedAttachmentActivityActor(
     "akb.reconcile_jira_imported_attachment_activity_actor",
     { vault, reef_id: input.reefId },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       const params = new SqlParameterBuilder();
       const actorParam = params.addJson(
         input.toActor,

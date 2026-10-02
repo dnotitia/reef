@@ -1,27 +1,62 @@
 "use client";
 
 import {
+  MarkdownLocaleProvider,
+  MarkdownSurface,
+  MarkdownToolbar,
+  MarkdownToolbarButton,
+  MarkdownToolbarGroup,
+  useMarkdownCommands,
+  useMarkdownEditor,
+  useMarkdownReferenceResolutions,
+  useMarkdownState,
   useMarkdownTargetResolutions,
+  type MarkdownLocale,
+  type MarkdownReferenceAdapter,
+  type MarkdownReferenceCandidate,
+  type MarkdownReferenceResolution,
+} from "@akb/markdown-editor/react";
+import {
+  parseMarkdown,
+  type MarkdownCommands,
+  type MarkdownNode,
   type MarkdownTargetResolution,
 } from "@akb/markdown-editor";
+import { Button } from "@/components/ui/button";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
+import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
+import { filterIssueBodyMentionCandidates } from "@/features/issues/lib/issueBodyMentionCandidates";
+import { filesFromFileList } from "@/features/issues/lib/attachmentMarkdown";
 import {
-  isAkbFileUri,
-  isDocumentAssetTarget,
-} from "@/features/issues/lib/attachmentUrls";
-import { retargetRenderedAkbDocumentLinks } from "@/lib/akb/markdownDocumentLinks";
+  normalizeUrl,
+  openLinkWindow,
+} from "@/components/markdown-editor/links";
+import {
+  extractAkbDocumentUris,
+  normalizeAkbDocumentMarkdownLinks,
+} from "@/lib/akb/markdownDocumentLinks";
+import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import { cn } from "@/lib/utils";
-import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
-import { EditorContent, useEditor } from "@tiptap/react";
-import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createMarkdownEditorExtensions } from "./markdown-editor/extensions";
+import { formatMentionToken } from "@reef/core";
+import { useLocale, useTranslations } from "next-intl";
+import { Paperclip } from "lucide-react";
+import {
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   EDITOR_BODY_FRAME_CLASS,
   EDITOR_BODY_MANUAL_FRAME_MARGIN_PX,
   EDITOR_BODY_SIZING,
   EDITOR_CONTENT_CLASS,
-  EDITOR_MANUAL_BODY_CLASS,
   EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
   EDITOR_MANUAL_SOURCE_CLASS,
   EDITOR_RESIZABLE_BODY_ID,
@@ -31,95 +66,62 @@ import {
 import {
   openClickedEditorLink,
   openEditorLinkOnMouseUp,
-  openLinkWindow,
   preventEditorSelectionOnLinkMouseDown,
 } from "./markdown-editor/links";
-import { MarkdownEditorLinkEditor } from "./markdown-editor/LinkEditor";
 import { MarkdownEditorResizeHandle } from "./markdown-editor/ResizeHandle";
-import { MarkdownEditorToolbar } from "./markdown-editor/Toolbar";
 import type { MarkdownEditorProps } from "./markdown-editor/types";
-import { useMarkdownEditorBody } from "./markdown-editor/useBody";
-import { useMarkdownEditorLinkEditor } from "./markdown-editor/useLinkEditor";
-import { useMarkdownEditorSlashMessages } from "./markdown-editor/useSlashMessages";
-import { useMarkdownEditorToolbarState } from "./markdown-editor/useToolbarState";
 import { useOverlayOpenRegistration } from "./ui/overlayDismiss";
 
-function applyMarkdownTargetResolutions(
-  root: HTMLElement,
-  resolutions: ReadonlyMap<string, MarkdownTargetResolution>,
-  resolving: boolean,
-): void {
-  root
-    .querySelectorAll<HTMLElement>(
-      "img[data-markdown-target], a[data-markdown-target]",
-    )
-    .forEach((element) => {
-      const target = element.dataset.markdownTarget;
-      if (!target) return;
-      if (
-        !isDocumentAssetTarget(target) &&
-        !isAkbFileUri(target) &&
-        !target.startsWith("akb://")
-      ) {
-        return;
-      }
-      const resolution = resolutions.get(target);
-      const previousResolution = element.dataset.markdownResolution;
-
-      if (!resolution) {
-        if (resolving) {
-          element.dataset.markdownResolution = "pending";
-          element.setAttribute("aria-disabled", "true");
-          if (element.tagName === "IMG") element.removeAttribute("src");
-          else element.setAttribute("href", "#");
-          return;
-        }
-        if (element.tagName === "IMG") {
-          element.setAttribute("src", target);
-        } else {
-          element.setAttribute("href", target);
-        }
-        if (previousResolution === "unavailable") {
-          element.removeAttribute("aria-label");
-        }
-        element.removeAttribute("aria-disabled");
-        delete element.dataset.markdownResolution;
-        return;
-      }
-
-      if (resolution.status === "available") {
-        if (element.tagName === "IMG") {
-          element.setAttribute("src", resolution.runtimeUrl);
-        } else {
-          element.setAttribute("href", resolution.runtimeUrl);
-        }
-        element.dataset.markdownResolution = "available";
-        if (previousResolution === "unavailable") {
-          element.removeAttribute("aria-label");
-        }
-        element.removeAttribute("aria-disabled");
-        return;
-      }
-
-      element.dataset.markdownResolution = "unavailable";
-      element.setAttribute(
-        "aria-label",
-        resolution.label ?? "Reference unavailable",
-      );
-      if (element.tagName === "IMG") element.removeAttribute("src");
-      else {
-        element.setAttribute("href", "#");
-        element.setAttribute("aria-disabled", "true");
-      }
-    });
+function localeForMarkdownEditor(locale: string): MarkdownLocale {
+  if (locale !== "en" && locale !== "ko") {
+    throw new Error(`Unsupported markdown editor locale: ${locale}`);
+  }
+  return locale;
 }
 
-/**
- * WYSIWYG markdown editor backed by Tiptap. The implementation composes the
- * editor's responsibility modules; the public lazy boundary remains in
- * `./MarkdownEditor` so Tiptap and ProseMirror stay out of the initial bundle.
- */
-export function MarkdownEditor({
+// The pinned Markdown parser keeps escaped slashes in uploaded image alt text
+// literally. Collapse its serialized pairs in the editor input copy so the
+// rendered alt text stays the original filename; persisted Markdown stays
+// escaped and standards-compatible.
+const ASSET_IMAGE_MARKDOWN_ALT =
+  /(!\[)(.*?)(\]\(\/api\/assets\/[0-9a-f-]{36}(?:\?[^)]*)?(?:\s+"[^"]*")?\))/giu;
+
+function markdownForEditor(markdown: string): string {
+  return markdown.replace(
+    ASSET_IMAGE_MARKDOWN_ALT,
+    (_match, opening: string, alt: string, target: string) =>
+      opening + alt.replace(/\\\\/gu, "\\") + target,
+  );
+}
+
+function legacyImageResolutions(
+  markdown: string,
+  resolveImageSrc: ((src: string) => string) | undefined,
+): ReadonlyMap<string, MarkdownTargetResolution> {
+  if (!resolveImageSrc) return new Map();
+  const resolutions = new Map<string, MarkdownTargetResolution>();
+  const visit = (node: MarkdownNode) => {
+    if (node.type === "image") {
+      const target = node.attrs?.target;
+      if (typeof target === "string" && isAkbFileUri(target)) {
+        resolutions.set(target, {
+          target,
+          kind: "file",
+          status: "available",
+          runtimeUrl: resolveImageSrc(target),
+        });
+      }
+    }
+    for (const child of node.content ?? []) visit(child);
+  };
+  for (const node of parseMarkdown(markdown, { profile: "preserve" }).content ??
+    []) {
+    visit(node);
+  }
+  return resolutions;
+}
+
+function MarkdownEditorContent({
   value,
   onChange,
   placeholder = "Describe the issue…",
@@ -133,108 +135,275 @@ export function MarkdownEditor({
   adapters,
   resolverContext,
   resolveImageSrc,
-  resolveAttachmentHref,
   mentionConfig,
   enableHeightResize = false,
   preferredHeight,
-  bodyFrameRef: externalBodyFrameRef,
+  bodyFrameRef,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
-  const c = useTranslations("common");
-  const akbWebBase = useAkbWebUrl();
+  const latestValueRef = useRef(value);
+  const lastSyncedValueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  const onBlurRef = useRef(onBlur);
+  const commandsRef = useRef<MarkdownCommands | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const body = useMarkdownEditorBody({
-    value,
-    onChange,
-    onBlur,
-    vault,
-    mentionConfig,
-    rootRef,
-    readOnly,
-    onUploadFiles,
-    resolveImageSrc,
-    resolveAttachmentHref,
-  });
-  const {
-    attachments,
-    handleBlur,
-    handleSourceChange,
-    initialContent,
-    mentionDocumentSearchRef,
-    mentionIssuesRef,
-    mentionMembersRef,
-    publishMarkdown,
-    resolveAttachmentHrefRef,
-    resolveImageSrcRef,
-    setEditor,
-    syncExternalValue,
-    syncMentionRoster,
-  } = body;
-  const [sourceMode, setSourceMode] = useState(false);
-  const [mentionOpen, setMentionOpen] = useState(false);
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
-  const mentionDismissRef = useRef<(() => void) | null>(null);
-  const slashDismissRef = useRef<(() => void) | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const sourceDirtyRef = useRef(false);
+  const titleByUriRef = useRef(new Map<string, string | null>());
+  const pendingTitleUrisRef = useRef(new Set<string>());
+  const activeVaultRef = useRef(vault);
+  const mentionOpenDismissRef = useRef<(() => void) | null>(null);
+  const slashOpenDismissRef = useRef<(() => void) | null>(null);
   const linksOpenedFromMouseUpRef = useRef(
     new WeakMap<HTMLAnchorElement, number>(),
   );
-  const {
-    isResizeAvailable: isHeightResizeAvailable,
-    isManual: isManualHeight,
-    isResizing: isHeightResizing,
-    maxHeight: editorMaxHeight,
-    currentHeight: editorCurrentHeight,
-    bodyFrameStyle,
-    onKeyDown: onHeightResizeKeyDown,
-    onLostPointerCapture: onHeightResizeLostPointerCapture,
-    onPointerCancel: onHeightResizePointerCancel,
-    onPointerDown: onHeightResizePointerDown,
-    onPointerMove: onHeightResizePointerMove,
-    onPointerUp: onHeightResizePointerUp,
-    refreshAutoHeight,
-  } = useMarkdownEditorHeightResize(enableHeightResize, preferredHeight);
+  const [sourceMode, setSourceMode] = useState(false);
+  const sourceModeRef = useRef(sourceMode);
+  const [sourceValue, setSourceValue] = useState(value);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadError, setUploadError] = useState(false);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
+  sourceModeRef.current = sourceMode;
 
-  const dismissMention = useCallback(() => {
-    mentionDismissRef.current?.();
-  }, []);
+  const normalizeMarkdown = useCallback(
+    (markdown: string) =>
+      normalizeAkbDocumentMarkdownLinks(markdown, titleByUriRef.current),
+    [],
+  );
+  const initialMarkdown = useMemo(
+    () => normalizeAkbDocumentMarkdownLinks(value),
+    [value],
+  );
+  const editorInitialMarkdown = useMemo(
+    () => markdownForEditor(initialMarkdown),
+    [initialMarkdown],
+  );
+
+  const mentionReferenceAdapter = useMemo<
+    MarkdownReferenceAdapter | undefined
+  >(() => {
+    if (!mentionConfig) return undefined;
+    const config = mentionConfig;
+    return {
+      async search(query, context) {
+        const localCandidates = filterIssueBodyMentionCandidates(
+          config.members,
+          config.issues,
+          query,
+        );
+        const candidates: MarkdownReferenceCandidate[] = localCandidates.map(
+          (candidate) => {
+            if (candidate.kind === "person") {
+              return {
+                id: candidate.member.username,
+                kind: "person",
+                title: config.mentionOptionLabel(candidate.member.username),
+                subtitle:
+                  candidate.member.display_name ?? candidate.member.username,
+                value: formatMentionToken(candidate.member.username),
+              };
+            }
+            return {
+              id: candidate.issue.id,
+              kind: "issue",
+              title: candidate.issue.title,
+              subtitle: candidate.issue.id,
+              value: candidate.issue.id,
+            };
+          },
+        );
+        const searchDocuments = config.searchDocuments;
+        if (searchDocuments) {
+          const documents = await searchDocuments(
+            query,
+            context?.signal ?? new AbortController().signal,
+          );
+          for (const hit of documents) {
+            candidates.push({
+              id: hit.uri,
+              kind: "document",
+              title: hit.title ?? config.documentOptionLabel(hit),
+              subtitle: config.documentOptionLabel(hit),
+              target: hit.uri,
+            });
+          }
+        }
+        return candidates;
+      },
+      async resolve(reference, context): Promise<MarkdownReferenceResolution> {
+        if (reference.kind === "person") {
+          const member = config.members.find(
+            (candidate) =>
+              candidate.username.toLocaleLowerCase() ===
+              reference.id.toLocaleLowerCase(),
+          );
+          if (!member) {
+            return {
+              ...reference,
+              status: "unavailable",
+              reason: "inaccessible",
+            };
+          }
+          return {
+            ...reference,
+            status: "available",
+            title: config.mentionOptionLabel(member.username),
+            subtitle: member.display_name ?? member.username,
+          };
+        }
+
+        const issue = config.issues.find(
+          (candidate) => candidate.id === reference.id,
+        );
+        if (!issue) {
+          return {
+            ...reference,
+            status: "unavailable",
+            reason: "inaccessible",
+          };
+        }
+        const referenceVault = context?.vault ?? vault;
+        return {
+          ...reference,
+          status: "available",
+          title: issue.title,
+          subtitle: issue.id,
+          ...(referenceVault
+            ? {
+                runtimeUrl: `/workspace/${encodeURIComponent(referenceVault)}/issues/${encodeURIComponent(issue.id)}`,
+              }
+            : {}),
+        };
+      },
+    };
+  }, [mentionConfig, vault]);
 
   const handleMentionOpenChange = useCallback(
     (open: boolean, dismiss?: () => void) => {
-      mentionDismissRef.current = open ? (dismiss ?? null) : null;
+      mentionOpenDismissRef.current = open ? (dismiss ?? null) : null;
       setMentionOpen(open);
     },
     [],
   );
-
-  const dismissSlash = useCallback(() => {
-    slashDismissRef.current?.();
-  }, []);
-
   const handleSlashOpenChange = useCallback(
     (open: boolean, dismiss?: () => void) => {
-      slashDismissRef.current = open ? (dismiss ?? null) : null;
+      slashOpenDismissRef.current = open ? (dismiss ?? null) : null;
       setSlashOpen(open);
     },
     [],
   );
-
-  useOverlayOpenRegistration(
-    Boolean(mentionConfig && mentionOpen),
-    dismissMention,
+  const slashOptions = useMemo(
+    () => ({ onOpenChange: handleSlashOpenChange }),
+    [handleSlashOpenChange],
   );
-  useOverlayOpenRegistration(slashOpen, dismissSlash);
-
-  const editorBodyClassName = cn(
-    EDITOR_CONTENT_CLASS,
-    MARKDOWN_SURFACE_CLASS,
-    "prose prose-sm focus:outline-none",
-    isManualHeight ? EDITOR_MANUAL_BODY_CLASS : EDITOR_BODY_SIZING,
-    "px-3 py-2 max-w-none",
+  const mentionOptions = useMemo(
+    () =>
+      mentionReferenceAdapter
+        ? {
+            adapter: mentionReferenceAdapter,
+            context: { vault },
+            onOpenChange: handleMentionOpenChange,
+          }
+        : undefined,
+    [handleMentionOpenChange, mentionReferenceAdapter, vault],
   );
+  const queueDocumentTitleResolution = useCallback(
+    (markdown: string) => {
+      if (!vault || activeVaultRef.current !== vault) return;
+      const unresolved = extractAkbDocumentUris(markdown).filter(
+        (uri) =>
+          !titleByUriRef.current.has(uri) &&
+          !pendingTitleUrisRef.current.has(uri),
+      );
+      if (unresolved.length === 0) return;
+      for (const uri of unresolved) pendingTitleUrisRef.current.add(uri);
+      void resolveAkbDocumentTitles(vault, unresolved).then((titles) => {
+        if (activeVaultRef.current !== vault) return;
+        for (const uri of unresolved) {
+          pendingTitleUrisRef.current.delete(uri);
+          titleByUriRef.current.set(uri, titles.get(uri) ?? null);
+        }
+        const next = normalizeMarkdown(latestValueRef.current);
+        if (next === latestValueRef.current) return;
+        latestValueRef.current = next;
+        lastSyncedValueRef.current = next;
+        setSourceValue(next);
+        onChangeRef.current(next);
+        commandsRef.current?.setMarkdown(markdownForEditor(next));
+        if (!rootRef.current?.contains(document.activeElement)) {
+          onBlurRef.current?.(next);
+        }
+      });
+    },
+    [normalizeMarkdown, vault],
+  );
+
+  const publishMarkdown = useCallback(
+    (rawMarkdown: string) => {
+      const markdown = normalizeMarkdown(rawMarkdown);
+      const changed = markdown !== lastSyncedValueRef.current;
+      latestValueRef.current = markdown;
+      lastSyncedValueRef.current = markdown;
+      if (!sourceMode) setSourceValue(markdown);
+      if (markdown !== rawMarkdown) {
+        commandsRef.current?.setMarkdown(markdownForEditor(markdown));
+      }
+      if (changed) onChangeRef.current(markdown);
+      queueDocumentTitleResolution(markdown);
+    },
+    [normalizeMarkdown, queueDocumentTitleResolution, sourceMode],
+  );
+
+  const editor = useMarkdownEditor({
+    initialMarkdown: editorInitialMarkdown,
+    profile: "preserve",
+    editable: !readOnly,
+    onChange: (markdown) => publishMarkdown(markdown),
+    slash: slashOptions,
+    reference: mentionOptions,
+  });
+  const commands = useMarkdownCommands(editor);
+  const state = useMarkdownState(editor);
+  const targetResolver = adapters?.targetResolver;
+  const targetResolutions = useMarkdownTargetResolutions(
+    value,
+    targetResolver,
+    { vault, ...resolverContext },
+  );
+  const resolutions = useMemo(
+    () =>
+      new Map([
+        ...targetResolutions,
+        ...legacyImageResolutions(value, resolveImageSrc),
+      ]),
+    [resolveImageSrc, targetResolutions, value],
+  );
+  const referenceResolutions = useMarkdownReferenceResolutions(
+    value,
+    mentionReferenceAdapter,
+    { vault, ...resolverContext },
+  );
+  const {
+    isResizeAvailable,
+    isManual,
+    isResizing,
+    maxHeight,
+    currentHeight,
+    bodyFrameStyle,
+    onKeyDown: onResizeKeyDown,
+    onLostPointerCapture,
+    onPointerCancel,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+  } = useMarkdownEditorHeightResize(enableHeightResize, preferredHeight);
   const bodyFrameLayoutStyle = {
     ...bodyFrameStyle,
-    ...(isManualHeight
+    ...(isManual
       ? {
           marginBottom: `${EDITOR_BODY_MANUAL_FRAME_MARGIN_PX}px`,
           marginRight: `${EDITOR_BODY_MANUAL_FRAME_MARGIN_PX}px`,
@@ -242,185 +411,251 @@ export function MarkdownEditor({
       : {}),
   };
 
-  const slashMessages = useMarkdownEditorSlashMessages();
-  const targetResolver = adapters?.targetResolver;
-  const targetResolutions = useMarkdownTargetResolutions(
-    value,
-    targetResolver,
-    resolverContext,
+  useEffect(() => {
+    commandsRef.current = commands;
+  }, [commands]);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onBlurRef.current = onBlur;
+  }, [onBlur, onChange]);
+  useEffect(() => {
+    if (activeVaultRef.current === vault) return;
+    activeVaultRef.current = vault;
+    titleByUriRef.current.clear();
+    pendingTitleUrisRef.current.clear();
+  }, [vault]);
+  useEffect(() => {
+    const normalized = normalizeMarkdown(value);
+    latestValueRef.current = normalized;
+    if (normalized !== lastSyncedValueRef.current) {
+      lastSyncedValueRef.current = normalized;
+      if (normalized !== value) onChangeRef.current(normalized);
+      commands.setMarkdown(markdownForEditor(normalized));
+      setSourceValue(normalized);
+    }
+    queueDocumentTitleResolution(normalized);
+  }, [commands, normalizeMarkdown, queueDocumentTitleResolution, value]);
+
+  const handleBlur = useCallback(() => {
+    onBlurRef.current?.(latestValueRef.current);
+  }, []);
+
+  const handleSourceChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      const next = normalizeMarkdown(event.currentTarget.value);
+      sourceDirtyRef.current = true;
+      latestValueRef.current = next;
+      lastSyncedValueRef.current = next;
+      setSourceValue(next);
+      onChangeRef.current(next);
+      queueDocumentTitleResolution(next);
+    },
+    [normalizeMarkdown, queueDocumentTitleResolution],
   );
 
-  /* eslint-disable react-hooks/refs -- Tiptap invokes these renderer callbacks after React render; refs preserve the latest resolvers without recreating the editor. */
-  const editor = useEditor({
-    // Tiptap v3 requires this explicit opt-out under Next.js to avoid an SSR
-    // hydration mismatch — the editor mounts on the client just.
-    immediatelyRender: false,
-    extensions: createMarkdownEditorExtensions(
-      placeholder,
-      (src) => resolveImageSrcRef.current?.(src) ?? src,
-      mentionConfig
-        ? {
-            membersRef: mentionMembersRef,
-            issuesRef: mentionIssuesRef,
-            searchDocumentsRef: mentionDocumentSearchRef,
-            suggestionsLabel: mentionConfig.suggestionsLabel,
-            mentionOptionLabel: mentionConfig.mentionOptionLabel,
-            peopleSectionLabel: mentionConfig.peopleSectionLabel,
-            issuesSectionLabel: mentionConfig.issuesSectionLabel,
-            documentsSectionLabel: mentionConfig.documentsSectionLabel,
-            issueOptionLabel: mentionConfig.issueOptionLabel,
-            documentOptionLabel: mentionConfig.documentOptionLabel,
-            documentSearchLoadingLabel:
-              mentionConfig.documentSearchLoadingLabel,
-            documentSearchErrorLabel: mentionConfig.documentSearchErrorLabel,
-            documentSearchEmptyLabel: mentionConfig.documentSearchEmptyLabel,
-            onOpenChange: handleMentionOpenChange,
+  const handleUploadFiles = useCallback(
+    async (files: File[]) => {
+      if (!onUploadFiles || readOnly || uploadingFiles) return;
+      setUploadingFiles(true);
+      setUploadError(false);
+      try {
+        const result = await onUploadFiles(files);
+        if (result.failed > 0 || result.cancelled > 0) setUploadError(true);
+        const assets = result.items.flatMap((item) =>
+          item.status === "success" && item.asset.kind === "attachment"
+            ? [item.asset]
+            : [],
+        );
+        if (assets.length === 0) return;
+        const current = latestValueRef.current;
+        if (!commands.focus("end"))
+          throw new Error("Markdown editor is unavailable.");
+        if (current.trim() && !commands.insertMarkdown("\n\n")) {
+          throw new Error("Could not prepare the Markdown insertion point.");
+        }
+        for (const asset of assets) {
+          if (
+            !commands.insertImage(asset.target, asset.alt ?? "", asset.title)
+          ) {
+            throw new Error("Could not insert an uploaded image.");
           }
-        : undefined,
-      (href) => resolveAttachmentHrefRef.current?.(href),
-      slashMessages,
-      vault,
-      handleSlashOpenChange,
-      akbWebBase,
-    ),
-    content: initialContent,
-    contentType: "markdown",
-    editable: !readOnly,
-    editorProps: {
-      attributes: {
-        class: editorBodyClassName,
-        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
-        ...(mentionConfig
-          ? { "aria-autocomplete": "list", "aria-expanded": "false" }
-          : {}),
-      },
-      handleDOMEvents: {
-        mousedown: (view, event) =>
-          preventEditorSelectionOnLinkMouseDown(view.dom, event),
-        mouseup: (view, event) =>
-          openEditorLinkOnMouseUp(
-            view.dom,
-            event,
-            linksOpenedFromMouseUpRef.current,
-            setExternalLinkHref,
-            akbWebBase,
-          ),
-      },
-      handleClick: (view, _pos, event) =>
-        openClickedEditorLink(
-          view.dom,
-          event,
-          linksOpenedFromMouseUpRef.current,
-          setExternalLinkHref,
-          akbWebBase,
-        ),
-      handlePaste: (_view, event) => attachments.handleEditorPaste(event),
-      handleDrop: (_view, event) => attachments.handleEditorDrop(event),
+        }
+        const next = latestValueRef.current;
+        setSourceValue(next);
+        if (sourceModeRef.current) {
+          sourceTextareaRef.current?.focus();
+          sourceTextareaRef.current?.setSelectionRange(
+            next.length,
+            next.length,
+          );
+        }
+        queueDocumentTitleResolution(next);
+        if (!rootRef.current?.contains(document.activeElement)) {
+          onBlurRef.current?.(next);
+        }
+      } catch {
+        setUploadError(true);
+      } finally {
+        setUploadingFiles(false);
+      }
     },
-    onUpdate: ({ editor: updatedEditor }) =>
-      publishMarkdown(updatedEditor.getMarkdown(), updatedEditor),
-  });
-  /* eslint-enable react-hooks/refs */
+    [
+      commands,
+      onUploadFiles,
+      queueDocumentTitleResolution,
+      readOnly,
+      uploadingFiles,
+    ],
+  );
 
-  useEffect(() => {
-    setEditor(editor);
-  }, [editor, setEditor]);
+  const openFilePicker = useCallback(() => {
+    if (readOnly || uploadingFiles || !onUploadFiles) return;
+    fileInputRef.current?.click();
+  }, [onUploadFiles, readOnly, uploadingFiles]);
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const files = filesFromFileList(event.currentTarget.files);
+      event.currentTarget.value = "";
+      if (files.length > 0) void handleUploadFiles(files);
+    },
+    [handleUploadFiles],
+  );
+  const handleSourcePaste = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const files = filesFromFileList(event.clipboardData.files);
+      if (!files.length || !onUploadFiles || readOnly) return;
+      event.preventDefault();
+      void handleUploadFiles(files);
+    },
+    [handleUploadFiles, onUploadFiles, readOnly],
+  );
+  const handleSourceDrop = useCallback(
+    (event: DragEvent<HTMLTextAreaElement>) => {
+      const files = filesFromFileList(event.dataTransfer.files);
+      if (!files.length || !onUploadFiles || readOnly) return;
+      event.preventDefault();
+      void handleUploadFiles(files);
+    },
+    [handleUploadFiles, onUploadFiles, readOnly],
+  );
+  const handleSurfacePaste = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>) => {
+      const files = filesFromFileList(event.clipboardData.files);
+      if (!files.length || !onUploadFiles || readOnly) return;
+      event.preventDefault();
+      void handleUploadFiles(files);
+    },
+    [handleUploadFiles, onUploadFiles, readOnly],
+  );
+  const handleSurfaceDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      const files = filesFromFileList(event.dataTransfer.files);
+      if (!files.length || !onUploadFiles || readOnly) return;
+      event.preventDefault();
+      void handleUploadFiles(files);
+    },
+    [handleUploadFiles, onUploadFiles, readOnly],
+  );
+  const handleSurfaceDragOver = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      if (onUploadFiles && !readOnly && event.dataTransfer.files.length > 0) {
+        event.preventDefault();
+      }
+    },
+    [onUploadFiles, readOnly],
+  );
 
-  useEffect(() => {
-    const root = editor?.view?.dom;
-    if (!root || !targetResolver || value.length === 0) return;
-    applyMarkdownTargetResolutions(
-      root,
-      targetResolutions,
-      targetResolver !== undefined,
-    );
-  }, [editor, targetResolver, targetResolutions, value]);
-
-  const active = useMarkdownEditorToolbarState(editor);
-  const {
-    isOpen: linkEditorOpen,
-    url: linkUrl,
-    setUrl: setLinkUrl,
-    close: closeLinkEditor,
-    rememberSelection: rememberLinkSelection,
-    toggle: toggleLinkEditor,
-    apply: applyLink,
-    remove: removeLink,
-    onKeyDown: onLinkEditorKeyDown,
-  } = useMarkdownEditorLinkEditor(editor, active.link);
-
-  useEffect(() => {
-    syncExternalValue(editor, value);
-    refreshAutoHeight();
-  }, [editor, refreshAutoHeight, syncExternalValue, value]);
-
-  useEffect(() => {
-    syncMentionRoster(editor);
-  }, [editor, syncMentionRoster]);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const retarget = () => {
-      retargetRenderedAkbDocumentLinks(root, akbWebBase);
-    };
-    retarget();
-
-    if (typeof MutationObserver === "undefined") return;
-    const observer = new MutationObserver(retarget);
-    observer.observe(root, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, [akbWebBase]);
-
-  useEffect(() => {
-    if (!editor) return;
-    if (editor.isEditable === readOnly) {
-      editor.setEditable(!readOnly, false);
-    }
-  }, [editor, readOnly]);
-
+  const focusEditor = useCallback(() => {
+    commands.focus();
+  }, [commands]);
   const toggleSourceMode = useCallback(() => {
-    setSourceMode((isSourceMode) => {
-      // Leaving WYSIWYG closes any open link editor so it does not linger over
-      // the raw-markdown textarea where its commands wouldn't apply.
-      if (!isSourceMode) closeLinkEditor();
-      return !isSourceMode;
-    });
-  }, [closeLinkEditor]);
+    if (readOnly) return;
+    if (sourceMode) {
+      const next = normalizeMarkdown(sourceValue);
+      latestValueRef.current = next;
+      lastSyncedValueRef.current = next;
+      if (sourceDirtyRef.current) {
+        commands.setMarkdown(markdownForEditor(next));
+      }
+      sourceDirtyRef.current = false;
+      onChangeRef.current(next);
+      queueDocumentTitleResolution(next);
+      setSourceMode(false);
+      requestAnimationFrame(focusEditor);
+      return;
+    }
+    setSourceValue(latestValueRef.current);
+    sourceDirtyRef.current = false;
+    setSourceMode(true);
+  }, [
+    commands,
+    focusEditor,
+    normalizeMarkdown,
+    queueDocumentTitleResolution,
+    readOnly,
+    sourceMode,
+    sourceValue,
+  ]);
 
+  const mentionDismiss = useCallback(() => {
+    mentionOpenDismissRef.current?.();
+  }, []);
+  useOverlayOpenRegistration(
+    Boolean(mentionConfig && mentionOpen),
+    mentionDismiss,
+  );
+  const dismissSlash = useCallback(() => {
+    slashOpenDismissRef.current?.();
+  }, []);
+  useOverlayOpenRegistration(slashOpen, dismissSlash);
+
+  const handleSurfaceClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const surface = surfaceRef.current;
+      if (!surface) return;
+      openClickedEditorLink(
+        surface,
+        event.nativeEvent,
+        linksOpenedFromMouseUpRef.current,
+        setExternalLinkHref,
+      );
+    },
+    [],
+  );
+  const handleSurfaceMouseDownCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const surface = surfaceRef.current;
+      if (surface)
+        preventEditorSelectionOnLinkMouseDown(surface, event.nativeEvent);
+    },
+    [],
+  );
+  const handleSurfaceMouseUpCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const surface = surfaceRef.current;
+      if (!surface) return;
+      openEditorLinkOnMouseUp(
+        surface,
+        event.nativeEvent,
+        linksOpenedFromMouseUpRef.current,
+        setExternalLinkHref,
+      );
+    },
+    [],
+  );
+
+  const editorBodyClassName = cn(
+    EDITOR_CONTENT_CLASS,
+    MARKDOWN_SURFACE_CLASS,
+    "prose prose-sm focus:outline-none px-3 py-2 max-w-none",
+  );
   const toolbarLabels = useMemo(
     () => ({
-      bold: t("bold"),
-      italic: t("italic"),
-      strikethrough: t("strikethrough"),
-      inlineCode: t("inlineCode"),
-      heading1: t("heading1"),
-      heading2: t("heading2"),
-      heading3: t("heading3"),
-      bulletList: t("bulletList"),
-      numberedList: t("numberedList"),
-      quote: t("quote"),
-      codeBlock: t("codeBlock"),
-      divider: t("divider"),
-      link: t("link"),
-      attachFile: t("attachFile"),
-      toggleSourceMode: t("toggleSourceMode"),
       source: t("source"),
-    }),
-    [t],
-  );
-  const linkEditorLabels = useMemo(
-    () => ({
-      linkUrl: t("linkUrl"),
-      apply: t("apply"),
-      remove: c("remove"),
-      cancel: c("cancel"),
-    }),
-    [c, t],
-  );
-  const resizeLabels = useMemo(
-    () => ({
+      toggleSourceMode: t("toggleSourceMode"),
+      attachFile: t("attachFile"),
+      linkSearchInputLabel: t("linkSearchInputLabel"),
+      linkSearchInputPlaceholder: t("linkSearchInputPlaceholder"),
       resizeHandle: t("resizeHandle"),
       resizeHandleDescription: (values: {
         current: string;
@@ -430,120 +665,188 @@ export function MarkdownEditor({
     }),
     [t],
   );
-  const showLinkEditor = linkEditorOpen && !sourceMode && !readOnly;
 
   return (
     <div
       ref={rootRef}
       data-testid="markdown-editor"
+      data-reef-editable-markdown={readOnly ? undefined : ""}
       onBlur={(event) => {
-        // Fire when focus truly exits the editor subtree (toolbar + content) —
-        // relatedTarget still inside means an internal focus shift.
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           handleBlur();
         }
       }}
-      className={`relative isolate rounded-md border border-border bg-surface-elevated transition-colors duration-150 after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:content-[''] focus-within:border-brand-focus focus-within:after:ring-2 focus-within:after:ring-inset focus-within:after:ring-brand-focus ${className ?? ""}`}
+      className={cn(
+        "relative isolate rounded-md border border-border bg-surface-elevated transition-colors duration-150 after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:content-[''] focus-within:border-brand-focus focus-within:after:ring-2 focus-within:after:ring-inset focus-within:after:ring-brand-focus",
+        className,
+      )}
     >
-      {!readOnly && (
-        <MarkdownEditorToolbar
-          editor={editor}
-          active={active}
-          sourceMode={sourceMode}
-          linkEditorOpen={linkEditorOpen}
-          canUpload={Boolean(onUploadFiles)}
-          uploadingFiles={attachments.uploadingFiles}
-          fileInputRef={attachments.fileInputRef}
-          labels={toolbarLabels}
-          onRememberLinkSelection={rememberLinkSelection}
-          onToggleLinkEditor={toggleLinkEditor}
-          onOpenAttachmentFilePicker={attachments.openFilePicker}
-          onAttachmentInputChange={attachments.handleInputChange}
-          onToggleSourceMode={toggleSourceMode}
-        />
-      )}
+      {!readOnly ? (
+        <div
+          data-testid="markdown-toolbar"
+          className="flex items-start gap-1 border-b border-border-subtle px-2 py-1"
+        >
+          <div
+            data-testid="markdown-toolbar-controls"
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5"
+          >
+            <MarkdownToolbar
+              editor={sourceMode ? null : editor}
+              className="reef-markdown-toolbar min-w-0 flex-1 bg-transparent px-0 py-0"
+              link={{
+                normalizeUrl,
+                searchAdapter: vault
+                  ? markdownResourceSearchAdapter
+                  : undefined,
+                searchContext: vault ? { vault } : undefined,
+                searchLabels: {
+                  inputLabel: toolbarLabels.linkSearchInputLabel,
+                  inputPlaceholder: toolbarLabels.linkSearchInputPlaceholder,
+                },
+              }}
+            >
+              {onUploadFiles ? (
+                <MarkdownToolbarGroup label={toolbarLabels.attachFile}>
+                  <MarkdownToolbarButton
+                    label={toolbarLabels.attachFile}
+                    disabled={uploadingFiles}
+                    onClick={openFilePicker}
+                  >
+                    <Paperclip className="h-4 w-4" aria-hidden="true" />
+                  </MarkdownToolbarButton>
+                </MarkdownToolbarGroup>
+              ) : null}
+            </MarkdownToolbar>
+            {onUploadFiles ? (
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                aria-label={toolbarLabels.attachFile}
+                data-testid="markdown-attachment-input"
+                onChange={handleInputChange}
+              />
+            ) : null}
+          </div>
+          <div data-testid="markdown-source-toggle" className="shrink-0">
+            <Button
+              type="button"
+              variant={sourceMode ? "secondary" : "ghost"}
+              size="sm"
+              aria-pressed={sourceMode}
+              onClick={toggleSourceMode}
+              className="h-8 px-2 text-xs font-mono"
+              title={toolbarLabels.toggleSourceMode}
+            >
+              {toolbarLabels.source}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
-      {showLinkEditor && (
-        <MarkdownEditorLinkEditor
-          linkUrl={linkUrl}
-          hasActiveLink={active.link}
-          labels={linkEditorLabels}
-          onChange={setLinkUrl}
-          onKeyDown={onLinkEditorKeyDown}
-          onApply={applyLink}
-          onRemove={removeLink}
-          onClose={closeLinkEditor}
-        />
-      )}
-
-      {(attachments.uploadingFiles || attachments.uploadError) && (
+      {(uploadingFiles || uploadError) && (
         <div
           className="border-b border-border-subtle px-3 py-1.5 text-xs text-muted-foreground"
-          role={attachments.uploadError ? "alert" : "status"}
+          role={uploadError ? "alert" : "status"}
         >
-          {attachments.uploadError ? t("uploadError") : t("uploading")}
+          {uploadError ? t("uploadError") : t("uploading")}
         </div>
       )}
 
       <div
-        ref={externalBodyFrameRef}
+        ref={bodyFrameRef}
         id={enableHeightResize ? EDITOR_RESIZABLE_BODY_ID : undefined}
         data-testid="markdown-editor-body-frame"
         className={cn(
           EDITOR_BODY_FRAME_CLASS,
-          enableHeightResize && isHeightResizeAvailable && "relative",
-          isManualHeight && "min-h-0 overflow-hidden",
+          enableHeightResize && isResizeAvailable && "relative",
+          isManual && "min-h-0 overflow-hidden",
         )}
         style={bodyFrameLayoutStyle}
       >
+        <div
+          ref={surfaceRef}
+          hidden={sourceMode}
+          className={cn(
+            "relative min-w-0",
+            isManual ? EDITOR_MANUAL_SCROLL_SURFACE_CLASS : EDITOR_BODY_SIZING,
+          )}
+          onClickCapture={handleSurfaceClickCapture}
+          onMouseDownCapture={handleSurfaceMouseDownCapture}
+          onMouseUpCapture={handleSurfaceMouseUpCapture}
+          onPasteCapture={handleSurfacePaste}
+          onDropCapture={handleSurfaceDrop}
+          onDragOverCapture={handleSurfaceDragOver}
+        >
+          <MarkdownSurface
+            editor={editor}
+            editable={!readOnly}
+            className="relative min-w-0"
+            contentClassName={editorBodyClassName}
+            contentAttributes={{
+              "data-testid": "markdown-editor-content",
+              ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+              ...(mentionConfig
+                ? { "aria-autocomplete": "list", "aria-expanded": false }
+                : {}),
+            }}
+            resolutions={resolutions}
+            resolvingTargets={Boolean(targetResolver)}
+            referenceResolutions={referenceResolutions}
+            resolvingReferences={Boolean(mentionReferenceAdapter?.resolve)}
+          />
+          {!readOnly && state?.isEmpty ? (
+            <div
+              aria-hidden="true"
+              data-testid="markdown-editor-placeholder"
+              className="pointer-events-none absolute left-3 top-2 text-sm text-muted-foreground"
+            >
+              {placeholder}
+            </div>
+          ) : null}
+        </div>
+
         {sourceMode ? (
           <textarea
-            value={value}
+            ref={sourceTextareaRef}
+            value={sourceValue}
             onChange={handleSourceChange}
-            onPaste={attachments.handleSourcePaste}
-            onDrop={attachments.handleSourceDrop}
+            onPaste={handleSourcePaste}
+            onDrop={handleSourceDrop}
             onDragOver={(event) => {
               if (
-                attachments.uploadFilesRef.current &&
-                !attachments.readOnlyRef.current
+                onUploadFiles &&
+                !readOnly &&
+                event.dataTransfer.files.length > 0
               ) {
                 event.preventDefault();
               }
             }}
             readOnly={readOnly}
             aria-label={ariaLabel}
-            // field-sizing-content auto-grows with the body where supported;
-            // resize-y blocks horizontal drag and remains a manual vertical
-            // fallback where field-sizing is unavailable.
             className={cn(
               "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
-              isHeightResizeAvailable ? "resize-none" : "resize-y",
-              isManualHeight ? EDITOR_MANUAL_SOURCE_CLASS : EDITOR_BODY_SIZING,
+              isResizeAvailable ? "resize-none" : "resize-y",
+              isManual ? EDITOR_MANUAL_SOURCE_CLASS : EDITOR_BODY_SIZING,
             )}
             placeholder={sourcePlaceholder ?? placeholder}
             data-testid="markdown-source-textarea"
           />
-        ) : (
-          <EditorContent
-            editor={editor}
-            className={
-              isManualHeight ? EDITOR_MANUAL_SCROLL_SURFACE_CLASS : undefined
-            }
-          />
-        )}
+        ) : null}
 
-        {enableHeightResize && isHeightResizeAvailable ? (
+        {enableHeightResize && isResizeAvailable ? (
           <MarkdownEditorResizeHandle
-            currentHeight={editorCurrentHeight}
-            maxHeight={editorMaxHeight}
-            isResizing={isHeightResizing}
-            labels={resizeLabels}
-            onKeyDown={onHeightResizeKeyDown}
-            onPointerCancel={onHeightResizePointerCancel}
-            onPointerDown={onHeightResizePointerDown}
-            onPointerMove={onHeightResizePointerMove}
-            onPointerUp={onHeightResizePointerUp}
-            onLostPointerCapture={onHeightResizeLostPointerCapture}
+            currentHeight={currentHeight}
+            maxHeight={maxHeight}
+            isResizing={isResizing}
+            labels={toolbarLabels}
+            onKeyDown={onResizeKeyDown}
+            onPointerCancel={onPointerCancel}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onLostPointerCapture={onLostPointerCapture}
           />
         ) : null}
       </div>
@@ -557,5 +860,15 @@ export function MarkdownEditor({
           })
         : null}
     </div>
+  );
+}
+
+export function MarkdownEditor(props: MarkdownEditorProps) {
+  const nextIntlLocale = useLocale();
+  const locale = localeForMarkdownEditor(nextIntlLocale);
+  return (
+    <MarkdownLocaleProvider locale={locale}>
+      <MarkdownEditorContent {...props} />
+    </MarkdownLocaleProvider>
   );
 }

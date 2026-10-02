@@ -1,3 +1,4 @@
+import type { MarkdownReferenceAdapter } from "@akb/markdown-editor/react";
 import {
   act,
   fireEvent,
@@ -5,749 +6,450 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { useEditor } from "@tiptap/react";
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
+import {
+  IssueListItemSchema,
+  type IssueListItem,
+  type VaultMember,
+} from "@reef/core";
+import type { ComponentProps, ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import { MarkdownEditor } from "./MarkdownEditorImpl";
 import {
-  clampEditorHeight,
-  EDITOR_BODY_FRAME_CLASS,
   EDITOR_BODY_DEFAULT_HEIGHT,
+  EDITOR_BODY_FINE_POINTER_MEDIA_QUERY,
+  EDITOR_BODY_FRAME_CLASS,
   EDITOR_BODY_KEYBOARD_STEP,
   EDITOR_BODY_MIN_HEIGHT,
-  EDITOR_BODY_FINE_POINTER_MEDIA_QUERY,
   EDITOR_BODY_RESIZE_MIN_WIDTH,
-  EDITOR_BODY_SIZING,
   EDITOR_BODY_SESSION_STORAGE_KEY,
-  EDITOR_RESIZABLE_BODY_ID,
-  getEditorMaxHeight,
   EDITOR_CONTENT_CLASS,
+  EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
+  EDITOR_RESIZABLE_BODY_ID,
   MARKDOWN_SURFACE_CLASS,
 } from "./markdown-editor/heightResize";
 
-// Mock Tiptap to avoid JSDOM ProseMirror issues. The chain is a single
-// self-referential object so any command sequence (e.g. focus().setLink().run())
-// resolves, and tests can assert which commands fired.
-const chainMethods = [
-  "focus",
-  "toggleBold",
-  "toggleItalic",
-  "toggleStrike",
-  "toggleCode",
-  "toggleHeading",
-  "toggleBulletList",
-  "toggleOrderedList",
-  "toggleBlockquote",
-  "toggleCodeBlock",
-  "setHorizontalRule",
-  "setTextSelection",
-  "extendMarkRange",
-  "setLink",
-  "unsetLink",
-  "insertContent",
-  "run",
-] as const;
+const markdownMocks = vi.hoisted(() => ({
+  editorOptions: null as Record<string, unknown> | null,
+  handle: { testHandle: true },
+  commands: {
+    focus: vi.fn(() => true),
+    setMarkdown: vi.fn(() => true),
+    insertMarkdown: vi.fn((_markdown: string) => true),
+    insertImage: vi.fn(
+      (_target: string, _alt?: string, _title?: string) => true,
+    ),
+  },
+  state: { isEmpty: true },
+  targetResolutions: new Map<string, unknown>(),
+  referenceResolutions: new Map<string, unknown>(),
+  surfaceProps: null as Record<string, unknown> | null,
+  toolbarLink: null as Record<string, unknown> | null,
+  surfaceLink: null as {
+    href: string;
+    text: string;
+    attributes?: Record<string, string>;
+  } | null,
+}));
 
-type MockChain = Record<
-  (typeof chainMethods)[number],
-  ReturnType<typeof vi.fn>
->;
-
-const mockChain = {} as MockChain;
-for (const m of chainMethods) {
-  mockChain[m] = vi.fn(() => mockChain);
-}
-
-let mockMarkdownOverride: string | undefined;
-
-vi.mock("@tiptap/react", () => {
-  const mockEditor = {
-    chain: () => mockChain,
-    commands: {
-      setContent: vi.fn(),
-    },
-    // Direct getMarkdown method (Tiptap v3 augments Editor interface directly)
-    getMarkdown: vi.fn(() => ""),
-    storage: {
-      markdown: {
-        getMarkdown: vi.fn(() => ""),
-      },
-    },
-    isActive: vi.fn(() => false),
-    getAttributes: vi.fn(() => ({}) as Record<string, unknown>),
-    state: { selection: { empty: true } },
-    isDestroyed: false,
-    isEditable: true,
-    setEditable: vi.fn((editable: boolean) => {
-      mockEditor.isEditable = editable;
-    }),
-  };
+vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@akb/markdown-editor/react")>();
 
   return {
-    useEditor: vi.fn(
-      (opts: {
-        onUpdate?: (args: { editor: typeof mockEditor }) => void;
-        content?: string;
-      }) => {
-        // Expose onUpdate so tests can trigger it
-        (mockEditor as unknown as { _opts: typeof opts })._opts = opts;
-        mockEditor.getMarkdown = vi.fn(
-          () => mockMarkdownOverride ?? opts.content ?? "",
-        );
-        mockEditor.storage.markdown.getMarkdown = vi.fn(
-          () => mockMarkdownOverride ?? opts.content ?? "",
-        );
-        return mockEditor;
-      },
-    ),
-    // Run the selector against the mock editor so derived active flags reflect
-    // mockEditor.isActive(), matching the real subscribe-to-derived behavior.
-    useEditorState: vi.fn(
-      (opts: {
-        selector: (ctx: {
-          editor: typeof mockEditor;
-          transactionNumber: number;
-        }) => unknown;
-      }) => opts.selector({ editor: mockEditor, transactionNumber: 0 }),
-    ),
-    EditorContent: ({
-      editor,
-      className,
-    }: {
-      editor: unknown;
+    ...actual,
+    MarkdownSurface: (props: {
       className?: string;
+      contentClassName?: string;
+      contentAttributes?: Record<string, string | boolean>;
+      editable: boolean;
+    }) => {
+      markdownMocks.surfaceProps = props as unknown as Record<string, unknown>;
+      const link = markdownMocks.surfaceLink;
+      return (
+        <div className={props.className}>
+          <div
+            {...props.contentAttributes}
+            className={props.contentClassName}
+            contentEditable={props.editable}
+            suppressContentEditableWarning
+          >
+            {link ? (
+              <p>
+                <a href={link.href} {...link.attributes}>
+                  {link.text}
+                </a>
+              </p>
+            ) : null}
+          </div>
+        </div>
+      );
+    },
+    MarkdownToolbar: ({
+      editor,
+      children,
+      className,
+      link,
+    }: {
+      editor: object | null;
+      children?: ReactNode;
+      className?: string;
+      link?: Record<string, unknown>;
+    }) => {
+      markdownMocks.toolbarLink = link ?? null;
+      return (
+        <div data-testid="shared-toolbar" className={className}>
+          {[
+            "Bold",
+            "Italic",
+            "Strikethrough",
+            "Inline Code",
+            "Heading 1",
+            "Heading 2",
+            "Heading 3",
+            "Bullet list",
+            "Numbered List",
+            "Quote",
+            "Code Block",
+            "Divider",
+            "Link",
+          ].map((label) => (
+            <button
+              key={label}
+              type="button"
+              title={label}
+              disabled={!editor}
+              onClick={() => markdownMocks.commands.focus()}
+            >
+              {label}
+            </button>
+          ))}
+          {children}
+        </div>
+      );
+    },
+    MarkdownToolbarGroup: ({
+      label,
+      children,
+    }: {
+      label: string;
+      children: ReactNode;
     }) => (
-      <div
-        data-testid="editor-content"
-        data-editor={editor ? "loaded" : "null"}
-        className={className}
-      />
+      <div role="group" aria-label={label}>
+        {children}
+      </div>
+    ),
+    MarkdownToolbarButton: ({
+      label,
+      disabled,
+      onClick,
+      children,
+    }: {
+      label: string;
+      disabled?: boolean;
+      onClick: () => void;
+      children: ReactNode;
+    }) => (
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    ),
+    useMarkdownEditor: vi.fn((options: Record<string, unknown>) => {
+      markdownMocks.editorOptions = options;
+      return markdownMocks.handle;
+    }),
+    useMarkdownCommands: vi.fn(() => markdownMocks.commands),
+    useMarkdownState: vi.fn(() => markdownMocks.state),
+    useMarkdownTargetResolutions: vi.fn(() => markdownMocks.targetResolutions),
+    useMarkdownReferenceResolutions: vi.fn(
+      () => markdownMocks.referenceResolutions,
     ),
   };
 });
 
-vi.mock("@tiptap/extension-placeholder", () => ({
-  default: { configure: () => ({}) },
-}));
+function renderEditor(
+  props: ComponentProps<typeof MarkdownEditor>,
+  locale: "en" | "ko" = "en",
+) {
+  return render(
+    <IntlTestProvider locale={locale}>
+      <MarkdownEditor {...props} />
+    </IntlTestProvider>,
+  );
+}
 
-describe("MarkdownEditor", () => {
-  function setPointerCapability(fine: boolean) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      value: vi.fn((query: string) => ({
-        matches: query === EDITOR_BODY_FINE_POINTER_MEDIA_QUERY && fine,
-        media: query,
-        onchange: null,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        dispatchEvent: vi.fn(() => false),
-      })),
-    });
-  }
+function emitEditorChange(markdown: string) {
+  const options = markdownMocks.editorOptions as {
+    onChange: (markdown: string) => void;
+  };
+  act(() => options.onChange(markdown));
+}
 
+function setPointerCapability(fine: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn((query: string) => ({
+      matches: query === EDITOR_BODY_FINE_POINTER_MEDIA_QUERY && fine,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    })),
+  });
+}
+
+function setViewport(width: number, height: number) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    value: height,
+  });
+  window.dispatchEvent(new Event("resize"));
+}
+
+const successfulUpload = {
+  items: [
+    {
+      status: "success" as const,
+      file: new Blob(["brief"]),
+      asset: {
+        kind: "attachment" as const,
+        target: "/api/assets/00000000-0000-4000-8000-000000000001",
+        alt: "brief.png",
+      },
+    },
+  ],
+  succeeded: 1,
+  failed: 0,
+  cancelled: 0,
+  partial: false,
+};
+
+function mockImageInsertion(initialMarkdown: string) {
+  let markdown = initialMarkdown;
+  markdownMocks.commands.insertMarkdown.mockImplementation((snippet) => {
+    markdown += snippet;
+    emitEditorChange(markdown);
+    return true;
+  });
+  markdownMocks.commands.insertImage.mockImplementation((target, alt = "") => {
+    markdown += `![${alt}](${target})`;
+    emitEditorChange(markdown);
+    return true;
+  });
+}
+
+function issue(id: string, title: string): IssueListItem {
+  return IssueListItemSchema.parse({
+    id,
+    title,
+    status: "todo",
+    created_at: "2026-01-01T00:00:00.000Z",
+    created_by: "alice",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    updated_by: "alice",
+    archived_at: null,
+  });
+}
+
+describe("MarkdownEditor product adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockMarkdownOverride = undefined;
+    markdownMocks.commands.insertMarkdown.mockImplementation(() => true);
+    markdownMocks.commands.insertImage.mockImplementation(() => true);
+    markdownMocks.editorOptions = null;
+    markdownMocks.surfaceProps = null;
+    markdownMocks.toolbarLink = null;
+    markdownMocks.surfaceLink = null;
+    markdownMocks.targetResolutions = new Map();
+    markdownMocks.referenceResolutions = new Map();
+    markdownMocks.state.isEmpty = true;
     sessionStorage.clear();
     setPointerCapability(true);
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: 1024,
-    });
-    Object.defineProperty(window, "innerHeight", {
-      configurable: true,
-      value: 768,
+    setViewport(1440, 900);
+  });
+
+  it("adapts the editor to the public shared surface and keeps its focus chrome", () => {
+    renderEditor({ value: "# Hello", onChange: vi.fn() });
+
+    const root = screen.getByTestId("markdown-editor");
+    const content = screen.getByTestId("markdown-editor-content");
+    expect(root).toHaveAttribute("data-reef-editable-markdown", "");
+    expect(root.className).toContain("isolate");
+    expect(root.className).toContain("focus-within:after:ring-inset");
+    expect(content.className).toContain(EDITOR_CONTENT_CLASS);
+    expect(content.className).toContain(MARKDOWN_SURFACE_CLASS);
+    expect(content).toHaveAttribute("contenteditable", "true");
+  });
+
+  it("connects the shared link search to the active vault with localized labels", () => {
+    renderEditor(
+      { value: "# Body", onChange: vi.fn(), vault: "reef-test" },
+      "ko",
+    );
+
+    expect(markdownMocks.toolbarLink).toMatchObject({
+      searchAdapter: markdownResourceSearchAdapter,
+      searchContext: { vault: "reef-test" },
+      searchLabels: {
+        inputLabel: "볼트 자료 검색",
+        inputPlaceholder: "문서 또는 파일 찾기",
+      },
     });
   });
 
-  function setViewport(width: number, height: number) {
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: width,
-    });
-    Object.defineProperty(window, "innerHeight", {
-      configurable: true,
-      value: height,
-    });
-    window.dispatchEvent(new Event("resize"));
-  }
+  it("keeps the shared semantic surface in read-only mode and hides editing controls", () => {
+    renderEditor({ value: "# Body", onChange: vi.fn(), readOnly: true });
 
-  it("renders the editor container", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    expect(screen.getByTestId("markdown-editor")).toBeInTheDocument();
+    expect(screen.getByTestId("markdown-editor")).not.toHaveAttribute(
+      "data-reef-editable-markdown",
+    );
+    expect(screen.getByTestId("markdown-editor-content")).toHaveAttribute(
+      "contenteditable",
+      "false",
+    );
+    expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
   });
 
-  it("paints the inset focus-within ring above clipped edit lanes and dividers", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    const editor = screen.getByTestId("markdown-editor");
-    expect(editor.className).toContain("relative");
-    expect(editor.className).toContain("isolate");
-    expect(editor.className).toContain("after:pointer-events-none");
-    expect(editor.className).toContain("after:z-20");
-    expect(editor.className).toContain("focus-within:after:ring-2");
-    expect(editor.className).toContain("focus-within:after:ring-inset");
-    expect(editor.className).toContain("focus-within:after:ring-brand-focus");
-  });
+  it("keeps legacy AKB attachment image resolution presentation-only", () => {
+    const target = "akb://reef-test/issues/file/file-1";
+    const resolveImageSrc = vi.fn(
+      () => "/api/issues/REEF-001/attachments/file",
+    );
+    renderEditor({
+      value: "![Screenshot](akb://reef-test/issues/file/file-1)",
+      onChange: vi.fn(),
+      resolveImageSrc,
+    });
 
-  it("insets the scrollable body from the focus chrome (REEF-378)", () => {
-    render(<MarkdownEditor value="# Hello" onChange={vi.fn()} />);
-
-    const frame = screen.getByTestId("markdown-editor-body-frame");
-    expect(frame.className).toContain(EDITOR_BODY_FRAME_CLASS);
-    expect(frame).toContainElement(screen.getByTestId("editor-content"));
-
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: { attributes?: { class?: string } };
+    const surfaceProps = markdownMocks.surfaceProps as {
+      resolutions: ReadonlyMap<string, { runtimeUrl: string }>;
     };
-    const className = opts.editorProps?.attributes?.class ?? "";
-    expect(className).toContain("[scrollbar-gutter:stable]");
-
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(surfaceProps.resolutions.get(target)).toMatchObject({
+      target,
+      status: "available",
+      runtimeUrl: "/api/issues/REEF-001/attachments/file",
     });
-    expect(screen.getByTestId("markdown-source-textarea").className).toContain(
-      "[scrollbar-gutter:stable]",
-    );
+    expect(resolveImageSrc).toHaveBeenCalledWith(target);
+    expect(screen.getByTestId("markdown-editor-content")).toBeEmptyDOMElement();
   });
 
-  it("shows the editor content area", () => {
-    render(<MarkdownEditor value="# Hello" onChange={vi.fn()} />);
-    expect(screen.getByTestId("editor-content")).toBeInTheDocument();
-  });
-
-  it("scopes WYSIWYG content for task-list layout CSS (REEF-161)", () => {
-    render(<MarkdownEditor value="- [ ] task" onChange={vi.fn()} />);
-
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: { attributes?: { class?: string } };
+  it("passes refreshed target resolutions to the shared surface when markdown changes", () => {
+    const target = "akb://reef-test/coll/docs/doc/spec-overview.md";
+    const props = {
+      value: `[AKB report](${target})`,
+      onChange: vi.fn(),
     };
-    const className = opts.editorProps?.attributes?.class ?? "";
-
-    expect(className).toContain(EDITOR_CONTENT_CLASS);
-    expect(className).toContain(MARKDOWN_SURFACE_CLASS);
-    expect(className).toContain(EDITOR_BODY_SIZING);
-    expect(className).toContain("prose prose-sm");
-    expect(className).not.toContain("dark:prose-invert");
-  });
-
-  it("confirms external editor links before opening with noopener", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
+    const view = renderEditor(props);
+    const targetResolution = {
+      target,
+      kind: "document",
+      status: "unavailable",
+      label: "Pending",
     };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
-    const link = root.querySelector("a");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-
-    let handled: boolean | undefined;
-    act(() => {
-      handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-    });
-
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(true);
-    expect(open).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("dialog", { name: "Open external link" }),
-    ).toHaveTextContent("https://example.com/spec");
-
-    fireEvent.click(screen.getByRole("button", { name: "Open link" }));
-    expect(open).toHaveBeenCalledWith(
-      "https://example.com/spec",
-      "_blank",
-      "noopener,noreferrer",
+    markdownMocks.targetResolutions = new Map([[target, targetResolution]]);
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor {...props} value={`${props.value}\n\nUpdated`} />
+      </IntlTestProvider>,
     );
-    expect(opened.opener).toBeNull();
+
+    const resolutions = markdownMocks.surfaceProps?.resolutions as
+      | ReadonlyMap<string, unknown>
+      | undefined;
+    expect(resolutions?.get(target)).toEqual(targetResolution);
   });
 
-  it("keeps link mouse down from moving the editor selection before opening", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          mousedown?: (
-            view: { dom: HTMLElement },
-            event: MouseEvent,
-          ) => boolean;
-        };
-      };
+  it("passes reference-resolution updates to the shared surface", () => {
+    const props = {
+      value: "@alice",
+      onChange: vi.fn(),
     };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
-    const link = root.querySelector("a");
-    const event = new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const open = vi.spyOn(window, "open");
-
-    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
-      { dom: root },
-      event,
-    );
-
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(true);
-    expect(open).not.toHaveBeenCalled();
-  });
-
-  it("shows one confirmation when mouse up is followed by a link click", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
-        };
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
+    const view = renderEditor(props);
+    const resolvedPerson = {
+      status: "available",
+      kind: "person",
+      id: "alice",
+      title: "@alice",
     };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
-    const link = root.querySelector("a");
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-    const mouseUp = new MouseEvent("mouseup", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(mouseUp, "target", { value: link });
-
-    let handledMouseUp: boolean | undefined;
-    act(() => {
-      handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
-        { dom: root },
-        mouseUp,
-      );
-    });
-
-    expect(handledMouseUp).toBe(true);
-    expect(mouseUp.defaultPrevented).toBe(true);
-    expect(open).not.toHaveBeenCalled();
-    expect(
-      screen.getAllByRole("dialog", { name: "Open external link" }),
-    ).toHaveLength(1);
-
-    const click = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(click, "target", { value: link });
-
-    const handledClick = opts.editorProps?.handleClick?.(
-      { dom: root },
-      1,
-      click,
+    markdownMocks.referenceResolutions = new Map([
+      ["person:alice", resolvedPerson],
+    ]);
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor {...props} />
+      </IntlTestProvider>,
     );
 
-    expect(handledClick).toBe(true);
-    expect(click.defaultPrevented).toBe(true);
-    expect(open).not.toHaveBeenCalled();
-    expect(
-      screen.getAllByRole("dialog", { name: "Open external link" }),
-    ).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Open link" }));
-    expect(open).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith(
-      "https://example.com/spec",
-      "_blank",
-      "noopener,noreferrer",
+    expect(markdownMocks.surfaceProps?.referenceResolutions).toEqual(
+      markdownMocks.referenceResolutions,
     );
-    expect(opened.opener).toBeNull();
   });
 
-  it("opens an in-app issue link directly without external confirmation", () => {
-    render(
-      <MarkdownEditor
-        value="[REEF-002](/issues/REEF-002)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="/workspace/reef-test/issues/REEF-002" target="_blank">REEF-002</a></p>';
-    const link = root.querySelector("a");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledWith(
-      "http://localhost:3000/workspace/reef-test/issues/REEF-002",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(opened.opener).toBeNull();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("opens a validated AKB_WEB_URL-retargeted document link directly", () => {
-    render(
-      <AkbWebUrlProvider value="https://akb.example.test">
-        <MarkdownEditor
-          value="[Spec](akb://reef-test/coll/docs/doc/spec.md)"
-          onChange={vi.fn()}
-        />
-      </AkbWebUrlProvider>,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML = [
-      '<p><a href="https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md"',
-      ' target="_blank" data-reference-kind="document"',
-      ' data-document-uri="akb://reef-test/coll/docs/doc/spec.md"',
-      ' data-akb-uri="akb://reef-test/coll/docs/doc/spec.md">Spec</a></p>',
-    ].join("");
-    const link = root.querySelector("a");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const opened = { opener: window } as Window;
-    const open = vi.spyOn(window, "open").mockReturnValue(opened);
-
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(true);
-    expect(open).toHaveBeenCalledWith(
-      "https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    expect(opened.opener).toBeNull();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("retargets AKB links added while remounting WYSIWYG after Source input", async () => {
-    const uri = "akb://reef-test/coll/docs/doc/spec.md";
-    const sourceMarkdown = String.raw`[\[Plan\] 260811 - 전체](${uri})`;
-    const onChange = vi.fn();
-
-    render(
-      <AkbWebUrlProvider value="https://akb.example.test">
-        <MarkdownEditor value="" onChange={onChange} />
-      </AkbWebUrlProvider>,
-    );
-
-    fireEvent.click(screen.getByTitle("Toggle source mode"));
-    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
-      target: { value: sourceMarkdown },
-    });
-    fireEvent.click(screen.getByTitle("Toggle source mode"));
-
-    const editorContent = screen.getByTestId("editor-content");
-    editorContent.innerHTML = `<p><a href="${uri}">[Plan] 260811 - 전체</a></p>`;
-
-    const link = editorContent.querySelector("a");
-    await waitFor(() => {
-      expect(link).toHaveAttribute(
-        "href",
-        "https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md",
-      );
-    });
-    expect(link).toHaveAttribute("data-akb-uri", uri);
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noreferrer");
-    expect(onChange).toHaveBeenCalledWith(sourceMarkdown);
-  });
-
-  it("keeps the authored AKB URI when retargeted WYSIWYG markup is serialized", () => {
-    const uri = "akb://reef-test/coll/docs/doc/spec.md";
-    const renderedHref =
-      "https://akb.example.test/vault/reef-test/doc/docs%2Fspec.md";
-    const sourceMarkdown = String.raw`[\[Plan\] 260811 - 전체](${uri})`;
-    const renderedMarkdown = String.raw`[\[Plan\] 260811 - 전체](${renderedHref})`;
-    const onChange = vi.fn();
-
-    render(
-      <AkbWebUrlProvider value="https://akb.example.test">
-        <MarkdownEditor value="" onChange={onChange} />
-      </AkbWebUrlProvider>,
-    );
-
-    fireEvent.click(screen.getByTitle("Toggle source mode"));
-    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
-      target: { value: sourceMarkdown },
-    });
-    fireEvent.click(screen.getByTitle("Toggle source mode"));
-
-    const editorContent = screen.getByTestId("editor-content");
-    editorContent.innerHTML = `<p><a href="${renderedHref}" data-akb-uri="${uri}">[Plan] 260811 - 전체</a></p>`;
-    mockMarkdownOverride = renderedMarkdown;
-
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value;
-    const options = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      onUpdate?: (args: { editor: typeof editor }) => void;
-    };
-    act(() => {
-      options.onUpdate?.({ editor });
-    });
-
-    expect(onChange).toHaveBeenCalledWith(sourceMarkdown);
-    expect(onChange).not.toHaveBeenCalledWith(renderedMarkdown);
-  });
-
-  it("does not let unvalidated link metadata bypass external confirmation", () => {
-    render(
-      <MarkdownEditor
-        value="[Spec](https://example.com/spec)"
-        onChange={vi.fn()}
-      />,
-    );
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML =
-      '<p><a href="https://example.com/spec" data-document-uri="akb://reef-test/coll/docs/doc/spec.md" data-akb-uri="akb://reef-test/coll/docs/doc/spec.md">Spec</a></p>';
-    const link = root.querySelector("a");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const open = vi.spyOn(window, "open");
-
-    let handled: boolean | undefined;
-    act(() => {
-      handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-    });
-
-    expect(handled).toBe(true);
-    expect(open).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("dialog", { name: "Open external link" }),
-    ).toHaveTextContent("https://example.com/spec");
-  });
-
-  it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {
-    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleDOMEvents?: {
-          mousedown?: (
-            view: { dom: HTMLElement },
-            event: MouseEvent,
-          ) => boolean;
-        };
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML = "<p>plain text</p>";
-    const paragraph = root.querySelector("p");
-    const event = new MouseEvent("mousedown", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: paragraph });
-
-    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
-      { dom: root },
-      event,
-    );
-
-    expect(handled).toBe(false);
-    expect(event.defaultPrevented).toBe(false);
-  });
-
-  it("leaves ordinary editor text clicks for ProseMirror selection handling", () => {
-    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
-    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-      editorProps?: {
-        handleClick?: (
-          view: { dom: HTMLElement },
-          pos: number,
-          event: MouseEvent,
-        ) => boolean;
-      };
-    };
-    const root = document.createElement("div");
-    root.innerHTML = "<p>plain text</p>";
-    const paragraph = root.querySelector("p");
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-    });
-    Object.defineProperty(event, "target", { value: paragraph });
-    const open = vi.spyOn(window, "open");
-
-    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
-
-    expect(handled).toBe(false);
-    expect(event.defaultPrevented).toBe(false);
-    expect(open).not.toHaveBeenCalled();
-  });
-
-  it("shows toolbar buttons when not readOnly", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    expect(screen.getByTitle("Bold")).toBeInTheDocument();
-    expect(screen.getByTitle("Italic")).toBeInTheDocument();
-    expect(screen.getByTitle("Heading 1")).toBeInTheDocument();
-    expect(screen.getByTitle("Heading 2")).toBeInTheDocument();
-    expect(screen.getByTitle("Bullet List")).toBeInTheDocument();
-    expect(screen.getByTitle("Code Block")).toBeInTheDocument();
-  });
-
-  it("exposes the expanded set of markdown authoring controls", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    // Controls added in REEF-082 — previously just reachable via Source mode.
-    expect(screen.getByTitle("Strikethrough")).toBeInTheDocument();
-    expect(screen.getByTitle("Inline Code")).toBeInTheDocument();
-    expect(screen.getByTitle("Heading 3")).toBeInTheDocument();
-    expect(screen.getByTitle("Numbered List")).toBeInTheDocument();
-    expect(screen.getByTitle("Quote")).toBeInTheDocument();
-    expect(screen.getByTitle("Divider")).toBeInTheDocument();
-    expect(screen.getByTitle("Link")).toBeInTheDocument();
-  });
-
-  it("shows the attachment insert control only when uploads are supported", () => {
-    const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    expect(screen.queryByTitle("Attach file")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("markdown-attachment-input")).toBeNull();
-
-    rerender(
-      <MarkdownEditor value="" onChange={vi.fn()} onUploadFiles={vi.fn()} />,
-    );
-    expect(screen.getByTitle("Attach file")).toBeInTheDocument();
-    expect(screen.getByTestId("markdown-attachment-input")).toBeInTheDocument();
-  });
-
-  it("uploads files selected from the toolbar before appending returned markdown", async () => {
+  it("inserts successful uploads through the public image command and reports partial failures", async () => {
     const onChange = vi.fn();
     const onBlur = vi.fn();
     const onUploadFiles = vi.fn().mockResolvedValue({
+      ...successfulUpload,
       items: [
+        ...successfulUpload.items,
         {
-          status: "success",
-          file: new Blob(["brief"]),
-          asset: {
-            kind: "attachment",
-            target: "/api/assets/00000000-0000-4000-8000-000000000001",
-            alt: "brief.png",
-          },
+          status: "failed" as const,
+          file: new Blob(["failed"]),
+          error: { code: "unknown" as const, message: "busy", retryable: true },
         },
       ],
       succeeded: 1,
-      failed: 0,
-      cancelled: 0,
-      partial: false,
+      failed: 1,
+      partial: true,
     });
-    render(
-      <MarkdownEditor
-        value="Existing body"
-        onChange={onChange}
-        onBlur={onBlur}
-        onUploadFiles={onUploadFiles}
-      />,
-    );
-    const file = new File([new Uint8Array([1])], "brief.pdf", {
-      type: "application/pdf",
-    });
+    renderEditor({ value: "Existing body", onChange, onBlur, onUploadFiles });
+    mockImageInsertion("Existing body");
+    const file = new File(["x"], "brief.pdf", { type: "application/pdf" });
 
     fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
       target: { files: [file] },
     });
 
-    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
-    await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)",
-      ),
+    const expected =
+      "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
+    await waitFor(() => {
+      expect(onUploadFiles).toHaveBeenCalledWith([file]);
+      expect(onChange).toHaveBeenLastCalledWith(expected);
+      expect(onBlur).toHaveBeenCalledWith(expected);
+    });
+    expect(markdownMocks.commands.focus).toHaveBeenCalledWith("end");
+    expect(markdownMocks.commands.insertMarkdown).toHaveBeenCalledWith("\n\n");
+    expect(markdownMocks.commands.insertImage).toHaveBeenCalledWith(
+      "/api/assets/00000000-0000-4000-8000-000000000001",
+      "brief.png",
+      undefined,
     );
-    expect(onBlur).toHaveBeenCalledWith(
-      "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)",
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalledWith(
+      expected,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't upload that file.",
     );
   });
 
-  it("does not append markdown when a toolbar-selected file upload fails", async () => {
+  it("does not append Markdown when an upload rejects", async () => {
     const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockRejectedValue(new Error("boom"));
-    render(
-      <MarkdownEditor
-        value="Existing body"
-        onChange={onChange}
-        onUploadFiles={onUploadFiles}
-      />,
-    );
+    const onUploadFiles = vi.fn().mockRejectedValue(new Error("offline"));
+    renderEditor({ value: "Existing body", onChange, onUploadFiles });
 
     fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
       target: {
@@ -755,938 +457,356 @@ describe("MarkdownEditor", () => {
       },
     });
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Couldn't upload that file.",
-      ),
-    );
+      );
+    });
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("appends successful batch items while reporting partial failures", async () => {
+  it("keeps the Source draft current while files are pasted into it", async () => {
     const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockResolvedValue({
-      items: [
-        {
-          status: "success",
-          file: new Blob(["ok"]),
-          asset: {
-            kind: "attachment",
-            target: "/api/assets/00000000-0000-4000-8000-000000000001",
-            alt: "ok.png",
-          },
-        },
-        {
-          status: "failed",
-          file: new Blob(["failed"]),
-          error: {
-            code: "unknown",
-            message: "busy",
-            retryable: true,
-          },
-        },
-      ],
-      succeeded: 1,
-      failed: 1,
-      cancelled: 0,
-      partial: true,
-    });
-    render(
-      <MarkdownEditor
-        value="Existing body"
-        onChange={onChange}
-        onUploadFiles={onUploadFiles}
-      />,
-    );
+    const onUploadFiles = vi.fn().mockResolvedValue(successfulUpload);
+    renderEditor({ value: "Existing body", onChange, onUploadFiles });
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = screen.getByTestId("markdown-source-textarea");
+    fireEvent.change(source, { target: { value: "Source draft" } });
+    mockImageInsertion("Source draft");
 
-    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
-      target: {
-        files: [new File(["x"], "ok.png", { type: "image/png" })],
-      },
-    });
-
-    await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n![ok.png](/api/assets/00000000-0000-4000-8000-000000000001)",
-      ),
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Couldn't upload that file.",
-    );
-  });
-
-  it("keeps the Source toggle out of the wrapping control group", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    const toolbar = screen.getByTestId("markdown-toolbar");
-    const controls = screen.getByTestId("markdown-toolbar-controls");
-    const sourceToggle = screen.getByTestId("markdown-source-toggle");
-
-    expect(toolbar).toHaveClass("items-start");
-    expect(controls).toHaveClass("flex-1", "flex-wrap", "min-w-0");
-    expect(sourceToggle).toHaveClass("shrink-0");
-    expect(sourceToggle).not.toHaveClass("ml-auto");
-    expect(controls).toContainElement(screen.getByTitle("Bold"));
-    expect(controls).toContainElement(screen.getByTitle("Link"));
-    expect(sourceToggle).toContainElement(
-      screen.getByTitle("Toggle source mode"),
-    );
-  });
-
-  it("hides toolbar when readOnly is true", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} readOnly />);
-    expect(screen.queryByTitle("Bold")).not.toBeInTheDocument();
-  });
-
-  it("keeps the shared semantic surface on editable and readOnly WYSIWYG modes", () => {
-    const { rerender } = render(
-      <MarkdownEditor value="# Body" onChange={vi.fn()} />,
-    );
-    const editorOptions = () =>
-      vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
-        editorProps?: { attributes?: { class?: string } };
-      };
-
-    expect(editorOptions().editorProps?.attributes?.class).toContain(
-      MARKDOWN_SURFACE_CLASS,
-    );
-
-    rerender(<MarkdownEditor value="# Body" onChange={vi.fn()} readOnly />);
-    expect(editorOptions().editorProps?.attributes?.class).toContain(
-      MARKDOWN_SURFACE_CLASS,
-    );
-    expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
-  });
-
-  it("hides the attachment insert control when readOnly is true", () => {
-    render(
-      <MarkdownEditor
-        value=""
-        onChange={vi.fn()}
-        onUploadFiles={vi.fn()}
-        readOnly
-      />,
-    );
-    expect(screen.queryByTitle("Attach file")).not.toBeInTheDocument();
-  });
-
-  it("runs the matching command when a formatting control is clicked", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    act(() => {
-      fireEvent.click(screen.getByTitle("Strikethrough"));
-    });
-    expect(mockChain.toggleStrike).toHaveBeenCalled();
-    act(() => {
-      fireEvent.click(screen.getByTitle("Numbered List"));
-    });
-    expect(mockChain.toggleOrderedList).toHaveBeenCalled();
-    act(() => {
-      fireEvent.click(screen.getByTitle("Quote"));
-    });
-    expect(mockChain.toggleBlockquote).toHaveBeenCalled();
-    act(() => {
-      fireEvent.click(screen.getByTitle("Divider"));
-    });
-    expect(mockChain.setHorizontalRule).toHaveBeenCalled();
-  });
-
-  it("reflects the active mark with aria-pressed", () => {
-    const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    expect(screen.getByTitle("Bold")).toHaveAttribute("aria-pressed", "false");
-
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      isActive: ReturnType<typeof vi.fn>;
-    };
-    editor.isActive.mockImplementation((name: string) => name === "bold");
-    rerender(<MarkdownEditor value="x" onChange={vi.fn()} />);
-    expect(screen.getByTitle("Bold")).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("toggles to source mode when Source button is clicked", () => {
-    render(<MarkdownEditor value="test content" onChange={vi.fn()} />);
-    const sourceBtn = screen.getByTitle("Toggle source mode");
-    act(() => {
-      fireEvent.click(sourceBtn);
-    });
-    expect(screen.getByTestId("markdown-source-textarea")).toBeInTheDocument();
-    expect(screen.queryByTestId("editor-content")).not.toBeInTheDocument();
-  });
-
-  it("calls onChange when source textarea value changes", () => {
-    const onChange = vi.fn();
-    render(<MarkdownEditor value="" onChange={onChange} />);
-
-    // Switch to source mode first
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-
-    const textarea = screen.getByTestId("markdown-source-textarea");
-    act(() => {
-      fireEvent.change(textarea, { target: { value: "new content" } });
-    });
-    expect(onChange).toHaveBeenCalledWith("new content");
-  });
-
-  it("uploads pasted source-mode files before appending returned markdown", async () => {
-    const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockResolvedValue({
-      items: [
-        {
-          status: "success",
-          file: new Blob(["screen"]),
-          asset: {
-            kind: "attachment",
-            target: "/api/assets/00000000-0000-4000-8000-000000000001",
-            alt: "screen.png",
-          },
-        },
-        {
-          status: "success",
-          file: new Blob(["notes"]),
-          asset: {
-            kind: "file",
-            target: "akb://reef-test/issues/file/file-2",
-            alt: "notes.txt",
-          },
-        },
-      ],
-      succeeded: 2,
-      failed: 0,
-      cancelled: 0,
-      partial: false,
-    });
-    render(
-      <MarkdownEditor
-        value="Existing body"
-        onChange={onChange}
-        onUploadFiles={onUploadFiles}
-      />,
-    );
-
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-    const file = new File([new Uint8Array([1])], "screen.png", {
-      type: "image/png",
-    });
-    fireEvent.paste(screen.getByTestId("markdown-source-textarea"), {
-      clipboardData: { files: [file] },
-    });
-
-    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
-    await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n![screen.png](/api/assets/00000000-0000-4000-8000-000000000001)",
-      ),
-    );
-  });
-
-  it("does not append markdown when a pasted file upload fails", async () => {
-    const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockRejectedValue(new Error("boom"));
-    render(
-      <MarkdownEditor
-        value="Existing body"
-        onChange={onChange}
-        onUploadFiles={onUploadFiles}
-      />,
-    );
-
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-    fireEvent.paste(screen.getByTestId("markdown-source-textarea"), {
+    fireEvent.paste(source, {
       clipboardData: {
-        files: [new File(["x"], "screen.png", { type: "image/png" })],
+        files: [new File(["x"], "brief.pdf", { type: "application/pdf" })],
       },
     });
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Couldn't upload that file.",
-      ),
+    const expected =
+      "Source draft\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
+    await waitFor(() => expect(source).toHaveValue(expected));
+    expect(onChange).toHaveBeenLastCalledWith(expected);
+    expect(markdownMocks.commands.insertImage).toHaveBeenCalledWith(
+      "/api/assets/00000000-0000-4000-8000-000000000001",
+      "brief.png",
+      undefined,
     );
-    expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("passes the latest WYSIWYG markdown to onBlur", () => {
-    const onBlur = vi.fn();
+  it("uses the latest Source and WYSIWYG values for change, blur, and mode handoff", () => {
     const onChange = vi.fn();
-    render(
-      <MarkdownEditor
-        value="old content"
-        onChange={onChange}
-        onBlur={onBlur}
-      />,
-    );
-
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      _opts?: {
-        onUpdate?: (args: { editor: { getMarkdown: () => string } }) => void;
-      };
-      getMarkdown: Mock<() => string>;
-    };
-    editor.getMarkdown.mockReturnValue("fresh markdown");
-
-    act(() => {
-      editor._opts?.onUpdate?.({ editor });
+    const onBlur = vi.fn();
+    renderEditor({
+      value: "Original",
+      onChange,
+      onBlur,
+      placeholder: "WYSIWYG hint",
+      sourcePlaceholder: "Source hint",
     });
+    emitEditorChange("Latest editor text");
+    expect(onChange).toHaveBeenCalledWith("Latest editor text");
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = screen.getByTestId("markdown-source-textarea");
+    expect(source).toHaveValue("Latest editor text");
+    expect(source).toHaveAttribute("placeholder", "Source hint");
+    fireEvent.change(source, { target: { value: "Latest source text" } });
     fireEvent.blur(screen.getByTestId("markdown-editor"), {
       relatedTarget: document.body,
     });
+    expect(onChange).toHaveBeenLastCalledWith("Latest source text");
+    expect(onBlur).toHaveBeenCalledWith("Latest source text");
 
-    expect(onChange).toHaveBeenCalledWith("fresh markdown");
-    expect(onBlur).toHaveBeenCalledWith("fresh markdown");
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(markdownMocks.commands.setMarkdown).toHaveBeenLastCalledWith(
+      "Latest source text",
+    );
+    expect(screen.getByTestId("markdown-editor-content")).toHaveAttribute(
+      "contenteditable",
+      "true",
+    );
   });
 
-  it("does not reset editor content when the external value is unchanged", () => {
-    const { rerender } = render(
-      <MarkdownEditor value="stable markdown" onChange={vi.fn()} />,
+  it("does not reparse an unchanged Source view", () => {
+    const markdown = String.raw`![reef'\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)`;
+    renderEditor({ value: markdown, onChange: vi.fn() });
+    markdownMocks.commands.setMarkdown.mockClear();
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue(
+      markdown,
     );
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      commands: { setContent: ReturnType<typeof vi.fn> };
-    };
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
 
-    editor.commands.setContent.mockClear();
-    rerender(<MarkdownEditor value="stable markdown" onChange={vi.fn()} />);
-
-    expect(editor.commands.setContent).not.toHaveBeenCalled();
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
   });
 
-  it("does not reset content on unrelated rerenders when serialized markdown differs", () => {
-    mockMarkdownOverride = "stable markdown\n";
-    const { rerender } = render(
-      <MarkdownEditor value="stable markdown" onChange={vi.fn()} />,
-    );
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      commands: { setContent: ReturnType<typeof vi.fn> };
-    };
+  it("prepares uploaded image alt escapes for the shared Markdown parser", () => {
+    const persistedMarkdown =
+      "![reef'\\\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)";
+    const editorMarkdown =
+      "![reef'\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)";
+    renderEditor({ value: persistedMarkdown, onChange: vi.fn() });
 
-    editor.commands.setContent.mockClear();
-    rerender(
-      <MarkdownEditor
-        value="stable markdown"
-        onChange={vi.fn()}
-        className="unrelated-rerender"
-      />,
-    );
-
-    expect(editor.commands.setContent).not.toHaveBeenCalled();
-  });
-
-  it("passes the latest source markdown to onBlur", () => {
-    const onBlur = vi.fn();
-    render(<MarkdownEditor value="" onChange={vi.fn()} onBlur={onBlur} />);
-
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(markdownMocks.editorOptions).toMatchObject({
+      initialMarkdown: editorMarkdown,
     });
-    const textarea = screen.getByTestId("markdown-source-textarea");
-    act(() => {
-      fireEvent.change(textarea, { target: { value: "source markdown" } });
-    });
-    fireEvent.blur(textarea, { relatedTarget: document.body });
-
-    expect(onBlur).toHaveBeenCalledWith("source markdown");
   });
 
-  it("shows placeholder text on textarea in source mode", () => {
-    render(
-      <MarkdownEditor
-        value=""
-        onChange={vi.fn()}
-        placeholder="Enter description"
-      />,
-    );
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-    const textarea = screen.getByTestId("markdown-source-textarea");
-    expect(textarea).toHaveAttribute("placeholder", "Enter description");
-  });
-
-  it("keeps the Source placeholder independent from the WYSIWYG hint", () => {
-    render(
-      <MarkdownEditor
-        value=""
-        onChange={vi.fn()}
-        placeholder="Describe the issue or type / to insert a block…"
-        sourcePlaceholder="Describe the issue…"
-      />,
-    );
-
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-
-    expect(screen.getByTestId("markdown-source-textarea")).toHaveAttribute(
-      "placeholder",
-      "Describe the issue…",
-    );
-  });
-
-  it("disables toolbar buttons in source mode", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-    expect(screen.getByTitle("Bold")).toBeDisabled();
-    expect(screen.getByTitle("Italic")).toBeDisabled();
-    expect(screen.getByTitle("Link")).toBeDisabled();
-  });
-
-  it("keeps attachment insertion available in source mode through the upload path", async () => {
+  it("does not reset the editor when the controlled Markdown value is unchanged", () => {
     const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockResolvedValue({
-      items: [
-        {
-          status: "success",
-          file: new Blob(["screen"]),
-          asset: {
-            kind: "attachment",
-            target: "/api/assets/00000000-0000-4000-8000-000000000001",
-            alt: "screen.png",
-          },
-        },
-      ],
-      succeeded: 1,
-      failed: 0,
-      cancelled: 0,
-      partial: false,
-    });
-    render(
-      <MarkdownEditor
-        value="Existing body"
-        onChange={onChange}
-        onUploadFiles={onUploadFiles}
-      />,
+    const view = renderEditor({ value: "Stable body", onChange });
+    markdownMocks.commands.setMarkdown.mockClear();
+
+    view.rerender(
+      <IntlTestProvider>
+        <MarkdownEditor value="Stable body" onChange={onChange} />
+      </IntlTestProvider>,
     );
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
+
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("normalizes bare AKB document URIs without changing resource identity", () => {
+    const onChange = vi.fn();
+    renderEditor({
+      value: "See akb://reef-test/coll/docs/doc/spec.md",
+      onChange,
     });
 
-    expect(screen.getByTitle("Attach file")).not.toBeDisabled();
-    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
-      target: {
-        files: [new File(["x"], "screen.png", { type: "image/png" })],
-      },
+    expect(markdownMocks.editorOptions).toMatchObject({
+      initialMarkdown: "See [spec](akb://reef-test/coll/docs/doc/spec.md)",
+      profile: "preserve",
+    });
+    expect(onChange).toHaveBeenCalledWith(
+      "See [spec](akb://reef-test/coll/docs/doc/spec.md)",
+    );
+  });
+
+  it("opens external Markdown links only after confirmation", () => {
+    markdownMocks.surfaceLink = {
+      href: "https://example.test/spec",
+      text: "Spec",
+    };
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderEditor({
+      value: "[Spec](https://example.test/spec)",
+      onChange: vi.fn(),
+    });
+    const link = screen.getByText("Spec").closest("a");
+    expect(link).not.toBeNull();
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
     });
 
-    await waitFor(() => expect(onUploadFiles).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith(
-        "Existing body\n\n![screen.png](/api/assets/00000000-0000-4000-8000-000000000001)",
+    act(() => link?.dispatchEvent(click));
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Open external link" }),
+    ).toHaveTextContent("https://example.test/spec");
+  });
+
+  it("opens a canonical issue link directly in a protected new tab", () => {
+    markdownMocks.surfaceLink = {
+      href: "/workspace/reef-test/issues/REEF-001",
+      text: "REEF-001",
+    };
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+    renderEditor({
+      value: "[REEF-001](/workspace/reef-test/issues/REEF-001)",
+      onChange: vi.fn(),
+    });
+    const link = screen.getByText("REEF-001").closest("a");
+
+    act(() =>
+      link?.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
       ),
     );
-  });
 
-  describe("link editor", () => {
-    it("opens the inline link editor when Link is clicked", () => {
-      render(<MarkdownEditor value="" onChange={vi.fn()} />);
-      expect(
-        screen.queryByTestId("markdown-link-editor"),
-      ).not.toBeInTheDocument();
-      act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
-      });
-      expect(screen.getByTestId("markdown-link-editor")).toBeInTheDocument();
-      expect(screen.getByTestId("markdown-link-input")).toBeInTheDocument();
-    });
-
-    it("inserts a normalized link on apply", () => {
-      render(<MarkdownEditor value="" onChange={vi.fn()} />);
-      act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
-      });
-      const input = screen.getByTestId("markdown-link-input");
-      act(() => {
-        fireEvent.change(input, { target: { value: "example.com" } });
-      });
-      act(() => {
-        fireEvent.click(screen.getByText("Apply"));
-      });
-      // Empty selection + no existing link -> insert linked text, scheme added.
-      expect(mockChain.extendMarkRange).toHaveBeenCalledWith("link");
-      expect(mockChain.insertContent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: "https://example.com",
-          marks: [{ type: "link", attrs: { href: "https://example.com" } }],
-        }),
-      );
-      expect(
-        screen.queryByTestId("markdown-link-editor"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("preserves the selected text through the Link toolbar press", () => {
-      render(<MarkdownEditor value="Selected text" onChange={vi.fn()} />);
-      const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-        state: {
-          selection: { empty: boolean; from: number; to: number };
-        };
-      };
-      editor.state.selection = { empty: false, from: 2, to: 10 };
-
-      const linkButton = screen.getByTitle("Link");
-      act(() => {
-        fireEvent.mouseDown(linkButton);
-      });
-      // A real toolbar press can collapse the live ProseMirror selection before
-      // the click handler opens the URL input. The press-start range wins.
-      editor.state.selection = { empty: true, from: 10, to: 10 };
-      act(() => {
-        fireEvent.click(linkButton);
-      });
-      act(() => {
-        fireEvent.change(screen.getByTestId("markdown-link-input"), {
-          target: { value: "https://reef.dev/selected" },
-        });
-        fireEvent.click(screen.getByText("Apply"));
-      });
-
-      expect(mockChain.setTextSelection).toHaveBeenCalledWith({
-        from: 2,
-        to: 10,
-      });
-      expect(mockChain.setLink).toHaveBeenCalledWith({
-        href: "https://reef.dev/selected",
-      });
-      expect(mockChain.insertContent).not.toHaveBeenCalled();
-    });
-
-    it("keeps akb document URIs as akb links", () => {
-      const uri = "akb://reef-test/coll/research/doc/report.md";
-      render(<MarkdownEditor value="" onChange={vi.fn()} />);
-      act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
-      });
-      act(() => {
-        fireEvent.change(screen.getByTestId("markdown-link-input"), {
-          target: { value: uri },
-        });
-      });
-      act(() => {
-        fireEvent.click(screen.getByText("Apply"));
-      });
-
-      expect(mockChain.insertContent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: uri,
-          marks: [{ type: "link", attrs: { href: uri } }],
-        }),
-      );
-    });
-
-    it("applies a link on Enter and prevents form submission", () => {
-      render(<MarkdownEditor value="" onChange={vi.fn()} />);
-      act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
-      });
-      const input = screen.getByTestId("markdown-link-input");
-      act(() => {
-        fireEvent.change(input, { target: { value: "https://reef.dev" } });
-      });
-      const event = new KeyboardEvent("keydown", {
-        key: "Enter",
-        bubbles: true,
-        cancelable: true,
-      });
-      act(() => {
-        input.dispatchEvent(event);
-      });
-      expect(event.defaultPrevented).toBe(true);
-      expect(mockChain.insertContent).toHaveBeenCalledWith(
-        expect.objectContaining({ text: "https://reef.dev" }),
-      );
-    });
-
-    it("applies nothing and preserves the selection on empty URL", () => {
-      render(<MarkdownEditor value="" onChange={vi.fn()} />);
-      act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
-      });
-      act(() => {
-        fireEvent.change(screen.getByTestId("markdown-link-input"), {
-          target: { value: "   " },
-        });
-      });
-      act(() => {
-        fireEvent.click(screen.getByText("Apply"));
-      });
-      expect(mockChain.setLink).not.toHaveBeenCalled();
-      expect(mockChain.insertContent).not.toHaveBeenCalled();
-      expect(
-        screen.queryByTestId("markdown-link-editor"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("closes the link editor on Escape", () => {
-      render(<MarkdownEditor value="" onChange={vi.fn()} />);
-      act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
-      });
-      const input = screen.getByTestId("markdown-link-input");
-      act(() => {
-        fireEvent.keyDown(input, { key: "Escape" });
-      });
-      expect(
-        screen.queryByTestId("markdown-link-editor"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  it("applies a readOnly change after mount so a save-pending lock disables editing", () => {
-    const { rerender } = render(
-      <MarkdownEditor value="x" onChange={vi.fn()} />,
+    expect(open).toHaveBeenCalledWith(
+      new URL("/workspace/reef-test/issues/REEF-001", window.location.href)
+        .href,
+      "_blank",
+      "noopener,noreferrer",
     );
-    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
-      setEditable: ReturnType<typeof vi.fn>;
-      isEditable: boolean;
+    expect(opened.opener).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("requires confirmation when rendered AKB metadata is not canonical", () => {
+    markdownMocks.surfaceLink = {
+      href: "https://example.test/spec",
+      text: "Spec",
+      attributes: { "data-document-uri": "akb://not-valid" },
     };
-    // Tiptap fixes `editable` at creation; the component should react to a later
-    // readOnly flip (e.g. while a save is in flight) or edits get dropped.
-    editor.setEditable.mockClear();
-    rerender(<MarkdownEditor value="x" onChange={vi.fn()} readOnly />);
-    // emitUpdate=false: a lock toggle should not fire a spurious content change.
-    expect(editor.setEditable).toHaveBeenCalledWith(false, false);
-    expect(editor.isEditable).toBe(false);
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderEditor({
+      value: "[Spec](https://example.test/spec)",
+      onChange: vi.fn(),
+    });
+    const link = screen.getByText("Spec").closest("a");
+
+    act(() =>
+      link?.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      ),
+    );
+
+    expect(open).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Open external link" }),
+    ).toBeInTheDocument();
   });
 
-  it("caps both editor surfaces at a shared scrollable height (REEF-133)", () => {
-    // The sizing policy should carry a max-height + overflow so a long
-    // description scrolls inside the editor instead of stretching the
-    // surrounding sheet or dialog.
-    expect(EDITOR_BODY_SIZING).toContain("max-h-[clamp(200px,48vh,560px)]");
-    expect(EDITOR_BODY_SIZING).toContain("overflow-y-auto");
-
-    render(<MarkdownEditor value="" onChange={vi.fn()} />);
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
+  it("builds reference suggestions in people, issue, and document order", async () => {
+    const member = {
+      username: "auth",
+      display_name: "Auth Specialist",
+    } as VaultMember;
+    const authIssue = issue("REEF-001", "Auth flow");
+    const searchDocuments = vi.fn(async () => [
+      { uri: "akb://reef-test/coll/docs/doc/auth.md", title: "Auth guide" },
+    ]);
+    renderEditor({
+      value: "",
+      onChange: vi.fn(),
+      vault: "reef-test",
+      mentionConfig: {
+        members: [member],
+        issues: [authIssue],
+        searchDocuments,
+        mentionOptionLabel: (username) => `@${username}`,
+        documentOptionLabel: (hit) => hit.title ?? hit.uri,
+      },
     });
-    const textarea = screen.getByTestId("markdown-source-textarea");
-    // Source mode shares the same cap and auto-grows (field-sizing-content)
-    // rather than sitting at a small fixed height.
-    expect(textarea.className).toContain("field-sizing-content");
-    // resize-y blocks horizontal drag (no dialog/sheet width overflow) while
-    // keeping a manual vertical-resize fallback for browsers without
-    // field-sizing support, where the textarea would otherwise sit at min-h.
-    expect(textarea.className).toContain("resize-y");
-    expect(textarea.className).toContain("max-h-[clamp(200px,48vh,560px)]");
-    expect(textarea.className).toContain("overflow-y-auto");
+    const options = markdownMocks.editorOptions as {
+      reference: {
+        adapter: MarkdownReferenceAdapter;
+        context: { vault: string };
+      };
+    };
+    const candidates = await options.reference.adapter.search("auth", {
+      vault: "reef-test",
+      signal: new AbortController().signal,
+    });
+
+    expect(options.reference.context).toEqual({ vault: "reef-test" });
+    expect(candidates.map((candidate) => candidate.kind)).toEqual([
+      "person",
+      "issue",
+      "document",
+    ]);
+    expect(candidates[0]).toMatchObject({ value: "@auth", title: "@auth" });
+    expect(candidates[2]).toMatchObject({
+      target: "akb://reef-test/coll/docs/doc/auth.md",
+    });
+    expect(searchDocuments).toHaveBeenCalledWith(
+      "auth",
+      expect.any(AbortSignal),
+    );
   });
 
-  describe("opt-in issue description height resize", () => {
-    it("owns one viewport-derived clamp policy", () => {
-      expect(getEditorMaxHeight(1_080)).toBe(920);
-      expect(getEditorMaxHeight(900)).toBe(740);
-      expect(getEditorMaxHeight(200)).toBe(EDITOR_BODY_MIN_HEIGHT);
-      expect(clampEditorHeight(Number.NaN, 740)).toBe(
-        EDITOR_BODY_DEFAULT_HEIGHT,
-      );
-      expect(clampEditorHeight(100, 740)).toBe(EDITOR_BODY_MIN_HEIGHT);
-      expect(clampEditorHeight(1_000, 740)).toBe(740);
-      expect(clampEditorHeight(444, 740)).toBe(444);
+  it("resolves known issue references to a workspace route", async () => {
+    const authIssue = issue("REEF-001", "Auth flow");
+    renderEditor({
+      value: "REEF-001",
+      onChange: vi.fn(),
+      vault: "reef-test",
+      mentionConfig: {
+        members: [],
+        issues: [authIssue],
+        mentionOptionLabel: (username) => `@${username}`,
+        documentOptionLabel: (hit) => hit.title ?? hit.uri,
+      },
     });
+    const options = markdownMocks.editorOptions as {
+      reference: { adapter: MarkdownReferenceAdapter };
+    };
 
-    it("renders the desktop separator and complete ARIA contract", () => {
-      setViewport(1440, 900);
-      render(
-        <MarkdownEditor
-          value=""
-          onChange={vi.fn()}
-          ariaLabel="Issue description"
-          enableHeightResize
-        />,
-      );
+    await expect(
+      options.reference.adapter.resolve?.(
+        { kind: "issue", id: "REEF-001", value: "REEF-001" },
+        { vault: "reef-test" },
+      ),
+    ).resolves.toMatchObject({
+      status: "available",
+      title: "Auth flow",
+      runtimeUrl: "/workspace/reef-test/issues/REEF-001",
+    });
+  });
 
-      const handle = screen.getByRole("separator", {
+  describe("issue description resize", () => {
+    it("renders an accessible separator and clamps keyboard resizing", async () => {
+      renderEditor({ value: "", onChange: vi.fn(), enableHeightResize: true });
+
+      const handle = await screen.findByRole("separator", {
         name: "Resize issue description editor",
       });
-      expect(handle).toHaveAttribute("aria-orientation", "horizontal");
       expect(handle).toHaveAttribute(
         "aria-valuemin",
         String(EDITOR_BODY_MIN_HEIGHT),
       );
-      expect(handle).toHaveAttribute("aria-valuemax", "740");
-      expect(handle).toHaveAttribute("aria-valuenow", "320");
-      expect(handle).toHaveAttribute("aria-valuetext", "320px");
-      expect(screen.getByTestId("markdown-editor-body-frame")).toHaveStyle({
-        height: "320px",
-      });
-      expect(handle).toHaveAttribute("aria-controls", EDITOR_RESIZABLE_BODY_ID);
-      expect(handle).toHaveAttribute(
-        "aria-describedby",
-        "markdown-editor-resize-description",
-      );
-      expect(
-        document.getElementById("markdown-editor-resize-description"),
-      ).toHaveTextContent(
-        "Diagonal handle controls the issue description editor height. Current 320px; minimum 200px; maximum 740px.",
-      );
-      expect(
-        document.getElementById(EDITOR_RESIZABLE_BODY_ID),
-      ).toBeInTheDocument();
-    });
-
-    it("changes by 32px with keyboard while preserving focus and session state", () => {
-      setViewport(1440, 900);
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
-      const handle = screen.getByRole("separator");
-
-      handle.focus();
-      fireEvent.keyDown(handle, { key: "ArrowDown" });
-      expect(handle).toHaveAttribute("aria-valuenow", "352");
-      fireEvent.keyDown(handle, { key: "ArrowUp" });
-      expect(handle).toHaveAttribute("aria-valuenow", "320");
-      fireEvent.keyDown(handle, { key: "Home" });
       expect(handle).toHaveAttribute(
         "aria-valuenow",
-        String(EDITOR_BODY_MIN_HEIGHT),
+        String(EDITOR_BODY_DEFAULT_HEIGHT),
       );
-      fireEvent.keyDown(handle, { key: "End" });
-      expect(handle).toHaveAttribute("aria-valuenow", "740");
-      expect(document.activeElement).toBe(handle);
-      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
-        "740",
-      );
-    });
-
-    it("captures pointer movement, ignores another pointer, and cleans up", () => {
-      setViewport(1440, 900);
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
-      const frame = screen.getByTestId("markdown-editor-body-frame");
-      Object.defineProperty(frame, "clientHeight", {
-        configurable: true,
-        value: 340,
-      });
-      const handle = screen.getByRole("separator");
-      const setPointerCapture = vi.spyOn(handle, "setPointerCapture");
-      const releasePointerCapture = vi.spyOn(handle, "releasePointerCapture");
-      vi.spyOn(handle, "hasPointerCapture").mockReturnValue(true);
-
-      fireEvent.pointerDown(handle, {
-        button: 0,
-        clientY: 100,
-        pointerId: 3,
-      });
-      expect(setPointerCapture).toHaveBeenCalledWith(3);
-      expect(handle).toHaveAttribute("aria-valuenow", "320");
-      expect(handle).toHaveAttribute("data-resizing", "true");
-
-      fireEvent.pointerMove(handle, {
-        clientY: 180,
-        pointerId: 9,
-      });
-      expect(handle).toHaveAttribute("aria-valuenow", "320");
-      fireEvent.pointerMove(handle, {
-        clientY: 180,
-        pointerId: 3,
-      });
-      expect(handle).toHaveAttribute("aria-valuenow", "400");
-
-      fireEvent.pointerCancel(handle, { pointerId: 3 });
-      expect(releasePointerCapture).toHaveBeenCalledWith(3);
-      expect(handle).toHaveAttribute("data-resizing", "false");
-    });
-
-    it("restores finite heights, clamps them to the viewport, and ignores corrupt storage", async () => {
-      setViewport(1440, 900);
-      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "420");
-      const first = render(
-        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
-      );
-      const handle = screen.getByRole("separator");
-      await waitFor(() =>
-        expect(handle).toHaveAttribute("aria-valuenow", "420"),
-      );
-
-      first.unmount();
-      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "1200");
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
-      await waitFor(() =>
-        expect(screen.getByRole("separator")).toHaveAttribute(
-          "aria-valuenow",
-          "740",
-        ),
-      );
-      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
-        "740",
-      );
-
-      document.body.innerHTML = "";
-      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "not-json");
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
-      await waitFor(() =>
-        expect(screen.getAllByRole("separator").at(-1)).toHaveAttribute(
-          "aria-valuenow",
-          "320",
-        ),
-      );
-    });
-
-    it("uses a transient preferred height without writing it to session storage", async () => {
-      setViewport(1440, 900);
-      const view = render(
-        <MarkdownEditor
-          value=""
-          onChange={vi.fn()}
-          enableHeightResize
-          preferredHeight={640}
-        />,
-      );
-
-      const handle = screen.getByRole("separator");
-      await waitFor(() =>
-        expect(handle).toHaveAttribute("aria-valuenow", "640"),
-      );
-      expect(screen.getByTestId("markdown-editor-body-frame")).toHaveStyle({
-        height: "640px",
-      });
-      expect(
-        sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY),
-      ).toBeNull();
-
       fireEvent.keyDown(handle, { key: "ArrowDown" });
-      expect(handle).toHaveAttribute("aria-valuenow", "672");
-      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
-        "672",
-      );
-
-      view.rerender(
-        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
-      );
-      expect(handle).toHaveAttribute("aria-valuenow", "672");
-    });
-
-    it("temporarily grows a stored baseline without replacing it", async () => {
-      setViewport(1440, 900);
-      sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "420");
-      const view = render(
-        <MarkdownEditor
-          value=""
-          onChange={vi.fn()}
-          enableHeightResize
-          preferredHeight={640}
-        />,
-      );
-
-      const handle = screen.getByRole("separator");
-      await waitFor(() =>
-        expect(handle).toHaveAttribute("aria-valuenow", "640"),
+      expect(handle).toHaveAttribute(
+        "aria-valuenow",
+        String(EDITOR_BODY_DEFAULT_HEIGHT + EDITOR_BODY_KEYBOARD_STEP),
       );
       expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
-        "420",
-      );
-
-      view.rerender(
-        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
-      );
-      expect(handle).toHaveAttribute("aria-valuenow", "420");
-      expect(sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY)).toBe(
-        "420",
+        String(EDITOR_BODY_DEFAULT_HEIGHT + EDITOR_BODY_KEYBOARD_STEP),
       );
     });
 
-    it("returns to the saved-or-default height when a preferred height is removed", async () => {
-      setViewport(1440, 900);
-      const view = render(
-        <MarkdownEditor
-          value=""
-          onChange={vi.fn()}
-          enableHeightResize
-          preferredHeight={640}
-        />,
-      );
-      const handle = screen.getByRole("separator");
-      await waitFor(() =>
-        expect(handle).toHaveAttribute("aria-valuenow", "640"),
-      );
-
-      view.rerender(
-        <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />,
-      );
-      expect(handle).toHaveAttribute("aria-valuenow", "320");
-      expect(
-        sessionStorage.getItem(EDITOR_BODY_SESSION_STORAGE_KEY),
-      ).toBeNull();
-    });
-
-    it("updates another mounted issue Description through the shared tab session", () => {
-      setViewport(1440, 900);
-      render(
-        <>
-          <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />
-          <MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />
-        </>,
-      );
-
-      const handles = screen.getAllByRole("separator");
-      expect(handles).toHaveLength(2);
-      expect(handles[1]).toHaveAttribute("aria-valuenow", "320");
-      fireEvent.keyDown(handles[0], { key: "ArrowDown" });
-      expect(handles[1]).toHaveAttribute("aria-valuenow", "352");
-    });
-
-    it("shares the explicit frame with Source mode and opts out below the resize width", async () => {
-      setViewport(1440, 900);
+    it("shares the frame with Source mode and hides resizing below desktop width", async () => {
       sessionStorage.setItem(EDITOR_BODY_SESSION_STORAGE_KEY, "480");
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      renderEditor({ value: "", onChange: vi.fn(), enableHeightResize: true });
+
       const frame = screen.getByTestId("markdown-editor-body-frame");
+      const handle = await screen.findByRole("separator");
+      expect(frame).toHaveAttribute("id", EDITOR_RESIZABLE_BODY_ID);
+      expect(frame.className).toContain(EDITOR_BODY_FRAME_CLASS);
       expect(frame).toHaveStyle({ height: "480px" });
       expect(frame).toHaveClass("overflow-hidden");
       expect(frame).toHaveStyle({ marginBottom: "4px", marginRight: "4px" });
-      expect(screen.getByTestId("editor-content")).toHaveClass("overflow-auto");
-      act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
+      const scrollSurface = screen.getByTestId("markdown-editor-content")
+        .parentElement?.parentElement;
+      expect(scrollSurface).toHaveClass(EDITOR_MANUAL_SCROLL_SURFACE_CLASS);
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
       expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
         "resize-none",
-      );
-      expect(screen.getByTestId("markdown-source-textarea")).not.toHaveClass(
-        "resize-y",
       );
       expect(frame).toHaveStyle({ height: "480px" });
 
       setViewport(EDITOR_BODY_RESIZE_MIN_WIDTH - 1, 900);
-      await waitFor(() => {
-        expect(screen.queryByRole("separator")).not.toBeInTheDocument();
-        expect(frame).not.toHaveStyle({ height: "480px" });
-      });
+      await waitFor(() => expect(handle).not.toBeInTheDocument());
       expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
         "resize-y",
       );
     });
 
-    it("omits the focusable handle for coarse pointers", () => {
+    it("omits the resize handle for coarse pointers", () => {
       setPointerCapability(false);
-      setViewport(1440, 900);
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
+      renderEditor({ value: "", onChange: vi.fn(), enableHeightResize: true });
 
       expect(
         screen.queryByTestId("markdown-editor-resize-handle"),
       ).not.toBeInTheDocument();
-      act(() => fireEvent.click(screen.getByTitle("Toggle source mode")));
-      expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
-        "resize-y",
-      );
     });
-
-    it("keeps the control available in a zoomed desktop viewport", () => {
-      setViewport(EDITOR_BODY_RESIZE_MIN_WIDTH, 900);
-      render(<MarkdownEditor value="" onChange={vi.fn()} enableHeightResize />);
-
-      expect(
-        screen.getByTestId("markdown-editor-resize-handle"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("names the source-mode textarea via ariaLabel", () => {
-    render(<MarkdownEditor value="" onChange={vi.fn()} ariaLabel="Goal" />);
-    act(() => {
-      fireEvent.click(screen.getByTitle("Toggle source mode"));
-    });
-    expect(screen.getByTestId("markdown-source-textarea")).toHaveAttribute(
-      "aria-label",
-      "Goal",
-    );
   });
 });

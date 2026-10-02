@@ -310,20 +310,29 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
 
   function handleCommandExecute(
     policy: "restore" | "navigate" | "handoff",
-    run: () => void,
+    run: (focusTarget?: HTMLElement | null) => void,
     runBeforeClose = false,
+    localeAction = false,
   ) {
     // Closed owns a second dialog. Commit that handoff state in the originating
     // interaction before the palette closes; deferring it can lose the dialog
     // transition while Radix is removing the first modal.
     if (runBeforeClose) run();
-    focusPolicyRef.current = policy;
+    const origin = originRef.current;
+    const preserveEditorFocus =
+      localeAction && origin?.closest("[data-reef-editable-markdown]") != null;
+    const focusTarget = preserveEditorFocus
+      ? origin?.closest<HTMLElement>("[data-reef-editable-markdown]")
+      : undefined;
+    focusPolicyRef.current = preserveEditorFocus ? "restore" : policy;
     close();
     resetQuery();
     setMode("search");
     setCommandSelection("issue.new");
     dispatchCommand({ type: "reset" });
-    if (!runBeforeClose) queueMicrotask(run);
+    if (!runBeforeClose) {
+      queueMicrotask(() => run(focusTarget));
+    }
   }
 
   function handleCommandQueryChange(value: string) {
@@ -374,12 +383,20 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
     const fallback = document.querySelector<HTMLElement>(
       "[data-command-focus-destination]",
     );
+    const editorOrigin = origin?.closest<HTMLElement>(
+      "[data-reef-editable-markdown]",
+    );
+    const editorFocusTarget = editorOrigin?.querySelector<HTMLElement>(
+      ".reef-markdown-editor",
+    );
     const destination = shouldRestorePaletteFocus(
       focusPolicyRef.current,
       origin?.isConnected === true,
     )
-      ? origin
-      : fallback;
+      ? (editorFocusTarget ?? origin)
+      : editorOrigin?.isConnected
+        ? (editorFocusTarget ?? editorOrigin)
+        : fallback;
     queueMicrotask(() => {
       destination?.focus({ preventScroll: true });
     });

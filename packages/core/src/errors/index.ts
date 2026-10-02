@@ -64,6 +64,22 @@ export const ERROR_MESSAGES_EN = {
     invalidResponse: "The app service returned an invalid response.",
     unknown: "An unexpected app service error occurred.",
   },
+  workspaceReadiness: {
+    ownerActionRequired:
+      "This workspace is not ready. Ask a workspace administrator to check its setup.",
+    requiredTablesMissing:
+      "This workspace is missing required data. Ask an operator to complete its setup.",
+    requiredTablesMismatch:
+      "This workspace data does not match the current application requirements. Ask an operator to review the setup.",
+    requiredTablesForbidden:
+      "The workspace data could not be verified with the current access. Ask an operator to check workspace permissions.",
+    requiredTablesUnavailable:
+      "The workspace data could not be verified because the workspace service is unavailable. Try again later.",
+    requiredTablesTransport:
+      "The workspace data could not be verified because the workspace service could not be reached. Try again later.",
+    requiredTablesInvalidResponse:
+      "The workspace service returned invalid data while checking this workspace. Ask an operator to review it.",
+  },
   notFound: {
     item: "The requested {resource} could not be found.",
     issue: "Issue not found.",
@@ -435,6 +451,60 @@ export class ControlPlaneError extends ReefError {
   }
 }
 
+export type WorkspaceReadinessFailure =
+  | "owner_action_required"
+  | "required_tables_missing"
+  | "required_tables_mismatch"
+  | "required_tables_forbidden"
+  | "required_tables_unavailable"
+  | "required_tables_transport"
+  | "required_tables_invalid_response";
+
+export interface WorkspaceReadinessErrorContext {
+  reason: WorkspaceReadinessFailure;
+  status: number;
+}
+
+const WORKSPACE_READINESS_ERROR_CODES: Record<
+  WorkspaceReadinessFailure,
+  keyof typeof ERROR_MESSAGES_EN.workspaceReadiness
+> = {
+  owner_action_required: "ownerActionRequired",
+  required_tables_missing: "requiredTablesMissing",
+  required_tables_mismatch: "requiredTablesMismatch",
+  required_tables_forbidden: "requiredTablesForbidden",
+  required_tables_unavailable: "requiredTablesUnavailable",
+  required_tables_transport: "requiredTablesTransport",
+  required_tables_invalid_response: "requiredTablesInvalidResponse",
+};
+
+/** Safe, bounded failure from the read-only workspace readiness check. */
+export class WorkspaceReadinessError extends ReefError {
+  readonly context: WorkspaceReadinessErrorContext;
+  readonly reason: WorkspaceReadinessFailure;
+  readonly status: number;
+
+  constructor(context: WorkspaceReadinessErrorContext) {
+    super(
+      resolveEnMessage(
+        `workspaceReadiness.${WORKSPACE_READINESS_ERROR_CODES[context.reason]}`,
+      ),
+    );
+    this.name = "WorkspaceReadinessError";
+    this.context = context;
+    this.reason = context.reason;
+    this.status = context.status;
+  }
+
+  toUserMessage(): string {
+    return this.message;
+  }
+
+  toJSON(): Record<string, unknown> {
+    return { name: this.name, reason: this.reason, status: this.status };
+  }
+}
+
 export interface LlmErrorContext {
   message: string;
 }
@@ -612,6 +682,12 @@ export function describeError(err: unknown): ErrorDescriptor {
     return {
       code: `controlPlane.${CONTROL_PLANE_ERROR_CODES[err.category]}`,
       status: err.httpStatus,
+    };
+  }
+  if (err instanceof WorkspaceReadinessError) {
+    return {
+      code: `workspaceReadiness.${WORKSPACE_READINESS_ERROR_CODES[err.reason]}`,
+      status: err.status,
     };
   }
   if (err instanceof AuthError) return authErrorCode(err.context);

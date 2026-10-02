@@ -99,6 +99,26 @@ export const ControlPlaneInstallationSchema = z.object({
   driftClassification: ControlPlaneDriftSchema.nullable().optional(),
 });
 
+/**
+ * Read-only workspace readiness snapshot. `active` is emitted only after the
+ * canonical AKB installation check and required-table verification succeed;
+ * Reef data initialization remains an explicit separate operation.
+ */
+export const WorkspaceReadinessCheckSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("active"),
+    installation: ControlPlaneInstallationSchema.optional(),
+    initialization_complete: z.boolean(),
+  }),
+  z.strictObject({ state: z.literal("inactive") }),
+  z.strictObject({ state: z.literal("not_installed") }),
+  z.strictObject({ state: z.literal("adoption_required") }),
+  z.strictObject({
+    state: z.enum(["installing", "upgrading", "blocked", "uninstalled"]),
+    installation: ControlPlaneInstallationSchema,
+  }),
+]);
+
 /** Public app-registry projection; opaque registry metadata is not exposed. */
 export const ControlPlaneAppDefinitionSchema = z.object({
   id: ControlPlaneIdSchema,
@@ -229,6 +249,9 @@ export type ControlPlaneDriftDimension = z.infer<
 export type ControlPlaneDrift = z.infer<typeof ControlPlaneDriftSchema>;
 export type ControlPlaneInstallation = z.infer<
   typeof ControlPlaneInstallationSchema
+>;
+export type WorkspaceReadinessCheck = z.infer<
+  typeof WorkspaceReadinessCheckSchema
 >;
 export type WorkspaceInstallationStatus = z.infer<
   typeof WorkspaceInstallationStatusEnum

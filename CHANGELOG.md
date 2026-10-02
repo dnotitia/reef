@@ -14,6 +14,16 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Markdown link insertion searches documents and files in the active vault.**
+  Selected resources persist as canonical AKB links while their display text
+  stays in Markdown. (REEF-629)
+- Milestone and release names now open a shared URL-backed detail panel with
+  rendered notes, linked issue previews, and the shared planning rollup; sprint
+  details remain on their dedicated route. (REEF-597)
+- **AKB owns every Reef table schema.** Workspace readiness now verifies the
+  canonical installation, required table metadata, and Reef data initialization
+  through a read-only Core check. Normal product and agent requests no longer
+  create, migrate, or stamp tables. (REEF-419)
 - Reports now receive validated server-computed aggregates, flow metrics, health
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
@@ -37,6 +47,9 @@ explicitly in the entries below.
   account and workspace, so a matching issue id in another vault does not
   inherit the previous view.
   (REEF-616)
+- **Markdown link search stays opaque and readable in both themes.** Reef maps
+  the shared editor's surface, muted, selected, and destructive color roles so
+  the dialog, inputs, and result list remain legible. (REEF-629)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity
@@ -60,6 +73,12 @@ explicitly in the entries below.
   the issue or editor loads.** Loading skeletons use the saved dimensions from
   first paint, so the panel, toolbar, and content below the editor do not jump
   when the loaded UI takes over. (REEF-650)
+- **Markdown editor labels follow the selected language in New Issue and issue
+  details.** The app uses the shared editor's public API for its toolbar,
+  mentions, slash commands, and attachment uploads.
+- **Issue-body references stay presentation-only in Markdown editing.** Runtime
+  labels and destinations no longer feed back into the editor document, so
+  Source mode and save/reload preserve the authored tokens. (REEF-626)
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)
@@ -84,6 +103,10 @@ explicitly in the entries below.
 
 ### Migration
 
+- Deploy the AKB release that installs or reconciles Reef's canonical required
+  tables before this version. Reef readiness treats missing or stale local
+  `schema_version` settings as non-authoritative and performs no table schema
+  writes. (REEF-419)
 - Deploy an AKB build with the app installation lifecycle API before deploying
   this Reef version. Readiness no longer falls back to the presence of Reef
   configuration or tables. (REEF-418)

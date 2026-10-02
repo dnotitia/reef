@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   invalidIssueIdResponse,
@@ -50,7 +50,7 @@ async function resolveContext(
   const vault = parseVaultParam(request);
   if (!vault) return { response: await missingVaultParamResponse() } as const;
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) {
     return { response: await adapterResult.response } as const;
   }

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   openExistingWorkspace,
   releaseAuthProbe,
@@ -49,6 +49,61 @@ interface LayoutFrame {
   darkTheme: boolean;
   documentOverflow: boolean;
   panelOverflow: boolean;
+}
+
+async function measureToolbarControls(page: Page) {
+  return page.evaluate(() => {
+    const toolbar = document.querySelector<HTMLElement>(
+      '#issue-description [data-testid="markdown-toolbar"]',
+    );
+    const controls = toolbar?.querySelector<HTMLElement>(
+      '[data-testid="markdown-toolbar-controls"]',
+    );
+    const sourceToggle = toolbar?.querySelector<HTMLElement>(
+      '[data-testid="markdown-source-toggle"]',
+    );
+    if (!toolbar || !controls || !sourceToggle) {
+      throw new Error("Markdown toolbar controls are not mounted");
+    }
+    const buttons = Array.from(toolbar.querySelectorAll("button"));
+    const visibleButtons = buttons.filter((button) => {
+      const rect = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    });
+    const buttonBounds = visibleButtons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      const owner = sourceToggle.contains(button) ? sourceToggle : controls;
+      const ownerRect = owner.getBoundingClientRect();
+      return {
+        y: rect.y,
+        width: rect.width,
+        insideOwner:
+          rect.left >= ownerRect.left - 1 &&
+          rect.right <= ownerRect.right + 1 &&
+          rect.top >= ownerRect.top - 1 &&
+          rect.bottom <= ownerRect.bottom + 1,
+      };
+    });
+    return {
+      toolbarWidth: toolbar.clientWidth,
+      toolbarScrollWidth: toolbar.scrollWidth,
+      controlsWidth: controls.clientWidth,
+      controlsScrollWidth: controls.scrollWidth,
+      buttonCount: buttons.length,
+      visibleButtonCount: visibleButtons.length,
+      buttonRows: new Set(buttonBounds.map((button) => Math.round(button.y)))
+        .size,
+      minButtonWidth: Math.min(...buttonBounds.map((button) => button.width)),
+      buttonsInsideOwner: buttonBounds.every((button) => button.insideOwner),
+      sourceToggleVisible: sourceToggle.getClientRects().length > 0,
+    };
+  });
 }
 
 test.use({ video: "on" });
@@ -332,6 +387,7 @@ test.describe("Hermetic persisted issue layout", () => {
     await expect(
       page.getByTestId("markdown-editor-resize-handle"),
     ).toHaveAttribute("aria-valuenow", String(SAVED_HEIGHT));
+    const wideToolbarControls = await measureToolbarControls(page);
     const loadedScreenshot = await page.screenshot({
       path: testInfo.outputPath("loaded-editor.png"),
     });
@@ -508,6 +564,7 @@ test.describe("Hermetic persisted issue layout", () => {
     const skeletonFrame = loadingFrames[loadingFrames.length - 1];
     const loadedFrame = loadedFrames[loadedFrames.length - 1];
     expect(skeletonFrame?.toolbarHeight).not.toBeNull();
+    expect(skeletonFrame?.toolbarHeight).toBeCloseTo(80, 0);
     expect(loadedFrame?.toolbarHeight).toBeCloseTo(
       skeletonFrame?.toolbarHeight ?? 0,
       0,
@@ -556,10 +613,35 @@ test.describe("Hermetic persisted issue layout", () => {
           document.documentElement.clientWidth,
       };
     });
+    const narrowToolbarControls = await measureToolbarControls(page);
     expect(narrowGeometry.panelWidth).toBeCloseTo(1024 * 0.94, 0);
     expect(narrowGeometry.bodyHeight).toBe(SAVED_HEIGHT);
-    expect(narrowGeometry.toolbarHeight).toBeGreaterThan(
-      loadedFrame?.toolbarHeight ?? 0,
+    expect(wideToolbarControls.visibleButtonCount).toBe(
+      wideToolbarControls.buttonCount,
+    );
+    expect(wideToolbarControls.buttonsInsideOwner).toBe(true);
+    expect(wideToolbarControls.sourceToggleVisible).toBe(true);
+    expect(wideToolbarControls.controlsScrollWidth).toBe(
+      wideToolbarControls.controlsWidth,
+    );
+    expect(wideToolbarControls.toolbarScrollWidth).toBe(
+      wideToolbarControls.toolbarWidth,
+    );
+    expect(narrowToolbarControls.buttonCount).toBe(
+      wideToolbarControls.buttonCount,
+    );
+    expect(narrowToolbarControls.visibleButtonCount).toBe(
+      narrowToolbarControls.buttonCount,
+    );
+    expect(narrowToolbarControls.buttonRows).toBeGreaterThan(1);
+    expect(narrowToolbarControls.minButtonWidth).toBeGreaterThanOrEqual(32);
+    expect(narrowToolbarControls.buttonsInsideOwner).toBe(true);
+    expect(narrowToolbarControls.sourceToggleVisible).toBe(true);
+    expect(narrowToolbarControls.controlsScrollWidth).toBe(
+      narrowToolbarControls.controlsWidth,
+    );
+    expect(narrowToolbarControls.toolbarScrollWidth).toBe(
+      narrowToolbarControls.toolbarWidth,
     );
     expect(narrowGeometry.panelOverflow).toBe(false);
     expect(narrowGeometry.documentOverflow).toBe(false);

@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   invalidBodyResponse,
   invalidIssueIdResponse,
   invalidJsonBodyResponse,
@@ -35,7 +35,7 @@ export async function GET(
   const vault = parseVaultParam(request);
   if (!vault) return missingVaultParamResponse();
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
@@ -80,7 +80,7 @@ export async function POST(
     );
   }
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
@@ -119,7 +119,7 @@ export async function DELETE(
   });
   if (!parsed.success) return invalidBodyResponse(parsed.error);
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

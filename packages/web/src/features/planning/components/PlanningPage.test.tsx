@@ -220,13 +220,11 @@ describe("PlanningPage", () => {
     );
     render(wrap(<PlanningPage />));
 
-    await screen.findByText("Beta");
+    await screen.findByTestId("planning-detail-panel");
     expect(
-      await screen.findByRole("link", {
-        name: "Open Beta in the Planning list",
-      }),
+      document.getElementById(`planning-item-milestones-${MILESTONE_ID}`),
     ).toHaveAttribute("href", expect.stringContaining("detail="));
-    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute(
+    expect(screen.getByTestId("planning-view-list")).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -1022,8 +1020,8 @@ describe("PlanningPage", () => {
     render(wrap(<PlanningPage />));
     await screen.findByText("Beta");
 
-    // A description-less item still has a real navigation target. The
-    // destination is the existing List disclosure, not a new detail panel.
+    // A description-less item still has a real navigation target and opens the
+    // same URL-owned panel as an item with authored content.
     const title = screen.getByRole("link", {
       name: "Open Beta in the Planning list",
     });
@@ -1034,5 +1032,204 @@ describe("PlanningPage", () => {
     const row = title.closest("tr") as HTMLElement;
     expect(within(row).queryByRole("button", { expanded: true })).toBeNull();
     expect(within(row).queryByRole("button", { expanded: false })).toBeNull();
+  });
+
+  it("shows milestone content and only matching linked issues in its URL-owned panel", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      `kind=milestones&detail=${MILESTONE_ID}`,
+    );
+    issueQueryStateRef.current.data = [
+      {
+        id: "REEF-701",
+        title: "Matching milestone issue",
+        status: "todo",
+        milestone_id: MILESTONE_ID,
+      },
+      {
+        id: "REEF-702",
+        title: "Different milestone issue",
+        status: "in_progress",
+        milestone_id: "another-milestone",
+      },
+      {
+        id: "REEF-703",
+        title: "Release issue",
+        status: "done",
+        release_id: RELEASE_ID,
+      },
+    ];
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ...catalog,
+          milestones: [
+            {
+              ...catalog.milestones[0],
+              description: "Ship a useful milestone.",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(wrap(<PlanningPage />));
+
+    const panel = await screen.findByTestId("planning-detail-panel");
+    expect(within(panel).getByRole("heading", { name: "Beta" })).toBeVisible();
+    expect(within(panel).getByText("Ship a useful milestone.")).toBeVisible();
+    expect(
+      within(panel).getByRole("heading", { name: "Linked issues" }),
+    ).toBeVisible();
+    expect(
+      within(panel).getByRole("link", { name: /REEF-701/ }),
+    ).toHaveAttribute("href", "/workspace/reef-acme/issues/REEF-701");
+    expect(within(panel).queryByText("Different milestone issue")).toBeNull();
+    expect(within(panel).queryByText("Release issue")).toBeNull();
+    expect(
+      within(panel).getByRole("link", { name: "View all linked issues" }),
+    ).toHaveAttribute(
+      "href",
+      `/workspace/reef-acme/issues?milestone_id=${MILESTONE_ID}`,
+    );
+  });
+
+  it("shows an explicit no-description state for a deep-linked empty item", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      `view=list&kind=milestones&detail=${MILESTONE_ID}`,
+    );
+
+    render(wrap(<PlanningPage />));
+
+    const panel = await screen.findByTestId("planning-detail-panel");
+    expect(within(panel).getByText("No description provided.")).toBeVisible();
+    expect(
+      within(panel).getByTestId(`planning-rollup-${MILESTONE_ID}`),
+    ).toHaveTextContent("0");
+  });
+
+  it("renders release notes as Markdown in the shared panel", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      `view=list&kind=releases&detail=${RELEASE_ID}`,
+    );
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ...catalog,
+          releases: [
+            {
+              ...catalog.releases[0],
+              notes: "## Release scope\nShip the beta milestone.",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(wrap(<PlanningPage />));
+
+    const panel = await screen.findByTestId("planning-detail-panel");
+    expect(
+      within(panel).getByRole("heading", { name: "Release notes" }),
+    ).toBeVisible();
+    expect(await within(panel).findByText("Release scope")).toBeVisible();
+    expect(within(panel).getByText("Ship the beta milestone.")).toBeVisible();
+    expect(
+      within(panel).queryByText("No description provided."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps issue counts unavailable in the panel until a retry succeeds", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      `view=list&kind=milestones&detail=${MILESTONE_ID}`,
+    );
+    const refetch = vi.fn(() => {
+      issueQueryStateRef.current = {
+        data: [],
+        isPending: false,
+        isError: false,
+        isFetching: false,
+        refetch,
+      };
+      return Promise.resolve();
+    });
+    issueQueryStateRef.current = {
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch,
+    };
+
+    const user = userEvent.setup();
+    const queryClient = createTestQueryClient();
+    const view = render(wrap(<PlanningPage />, queryClient));
+    const panel = await screen.findByTestId("planning-detail-panel");
+    expect(
+      within(panel).getByTestId(`planning-rollup-${MILESTONE_ID}`),
+    ).toHaveTextContent("Unable to verify");
+    expect(within(panel).queryByText("0")).not.toBeInTheDocument();
+    expect(within(panel).getByRole("alert")).toHaveTextContent(
+      "Linked issue counts are unavailable until issue data loads.",
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalledOnce();
+    view.rerender(wrap(<PlanningPage />, queryClient));
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId("planning-detail-panel")).getByTestId(
+          `planning-rollup-${MILESTONE_ID}`,
+        ),
+      ).toHaveTextContent("0");
+    });
+    expect(
+      within(screen.getByTestId("planning-detail-panel")).queryByRole("alert"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not synthesize a zero while issue aggregation is loading in the panel", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      `view=list&kind=milestones&detail=${MILESTONE_ID}`,
+    );
+    issueQueryStateRef.current = {
+      data: undefined,
+      isPending: true,
+      isError: false,
+      isFetching: true,
+      refetch: vi.fn(() => Promise.resolve()),
+    };
+
+    render(wrap(<PlanningPage />));
+
+    const panel = await screen.findByTestId("planning-detail-panel");
+    expect(
+      within(panel).getByTestId(`planning-rollup-${MILESTONE_ID}`),
+    ).toHaveTextContent("Loading…");
+    expect(within(panel).queryByText("0")).not.toBeInTheDocument();
+    expect(
+      within(panel).queryByText("No issues are linked to this item."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows stale detail IDs as not found only after the catalog succeeds", async () => {
+    const missingId = "missing-release";
+    navigationState.searchParams = new URLSearchParams(
+      `view=list&kind=releases&detail=${missingId}`,
+    );
+
+    render(wrap(<PlanningPage />));
+
+    const panel = await screen.findByTestId("planning-detail-panel");
+    expect(
+      within(panel).getByRole("heading", { name: "Release not found" }),
+    ).toBeVisible();
+    expect(
+      within(panel).getByRole("link", { name: "Back to Planning" }),
+    ).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/planning?view=list&kind=releases",
+    );
   });
 });

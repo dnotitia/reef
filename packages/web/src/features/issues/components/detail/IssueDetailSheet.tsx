@@ -509,6 +509,7 @@ export function IssueDetailSheet({
       >
         <SheetContent
           side="right"
+          data-reef-issue-detail-sheet=""
           ref={handleSheetContentReady}
           disableOpenAnimation={disableOpenAnimation}
           // The sheet's own persistent chrome bar owns the close affordance

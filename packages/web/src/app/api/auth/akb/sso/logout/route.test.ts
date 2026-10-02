@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildAuthV2LogoutCookie } from "@/server/auth-v2/cookie";
+import { POST } from "@/app/api/auth/akb/logout/route";
 import { GET } from "./route";
 
 describe("SSO logout continuation", () => {
@@ -54,9 +55,7 @@ describe("SSO logout continuation", () => {
       "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     );
     vi.stubEnv("REEF_AUTH_SESSION_NAMESPACE", "test");
-    const response = await (
-      await import("@/app/api/auth/akb/logout/route")
-    ).POST(
+    const response = await POST(
       new Request("https://reef.test/api/auth/akb/logout", {
         method: "POST",
         headers: { origin: "https://evil.test" },

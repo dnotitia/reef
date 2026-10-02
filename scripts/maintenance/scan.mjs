@@ -188,10 +188,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single public related-data reconciliation coordinator covering description, media, links, and attachments through one target ledger; extract a phase when another import entrypoint reuses it.",
   ],
   [
-    "packages/web/src/components/MarkdownEditorImpl.test.tsx",
-    "Single editor contract suite sharing one Tiptap chain mock; split interaction families when another editor surface reuses the mock harness.",
-  ],
-  [
     "packages/jira-migrator/src/archive/archive.ts",
     "Single raw-archive security boundary whose validation, permissions, manifest, and object-store helpers enforce one atomic API; extract helpers when a second archive implementation consumes them.",
   ],
@@ -260,11 +256,11 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   ],
   [
     "packages/web/src/components/MarkdownEditor.tsx",
-    "Single Tiptap editor wrapper; split when toolbar or extension config is reused elsewhere.",
+    "Shared editor code-split boundary keeping one lazy chunk and loading policy for callers; split when a second loading contract appears.",
   ],
   [
     "packages/web/src/components/MarkdownEditorImpl.tsx",
-    "Cohesive Tiptap editor implementation; split when toolbar, link editing, or source mode gains a second owner.",
+    "Shared Markdown editor adapter keeps locale, AKB targets, attachments, link safety, and resizing at Reef's product boundary; split a concern when another surface owns it.",
   ],
   [
     "packages/web/src/components/ui/combobox.tsx",
@@ -327,14 +323,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Issue-row interaction matrix sharing one list fixture and visual-state assertions; split keyboard and pointer scenarios when another row suite reuses the harness.",
   ],
   [
-    "packages/web/src/components/MarkdownEditorImpl.tiptap.test.ts",
-    "Tiptap editor integration suite sharing one extension and transaction harness; split an extension family when another editor test reuses it.",
-  ],
-  [
-    "packages/web/src/components/issueBodyMentionExtension.tsx",
-    "Single issue-body mention extension boundary combining candidate projection, async document search, suggestion rendering, and Tiptap lifecycle; extract a leaf when another mention surface shares it.",
-  ],
-  [
     "packages/web/tests/e2e/issues/issue-keyboard.hermetic.spec.ts",
     "Hermetic issue keyboard workflow suite sharing one browser fixture and focus contract; split a shortcut family when another keyboard suite reuses it.",
   ],
@@ -357,10 +345,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/features/issues/components/detail/IssueDetailSheet.tsx",
     "Single issue detail sheet composition keeping modal lifecycle, drill navigation, autosave, and field layout together; extract a section when another detail surface shares it.",
-  ],
-  [
-    "packages/web/src/components/slashCommandExtension.tsx",
-    "Single slash-command extension boundary combining command catalog, filtering, keyboard navigation, and Tiptap rendering; extract a command group when another editor shares it.",
   ],
   [
     "packages/jira-migrator/src/related/media.ts",

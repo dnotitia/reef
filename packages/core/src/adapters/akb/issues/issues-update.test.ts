@@ -8,11 +8,7 @@ import {
   setupFetch,
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
-import {
-  ALL_REEF_TABLES,
-  makeListTablesResponse,
-  makeSqlQueryResponse,
-} from "../core/sqlTestSupport";
+import { makeSqlQueryResponse } from "../core/sqlTestSupport";
 import { claimIssueId, updateIssue, writeIssue } from "./issues";
 
 mockOpenTelemetry();
@@ -314,7 +310,6 @@ describe("updateIssue → row-update compensation", () => {
       },
       { body: putResponse("commit-mentions") },
       { body: ROW_UPDATE_OK },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
     ]);
 
@@ -345,7 +340,7 @@ describe("updateIssue → row-update compensation", () => {
         mention_recipients: ["bob"],
       }),
     );
-    const eventBody = bodyOf(calls[6]);
+    const eventBody = bodyOf(calls[5]);
     expect(eventBody.sql).toContain("SELECT $1");
     expect(eventBody.params).toContain(
       "issue_body_mentions_change:commit-mentions",
@@ -397,7 +392,6 @@ describe("updateIssue → row-update compensation", () => {
       { body: { members: [{ username: "bob", role: "member" }] } },
       { body: putResponse("commit-failed-mentions") },
       { body: ROW_UPDATE_OK },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { status: 500, body: { error: "activity insert failed" } },
       { body: ROW_UPDATE_OK },
       { body: putResponse("commit-restored") },
@@ -418,7 +412,7 @@ describe("updateIssue → row-update compensation", () => {
     expect(bodyOf(patches[0]).content).toBe("new @bob");
     expect(bodyOf(patches[1]).content).toBe("old @alice");
     expect(bodyOf(patches[1]).expected_commit).toBe("commit-failed-mentions");
-    const compensationBody = bodyOf(calls[7]);
+    const compensationBody = bodyOf(calls[6]);
     expect(compensationBody.sql).toContain('"meta" =');
     expect(compensationBody.params).toContain(
       JSON.stringify({

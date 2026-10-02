@@ -416,6 +416,14 @@ therefore keep the same semantic roles without sharing a renderer or changing
 the stored plain Markdown. The issue body remains 14px/22px; comments remain
 the denser 13px/20px projection.
 
+The shared Markdown link popup searches documents and confirmed files that the
+current AKB Vault permits the user to read. Selecting a result fills the
+existing link fields with its title and canonical `akb://` URI; Apply stores
+that URI in Markdown. Search controls, loading and error states, cancellation,
+and selection restoration stay in the shared editor, while Reef supplies the
+authenticated current-Vault search adapter. The issue reference picker remains
+document-only.
+
 The contract is checked in Light, Dark, and both System outcomes at 1440×900
 and 1024×800. At the 720px CSS viewport (the 200% equivalent), the document
 must not widen: long URLs wrap, fenced code owns its horizontal scrollport,
@@ -460,9 +468,9 @@ hover, visited, and keyboard-focus states; inline code uses the existing Geist
 Mono stack on `--surface-subtle` with a `--border-subtle` hairline, compact
 padding, and no generated backticks; bold, italic, and strikethrough retain
 `--foreground` contrast (600 weight, italic style, and a clear line-through),
-including when the marks are nested. Roster-resolved issue-body mentions keep
-their sanitized `data-reef-mention` marker, brand/500 treatment, and no
-underline or link behavior. These rules are editor-scoped and do not alter
+including when the marks are nested. Roster-resolved issue-body mentions use
+the shared editor's resolved person-reference marker, brand/500 treatment, and
+no underline or link behavior. These rules are editor-scoped and do not alter
 fenced code blocks, comments, or AI Markdown.
 
 Issue-body images are block evidence: they keep intrinsic width and height until
@@ -473,18 +481,17 @@ keep their non-empty alt text readable. These image rules are scoped to the
 `.reef-markdown-editor` surface only.
 
 Only an explicit Markdown link whose target is an AKB file URI is rendered as a
-compact inline attachment action. Its authored filename remains the anchor text;
-the final alphanumeric extension is shown in uppercase (or `FILE` when absent or
-outside the bounded extension rule), and long labels wrap within narrow issue
-panels. In WYSIWYG mode the link opens the existing issue-scoped authenticated
-attachment proxy in a safe new window, while Source mode and saved Markdown keep
-the raw AKB URI. Ordinary URLs, AKB document links, comments, and AI Markdown
-retain their existing rendering.
+compact inline attachment action with a file glyph. Its authored filename
+remains the anchor text and wraps within narrow issue panels. In WYSIWYG mode
+the link opens the existing issue-scoped authenticated attachment proxy in a
+safe new window, while Source mode and saved Markdown keep the raw AKB URI.
+Ordinary URLs, AKB document links, comments, and AI Markdown retain their
+existing rendering.
 
 Persisted known issue IDs, AKB document/file links, and resolved mentions share
-one compact visual hierarchy in WYSIWYG through their semantic markers and
-labels; ordinary URLs keep their existing underlined treatment. Source mode and
-saved Markdown remain unchanged.
+one compact visual hierarchy in WYSIWYG through the shared editor's public
+reference and target markers; ordinary URLs keep their existing underlined
+treatment. Source mode and saved Markdown remain unchanged.
 
 Block Markdown keeps the same controlled density. Fenced code uses the existing
 Geist Mono stack at `13px/20px` on `--surface-subtle`, with a
@@ -1049,11 +1056,16 @@ open milestones and planned/in-progress releases (including overdue and
 undated items), and uses the shared issue rollup and capacity meaning from the
 Planning List. Each planning name remains an ordinary keyboard- and
 pointer-accessible link: sprints open their dedicated detail route, while
-milestones and releases open their existing List detail state. The explicit
+milestones and releases open one URL-backed side panel from both Overview and
+List. The panel shows localized status and dates, rendered Markdown or an
+explicit empty description, the shared issue rollup, and a preview restricted
+to issues linked to that item. Its all-issues action uses the exact existing
+Issues filter for the current vault. Direct links, refresh, and browser history
+restore the selected panel; a stale item id gets a safe recovery link after the
+catalog loads, while catalog errors remain retryable errors. Issue aggregation
+loading and failure remain explicit and never synthesize a zero. The explicit
 Overview/List control is URL-owned (`view=overview|list`); legacy `kind`/`detail`
-links continue to resolve to the List surface. Catalog failures show one
-retryable planning error, while linked-issue loading or failure preserves
-planning metadata and detail links and marks only the rollup unavailable.
+links continue to resolve to the List surface.
 Overview names remain single-line affordances at narrow widths and expose the
 complete value through the existing overflow tooltip and accessible label.
 Current sprint is the stronger execution-plan section through existing group
