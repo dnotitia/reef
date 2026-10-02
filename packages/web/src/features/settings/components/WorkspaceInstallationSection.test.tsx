@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -72,18 +72,66 @@ describe("WorkspaceInstallationSection", () => {
   it("keeps restore actions reachable for other accessible uninstalled workspaces", () => {
     render(wrap(<WorkspaceInstallationSection vault="reef-current" />));
 
+    const currentCard = screen.getByTestId(
+      "workspace-installation-reef-current",
+    );
+    const restoreCard = screen.getByTestId(
+      "workspace-installation-reef-restore",
+    );
+    const blockedCard = screen.getByTestId(
+      "workspace-installation-reef-blocked",
+    );
+
     expect(
-      screen.getByTestId("workspace-installation-reef-current"),
+      within(currentCard).getByRole("heading", {
+        name: "reef-current workspace status",
+      }),
+    ).toBeVisible();
+    expect(within(currentCard).getByText("Ready to use")).toBeVisible();
+    expect(
+      within(currentCard).getByRole("button", { name: "Check status" }),
+    ).toBeVisible();
+
+    expect(
+      within(restoreCard).getByRole("heading", {
+        name: "reef-restore workspace status",
+      }),
+    ).toBeVisible();
+    expect(within(restoreCard).getByText("Setup removed")).toBeVisible();
+    expect(
+      within(restoreCard).getByTestId("installation-reef-restore-restore"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("installation-reef-restore-restore"),
+      within(restoreCard).getByTestId("installation-reef-restore-fresh"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("installation-reef-restore-fresh"),
-    ).toBeInTheDocument();
+      within(restoreCard).getByRole("button", { name: "Restore installation" }),
+    ).toBeVisible();
     expect(
-      screen.getByTestId("workspace-installation-reef-blocked"),
-    ).toBeInTheDocument();
+      within(restoreCard).getByRole("button", {
+        name: "Request fresh setup",
+      }),
+    ).toBeVisible();
+
+    expect(
+      within(blockedCard).getByRole("heading", {
+        name: "reef-blocked workspace status",
+      }),
+    ).toBeVisible();
+    expect(
+      within(blockedCard).getByText("Owner or admin needed"),
+    ).toBeVisible();
+    expect(
+      within(blockedCard).getByRole("button", { name: "Check status" }),
+    ).toBeVisible();
+    expect(
+      new Set(
+        screen
+          .getAllByRole("heading", { name: /workspace status/i })
+          .map((heading) => heading.textContent),
+      ).size,
+    ).toBe(3);
+
     expect(
       screen.queryByTestId("workspace-installation-reef-other-ready"),
     ).not.toBeInTheDocument();

@@ -1034,7 +1034,9 @@ the AKB installation operator reviews the reported difference.
 
 The installation status card uses left-aligned body copy in onboarding,
 Settings, and the unavailable-workspace screen; only the access-denied page
-heading stays centered. Owners and admins can expand release, schema, and grant
+heading stays centered. Each card names its vault in its visible and accessible
+heading so people can match its state and actions to the right workspace.
+Owners and admins can expand release, schema, and grant
 comparisons grouped by meaning. Each group carries its own dimension status,
 and the canonical overall drift judgment appears once beside the details
 heading. Duplicate reason and unknown lists do not repeat those results. The

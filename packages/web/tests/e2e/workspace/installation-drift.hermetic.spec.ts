@@ -82,7 +82,9 @@ test.describe("installation drift and readiness guidance", () => {
     const installation = page.getByTestId("workspace-installation-reef-e2e");
     await expect(installation).toHaveAttribute("data-status", "ready");
     await expect(
-      installation.getByRole("heading", { name: "Workspace status" }),
+      installation.getByRole("heading", {
+        name: "reef-e2e workspace status",
+      }),
     ).toBeVisible();
     await expect(
       installation.getByText(/People can continue working/),
@@ -368,6 +370,14 @@ test.describe("installation drift and readiness guidance", () => {
               "workspace-installation-reef-e2e",
             );
             await expect(settingsCard).toHaveAttribute("data-status", "ready");
+            await expect(
+              settingsCard.getByRole("heading", {
+                name:
+                  locale === "en"
+                    ? "reef-e2e workspace status"
+                    : "reef-e2e 워크스페이스 상태",
+              }),
+            ).toBeVisible();
             await expect(settingsCard).toHaveCSS("text-align", "left");
             await attachFullPageScreenshot(
               page,
@@ -443,10 +453,110 @@ test.describe("installation drift and readiness guidance", () => {
             const onboardingCard = page.getByTestId(
               "workspace-installation-reef-e2e",
             );
+            const secondBlockedCard = page.getByTestId(
+              "workspace-installation-reef-zeta",
+            );
+            const rawVaultCard = page.getByTestId(
+              "workspace-installation-raw-vault",
+            );
+            const workspaceStatusSuffix =
+              locale === "en" ? "workspace status" : "워크스페이스 상태";
+            const onboardingCards = [
+              { card: onboardingCard, vault: "reef-e2e" },
+              { card: secondBlockedCard, vault: "reef-zeta" },
+              { card: rawVaultCard, vault: "raw-vault" },
+            ];
+            for (const { card, vault } of onboardingCards) {
+              await expect(
+                card.getByRole("heading", {
+                  name: `${vault} ${workspaceStatusSuffix}`,
+                }),
+              ).toBeVisible();
+            }
+            const onboardingHeadings = await Promise.all(
+              onboardingCards.map(({ card }) =>
+                card.getByRole("heading").textContent(),
+              ),
+            );
+            expect(new Set(onboardingHeadings).size).toBe(3);
             await expect(onboardingCard).toHaveAttribute(
               "data-status",
               canManage ? "blocked" : "management_required",
             );
+            await expect(secondBlockedCard).toHaveAttribute(
+              "data-status",
+              canManage ? "blocked" : "management_required",
+            );
+            await expect(rawVaultCard).toHaveAttribute(
+              "data-status",
+              canManage ? "not_installed" : "management_required",
+            );
+            const statusLabels =
+              locale === "en"
+                ? {
+                    blocked: "Unavailable",
+                    notInstalled: "Setup needed",
+                    managementRequired: "Owner or admin needed",
+                    checkStatus: "Check status",
+                    install: "Set up Reef",
+                  }
+                : {
+                    blocked: "사용할 수 없음",
+                    notInstalled: "설치 필요",
+                    managementRequired: "소유자 또는 관리자 확인 필요",
+                    checkStatus: "상태 확인",
+                    install: "Reef 설정하기",
+                  };
+            for (const [card, label] of [
+              [
+                onboardingCard,
+                canManage
+                  ? statusLabels.blocked
+                  : statusLabels.managementRequired,
+              ],
+              [
+                secondBlockedCard,
+                canManage
+                  ? statusLabels.blocked
+                  : statusLabels.managementRequired,
+              ],
+              [
+                rawVaultCard,
+                canManage
+                  ? statusLabels.notInstalled
+                  : statusLabels.managementRequired,
+              ],
+            ] as const) {
+              await expect(
+                card.getByText(label, { exact: true }),
+              ).toBeVisible();
+            }
+            for (const card of [onboardingCard, secondBlockedCard]) {
+              await expect(
+                card.getByRole("button", { name: statusLabels.checkStatus }),
+              ).toBeVisible();
+              await expect(
+                card.getByRole("button", { name: statusLabels.install }),
+              ).toHaveCount(0);
+            }
+            await expect(
+              rawVaultCard.getByRole("button", {
+                name: statusLabels.checkStatus,
+              }),
+            ).toBeVisible();
+            if (canManage) {
+              await expect(
+                rawVaultCard.getByRole("button", {
+                  name: statusLabels.install,
+                }),
+              ).toBeVisible();
+            } else {
+              await expect(
+                rawVaultCard.getByRole("button", {
+                  name: statusLabels.install,
+                }),
+              ).toHaveCount(0);
+            }
             await attachFullPageScreenshot(
               page,
               testInfo,
@@ -460,13 +570,6 @@ test.describe("installation drift and readiness guidance", () => {
               await expect(
                 onboardingCard.getByTestId("installation-blocked-guidance"),
               ).toBeVisible();
-              const secondBlockedCard = page.getByTestId(
-                "workspace-installation-reef-zeta",
-              );
-              await expect(secondBlockedCard).toHaveAttribute(
-                "data-status",
-                "blocked",
-              );
               await secondBlockedCard
                 .getByTestId("installation-details-disclosure")
                 .locator("summary")

@@ -38,8 +38,9 @@ explicitly in the entries below.
   bounded release, schema, grant, and recovery details stay collapsed. Readers
   and writers see plain-language readiness and are directed to an owner or
   admin when setup is incomplete. Active drift alone still leaves a ready
-  workspace usable, and checking status does not repair or resume setup.
-  (REEF-422)
+  workspace usable, and checking status does not repair or resume setup. Each
+  card names its vault so people can match the state and actions to the right
+  workspace when several cards appear together. (REEF-422)
 
 ### Fixed
 

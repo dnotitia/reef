@@ -422,7 +422,7 @@ export function WorkspaceInstallationActions({
               id={`installation-${vault}-heading`}
               className="type-settings-section text-foreground"
             >
-              {t("title")}
+              {t("title", { vault })}
             </h3>
             <span className="rounded-full border border-border px-2 py-0.5 type-caption text-muted-foreground">
               {statusLabel}

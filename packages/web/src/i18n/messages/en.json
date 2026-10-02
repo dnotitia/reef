@@ -203,7 +203,7 @@
     }
   },
   "workspaceInstallation": {
-    "title": "Workspace status",
+    "title": "{vault} workspace status",
     "status": {
       "ready": "Ready to use",
       "installing": "Setup in progress",

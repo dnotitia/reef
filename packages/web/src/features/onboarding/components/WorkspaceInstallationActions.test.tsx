@@ -230,6 +230,33 @@ describe("WorkspaceInstallationActions", () => {
     await waitFor(() =>
       expect(screen.getAllByTestId("installation-details")).toHaveLength(2),
     );
+
+    const alphaCard = screen.getByTestId("workspace-installation-reef-alpha");
+    const zetaCard = screen.getByTestId("workspace-installation-reef-zeta");
+    expect(
+      within(alphaCard).getByRole("heading", {
+        name: "reef-alpha workspace status",
+      }),
+    ).toBeVisible();
+    expect(
+      within(zetaCard).getByRole("heading", {
+        name: "reef-zeta workspace status",
+      }),
+    ).toBeVisible();
+    expect(
+      new Set(
+        screen
+          .getAllByRole("heading", { name: /workspace status/i })
+          .map((heading) => heading.textContent),
+      ).size,
+    ).toBe(2);
+    for (const card of [alphaCard, zetaCard]) {
+      expect(within(card).getByText("Ready to use")).toBeVisible();
+      expect(
+        within(card).getByRole("button", { name: "Check status" }),
+      ).toBeVisible();
+    }
+
     for (const disclosure of screen.getAllByTestId(
       "installation-details-disclosure",
     )) {

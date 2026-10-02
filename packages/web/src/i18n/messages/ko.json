@@ -203,7 +203,7 @@
     }
   },
   "workspaceInstallation": {
-    "title": "워크스페이스 상태",
+    "title": "{vault} 워크스페이스 상태",
     "status": {
       "ready": "사용 준비 완료",
       "installing": "설정 진행 중",
