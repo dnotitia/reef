@@ -114,6 +114,11 @@ const USERNAME = process.env.AKB_E2E_USERNAME ?? "reef-smoke";
 const PASSWORD = process.env.AKB_E2E_PASSWORD ?? "reef-smoke-pw-123";
 const EMAIL = process.env.REEF_LIVE_AKB_EMAIL ?? "reef-smoke@example.com";
 const V3_SOURCE_VERSIONS = ["0.14.0", "0.15.0", "0.16.0"] as const;
+const V3_SOURCE_MANIFEST_CHECKSUMS = {
+  "0.14.0": "f7126f2d5d3755b56dc457fe75ffc212e90ac47b79428d49f5912dc787ce3e66",
+  "0.15.0": "819872a2cc9901c6261b6b0d2f3b7b6076eb572c163cca8cfe91d9848013ab11",
+  "0.16.0": "dad11aefa47e165b77e68664385c9d4a295f4ff20e4d64c510b1ad40b38a8133",
+} satisfies Record<(typeof V3_SOURCE_VERSIONS)[number], string>;
 const V3_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
 const V4_LOOKUP_INDEXES = [
@@ -904,22 +909,18 @@ async function registerV3BaselineRelease(params: {
   version: (typeof V3_SOURCE_VERSIONS)[number];
 }): Promise<{ releaseId: string; checksum: string }> {
   const { version } = params;
-  const baseline = record(
+  const manifest = record(
     JSON.parse(
       await readFile(
         new URL(
-          `../fixtures/reef-release-baselines/${version}.json`,
+          "../fixtures/reef-release-baselines/v3-manifest.json",
           import.meta.url,
         ),
         "utf8",
       ),
     ) as unknown,
-    `fixture v3 release ${version}`,
+    `fixture v3 manifest ${version}`,
   );
-  if (requiredString(baseline, "version", "fixture v3 release") !== version) {
-    throw new Error(`Fixture v3 release version did not match ${version}`);
-  }
-  const manifest = record(baseline.manifest, `fixture v3 manifest ${version}`);
   if (manifest.schema_version !== 3) {
     throw new Error(`Fixture v3 release ${version} did not contain schema v3`);
   }
@@ -958,13 +959,7 @@ async function registerV3BaselineRelease(params: {
       product_version: version,
     }),
   );
-  if (
-    requiredString(
-      baseline,
-      "manifest_checksum",
-      `fixture v3 release ${version}`,
-    ) !== checksum
-  ) {
+  if (V3_SOURCE_MANIFEST_CHECKSUMS[version] !== checksum) {
     throw new Error(`Fixture v3 release ${version} checksum was invalid`);
   }
   const response = await fetch(
