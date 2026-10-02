@@ -109,10 +109,35 @@ function InstallationDetailsContent({
   const t = useTranslations("workspaceInstallation.details");
   const locale = useLocale();
   const unknown = t("unknown");
-  const releaseValue = (value: ControlPlaneInstallation["desiredRelease"]) =>
-    value?.version ?? value?.id ?? unknown;
   const drift = installation.drift;
   const overallStatus = drift?.overall ?? "unknown";
+  const comparedObservedRelease = drift?.release.observed;
+  const snapshotRelease = installation.observed?.release;
+  const releaseReferences = [
+    installation.desiredRelease,
+    installation.currentRelease,
+    snapshotRelease,
+    drift?.release.desired,
+    comparedObservedRelease,
+  ];
+  const releaseValue = (value: ControlPlaneInstallation["desiredRelease"]) => {
+    const version = value?.version;
+    const versionHasDistinctIds =
+      version != null &&
+      releaseReferences.some(
+        (reference) =>
+          reference?.version === version &&
+          (reference.id ?? null) !== (value?.id ?? null),
+      );
+    return versionHasDistinctIds
+      ? t("releaseVersionWithId", { version, id: value?.id ?? unknown })
+      : (version ?? value?.id ?? unknown);
+  };
+  const hasSeparateReleaseComparison =
+    (comparedObservedRelease?.id ?? null) !== (snapshotRelease?.id ?? null) ||
+    (comparedObservedRelease?.version ?? null) !==
+      (snapshotRelease?.version ?? null);
+  const comparedObservedReleaseValue = releaseValue(comparedObservedRelease);
   const observedSchema = drift?.schema.observed;
   const observedSchemaFingerprint = installation.observed?.schemaFingerprint;
   const hasDistinctSnapshotFingerprint =
@@ -180,8 +205,17 @@ function InstallationDetailsContent({
           {
             id: "installation-release-observed",
             label: t("observedRelease"),
-            value: releaseValue(installation.observed?.release),
+            value: releaseValue(snapshotRelease),
           },
+          ...(hasSeparateReleaseComparison
+            ? [
+                {
+                  id: "installation-release-comparison-observed",
+                  label: t("comparedRelease"),
+                  value: comparedObservedReleaseValue,
+                },
+              ]
+            : []),
         ]}
       />
       <InstallationComparisonGroup

@@ -38,7 +38,9 @@ explicitly in the entries below.
   auto-resume, then lists only workspaces needing setup. Settings covers only
   the selected workspace: ready readers and writers see no setup task, while
   owners and admins can open installation details on demand. Unavailable
-  workspaces state their impact, next step, and responsible person; access
+  workspaces state their impact, next step, and responsible person; release
+  details distinguish the canonical drift comparison from the installation
+  snapshot, including release identities when versions alone collide. Access
   denial describes only the requested workspace and keeps other ready
   workspaces as plain switch links. (REEF-422)
 

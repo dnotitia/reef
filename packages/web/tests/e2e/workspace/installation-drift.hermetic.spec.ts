@@ -241,6 +241,17 @@ test.describe("installation drift and readiness guidance", () => {
       "data-overall-drift",
       "drifted",
     );
+    await expect(
+      diagnostics.getByTestId("installation-release-observed"),
+    ).toHaveText(E2E_REEF_RELEASE_VERSION);
+    await expect(
+      diagnostics.getByTestId("installation-release-comparison-observed"),
+    ).toHaveText("0.15.0");
+    await expect(
+      diagnostics
+        .getByTestId("installation-comparison-release")
+        .locator("[data-drift-status]"),
+    ).toHaveAttribute("data-drift-status", "mismatch");
     await expect(page.getByText(/Workspace remains available/)).toHaveCount(0);
     await expect(
       page.getByTestId("installation-blocked-guidance"),
