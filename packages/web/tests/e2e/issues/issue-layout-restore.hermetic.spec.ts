@@ -18,7 +18,15 @@ const SAVED_HEIGHT = 740;
 
 interface LayoutFrame {
   phase: "auth-pending" | "detail-skeleton" | "editor-loading" | "loaded";
+  timeMs: number;
+  navigationTimeOrigin: number;
+  viewportWidth: number;
+  viewportHeight: number;
   panelWidth: number | null;
+  panelCssWidth: string | null;
+  panelCssMaxWidth: string | null;
+  panelTransition: string | null;
+  panelAnimation: string | null;
   bodyHeight: number | null;
   toolbarHeight: number | null;
   toolbarControlsHeight: number | null;
@@ -181,9 +189,20 @@ test.describe("Hermetic persisted issue layout", () => {
         const panelElement = panel?.querySelector<HTMLElement>(
           '[data-testid="issue-detail-scroll"]',
         );
+        const panelStyle = panel ? getComputedStyle(panel) : null;
         const frame: LayoutFrame = {
           phase,
+          timeMs: performance.now(),
+          navigationTimeOrigin: performance.timeOrigin,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
           panelWidth: panel ? panel.getBoundingClientRect().width : null,
+          panelCssWidth: panelStyle?.width ?? null,
+          panelCssMaxWidth: panelStyle?.maxWidth ?? null,
+          panelTransition: panel
+            ? `${panelStyle?.transitionProperty} ${panelStyle?.transitionDuration}`
+            : null,
+          panelAnimation: panelStyle?.animationName ?? null,
           bodyHeight: bodyFrame
             ? bodyFrame.getBoundingClientRect().height
             : null,
@@ -283,6 +302,71 @@ test.describe("Hermetic persisted issue layout", () => {
       body: JSON.stringify(frames, null, 2),
       contentType: "application/json",
     });
+
+    const persistedGeometry = await page.evaluate(
+      ({ widthKey, heightKey }) => ({
+        width: sessionStorage.getItem(widthKey),
+        height: sessionStorage.getItem(heightKey),
+        initialWidth: getComputedStyle(
+          document.documentElement,
+        ).getPropertyValue("--reef-issue-detail-initial-width"),
+        initialHeight: getComputedStyle(
+          document.documentElement,
+        ).getPropertyValue("--reef-markdown-editor-initial-frame-height"),
+      }),
+      { widthKey: WIDTH_KEY, heightKey: HEIGHT_KEY },
+    );
+    const diagnosticPhases: LayoutFrame["phase"][] = [
+      "detail-skeleton",
+      "auth-pending",
+      "editor-loading",
+      "loaded",
+    ];
+    console.log(
+      "[LAYOUT_RELOAD_PERSISTED_GEOMETRY]",
+      JSON.stringify(persistedGeometry),
+    );
+    for (const phase of diagnosticPhases) {
+      const phaseFrames = frames.filter((frame) => frame.phase === phase);
+      const panelStyles = new Map(
+        phaseFrames.map((frame) => [
+          JSON.stringify([
+            frame.panelCssWidth,
+            frame.panelCssMaxWidth,
+            frame.panelTransition,
+            frame.panelAnimation,
+          ]),
+          {
+            width: frame.panelCssWidth,
+            maxWidth: frame.panelCssMaxWidth,
+            transition: frame.panelTransition,
+            animation: frame.panelAnimation,
+          },
+        ]),
+      );
+      console.log(
+        "[LAYOUT_RELOAD_GEOMETRY]",
+        JSON.stringify({
+          phase,
+          navigationTimeOrigins: [
+            ...new Set(phaseFrames.map((frame) => frame.navigationTimeOrigin)),
+          ],
+          viewports: [
+            ...new Set(
+              phaseFrames.map(
+                (frame) => `${frame.viewportWidth}x${frame.viewportHeight}`,
+              ),
+            ),
+          ],
+          panelStyles: [...panelStyles.values()],
+          samples: phaseFrames.map((frame) => [
+            Math.round(frame.timeMs * 100) / 100,
+            frame.panelWidth,
+            frame.bodyHeight,
+          ]),
+        }),
+      );
+    }
 
     const authFrames = frames.filter((frame) => frame.phase === "auth-pending");
     const loadingFrames = frames.filter(

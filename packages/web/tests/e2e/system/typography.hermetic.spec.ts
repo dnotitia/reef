@@ -19,6 +19,41 @@ type Theme = "light" | "dark";
 type HistoricalRoleName = keyof typeof historicalBaseline.roles;
 const CARD_BASELINE = historicalBaseline.cards;
 
+interface SmallBoardMetrics {
+  documentId: string;
+  hrefAtInit: string;
+  readyStateAtInit: string;
+  initializedAt: number;
+  observerAttachedAt: number | null;
+  observerRegistrationError: string | null;
+  observerTargetConnected: boolean;
+  observerTarget: Document | null;
+  mutationCallbackCount: number;
+  mutationSnapshots: Array<{
+    at: number;
+    reason: string;
+    cardCount: number;
+    observerTargetConnected: boolean;
+    documentElementConnected: boolean;
+  }>;
+  issueResponses: Array<{
+    url: string;
+    parseMs: number;
+    parsedAt: number;
+    issueCount: number | null;
+    responseBytes: number;
+    documentId: string;
+    timeOrigin: number;
+    href: string;
+    readyState: string;
+  }>;
+  firstCardDomAt: number | null;
+  mountedCardsAtFirstDom: number;
+  firstCardDocumentId: string | null;
+  firstCardHref: string | null;
+  firstCardObservationReason: string | null;
+}
+
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "narrow-desktop", width: 1024, height: 800 },
@@ -1114,32 +1149,61 @@ test.describe("Hermetic typography role contract", () => {
     await resetFixture(request, "typography");
     await clearPersistedQueryCacheOnLoad(page);
     await page.addInitScript(() => {
-      const metrics = {
-        issueResponses: [] as Array<{
-          url: string;
-          parseMs: number;
-          parsedAt: number;
-          issueCount: number | null;
-          responseBytes: number;
-        }>,
+      const metrics: SmallBoardMetrics = {
+        documentId: crypto.randomUUID(),
+        hrefAtInit: location.href,
+        readyStateAtInit: document.readyState,
+        initializedAt: performance.now(),
+        observerAttachedAt: null as number | null,
+        observerRegistrationError: null as string | null,
+        observerTargetConnected: false,
+        observerTarget: null as Document | null,
+        mutationCallbackCount: 0,
+        mutationSnapshots: [],
+        issueResponses: [],
         firstCardDomAt: null as number | null,
         mountedCardsAtFirstDom: 0,
+        firstCardDocumentId: null as string | null,
+        firstCardHref: null as string | null,
+        firstCardObservationReason: null as string | null,
       };
       const runtimeWindow = window as Window & {
-        __reefSmallBoardMetrics?: typeof metrics;
+        __reefSmallBoardMetrics?: SmallBoardMetrics;
       };
       runtimeWindow.__reefSmallBoardMetrics = metrics;
-      const recordFirstCardDom = () => {
-        if (metrics.issueResponses.length === 0 || metrics.firstCardDomAt) {
+      // addInitScript can run before the parser creates <html>; Document is a
+      // stable Node target that also keeps observation active if that root is
+      // later replaced.
+      const observerTarget = document;
+      const recordFirstCardDom = (reason: string) => {
+        if (
+          metrics.issueResponses.length === 0 ||
+          metrics.firstCardDomAt !== null
+        ) {
           return;
         }
         const cards = document.querySelectorAll('[data-testid="kanban-card"]');
+        metrics.mutationSnapshots.push({
+          at: performance.now(),
+          reason,
+          cardCount: cards.length,
+          observerTargetConnected: observerTarget.isConnected,
+          documentElementConnected:
+            document.documentElement?.isConnected ?? false,
+        });
+        metrics.mutationSnapshots = metrics.mutationSnapshots.slice(-20);
         if (cards.length === 0) return;
         metrics.firstCardDomAt = performance.now();
         metrics.mountedCardsAtFirstDom = cards.length;
+        metrics.firstCardDocumentId = metrics.documentId;
+        metrics.firstCardHref = location.href;
+        metrics.firstCardObservationReason = reason;
         observer.disconnect();
       };
-      const observer = new MutationObserver(recordFirstCardDom);
+      const observer = new MutationObserver(() => {
+        metrics.mutationCallbackCount += 1;
+        recordFirstCardDom("mutation");
+      });
       const originalJson = Response.prototype.json;
       Response.prototype.json = async function timedJson() {
         const url = this.url;
@@ -1159,16 +1223,28 @@ test.describe("Hermetic typography role contract", () => {
             parsedAt,
             issueCount,
             responseBytes,
+            documentId: metrics.documentId,
+            timeOrigin: performance.timeOrigin,
+            href: location.href,
+            readyState: document.readyState,
           });
-          recordFirstCardDom();
+          recordFirstCardDom("response-json");
         }
         return result;
       };
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
-      recordFirstCardDom();
+      try {
+        observer.observe(observerTarget, {
+          childList: true,
+          subtree: true,
+        });
+        metrics.observerAttachedAt = performance.now();
+        metrics.observerTargetConnected = observerTarget.isConnected;
+        metrics.observerTarget = observerTarget;
+      } catch (error) {
+        metrics.observerRegistrationError =
+          error instanceof Error ? error.message : String(error);
+      }
+      recordFirstCardDom("init");
     });
     await openExistingWorkspace(page);
     await page.setViewportSize(VIEWPORTS[0]);
@@ -1290,35 +1366,64 @@ test.describe("Hermetic typography role contract", () => {
 
     const browserMetrics = await page.evaluate((responseUrl) => {
       const runtimeWindow = window as Window & {
-        __reefSmallBoardMetrics?: {
-          issueResponses: Array<{
-            url: string;
-            parseMs: number;
-            parsedAt: number;
-            issueCount: number | null;
-            responseBytes: number;
-          }>;
-          firstCardDomAt: number | null;
-          mountedCardsAtFirstDom: number;
-        };
+        __reefSmallBoardMetrics?: SmallBoardMetrics;
       };
       const measurement = runtimeWindow.__reefSmallBoardMetrics;
       const response = measurement?.issueResponses.find(
         ({ url }) => url === responseUrl,
       );
       return {
-        parseMs: response?.parseMs ?? null,
-        issueCount: response?.issueCount ?? null,
-        responseBytes: response?.responseBytes ?? null,
-        postParseToFirstCardDomMs:
-          response &&
-          measurement?.firstCardDomAt !== null &&
-          measurement?.firstCardDomAt !== undefined
-            ? measurement.firstCardDomAt - response.parsedAt
+        evidence: {
+          responseUrl: response?.url ?? null,
+          responseDocumentId: response?.documentId ?? null,
+          responseTimeOrigin: response?.timeOrigin ?? null,
+          responseHref: response?.href ?? null,
+          responseReadyState: response?.readyState ?? null,
+          currentDocumentId: measurement?.documentId ?? null,
+          currentTimeOrigin: performance.timeOrigin,
+          currentHref: location.href,
+          currentReadyState: document.readyState,
+          observerAttachedAt: measurement?.observerAttachedAt ?? null,
+          observerRegistrationError:
+            measurement?.observerRegistrationError ?? null,
+          observerTargetConnectedAtAttach:
+            measurement?.observerTargetConnected ?? null,
+          observerTargetConnectedNow:
+            measurement?.observerTarget?.isConnected ?? null,
+          sameDocument: measurement?.observerTarget
+            ? document === measurement.observerTarget
             : null,
-        mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
+          mutationCallbackCount: measurement?.mutationCallbackCount ?? null,
+          mutationSnapshots: measurement?.mutationSnapshots ?? [],
+          firstCardDomAt: measurement?.firstCardDomAt ?? null,
+          firstCardDocumentId: measurement?.firstCardDocumentId ?? null,
+          firstCardHref: measurement?.firstCardHref ?? null,
+          firstCardObservationReason:
+            measurement?.firstCardObservationReason ?? null,
+        },
+        metrics: {
+          parseMs: response?.parseMs ?? null,
+          issueCount: response?.issueCount ?? null,
+          responseBytes: response?.responseBytes ?? null,
+          postParseToFirstCardDomMs:
+            response &&
+            measurement?.firstCardDomAt !== null &&
+            measurement?.firstCardDomAt !== undefined
+              ? measurement.firstCardDomAt - response.parsedAt
+              : null,
+          mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
+        },
       };
     }, issueResponse.url());
+    console.log(
+      "[BOARD_VIRTUALIZATION_TIMELINE]",
+      JSON.stringify({
+        expectedResponseUrl: issueResponse.url(),
+        responseStatus: issueResponse.status(),
+        ...browserMetrics.evidence,
+        ...browserMetrics.metrics,
+      }),
+    );
     const requestTiming = issueResponse.request().timing();
     const report = {
       build: "candidate",
@@ -1327,13 +1432,13 @@ test.describe("Hermetic typography role contract", () => {
       cacheMode: "fresh browser context; persisted query cache removed",
       viewport: VIEWPORTS[0],
       browserVersion: page.context().browser()?.version() ?? "unknown",
-      totalIssues: browserMetrics.issueCount ?? 0,
+      totalIssues: browserMetrics.metrics.issueCount ?? 0,
       requestDurationMs: requestTiming.responseEnd - requestTiming.requestStart,
       requestStartToFirstByteMs:
         requestTiming.responseStart - requestTiming.requestStart,
       responseBodyTransferMs:
         requestTiming.responseEnd - requestTiming.responseStart,
-      ...browserMetrics,
+      ...browserMetrics.metrics,
       uniqueCardGeometries: geometry.length,
     };
     expect(report.parseMs).toBeGreaterThanOrEqual(0);
