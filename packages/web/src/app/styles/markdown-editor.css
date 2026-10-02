@@ -18,6 +18,10 @@
   color: var(--brand-text);
 }
 
+[data-markdown-link-popup] [role="listbox"] {
+  background-color: var(--surface-elevated);
+}
+
 /*
  * Keep the issue body compact without changing the global `prose-sm` rhythm.
  * These selectors intentionally address direct children: paragraphs and

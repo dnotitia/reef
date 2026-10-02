@@ -504,6 +504,15 @@
   /* surfaces */
   --color-surface-page: var(--surface-page);
   --color-foreground: var(--foreground);
+  /* Color roles consumed by the shared Markdown editor React bundle. */
+  --color-surface: var(--surface-elevated);
+  --color-surface-2: var(--surface-subtle);
+  --color-surface-muted: var(--surface-hover);
+  --color-surface-selected: var(--surface-subtle);
+  --color-surface-selected-foreground: var(--accent-foreground);
+  --color-foreground-muted: var(--muted-foreground);
+  --color-ring: var(--brand-focus);
+  --color-destructive: var(--destructive-text);
   --color-surface-sidebar: var(--surface-sidebar);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-card: var(--surface-card);
@@ -538,6 +547,12 @@
   --color-destructive-focus: var(--destructive-focus);
   --color-destructive-chart: var(--destructive-chart);
   --color-destructive-on-fill: var(--destructive-on-fill);
+  --color-destructive-soft: color-mix(
+    in srgb,
+    var(--destructive-fill) 12%,
+    var(--surface-elevated)
+  );
+  --color-destructive-soft-foreground: var(--destructive-text);
 
   /* AI */
   --color-ai: var(--ai);
