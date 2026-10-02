@@ -8,16 +8,23 @@ import { WorkspaceInstallationLoading } from "@/features/workspaceInstallation/c
 import { useWorkspaceInstallationActions } from "@/features/workspaceInstallation/hooks/useWorkspaceInstallationActions";
 import { WorkspaceInstallationDetails } from "./WorkspaceInstallationDetails";
 
-export function WorkspaceInstallationSection({ vault }: { vault: string }) {
+export function WorkspaceInstallationSection({
+  vault,
+  readOnly = false,
+}: {
+  vault: string;
+  readOnly?: boolean;
+}) {
   const { role, isResolving } = useWorkspaceAccess(vault);
   const canManage = role === "owner" || role === "admin";
 
   return (
     <WorkspaceInstallationSectionContent
-      key={`${vault}:${canManage ? "manager" : "member"}`}
+      key={`${vault}:${canManage ? "manager" : "member"}:${readOnly ? "readonly" : "editable"}`}
       vault={vault}
       role={role}
       isResolving={isResolving}
+      readOnly={readOnly}
     />
   );
 }
@@ -26,10 +33,12 @@ function WorkspaceInstallationSectionContent({
   vault,
   role,
   isResolving,
+  readOnly,
 }: {
   vault: string;
   role: string | null;
   isResolving: boolean;
+  readOnly: boolean;
 }) {
   const t = useTranslations("workspaceInstallation");
   const routesT = useTranslations("settings.routes");
@@ -41,7 +50,7 @@ function WorkspaceInstallationSectionContent({
   const actions = useWorkspaceInstallationActions({
     vault,
     initialStatus: workspace?.installation_status ?? "unknown",
-    canManage,
+    canManage: canManage && !readOnly,
     enabled:
       !isResolving &&
       Boolean(workspace) &&
@@ -115,7 +124,8 @@ function WorkspaceInstallationSectionContent({
           <InstallationActionControls
             vault={vault}
             status={visibleStatus}
-            canManage={canManage}
+            canManage={canManage && !readOnly}
+            canCheckStatus={canManage && readOnly}
             busy={actions.busy}
             activity={actions.activity}
             acknowledgement={actions.acknowledgement}

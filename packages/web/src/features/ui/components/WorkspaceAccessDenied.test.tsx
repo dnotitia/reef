@@ -106,7 +106,9 @@ describe("WorkspaceAccessDenied", () => {
     const status = screen.getByTestId("workspace-installation-reef-blocked");
     expect(status).toHaveAttribute("data-status", "management_required");
     expect(
-      screen.getByRole("heading", { name: "This workspace needs setup" }),
+      screen.getByRole("heading", {
+        name: "You don't have access to this workspace",
+      }),
     ).toBeVisible();
     expect(status).toHaveTextContent(
       "This workspace needs an owner or admin before it can be used.",
@@ -115,6 +117,9 @@ describe("WorkspaceAccessDenied", () => {
       "Ask a workspace owner or admin to check the setup.",
     );
     expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
+    expect(
+      screen.queryByTestId("installation-diagnostics-link-reef-blocked"),
+    ).toBeNull();
     expect(screen.queryByTestId("installation-details-disclosure")).toBeNull();
     expect(screen.queryByTestId("installation-blocked-guidance")).toBeNull();
     expect(screen.queryByText(/AKB installation operator/i)).toBeNull();
@@ -135,7 +140,29 @@ describe("WorkspaceAccessDenied", () => {
     expect(status).toHaveTextContent("Next step");
     expect(status).toHaveTextContent("Who can act");
     expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
+    expect(
+      screen.getByTestId("installation-diagnostics-link-reef-blocked"),
+    ).toHaveAttribute("href", "/workspace/reef-blocked/settings/workspace");
     expect(screen.queryByTestId("installation-details-disclosure")).toBeNull();
     expect(screen.queryByTestId("installation-blocked-guidance")).toBeNull();
+  });
+
+  it("does not call an unknown installation state a setup requirement", () => {
+    renderDenied([], "reef-unknown", {
+      role: "owner",
+      installationStatus: "unknown",
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        name: "You don't have access to this workspace",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "This workspace needs setup" }),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("workspace-installation-reef-unknown"),
+    ).toHaveAttribute("data-status", "unknown");
   });
 });

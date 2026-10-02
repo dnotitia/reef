@@ -8,7 +8,8 @@ type VaultsState = {
   isError: boolean;
   data?: Array<{
     name: string;
-    installation_status: "ready" | "not_installed";
+    installation_status: "ready" | "blocked" | "not_installed";
+    role?: "owner" | "admin" | "writer" | "reader" | null;
   }>;
 };
 
@@ -83,6 +84,14 @@ vi.mock("@/features/settings/hooks/useVaults", () => ({
       : { isPending: false, isSuccess: false, isError: false };
   },
 }));
+vi.mock(
+  "@/features/settings/components/BlockedWorkspaceInstallationSettings",
+  () => ({
+    BlockedWorkspaceInstallationSettings: ({ vault }: { vault: string }) => (
+      <div data-testid="workspace-installation-diagnostics">{vault}</div>
+    ),
+  }),
+);
 vi.mock("./WorkspaceAuthPendingSkeleton", () => ({
   WorkspaceAuthPendingSkeleton: () => <div data-testid="auth-loading-shell" />,
 }));
@@ -293,6 +302,174 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(screen.getByTestId("workspace-access-denied")).toBeInTheDocument();
     expect(syncMock).toHaveBeenCalledWith("");
     expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
+  });
+
+  it.each(["owner", "admin"] as const)(
+    "opens only the blocked %s member's selected-workspace diagnostics settings",
+    (role) => {
+      pathnameRef.current = "/workspace/reef-acme/settings/workspace";
+      vaultsRef.current = {
+        isPending: false,
+        isSuccess: true,
+        isError: false,
+        data: [
+          {
+            name: "reef-acme",
+            installation_status: "blocked",
+            role,
+          },
+        ],
+      };
+
+      render(
+        <WorkspaceGuard appVersion="1.0.0">
+          <span data-testid="normal-workspace-settings" />
+        </WorkspaceGuard>,
+      );
+
+      expect(
+        screen.getByTestId("workspace-installation-diagnostics"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("workspace-access-denied")).toBeNull();
+      expect(screen.queryByTestId("normal-workspace-settings")).toBeNull();
+      // Blocked diagnostics must not change the remembered default workspace.
+      expect(syncMock).toHaveBeenCalledWith("");
+      expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
+    },
+  );
+
+  it.each(["reader", "writer"] as const)(
+    "keeps blocked %s settings denied",
+    (role) => {
+      pathnameRef.current = "/workspace/reef-acme/settings/workspace";
+      vaultsRef.current = {
+        isPending: false,
+        isSuccess: true,
+        isError: false,
+        data: [
+          {
+            name: "reef-acme",
+            installation_status: "blocked",
+            role,
+          },
+        ],
+      };
+
+      render(
+        <WorkspaceGuard appVersion="1.0.0">
+          <span data-testid="normal-workspace-settings" />
+        </WorkspaceGuard>,
+      );
+
+      expect(screen.getByTestId("workspace-access-denied")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("workspace-installation-diagnostics"),
+      ).toBeNull();
+      expect(screen.queryByTestId("dashboard-shell")).toBeNull();
+    },
+  );
+
+  it("keeps blocked nonmember settings denied", () => {
+    pathnameRef.current = "/workspace/reef-acme/settings/workspace";
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [
+        {
+          name: "reef-other",
+          installation_status: "ready",
+          role: "owner",
+        },
+      ],
+    };
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="normal-workspace-settings" />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("workspace-access-denied")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-installation-diagnostics"),
+    ).toBeNull();
+  });
+
+  it("does not extend diagnostics access to nested workspace settings routes", () => {
+    pathnameRef.current = "/workspace/reef-acme/settings/workspace/members";
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [
+        {
+          name: "reef-acme",
+          installation_status: "blocked",
+          role: "owner",
+        },
+      ],
+    };
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="workspace-members-page" />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("workspace-access-denied")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-installation-diagnostics"),
+    ).toBeNull();
+    expect(screen.queryByTestId("dashboard-shell")).toBeNull();
+  });
+
+  it("keeps blocked owner ordinary issue routes denied", () => {
+    pathnameRef.current = "/workspace/reef-acme/issues";
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [
+        {
+          name: "reef-acme",
+          installation_status: "blocked",
+          role: "owner",
+        },
+      ],
+    };
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="normal-workspace-settings" />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("workspace-access-denied")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-installation-diagnostics"),
+    ).toBeNull();
+    expect(screen.queryByTestId("dashboard-shell")).toBeNull();
+  });
+
+  it("keeps a ready workspace usable on its ordinary route", () => {
+    pathnameRef.current = "/workspace/reef-acme/issues";
+    vaultsRef.current.data = [
+      {
+        name: "reef-acme",
+        installation_status: "ready",
+        role: "owner",
+      },
+    ];
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="normal-workspace-page" />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("dashboard-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("normal-workspace-page")).toBeInTheDocument();
   });
 
   it("degrades open (renders the shell) when the vault list fails to load", () => {

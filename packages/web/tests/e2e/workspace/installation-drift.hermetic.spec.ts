@@ -167,7 +167,7 @@ test.describe("installation drift and readiness guidance", () => {
     }
   });
 
-  test("blocked guidance permits a read-only recheck and switching to another ready workspace", async ({
+  test("blocked guidance permits read-only checks, owner diagnostics, and switching to another ready workspace", async ({
     context,
     page,
     request,
@@ -207,6 +207,40 @@ test.describe("installation drift and readiness guidance", () => {
           call.path.includes("/installations/"),
       ),
     ).toBe(false);
+
+    await page.getByTestId("installation-diagnostics-link-reef-e2e").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/settings\/workspace$/);
+    await expect(
+      page.getByTestId("workspace-installation-diagnostics"),
+    ).toBeVisible();
+    await expect(page.getByTestId("settings-tabs")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Set up Reef" })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole("button", { name: "Restore installation" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Request fresh setup" }),
+    ).toHaveCount(0);
+    const diagnostics = page.getByTestId("workspace-installation-section");
+    await expect(diagnostics).toBeVisible();
+    const details = diagnostics.getByTestId("installation-details-disclosure");
+    await details.locator("summary").click();
+    await expect(
+      page.getByTestId("installation-blocked-guidance"),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByTestId("installation-blocked-guidance")
+        .getByText("Run the exact Transition Plan preflight."),
+    ).toBeVisible();
+    await expect(
+      diagnostics.getByRole("button", { name: "Check status" }),
+    ).toBeVisible();
+
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
     await expect(
       page.getByTestId("access-denied-workspace-reef-zeta"),
     ).toBeVisible();
@@ -216,7 +250,9 @@ test.describe("installation drift and readiness guidance", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "This workspace needs setup" }),
+      page.getByRole("heading", {
+        name: "You don't have access to this workspace",
+      }),
     ).toBeVisible();
     await expect(
       page
@@ -538,7 +574,7 @@ test.describe("installation drift and readiness guidance", () => {
             ).toBeVisible();
             await expect(
               page.getByRole("heading", {
-                name: /This workspace needs setup|이 워크스페이스에는 설정이 필요합니다/,
+                name: /You don't have access to this workspace|이 워크스페이스에 접근할 수 없습니다/,
               }),
             ).toBeVisible();
             const accessCard = page.getByTestId(
@@ -560,7 +596,7 @@ test.describe("installation drift and readiness guidance", () => {
               accessCard.getByTestId("installation-blocked-guidance"),
             ).toHaveCount(0);
             const accessHeading = page.getByRole("heading", {
-              name: /This workspace needs setup|이 워크스페이스에는 설정이 필요합니다/,
+              name: /You don't have access to this workspace|이 워크스페이스에 접근할 수 없습니다/,
             });
             const headingBounds = await accessHeading.boundingBox();
             expect(headingBounds?.y).toBeGreaterThanOrEqual(0);

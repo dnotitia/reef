@@ -195,7 +195,6 @@
     "switchError": "워크스페이스를 전환하지 못했습니다. 다시 시도해 주세요.",
     "accessDenied": {
       "title": "이 워크스페이스에 접근할 수 없습니다",
-      "installationTitle": "이 워크스페이스에는 설정이 필요합니다",
       "body": "\"{vault}\" 워크스페이스의 멤버가 아니거나 더 이상 존재하지 않습니다. 대신 내 워크스페이스 중 하나를 열어 주세요.",
       "switchHeading": "내 워크스페이스",
       "empty": "아직 reef 워크스페이스가 없습니다.",
@@ -266,7 +265,13 @@
       "restore": "설치 복원하기",
       "fresh": "새 설정 요청",
       "checkStatus": "상태 확인",
+      "openDiagnostics": "설정 진단 열기",
+      "returnToAccess": "워크스페이스 접근 화면으로 돌아가기",
       "finish": "워크스페이스로 이동"
+    },
+    "diagnostics": {
+      "title": "워크스페이스 설정",
+      "description": "이 워크스페이스의 설정 상태와 기술 정보를 확인하세요."
     },
     "acknowledgementAccepted": "설정 요청을 받았습니다. 워크스페이스 상태를 확인하고 있습니다.",
     "acknowledgementReplayed": "설정 요청을 확인했습니다. 워크스페이스 상태를 확인하고 있습니다.",

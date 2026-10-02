@@ -195,7 +195,6 @@
     "switchError": "Couldn't switch workspace. Please try again.",
     "accessDenied": {
       "title": "You don't have access to this workspace",
-      "installationTitle": "This workspace needs setup",
       "body": "You're not a member of \"{vault}\", or it no longer exists. Open one of your workspaces instead.",
       "switchHeading": "Your workspaces",
       "empty": "You don't have any reef workspaces yet.",
@@ -266,7 +265,13 @@
       "restore": "Restore installation",
       "fresh": "Request fresh setup",
       "checkStatus": "Check status",
+      "openDiagnostics": "Open setup diagnostics",
+      "returnToAccess": "Return to workspace access",
       "finish": "Continue to workspace"
+    },
+    "diagnostics": {
+      "title": "Workspace setup",
+      "description": "Review the setup status and technical details for this workspace."
     },
     "acknowledgementAccepted": "Setup request received. Checking the workspace status.",
     "acknowledgementReplayed": "Setup request confirmed. Checking the workspace status.",

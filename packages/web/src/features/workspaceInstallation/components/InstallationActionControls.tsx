@@ -12,6 +12,7 @@ interface InstallationActionControlsProps {
   vault: string;
   status: WorkspaceInstallationStatus;
   canManage: boolean;
+  canCheckStatus?: boolean;
   busy: boolean;
   activity: "checking" | "requesting" | "finishing" | null;
   acknowledgement: string | null;
@@ -26,6 +27,7 @@ export function InstallationActionControls({
   vault,
   status,
   canManage,
+  canCheckStatus = false,
   busy,
   activity,
   acknowledgement,
@@ -36,7 +38,8 @@ export function InstallationActionControls({
   onFinish,
 }: InstallationActionControlsProps) {
   const t = useTranslations("workspaceInstallation");
-  const canCheck = canManage || status === "management_required";
+  const canCheck =
+    canManage || canCheckStatus || status === "management_required";
 
   return (
     <div className="flex flex-col gap-2">

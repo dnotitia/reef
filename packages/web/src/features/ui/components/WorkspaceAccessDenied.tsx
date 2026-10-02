@@ -44,7 +44,6 @@ export function WorkspaceAccessDenied({
   const reefVaults = vaults.filter((v) => v.installation_status === "ready");
   const canManage = role === "owner" || role === "admin";
   const hasInstallationState = installationStatus !== undefined;
-  const title = hasInstallationState ? t("installationTitle") : t("title");
   const body = hasInstallationState ? null : t("body", { vault });
 
   return (
@@ -62,7 +61,7 @@ export function WorkspaceAccessDenied({
         <ReefMark className="size-10" decorative />
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-display text-lg font-semibold text-foreground">
-            {title}
+            {t("title")}
           </h1>
           {body && <p className="text-sm text-muted-foreground">{body}</p>}
         </div>
@@ -181,6 +180,15 @@ function WorkspaceAvailability({
         onRunCommand={(mode) => void actions.runCommand(mode)}
         onCheckStatus={() => void actions.checkStatus()}
       />
+      {canManage && (
+        <Link
+          href={withVault(vault, "/settings/workspace")}
+          data-testid={`installation-diagnostics-link-${vault}`}
+          className="type-small-button text-foreground underline decoration-border underline-offset-4 hover:text-brand-text"
+        >
+          {t("button.openDiagnostics")}
+        </Link>
+      )}
     </article>
   );
 }

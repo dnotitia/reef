@@ -210,6 +210,30 @@ describe("WorkspaceInstallationSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps diagnostics read-only while preserving owner status checks", () => {
+    workspaces.current = [
+      {
+        name: "reef-restore",
+        role: "owner",
+        installation_status: "uninstalled",
+      },
+    ];
+    render(
+      wrap(<WorkspaceInstallationSection vault="reef-restore" readOnly />),
+    );
+
+    expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Restore installation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request fresh setup" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("installation-details-disclosure"),
+    ).toBeInTheDocument();
+  });
+
   it("resets installation actions when the selected workspace role changes", () => {
     workspaces.current = [
       { name: "reef-current", role: "owner", installation_status: "blocked" },
