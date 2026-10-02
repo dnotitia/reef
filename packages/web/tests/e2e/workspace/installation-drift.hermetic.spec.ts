@@ -1,4 +1,10 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import {
   E2E_REEF_OLD_SCHEMA_FINGERPRINT,
   E2E_REEF_RELEASE_VERSION,
@@ -16,6 +22,28 @@ import {
   signInAsUser,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+
+async function expectComparisonGroupsToUseVisibleHeadings(
+  cards: Locator[],
+): Promise<void> {
+  const headingIds: string[] = [];
+  for (const card of cards) {
+    for (const testId of [
+      "installation-comparison-release",
+      "installation-comparison-schema",
+      "installation-comparison-grant",
+    ]) {
+      const section = card.getByTestId(testId);
+      const heading = section.getByRole("heading");
+      await expect(heading).toBeVisible();
+      const headingId = await heading.getAttribute("id");
+      expect(headingId).toBeTruthy();
+      await expect(section).toHaveAttribute("aria-labelledby", headingId ?? "");
+      headingIds.push(headingId ?? "");
+    }
+  }
+  expect(new Set(headingIds).size).toBe(headingIds.length);
+}
 
 async function attachFullPageScreenshot(
   page: Page,
@@ -74,6 +102,12 @@ test.describe("installation drift and readiness guidance", () => {
       element.scrollIntoView({ block: "start", inline: "nearest" }),
     );
     await expect(details).toHaveAttribute("data-overall-drift", "drifted");
+    await expect(
+      details.getByTestId("installation-overall-drift"),
+    ).toHaveAttribute("data-drift-status", "drifted");
+    await expect(details.getByTestId("installation-overall-drift")).toHaveText(
+      /Overall drift.*Drift detected/,
+    );
     await expect(page.getByTestId("installation-drift-warning")).toHaveCount(0);
     await expect(
       details.getByTestId("installation-comparison-release"),
@@ -426,10 +460,28 @@ test.describe("installation drift and readiness guidance", () => {
               await expect(
                 onboardingCard.getByTestId("installation-blocked-guidance"),
               ).toBeVisible();
+              const secondBlockedCard = page.getByTestId(
+                "workspace-installation-reef-zeta",
+              );
+              await expect(secondBlockedCard).toHaveAttribute(
+                "data-status",
+                "blocked",
+              );
+              await secondBlockedCard
+                .getByTestId("installation-details-disclosure")
+                .locator("summary")
+                .click();
+              await expect(
+                secondBlockedCard.getByTestId("installation-details"),
+              ).toBeVisible();
+              await expectComparisonGroupsToUseVisibleHeadings([
+                onboardingCard,
+                secondBlockedCard,
+              ]);
               await attachFullPageScreenshot(
                 page,
                 testInfo,
-                `onboarding--${appearance}--details.png`,
+                `onboarding--${appearance}--details-multiple.png`,
               );
             } else {
               await expect(

@@ -1035,9 +1035,10 @@ the AKB installation operator reviews the reported difference.
 The installation status card uses left-aligned body copy in onboarding,
 Settings, and the unavailable-workspace screen; only the access-denied page
 heading stays centered. Owners and admins can expand release, schema, and grant
-comparisons grouped by meaning. Each group carries its own dimension status;
-duplicate reason and unknown lists do not repeat that result. The last
-observation time is localized, missing values remain unknown, and matching
+comparisons grouped by meaning. Each group carries its own dimension status,
+and the canonical overall drift judgment appears once beside the details
+heading. Duplicate reason and unknown lists do not repeat those results. The
+last observation time is localized, missing values remain unknown, and matching
 schema drift and installation snapshot fingerprints appear once. Distinct
 canonical fingerprints stay separately labelled. A blocked workspace asks
 people to contact the installation operator; technical details give the

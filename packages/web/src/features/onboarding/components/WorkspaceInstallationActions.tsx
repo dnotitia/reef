@@ -10,7 +10,7 @@ import {
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { z } from "zod";
 import { formatAbsoluteTime } from "@/lib/relativeTime";
 import { InstallationDetailsLoading } from "./WorkspaceInstallationLoading";
@@ -39,6 +39,7 @@ function InstallationDetails({
   const releaseValue = (value: ControlPlaneInstallation["desiredRelease"]) =>
     value?.version ?? value?.id ?? unknown;
   const drift = installation.drift;
+  const overallStatus = drift?.overall ?? "unknown";
   const observedSchema = drift?.schema.observed;
   const observedSchemaFingerprint = installation.observed?.schemaFingerprint;
   const hasDistinctSnapshotFingerprint =
@@ -52,10 +53,20 @@ function InstallationDetails({
       data-testid="installation-details"
       data-overall-drift={drift?.overall ?? "unknown"}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
         <h4 className="type-control font-medium text-foreground">
           {t("heading")}
         </h4>
+        <p
+          className="type-caption text-muted-foreground"
+          data-testid="installation-overall-drift"
+          data-drift-status={overallStatus}
+        >
+          <span>{t("overallStatus")}: </span>
+          <span className="font-medium text-foreground">
+            {t(`overall.${overallStatus}`)}
+          </span>
+        </p>
       </div>
 
       <dl className="grid grid-cols-1 gap-3 border-t border-border-subtle pt-3 text-sm sm:grid-cols-2">
@@ -189,7 +200,7 @@ function InstallationComparisonGroup({
   fields: Array<{ id: string; label: string; value: string }>;
 }) {
   const t = useTranslations("workspaceInstallation.details");
-  const headingId = `installation-${dimension}-heading`;
+  const headingId = useId();
 
   return (
     <section

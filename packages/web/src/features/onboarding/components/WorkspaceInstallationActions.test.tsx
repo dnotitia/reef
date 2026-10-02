@@ -148,6 +148,9 @@ describe("WorkspaceInstallationActions", () => {
     expect(screen.getByTestId("installation-comparison-release")).toBeVisible();
     expect(screen.getByTestId("installation-comparison-schema")).toBeVisible();
     expect(screen.getByTestId("installation-comparison-grant")).toBeVisible();
+    expect(screen.getByTestId("installation-overall-drift")).toHaveTextContent(
+      "Overall drift: Drift detected",
+    );
     expect(screen.getByText("Installation snapshot fingerprint")).toBeVisible();
     expect(screen.getByTestId("installation-observed-at")).toHaveAttribute(
       "datetime",
@@ -162,6 +165,90 @@ describe("WorkspaceInstallationActions", () => {
       "/api/vaults/reef-acme/installation",
       { cache: "no-store" },
     );
+  });
+
+  it.each([
+    ["in_sync", "In sync", "일치"],
+    ["drifted", "Drift detected", "차이 감지"],
+    ["unknown", "Unknown", "확인 불가"],
+  ] as const)(
+    "localizes the canonical overall drift status %s in both languages",
+    async (status, englishLabel, koreanLabel) => {
+      for (const [locale, expectedLabel] of [
+        ["en", englishLabel],
+        ["ko", koreanLabel],
+      ] as const) {
+        mockApiFetch.mockResolvedValue(
+          response({
+            installation_status: "ready",
+            installation: {
+              ...installation,
+              drift: { ...installation.drift, overall: status },
+            },
+          }),
+        );
+        const view = renderActions(true, "ready", locale);
+        await screen.findByTestId("installation-details");
+        fireEvent.click(
+          screen.getByText(locale === "en" ? "Technical details" : "기술 상세"),
+        );
+
+        const overallDrift = screen.getByTestId("installation-overall-drift");
+        expect(overallDrift).toHaveAttribute("data-drift-status", status);
+        expect(overallDrift).toHaveTextContent(expectedLabel);
+        view.unmount();
+      }
+    },
+  );
+
+  it("gives each expanded installation comparison its own visible heading", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mockApiFetch.mockImplementation(() =>
+      Promise.resolve(response({ installation_status: "ready", installation })),
+    );
+    render(
+      <IntlTestProvider locale="en">
+        <QueryClientProvider client={queryClient}>
+          <div>
+            <WorkspaceInstallationActions
+              vault="reef-alpha"
+              initialStatus="ready"
+              canManage
+            />
+            <WorkspaceInstallationActions
+              vault="reef-zeta"
+              initialStatus="ready"
+              canManage
+            />
+          </div>
+        </QueryClientProvider>
+      </IntlTestProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("installation-details")).toHaveLength(2),
+    );
+    for (const disclosure of screen.getAllByTestId(
+      "installation-details-disclosure",
+    )) {
+      fireEvent.click(within(disclosure).getByText("Technical details"));
+    }
+
+    const sections = [
+      ...screen.getAllByTestId("installation-comparison-release"),
+      ...screen.getAllByTestId("installation-comparison-schema"),
+      ...screen.getAllByTestId("installation-comparison-grant"),
+    ];
+    expect(sections).toHaveLength(6);
+    const headingIds = sections.map((section) => {
+      const heading = within(section).getByRole("heading");
+      expect(heading).toBeVisible();
+      expect(section).toHaveAttribute("aria-labelledby", heading.id);
+      return heading.id;
+    });
+    expect(new Set(headingIds).size).toBe(headingIds.length);
   });
 
   it("renders a shared schema value once and preserves a distinct observed fingerprint", async () => {

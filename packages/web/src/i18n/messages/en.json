@@ -250,6 +250,12 @@
       "toggle": "Technical details",
       "heading": "Installation observation",
       "unknown": "Unknown",
+      "overallStatus": "Overall drift",
+      "overall": {
+        "in_sync": "In sync",
+        "drifted": "Drift detected",
+        "unknown": "Unknown"
+      },
       "dimension": {
         "release": "Release",
         "schema": "Schema",

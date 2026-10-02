@@ -250,6 +250,12 @@
       "toggle": "기술 상세",
       "heading": "설치 관측 상세",
       "unknown": "확인 불가",
+      "overallStatus": "전체 drift 판정",
+      "overall": {
+        "in_sync": "일치",
+        "drifted": "차이 감지",
+        "unknown": "확인 불가"
+      },
       "dimension": {
         "release": "릴리스",
         "schema": "스키마",
