@@ -31,7 +31,7 @@ const REEF_BASELINE_RELEASE_VERSION = "0.14.0";
 const REEF_BASELINE_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
 
-/** Reef 스키마 v3에는 없고 v4 전환에서 추가하는 인덱스 명세다. */
+/** Indexes absent from Reef schema v3 and added by the v4 transition. */
 const REEF_SCHEMA_V3_ADDED_INDEXES: readonly ReleaseAddIndexPayload[] = [
   {
     table: "reef_activity",
@@ -54,7 +54,7 @@ const REEF_SCHEMA_V3_ADDED_INDEXES: readonly ReleaseAddIndexPayload[] = [
   })),
 ];
 
-/** v4 add_index 전환을 지원하는 정확한 v3 스키마 source다. */
+/** Exact v3 schema sources supported by the v4 add_index transition. */
 export const REEF_SUPPORTED_TRANSITION_SOURCES: readonly ReleaseTransitionSource[] =
   Object.freeze([
     Object.freeze({
@@ -336,7 +336,7 @@ async function parseCurrentBlueprint(
   return blueprint;
 }
 
-/** 현재 Reef v4 Release Blueprint를 정준 Core 선언에서 생성한다. */
+/** Build the current Reef v4 Release Blueprint from the canonical Core declaration. */
 export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
   const schema = await buildDesiredSchemaProjection();
   await validateSchemaV3Transition(schema);

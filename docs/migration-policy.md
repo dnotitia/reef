@@ -76,14 +76,6 @@ release registration and rollout remain the deployment-owned schema gate; Reef
 runtime readiness is a read-only verification after that gate. Required-table
 metadata must be present and match before the workspace is exposed as ready.
 
-스키마 v4 조회 인덱스는 readiness와 신규 설치 descriptor가 함께 사용하는
-projection에 선언한다. 기존 v3 설치는 지정된 0.14.0, 0.15.0, 0.16.0 release와
-v3 fingerprint가 정확히 일치할 때만 지원하며, AKB Release Manifest에 선언된
-`add_index` 단계를 사용한다. 임의의 카탈로그 차이에서 전환을 추론하지 않는다.
-rollout 적용 뒤 일치하는 Reef image를 배포하고, 인증된 Workspace Ready 검사가
-성공할 때까지 workspace를 사용할 수 없게 둔다. 점검·실패·resume·image 복귀는
-[배포 안내](deployment.md#register-and-deploy)를 따른다.
-
 Keep ad-hoc extension fields in their owning `meta` or `payload` JSON envelope
 when database-level filtering, sorting, joining, uniqueness, constraints, or
 indexing is not required. When the canonical schema projection changes, record

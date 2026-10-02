@@ -195,36 +195,6 @@ Kubernetes revision with the same digest and release identity. It never moves
 an existing mutable version or source tag, and exits non-zero for blocked,
 pending, timeout, readiness, or identity-readback failures.
 
-#### Reef 스키마 v4 점검 전환
-
-스키마 v4는 네 투영 테이블에 비유니크 인덱스 일곱 개를 추가합니다. 행이나
-문서 내용은 다시 쓰지 않습니다. 신규 설치 계획은 완성된 `create_table`
-descriptor를 사용합니다. 기존 설치 전환은 정확한 v3 schema fingerprint
-`dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727`와
-source release `0.14.0`, `0.15.0`, `0.16.0`에만 열려 있으며, manifest에는
-정준 `add_index` 단계가 포함됩니다. 다른 source는 등록 전에 거부됩니다.
-
-운영자가 승인한 점검 시간에 다음 순서를 따릅니다.
-
-1. 대상 workspace의 사용을 막고 기존 Reef runtime을 내립니다. 구버전과 신버전을
-   함께 서비스하지 않습니다.
-2. 아래 `deploy` 경로로 Release 등록과 AKB rollout을 요청합니다. AKB가 terminal
-   `applied`를 확인하기 전에는 Reef image를 배포하지 않습니다.
-3. 같은 Release identity와 image digest를 사용하는 Kubernetes revision을 적용하고,
-   실제 사용자 세션으로 대상 workspace의 Workspace Ready 경로를 확인합니다.
-   `/api/healthz` 또는 `/api/readyz`만으로 스키마 검증 성공을 판단하지 않습니다.
-4. rollout `applied`, 일치하는 새 image·설치 대상 설정, Workspace Ready가 모두
-   확인된 뒤에만 workspace 사용을 재개합니다.
-
-Rollout이 `blocked`·실패·timeout이거나 일부 단계만 적용됐다면 점검을 유지하고,
-job 식별자와 이미 적용된 결과를 보존합니다. 원인을 해결한 뒤 운영자가 명시적으로
-같은 rollout을 재개합니다. 기존 `resume` 명령을 사용할 때는 새 idempotency key를
-발급합니다. 다른 Release를 새로 만들거나 Reef가 별도로 schema를 변경하지 않습니다.
-
-인덱스 적용 뒤 v3 image만 되돌리면 정확한 schema 검증이 실패할 수 있으므로 image
-rollback만으로 서비스가 복구된다고 가정하지 않습니다. AKB가 소유한 복구 절차와
-schema에 맞는 Reef Release가 정해질 때까지 점검 상태를 유지합니다.
-
 When `--receipt` points to a valid receipt for the current clean source,
 version, and image repository, a retry reuses its immutable image and Release
 coordinates before contacting Docker or registering again. A receipt produced
