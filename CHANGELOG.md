@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- Milestone and release names now open a shared URL-backed detail panel with
+  rendered notes, linked issue previews, and the shared planning rollup; sprint
+  details remain on their dedicated route. (REEF-597)
 - **AKB owns every Reef table schema.** Workspace readiness now verifies the
   canonical installation, required table metadata, and Reef data initialization
   through a read-only Core check. Normal product and agent requests no longer
