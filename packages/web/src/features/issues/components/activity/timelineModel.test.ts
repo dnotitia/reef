@@ -711,7 +711,7 @@ describe("buildTimeline — full pipeline (AC1 + AC3 + AC5)", () => {
     ).toBe("alice");
   });
 
-  it("de-dupes activity rows by event_key, keeping the first (REEF-125 residual race)", () => {
+  it("keeps every persisted activity row instead of applying read-time de-duplication", () => {
     const at = "2026-06-03T00:00:00.000Z";
     const dup1 = activity("dup-1", at, "todo", "in_progress");
     const dup2 = { ...activity("dup-2", at, "todo", "in_progress") }; // same event_key
@@ -720,9 +720,12 @@ describe("buildTimeline — full pipeline (AC1 + AC3 + AC5)", () => {
     const statusRows = entries.filter(
       (e) => e.type === "system" && e.event.kind === "status_change",
     );
-    expect(statusRows).toHaveLength(1);
+    expect(statusRows).toHaveLength(2);
     expect(statusRows[0].type === "system" && statusRows[0].event.id).toBe(
       "dup-1",
+    );
+    expect(statusRows[1].type === "system" && statusRows[1].event.id).toBe(
+      "dup-2",
     );
   });
 });

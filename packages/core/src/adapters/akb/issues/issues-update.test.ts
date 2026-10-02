@@ -341,7 +341,9 @@ describe("updateIssue → row-update compensation", () => {
       }),
     );
     const eventBody = bodyOf(calls[5]);
-    expect(eventBody.sql).toContain("SELECT $1");
+    expect(eventBody.sql).toContain(
+      "ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id",
+    );
     expect(eventBody.params).toContain(
       "issue_body_mentions_change:commit-mentions",
     );

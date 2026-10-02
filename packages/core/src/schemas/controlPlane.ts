@@ -377,6 +377,20 @@ export const ReleaseCreateTablePayloadSchema = z.strictObject({
   indexes: z.array(ReleaseManifestIndexSchema).max(256),
 });
 
+export const ReleaseAddUniqueKeyPayloadSchema = z
+  .strictObject({
+    table: ReleaseIdentifierSchema,
+    columns: z.array(ReleaseIdentifierSchema).min(1).max(256),
+    name: ReleaseIdentifierSchema.optional(),
+  })
+  .refine(
+    (payload) => new Set(payload.columns).size === payload.columns.length,
+    {
+      message: "Unique key columns must be distinct",
+      path: ["columns"],
+    },
+  );
+
 const ReleaseAddIndexColumnsSchema = z
   .array(ReleaseManifestIndexColumnSchema)
   .min(1)
@@ -401,6 +415,14 @@ const ReleaseCreateTableStepSchema = z.strictObject({
   checksum: ReleaseSha256Schema,
 });
 
+const ReleaseAddUniqueKeyStepSchema = z.strictObject({
+  id: ReleaseStepIdSchema,
+  phase: z.literal("expand"),
+  operation: z.literal("add_unique_key"),
+  payload: ReleaseAddUniqueKeyPayloadSchema,
+  checksum: ReleaseSha256Schema,
+});
+
 const ReleaseAddIndexStepSchema = z.strictObject({
   id: ReleaseStepIdSchema,
   phase: z.literal("expand"),
@@ -411,6 +433,7 @@ const ReleaseAddIndexStepSchema = z.strictObject({
 
 export const ReleaseBlueprintStepSchema = z.discriminatedUnion("operation", [
   ReleaseCreateTableStepSchema,
+  ReleaseAddUniqueKeyStepSchema,
   ReleaseAddIndexStepSchema,
 ]);
 
@@ -482,6 +505,9 @@ export type ReleaseTransitionPlanSource = z.infer<
 >;
 export type ReleaseCreateTablePayload = z.infer<
   typeof ReleaseCreateTablePayloadSchema
+>;
+export type ReleaseAddUniqueKeyPayload = z.infer<
+  typeof ReleaseAddUniqueKeyPayloadSchema
 >;
 export type ReleaseAddIndexPayload = z.infer<
   typeof ReleaseAddIndexPayloadSchema

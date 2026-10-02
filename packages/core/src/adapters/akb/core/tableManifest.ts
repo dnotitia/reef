@@ -362,6 +362,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
   {
     name: REEF_ACTIVITY_TABLE,
     description: "Immutable reef issue activity events",
+    unique_keys: [{ columns: ["reef_id", "event_key"] }],
     columns: [
       { name: "reef_id", type: "text", required: true },
       { name: "event_type", type: "text", required: true },

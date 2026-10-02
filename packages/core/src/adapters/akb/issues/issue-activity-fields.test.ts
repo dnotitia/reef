@@ -293,7 +293,9 @@ describe("appendActivityEvents (REEF-126)", () => {
     ]);
     expect(calls).toHaveLength(2);
     const insert1 = sqlRequestBody(calls[0]);
-    expect(insert1.sql).toContain("WHERE NOT EXISTS");
+    expect(insert1.sql).toContain(
+      "ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id",
+    );
     expect(insert1.params).toEqual(
       expect.arrayContaining([
         "assignee_change",
@@ -434,7 +436,9 @@ describe("reconcileJiraChangelogActivityEvents", () => {
     );
     const insertSql = lastSql(calls[1]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
-    expect(insertSql).toContain("WHERE NOT EXISTS");
+    expect(insertSql).toContain(
+      "ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id",
+    );
     expect(sqlRequestBody(calls[1]).params).toContain(event.eventKey);
   });
 

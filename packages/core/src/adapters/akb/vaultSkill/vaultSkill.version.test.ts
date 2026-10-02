@@ -20,7 +20,7 @@ import { buildReefVaultSkillDocuments } from "./documents";
  * editing any runbook trips it. The vault name is fixed so the digest is stable.
  */
 const EXPECTED_CONTENT_DIGEST =
-  "8e29db85a341d4b580044124b61f2a399c5affcf80751b47ac580d0cd41558ff";
+  "8155403b7b1a63a68e0d11f05dab697574743ab873de03a3b98f063a52110a90";
 
 function digestSkillContent(vault: string): string {
   const docs = buildReefVaultSkillDocuments(vault);

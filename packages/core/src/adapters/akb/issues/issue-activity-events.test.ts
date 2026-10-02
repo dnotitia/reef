@@ -105,7 +105,9 @@ describe("issue body mention activity", () => {
 
     expect(calls).toHaveLength(1);
     const body = sqlRequestBody(calls[0]);
-    expect(body.sql).toContain("WHERE NOT EXISTS");
+    expect(body.sql).toContain(
+      "ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id",
+    );
     expect(body.params).toEqual(
       expect.arrayContaining([
         "issue_body_mentions_change:commit-mentions",
@@ -121,7 +123,7 @@ describe("issue body mention activity", () => {
 });
 
 describe("appendStatusChangeEvent", () => {
-  it("conditionally inserts only declared columns in one statement", async () => {
+  it("uses the declared conflict key when inserting only activity columns", async () => {
     const { calls } = setupFetch([
       { body: makeSqlQueryResponse([{ id: "new-uuid" }], ["id"]) }, // INSERT … RETURNING id
     ]);
@@ -145,12 +147,11 @@ describe("appendStatusChangeEvent", () => {
       `("reef_id", "event_type", "event_key", "payload", "meta")`,
     );
     expect(insertSql).not.toContain("created_by");
-    // Idempotency is enforced in the same statement: insert when the
-    // (reef_id, event_key) row not already exist.
-    expect(insertSql).toContain("WHERE NOT EXISTS");
-    expect(insertSql).toContain(`SELECT 1 FROM ${REEF_ACTIVITY_TABLE}`);
-    expect(insertSql).toContain("reef_id = $1");
-    expect(insertSql).toContain("event_key = $3");
+    expect(insertSql).toContain(
+      "ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id",
+    );
+    expect(insertSql).not.toContain("WHERE NOT EXISTS");
+    expect(insertSql).not.toContain("DO UPDATE");
     expect(insertSql).not.toContain("REEF-063");
     expect(insertBody.params).toEqual(
       expect.arrayContaining([
@@ -170,13 +171,11 @@ describe("appendStatusChangeEvent", () => {
     expect(insertSql).toContain("$5::json");
   });
 
-  it("is idempotent: the NOT EXISTS guard records nothing when the event already exists", async () => {
+  it("reports a replay as not inserted when the composite key conflicts", async () => {
     const { calls } = setupFetch([
       { body: makeSqlQueryResponse([], ["id"]) }, // INSERT … RETURNING id → 0 rows (guard matched)
     ]);
 
-    // The call still issues the single conditional insert; the DB skips the row
-    // because the event already exists, so no duplicate is written.
     await appendStatusChangeEvent(makeAdapter(), "reef-sample", {
       reefId: "REEF-063",
       from: "todo",
@@ -187,7 +186,9 @@ describe("appendStatusChangeEvent", () => {
 
     expect(calls).toHaveLength(1);
     const insertSql = lastSql(calls[0]?.init?.body);
-    expect(insertSql).toContain("WHERE NOT EXISTS");
+    expect(insertSql).toContain(
+      "ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id",
+    );
   });
 
   it("defaults meta.source to null when no provenance is given", async () => {
@@ -353,7 +354,7 @@ describe("listIssueActivity", () => {
 });
 
 describe("listReportStatusActivity", () => {
-  it("reads status changes in one vault query and de-duplicates event keys", async () => {
+  it("reads status changes in one vault query without filtering activity rows", async () => {
     const duplicateKey =
       "status_change:todo->in_progress@2026-06-18T01:00:00.000Z";
     const { calls } = setupFetch([
@@ -401,13 +402,17 @@ describe("listReportStatusActivity", () => {
 
     const events = await listReportStatusActivity(makeAdapter(), "reef-sample");
 
-    expect(events.map((event) => event.id)).toEqual(["e1", "e2"]);
+    expect(events.map((event) => event.id)).toEqual([
+      "e1",
+      "e1-duplicate",
+      "e2",
+    ]);
     expect(events[0]).toMatchObject({
       reef_id: "REEF-001",
       event_type: "status_change",
       event_key: duplicateKey,
     });
-    expect(events[1]).toMatchObject({
+    expect(events[2]).toMatchObject({
       reef_id: "REEF-002",
       payload: { from: "in_progress", to: "done" },
     });

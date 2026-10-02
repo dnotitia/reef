@@ -624,7 +624,7 @@ describe("computeFlowMetrics", () => {
     expect(result.cycle.coveragePercent).toBeCloseTo(100 / 3);
   });
 
-  it("de-duplicates event keys, rejects reversed starts, and ignores closed-only history", () => {
+  it("rejects reversed starts and ignores closed-only history", () => {
     const valid = makeIssue({
       id: "ISSUE-001",
       created_at: "2026-06-15T00:00:00.000Z",
@@ -637,7 +637,6 @@ describe("computeFlowMetrics", () => {
       id: "ISSUE-003",
       created_at: "2026-06-15T00:00:00.000Z",
     });
-    const duplicateKey = "same-event";
     const malformedAt = statusEvent(
       malformed.id,
       "not-a-date",
@@ -653,14 +652,6 @@ describe("computeFlowMetrics", () => {
           "2026-06-16T00:00:00.000Z",
           "todo",
           "in_progress",
-          duplicateKey,
-        ),
-        statusEvent(
-          valid.id,
-          "2026-06-16T00:00:00.000Z",
-          "todo",
-          "in_progress",
-          duplicateKey,
         ),
         statusEvent(
           valid.id,

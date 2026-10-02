@@ -103,11 +103,14 @@ explicitly in the entries below.
 
 ### Migration
 
-- **Reef schema v4 adds seven non-unique lookup indexes.** Fresh installs include
-  them in complete `create_table` descriptors from the canonical Desired Schema
-  Projection. Existing v3 installs can transition only from releases `0.14.0`,
-  `0.15.0`, or `0.16.0` with an exact v3 schema fingerprint, using explicit AKB
-  `add_index` rollout steps. Reef requests do not modify schemas. (REEF-654)
+- **Reef schema v4 adds a unique key on `reef_activity(reef_id, event_key)` and
+  seven non-unique lookup indexes.** Fresh installs get both in complete
+  `create_table` descriptors from the canonical Desired Schema Projection.
+  Existing v3 installs can transition only from releases `0.14.0`, `0.15.0`, or
+  `0.16.0` with the exact v3 schema fingerprint
+  `dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727`, using
+  explicit AKB `add_unique_key` and `add_index` rollout steps. Reef requests do
+  not modify schemas. (REEF-366, REEF-654)
 - Deploy the AKB release that installs or reconciles Reef's canonical required
   tables before this version. Reef readiness treats missing or stale local
   `schema_version` settings as non-authoritative and performs no table schema
@@ -125,10 +128,12 @@ explicitly in the entries below.
   target settings. Resume access only after an authenticated Workspace Ready
   check succeeds; neither `/api/healthz` nor `/api/readyz` alone confirms schema
   validation. On partial failure, `blocked`, or timeout, keep maintenance in
-  place and preserve the job ID and applied results. Fix the cause, then
-  explicitly resume the same rollout with a new idempotency key. Reverting only
-  the image after indexes are applied does not restore schema compatibility.
-  (REEF-654)
+  place and preserve the job ID and applied results. If duplicate activity keys
+  block the rollout, existing rows and that target's schema remain unchanged;
+  Reef does not clean up or rewrite activity data automatically. Fix the cause,
+  then explicitly resume the same rollout with a new idempotency key. Reverting
+  only the image after schema changes are applied does not restore schema
+  compatibility. (REEF-366, REEF-654)
 
 ## v0.16.1 - 2026-09-28
 

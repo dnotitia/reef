@@ -769,12 +769,18 @@ export function handleSql(state, vault, sql, username) {
       );
     return tableQuery(activityTimelineColumns(), rows);
   }
-  // The producer's conditional append: INSERT INTO reef_activity (cols)
-  // SELECT <values> WHERE NOT EXISTS (...) RETURNING id. Idempotent on
-  // (reef_id, event_key), mirroring the real NOT EXISTS guard.
+  // The producer's append uses AKB's declared UNIQUE (reef_id, event_key).
+  // A targeted conflict returns no row and leaves the first payload/meta intact.
   if (lower.startsWith("insert into reef_activity ")) {
-    const parsed = parseConditionalInsert(normalized);
-    if (!parsed) return tableQuery(["id"], []);
+    const parsed = parseInsert(normalized);
+    if (
+      !parsed ||
+      !/\bon conflict\s*\(\s*reef_id\s*,\s*event_key\s*\)\s+do nothing\s+returning\s+id\s*;?$/iu.test(
+        normalized,
+      )
+    ) {
+      return unsupportedSql();
+    }
     const row = objectFromColumns(parsed.columns, parsed.values);
     const duplicate = vault.activity.some(
       (event) =>
@@ -1022,32 +1028,6 @@ function activityTimelineColumns() {
     "updated_at",
     "created_by",
   ];
-}
-
-/**
- * Parse the producer's conditional append (REEF-277):
- *   INSERT INTO reef_activity (cols) SELECT <values> WHERE NOT EXISTS (...)
- * Returns the column list and the SELECT-projected values, or null on a shape
- * this mock does not model.
- */
-function parseConditionalInsert(sql) {
-  const columnsStart = sql.indexOf("(");
-  if (columnsStart < 0) return null;
-  const columnsEnd = findMatchingParen(sql, columnsStart);
-  const columns = splitSqlCsv(sql.slice(columnsStart + 1, columnsEnd)).map(
-    normalizeColumn,
-  );
-  const selectMatch = sql.slice(columnsEnd).match(/\bselect\b/i);
-  if (!selectMatch || selectMatch.index == null) return null;
-  const selectStart = columnsEnd + selectMatch.index + selectMatch[0].length;
-  const whereIdx = sql.toLowerCase().indexOf(" where not exists", selectStart);
-  const valuesText = sql.slice(
-    selectStart,
-    whereIdx >= 0 ? whereIdx : undefined,
-  );
-  const values = splitSqlCsv(valuesText).map(parseSqlValue);
-  if (values.length !== columns.length) return null;
-  return { columns, values };
 }
 
 function commentColumns() {
