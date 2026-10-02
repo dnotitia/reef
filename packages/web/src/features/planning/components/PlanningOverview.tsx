@@ -19,6 +19,7 @@ import {
   type Sprint,
 } from "@reef/core";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useId, useMemo, useRef } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import {
@@ -147,8 +148,9 @@ function PlanningOverviewItem({
       ? t("openSprintDetail", { name: item.name })
       : t("openPlanningListDetail", { name: item.name });
   const nameLink = (
-    <a
+    <Link
       href={itemHref(vault, kind, item)}
+      id={`planning-item-${kind}-${item.id}`}
       data-testid={`planning-overview-link-${item.id}`}
       aria-label={nameLabel}
       title={item.name}
@@ -157,7 +159,7 @@ function PlanningOverviewItem({
       <span ref={nameRef} className="block min-w-0 truncate">
         {item.name}
       </span>
-    </a>
+    </Link>
   );
 
   return (

@@ -1056,11 +1056,16 @@ open milestones and planned/in-progress releases (including overdue and
 undated items), and uses the shared issue rollup and capacity meaning from the
 Planning List. Each planning name remains an ordinary keyboard- and
 pointer-accessible link: sprints open their dedicated detail route, while
-milestones and releases open their existing List detail state. The explicit
+milestones and releases open one URL-backed side panel from both Overview and
+List. The panel shows localized status and dates, rendered Markdown or an
+explicit empty description, the shared issue rollup, and a preview restricted
+to issues linked to that item. Its all-issues action uses the exact existing
+Issues filter for the current vault. Direct links, refresh, and browser history
+restore the selected panel; a stale item id gets a safe recovery link after the
+catalog loads, while catalog errors remain retryable errors. Issue aggregation
+loading and failure remain explicit and never synthesize a zero. The explicit
 Overview/List control is URL-owned (`view=overview|list`); legacy `kind`/`detail`
-links continue to resolve to the List surface. Catalog failures show one
-retryable planning error, while linked-issue loading or failure preserves
-planning metadata and detail links and marks only the rollup unavailable.
+links continue to resolve to the List surface.
 Overview names remain single-line affordances at narrow widths and expose the
 complete value through the existing overflow tooltip and accessible label.
 Current sprint is the stronger execution-plan section through existing group
