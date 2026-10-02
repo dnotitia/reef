@@ -1723,7 +1723,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(sourceMarkdown).toContain("- [ ] Open child");
       expect(sourceMarkdown).toContain("- [x] Completed child");
       expect(sourceMarkdown).toContain("---");
-      expect(sourceMarkdown).toContain("| Pattern | Meaning |");
+      expect(sourceMarkdown).toMatch(/^\| Pattern\s+\| Meaning\s+\|$/mu);
       await page.screenshot({
         animations: "disabled",
         path: testInfo.outputPath(`${preference}-${colorScheme}-source.png`),

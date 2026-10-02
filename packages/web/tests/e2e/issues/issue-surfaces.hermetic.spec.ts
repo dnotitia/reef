@@ -1576,6 +1576,19 @@ test.describe("Hermetic issue route surfaces", () => {
         await expect(scroll).toHaveAttribute("role", "region");
         await expect(scroll).toHaveAttribute("tabindex", "0");
         await expect(scroll).toBeVisible();
+        if (view === "list") {
+          const rowTestId =
+            scope === "backlog" ? "backlog-row" : "issue-list-row";
+          await expect(scroll.getByTestId(rowTestId).first()).toBeVisible();
+          await page.evaluate(
+            () =>
+              new Promise<void>((resolve) => {
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() => resolve()),
+                );
+              }),
+          );
+        }
         const scrollGeometry = await scroll.evaluate((element) => {
           const root = element as HTMLElement;
           return {

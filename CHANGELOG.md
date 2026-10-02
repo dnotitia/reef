@@ -53,6 +53,9 @@ explicitly in the entries below.
 - **Markdown link search stays opaque and readable in both themes.** Reef maps
   the shared editor's surface, muted, selected, and destructive color roles so
   the dialog, inputs, and result list remain legible. (REEF-629)
+- **Wide Markdown tables stay inside the editor's scroll area.** The editor
+  constrains the shared surface's table wrapper so table content does not widen
+  the issue detail panel. (REEF-630)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity

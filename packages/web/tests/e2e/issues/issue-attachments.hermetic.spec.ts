@@ -79,7 +79,8 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
 
     const bodyProof = page
       .locator('[data-testid="markdown-editor-body-frame"]')
-      .first();
+      .first()
+      .getByTestId("markdown-editor-content");
     const inlineImage = page.locator('img[alt="reef-inline.png"]');
     await expect(bodyProof.getByText(INLINE_TEXT_BEFORE)).toBeVisible();
     await expect(inlineImage).toBeVisible();
