@@ -145,26 +145,28 @@ function WorkspaceAvailability({
           {t(`status.${visibleStatus}`)}
         </span>
       </div>
-      <dl className="grid w-full grid-cols-1 gap-y-2 text-sm">
+      <dl className="grid w-full grid-cols-1 gap-y-2 type-body">
         <div>
-          <dt className="text-xs text-muted-foreground">{t("label.impact")}</dt>
-          <dd className="mt-0.5 text-muted-foreground">
+          <dt className="type-body font-semibold text-foreground">
+            {t("label.impact")}
+          </dt>
+          <dd className="mt-1 text-muted-foreground">
             {t(`impact.${visibleStatus}`)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">
+          <dt className="type-body font-semibold text-foreground">
             {t("label.nextAction")}
           </dt>
-          <dd className="mt-0.5 text-muted-foreground">
+          <dd className="mt-1 text-muted-foreground">
             {t(`nextAction.${visibleStatus}`)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">
+          <dt className="type-body font-semibold text-foreground">
             {t("label.responsible")}
           </dt>
-          <dd className="mt-0.5 text-muted-foreground">
+          <dd className="mt-1 text-muted-foreground">
             {t(`responsible.${visibleStatus}`)}
           </dd>
         </div>

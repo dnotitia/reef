@@ -95,28 +95,28 @@ function WorkspaceInstallationSectionContent({
               {t(`status.${visibleStatus}`)}
             </span>
           </div>
-          <dl className="grid grid-cols-1 gap-y-2 text-sm sm:grid-cols-3 sm:gap-x-4">
+          <dl className="grid grid-cols-1 gap-y-2 type-body sm:grid-cols-3 sm:gap-x-4">
             <div>
-              <dt className="text-xs text-muted-foreground">
+              <dt className="type-body font-semibold text-foreground">
                 {t("label.impact")}
               </dt>
-              <dd className="mt-0.5 text-muted-foreground">
+              <dd className="mt-1 text-muted-foreground">
                 {t(`impact.${visibleStatus}`)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">
+              <dt className="type-body font-semibold text-foreground">
                 {t("label.nextAction")}
               </dt>
-              <dd className="mt-0.5 text-muted-foreground">
+              <dd className="mt-1 text-muted-foreground">
                 {t(`nextAction.${visibleStatus}`)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">
+              <dt className="type-body font-semibold text-foreground">
                 {t("label.responsible")}
               </dt>
-              <dd className="mt-0.5 text-muted-foreground">
+              <dd className="mt-1 text-muted-foreground">
                 {t(`responsible.${visibleStatus}`)}
               </dd>
             </div>
