@@ -9,6 +9,12 @@ const MARKDOWN_AKB_LINK_RE =
 const MARKDOWN_LINK_RE =
   /(!?)\[((?:\\[^\r\n]|[^\\\]\r\n]|\](?!\())*)\]\(([^\s)]+)([^)]*)\)/g;
 const TRAILING_PUNCTUATION_RE = /[.,;:!?]+$/;
+const BARE_AKB_URI_RE = /akb:\/\/[^\s<>"'`()[\]]+/g;
+
+interface LinkRange {
+  from: number;
+  to: number;
+}
 
 function isAkbDocumentUri(uri: string): boolean {
   return parseAkbDocumentUri(uri) !== null;
@@ -22,6 +28,17 @@ function trimTrailingPunctuation(raw: string): {
   return trailing
     ? { uri: raw.slice(0, -trailing.length), trailing }
     : { uri: raw, trailing: "" };
+}
+
+function collectMarkdownLinkRanges(markdown: string): LinkRange[] {
+  return [...markdown.matchAll(MARKDOWN_AKB_LINK_RE)].map((match) => ({
+    from: match.index ?? 0,
+    to: (match.index ?? 0) + match[0].length,
+  }));
+}
+
+function isInsideRange(index: number, ranges: readonly LinkRange[]): boolean {
+  return ranges.some((range) => index >= range.from && index < range.to);
 }
 
 function markdownLinkText(title: string): string {
@@ -74,20 +91,50 @@ function normalizeExistingAkbLinks(
   );
 }
 
+function linkBareAkbUris(
+  markdown: string,
+  titleByUri: ReadonlyMap<string, string | null | undefined>,
+): string {
+  const linkRanges = collectMarkdownLinkRanges(markdown);
+  return markdown.replace(BARE_AKB_URI_RE, (raw, offset: number) => {
+    if (isInsideRange(offset, linkRanges)) return raw;
+    const { uri, trailing } = trimTrailingPunctuation(raw);
+    if (!isAkbDocumentUri(uri)) return raw;
+    return `[${markdownLinkText(titleForUri(uri, titleByUri))}](${uri})${trailing}`;
+  });
+}
+
 export function extractAkbDocumentUris(markdown: string): string[] {
   const uris = new Set<string>();
   for (const match of markdown.matchAll(MARKDOWN_AKB_LINK_RE)) {
     const { uri, trailing } = trimTrailingPunctuation(match[3] ?? "");
     if (!trailing && isAkbDocumentUri(uri)) uris.add(uri);
   }
+  const linkRanges = collectMarkdownLinkRanges(markdown);
+  for (const match of markdown.matchAll(BARE_AKB_URI_RE)) {
+    const offset = match.index ?? 0;
+    if (isInsideRange(offset, linkRanges)) continue;
+    const { uri } = trimTrailingPunctuation(match[0]);
+    if (isAkbDocumentUri(uri)) uris.add(uri);
+  }
   return [...uris];
+}
+
+export function normalizeExistingAkbDocumentMarkdownLinks(
+  markdown: string,
+  titleByUri: ReadonlyMap<string, string | null | undefined> = new Map(),
+): string {
+  return normalizeExistingAkbLinks(markdown, titleByUri);
 }
 
 export function normalizeAkbDocumentMarkdownLinks(
   markdown: string,
   titleByUri: ReadonlyMap<string, string | null | undefined> = new Map(),
 ): string {
-  return normalizeExistingAkbLinks(markdown, titleByUri);
+  return linkBareAkbUris(
+    normalizeExistingAkbLinks(markdown, titleByUri),
+    titleByUri,
+  );
 }
 
 export function retargetRenderedAkbDocumentLinks(

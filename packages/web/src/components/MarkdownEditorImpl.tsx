@@ -37,6 +37,7 @@ import {
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
+  normalizeExistingAkbDocumentMarkdownLinks,
 } from "@/lib/akb/markdownDocumentLinks";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
 import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
@@ -175,11 +176,19 @@ function MarkdownEditorContent({
   const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
   const normalizeMarkdown = useCallback(
     (markdown: string) =>
+      normalizeExistingAkbDocumentMarkdownLinks(
+        markdown,
+        titleByUriRef.current,
+      ),
+    [],
+  );
+  const normalizeWysiwygMarkdown = useCallback(
+    (markdown: string) =>
       normalizeAkbDocumentMarkdownLinks(markdown, titleByUriRef.current),
     [],
   );
   const initialMarkdown = useMemo(
-    () => normalizeAkbDocumentMarkdownLinks(value),
+    () => normalizeExistingAkbDocumentMarkdownLinks(value),
     [value],
   );
   const editorInitialMarkdown = useMemo(
@@ -354,7 +363,7 @@ function MarkdownEditorContent({
 
   const publishMarkdown = useCallback(
     (rawMarkdown: string) => {
-      const markdown = normalizeMarkdown(rawMarkdown);
+      const markdown = normalizeWysiwygMarkdown(rawMarkdown);
       const changed = markdown !== lastSyncedValueRef.current;
       latestValueRef.current = markdown;
       lastSyncedValueRef.current = markdown;
@@ -364,7 +373,7 @@ function MarkdownEditorContent({
       if (changed) onChangeRef.current(markdown);
       queueDocumentTitleResolution(markdown);
     },
-    [normalizeMarkdown, queueDocumentTitleResolution],
+    [normalizeWysiwygMarkdown, queueDocumentTitleResolution],
   );
 
   const editor = useMarkdownEditor({

@@ -648,6 +648,19 @@ describe("MarkdownEditor product adapter", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("still normalizes bare AKB document URIs entered in WYSIWYG", () => {
+    const target = "akb://reef-test/coll/docs/doc/spec.md";
+    const onChange = vi.fn();
+    renderEditor({ value: "", onChange, vault: "reef-test" });
+
+    emitEditorChange(`See ${target}`);
+
+    expect(onChange).toHaveBeenLastCalledWith(`See [spec](${target})`);
+    expect(markdownMocks.commands.setMarkdown).toHaveBeenLastCalledWith(
+      `See [spec](${target})`,
+    );
+  });
+
   it("opens external Markdown links only after confirmation", () => {
     markdownMocks.surfaceLink = {
       href: "https://example.test/spec",

@@ -56,8 +56,9 @@ explicitly in the entries below.
 - **Wide Markdown tables stay inside the editor's scroll area.** The editor
   constrains the shared surface's table wrapper so table content does not widen
   the issue detail panel. (REEF-630)
-- **Bare AKB document URIs stay as authored Markdown text.** Explicit Markdown
-  links keep their canonical AKB targets and WYSIWYG behavior. (REEF-630)
+- **Source-authored bare AKB document URIs stay as entered.** WYSIWYG continues
+  to normalize bare document links, and explicit Markdown links keep canonical
+  AKB targets. (REEF-630)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity
