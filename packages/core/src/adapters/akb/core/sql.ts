@@ -2,6 +2,7 @@ import { ZodError, z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { ReefTableName } from "./constants";
 import type { AkbAdapter } from "./http";
+import { VaultNameSchema } from "../../../schemas/workspace/config";
 
 // ─── SQL values and identifiers ───────────────────────────────────────────────
 //
@@ -167,11 +168,63 @@ export function tableRef(name: ReefTableName): string {
   return name;
 }
 
+/**
+ * Render the cross-vault alias understood by akb's SQL endpoint. The endpoint
+ * rewrites a bare `<vault>__<table>` token to the physical table in that vault;
+ * the vault itself is still sent separately in the request's `vaults` field.
+ */
+export function crossVaultTableRef(vault: string, name: ReefTableName): string {
+  const parsedVault = VaultNameSchema.safeParse(vault);
+  if (!parsedVault.success) {
+    throw new SchemaValidationError({ issues: ["invalid vault name"] });
+  }
+  if (!/^[a-z_][a-z0-9_]*$/.test(name)) {
+    throw new SchemaValidationError({
+      issues: [`invalid SQL table name: ${name}`],
+    });
+  }
+  const alias = `${vault.toLowerCase().replace(/[^a-z0-9]/g, "_")}__${name}`;
+  if (!/^[a-z_][a-z0-9_]*$/.test(alias)) {
+    throw new SchemaValidationError({ issues: ["invalid cross-vault table"] });
+  }
+  return alias;
+}
+
+function normalizeVaults(vault: string, vaults: readonly string[]): string[] {
+  const names: string[] = [];
+  const aliases = new Set<string>();
+  for (const candidate of vaults) {
+    const parsed = VaultNameSchema.safeParse(candidate);
+    if (!parsed.success) {
+      throw new SchemaValidationError({ issues: ["invalid vault name"] });
+    }
+    const alias = candidate.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    if (aliases.has(alias)) {
+      throw new SchemaValidationError({
+        issues: ["vault names collide in the cross-vault SQL alias"],
+      });
+    }
+    aliases.add(alias);
+    names.push(candidate);
+  }
+  if (
+    names.length === 0 ||
+    new Set(names).size !== names.length ||
+    !names.includes(vault)
+  ) {
+    throw new SchemaValidationError({
+      issues: ["SQL vaults must be unique and include the request vault"],
+    });
+  }
+  return names;
+}
+
 export async function runSql(
   adapter: AkbAdapter,
   vault: string,
   sql: string,
   params?: readonly unknown[],
+  vaults?: readonly string[],
 ): Promise<AkbSqlResponse> {
   // Keep validation at this boundary because callers may provide raw params;
   // builder output is validated again when it crosses into the adapter.
@@ -186,14 +239,17 @@ export async function runSql(
       normalizeSqlScalar(value, `SQL parameter ${index + 1}`),
     );
   }
+  const normalizedVaults =
+    vaults === undefined ? undefined : normalizeVaults(vault, vaults);
   const payload = await adapter.request(
     `/api/v1/tables/${encodeURIComponent(vault)}/sql`,
     {
       method: "POST",
-      body:
-        normalizedParams === undefined
-          ? { sql }
-          : { sql, params: normalizedParams },
+      body: {
+        sql,
+        ...(normalizedParams === undefined ? {} : { params: normalizedParams }),
+        ...(normalizedVaults === undefined ? {} : { vaults: normalizedVaults }),
+      },
       resource: `sql on vault ${vault}`,
     },
   );

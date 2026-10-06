@@ -8,6 +8,8 @@
     "open": "Open link"
   },
   "nav": {
+    "personal": "Personal",
+    "workspaceSection": "Workspace",
     "issues": "Issues",
     "myWork": "My Work",
     "inbox": "Inbox",
@@ -1568,6 +1570,9 @@
     "loadError": "Failed to load your work.",
     "openSummary": " · {count} open",
     "queueTitle": "What to do next",
+    "workspaceFilter": "Workspace",
+    "allWorkspaces": "All workspaces",
+    "noWorkspaceItems": "No open work in this workspace.",
     "groupAriaLabel": "Group the queue",
     "byPriority": "By priority",
     "byStatus": "By status",
@@ -1577,6 +1582,7 @@
     "hintWithin7Days": "within 7 days",
     "hintPastDue": "past due",
     "sprintLabel": "Sprint · {name}",
+    "workspaceSprintName": "{workspace} · {name}",
     "sprintLeft": "<value>{count}</value><label>left</label>",
     "sprintDone": "{done}/{total} done"
   },

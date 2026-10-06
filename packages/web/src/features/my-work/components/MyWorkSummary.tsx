@@ -88,11 +88,16 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
   const pct = sprint.total > 0 ? sprint.done / sprint.total : 0;
   return (
     <li
-      data-testid="my-work-tile-sprint"
+      data-testid={`my-work-tile-sprint-${sprint.workspace}`}
       className="relative flex min-h-[78px] flex-col justify-between gap-1.5 overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle p-3"
     >
       <span className={MY_WORK_TILE_LABEL_CLASS} title={sprint.name}>
-        {t("sprintLabel", { name: sprint.name })}
+        {t("sprintLabel", {
+          name: t("workspaceSprintName", {
+            workspace: sprint.workspace,
+            name: sprint.name,
+          }),
+        })}
       </span>
       <span className="flex items-end gap-1">
         {t.rich("sprintLeft", {
@@ -191,9 +196,8 @@ function StageBar({
 }
 
 /**
- * The summary strip above the queue (REEF-181): WIP / due-soon / overdue / sprint
- * tiles (AC3·AC4·AC5) over a status-distribution bar (AC2). All counts are
- * derived from the same `useIssueList` pass — no extra fetch.
+ * The account-wide summary above the queue: WIP / due-soon / overdue tiles,
+ * per-workspace sprint progress, and the global status distribution.
  */
 export function MyWorkSummary({ summary }: { summary: MyWorkSummaryData }) {
   const t = useTranslations("myWork");
@@ -203,7 +207,7 @@ export function MyWorkSummary({ summary }: { summary: MyWorkSummaryData }) {
       <ul
         className={cn(
           "grid grid-cols-2 gap-3",
-          summary.sprint ? "sm:grid-cols-4" : "sm:grid-cols-3",
+          summary.sprints.length > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3",
         )}
       >
         <Tile
@@ -226,7 +230,12 @@ export function MyWorkSummary({ summary }: { summary: MyWorkSummaryData }) {
           hint={t("hintPastDue")}
           testId="my-work-tile-overdue"
         />
-        {summary.sprint ? <SprintTile sprint={summary.sprint} /> : null}
+        {summary.sprints.map((sprint) => (
+          <SprintTile
+            key={`${sprint.workspace}:${sprint.sprintId}`}
+            sprint={sprint}
+          />
+        ))}
       </ul>
       <StageBar byStatus={summary.byStatus} total={summary.open} />
     </section>

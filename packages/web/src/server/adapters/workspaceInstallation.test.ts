@@ -26,7 +26,10 @@ vi.mock("./installationTarget", () => ({
 
 import { AuthError } from "@reef/core";
 import { DEFAULT_ISSUE_TEMPLATES } from "../../features/settings/lib/defaultIssueTemplates";
-import { readWorkspaceInstallationState } from "./workspaceInstallation";
+import {
+  readWorkspaceInstallationState,
+  readWorkspaceInstallationStatus,
+} from "./workspaceInstallation";
 
 const target = {
   appId: "11111111-1111-4111-8111-111111111111",
@@ -176,5 +179,49 @@ describe("readWorkspaceInstallationState", () => {
 
     expect(state).toEqual({ installation_status: "unknown" });
     expect(mockAkbCheckWorkspaceReadiness).not.toHaveBeenCalled();
+  });
+});
+
+describe("readWorkspaceInstallationStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockReadInstallationTarget.mockReturnValue(target);
+  });
+
+  it("reports an incomplete owner workspace without initializing it", async () => {
+    const installation = {
+      installationId: "44444444-4444-4444-8444-444444444444",
+      appId: target.appId,
+      vaultId: vault.id,
+      lifecycle: "active",
+    };
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({
+      state: "active",
+      initialization_complete: false,
+      installation,
+    });
+
+    const status = await readWorkspaceInstallationStatus({
+      adapter: { request: vi.fn() } as never,
+      vault: { ...vault, role: "owner" },
+    });
+
+    expect(status).toEqual({
+      installation_status: "management_required",
+      installation,
+    });
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("propagates ACL and readiness read errors", async () => {
+    const denial = new AuthError({ origin: "akb", status: 403 });
+    mockAkbCheckWorkspaceReadiness.mockRejectedValueOnce(denial);
+
+    await expect(
+      readWorkspaceInstallationStatus({
+        adapter: { request: vi.fn() } as never,
+        vault,
+      }),
+    ).rejects.toBe(denial);
   });
 });

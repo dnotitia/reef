@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **My Work now spans every ready workspace accessible to the signed-in actor.**
+  Its workspace filter narrows only the queue, duplicate issue IDs retain their
+  source-workspace links, and the sidebar separates Personal from Workspace
+  navigation. (REEF-658)
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)

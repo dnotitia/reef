@@ -64,7 +64,8 @@ export const MyWorkRow = memo(function MyWorkRow({
   return (
     <Link
       href={href}
-      data-testid={`my-work-row-${issue.id}`}
+      data-testid={`my-work-row-${item.workspace}-${issue.id}`}
+      data-workspace={item.workspace}
       className="group flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-border-subtle px-3 py-2 transition-colors duration-150 first:border-t-0 hover:bg-surface-hover focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
     >
       <span
@@ -101,6 +102,14 @@ export const MyWorkRow = memo(function MyWorkRow({
         className="type-body min-w-0 basis-full break-words text-foreground sm:flex-1 sm:basis-auto sm:truncate sm:whitespace-nowrap"
       >
         {issue.title}
+      </span>
+
+      <span
+        data-testid="my-work-source-workspace"
+        title={item.workspace}
+        className="min-w-0 basis-full truncate type-compact-mono text-muted-foreground sm:max-w-36 sm:basis-auto"
+      >
+        {item.workspace}
       </span>
 
       {item.blocked || issue.due_date ? (

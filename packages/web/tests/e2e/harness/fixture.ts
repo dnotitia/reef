@@ -23,6 +23,7 @@ export type FixtureScenario =
   | "updated_at_range"
   | "content_search"
   | "configured_multi"
+  | "my_work_multi"
   | "assignee_picker"
   | "backlog_bulk_partial_failure"
   | "demo_board"

@@ -72,6 +72,10 @@ export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
 export {
+  listMyWorkIssues,
+  type ListMyWorkIssuesParams,
+} from "./listMyWorkIssues";
+export {
   searchSimilarIssues,
   type SearchSimilarIssuesParams,
 } from "./similarIssues";

@@ -2,21 +2,14 @@
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
-import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
-import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
-import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
+import { useMyWorkData } from "@/features/my-work/hooks/useMyWorkData";
 import { MyWorkSkeleton } from "@/features/my-work/components/MyWorkPageSkeleton";
 import {
   type GroupMode,
   MyWorkQueue,
 } from "@/features/my-work/components/MyWorkQueue";
 import { MyWorkSummary } from "@/features/my-work/components/MyWorkSummary";
-import {
-  buildMyWork,
-  selectCurrentSprint,
-} from "@/features/my-work/lib/myWork";
-import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { buildMyWork } from "@/features/my-work/lib/myWork";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
@@ -52,56 +45,41 @@ function Shell({
 }
 
 /**
- * `/my-work` — the personal view (REEF-181). Auto-scoped to the signed-in user
- * (`assigned_to`) with no scope picker (AC1); a focus-sorted queue under a light
- * summary strip, with clean empty / no-session states (AC7). The sidebar entry
- * and its attention badge are REEF-204's surface, not this page.
+ * `/my-work` — the personal view. The server scopes assignments to the signed-in
+ * actor across every ready workspace; an independent workspace filter only
+ * narrows the visible queue. Summary and empty-state counts remain account-wide.
  */
 export function MyWorkPage() {
   const { vault, isLoading: vaultLoading } = useActiveVault();
-  const { data: me, isPending: meLoading } = useCurrentUser();
-  const login = me?.username?.trim() || null;
-
-  // Scope every fetch to the signed-in user. The vault is blanked until we have
-  // a login so a logged-out visit does not fan out a whole-vault query.
-  const scopedVault = login ? vault : "";
-  const query = useMemo(
-    () => (login ? buildIssueQuery({ assignee: [login] }) : undefined),
-    [login],
-  );
-  // Opt out of placeholder reuse: this query is scoped to one login, so its key
-  // changes on an account switch — does not reuse the previous login's rows as
-  // placeholder (it would briefly show another user's work in the same vault).
-  const issuesQuery = useIssueList(scopedVault, query, {
-    keepPreviousData: false,
-  });
-  const relationsQuery = useIssueRelations(scopedVault);
-  const planningQuery = usePlanningCatalog(scopedVault);
+  const workQuery = useMyWorkData();
+  const login = workQuery.login;
 
   // Captured once so the deadline classification is stable across re-renders
   // (and so memoised rows are not invalidated every render).
   const [now] = useState(() => Date.now());
-  // The server `assigned_to` facet is now an exact match (REEF-267), so the
-  // fetched rows are already exactly this user's work — no client re-scope
-  // needed (the REEF-181 substring workaround is retired).
-  const issues = useMemo(() => issuesQuery.data ?? [], [issuesQuery.data]);
-  const currentSprint = useMemo(
-    () => selectCurrentSprint(planningQuery.data?.sprints ?? []),
-    [planningQuery.data],
-  );
+  const issues = useMemo(() => workQuery.data?.issues ?? [], [workQuery.data]);
   const myWork = useMemo(() => {
-    // Blocked state resolves against the whole-vault relation projection, does not
-    // the assignee-scoped `issues` list — a cross-assignee dependency missing
-    // from that narrow set would otherwise read as an unresolved blocker. Empty
-    // until the projection loads; buildMyWork skips blocked while it is.
-    const graph = relationsQuery.data ?? [];
-    return buildMyWork(issues, graph, { now, currentSprint });
-  }, [issues, relationsQuery.data, now, currentSprint]);
+    return buildMyWork(issues, workQuery.workspaceContexts, { now });
+  }, [issues, now, workQuery.workspaceContexts]);
 
   const searchParams = useSearchParams();
   const router = useRouter();
   const mode: GroupMode =
     searchParams.get("group") === "status" ? "status" : "priority";
+  const selectedWorkspaceValue = searchParams.get("workspace");
+  const workspaces = workQuery.data?.workspaces ?? [];
+  const selectedWorkspace = workspaces.some(
+    ({ workspace }) => workspace === selectedWorkspaceValue,
+  )
+    ? selectedWorkspaceValue
+    : null;
+  const visibleItems = useMemo(
+    () =>
+      selectedWorkspace
+        ? myWork.items.filter((item) => item.workspace === selectedWorkspace)
+        : myWork.items,
+    [myWork.items, selectedWorkspace],
+  );
   const setMode = useCallback(
     (next: GroupMode) => {
       const params = new URLSearchParams(searchParams);
@@ -114,18 +92,30 @@ export function MyWorkPage() {
     },
     [router, searchParams, vault],
   );
+  const setWorkspace = useCallback(
+    (workspace: string | null) => {
+      const params = new URLSearchParams(searchParams);
+      if (workspace) params.set("workspace", workspace);
+      else params.delete("workspace");
+      const qs = params.toString();
+      router.replace(withVault(vault, qs ? `/my-work?${qs}` : "/my-work"), {
+        scroll: false,
+      });
+    },
+    [router, searchParams, vault],
+  );
 
   // The planning catalog is an independent query, so the current sprint can be
   // known before the issues finish loading. Thread it into the in-flight
   // skeleton so its tile count matches the loaded summary (sprint → 4 tiles, no
   // sprint → 3) instead of reflowing on hydration (REEF-258).
-  const hasSprint = Boolean(currentSprint);
+  const hasSprint = myWork.summary.sprints.length > 0;
 
   const t = useTranslations("myWork");
   const c = useTranslations("common");
   const nav = useTranslations("nav");
 
-  if (vaultLoading || meLoading) {
+  if (vaultLoading || workQuery.identityPending) {
     return (
       <Shell>
         <MyWorkSkeleton hasSprint={hasSprint} />
@@ -158,7 +148,7 @@ export function MyWorkPage() {
     );
   }
 
-  if (issuesQuery.isPending) {
+  if (workQuery.isPending) {
     return (
       <Shell>
         <MyWorkSkeleton hasSprint={hasSprint} />
@@ -166,7 +156,7 @@ export function MyWorkPage() {
     );
   }
 
-  if (issuesQuery.isError) {
+  if (workQuery.isError) {
     return (
       <Shell>
         <div
@@ -174,14 +164,14 @@ export function MyWorkPage() {
           className="flex flex-col items-start gap-2"
         >
           <p className="text-sm text-destructive-text">
-            {issuesQuery.error instanceof Error
-              ? issuesQuery.error.message
+            {workQuery.error instanceof Error
+              ? workQuery.error.message
               : t("loadError")}
           </p>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void issuesQuery.refetch()}
+            onClick={() => void workQuery.refetch()}
           >
             {c("retry")}
           </Button>
@@ -190,7 +180,10 @@ export function MyWorkPage() {
     );
   }
 
-  if (issues.length === 0) {
+  if (
+    issues.length === 0 &&
+    !workspaces.some((workspace) => workspace.assigned_issue_count > 0)
+  ) {
     return (
       <Shell>
         <EmptyState
@@ -202,7 +195,7 @@ export function MyWorkPage() {
     );
   }
 
-  if (myWork.items.length === 0) {
+  if (issues.length === 0) {
     return (
       <Shell description={`@${login}`}>
         <EmptyState
@@ -227,7 +220,14 @@ export function MyWorkPage() {
     >
       <div data-testid="my-work-page" className="flex flex-col gap-6">
         <MyWorkSummary summary={myWork.summary} />
-        <MyWorkQueue items={myWork.items} mode={mode} onModeChange={setMode} />
+        <MyWorkQueue
+          items={visibleItems}
+          mode={mode}
+          onModeChange={setMode}
+          workspaces={workspaces.map(({ workspace }) => workspace)}
+          selectedWorkspace={selectedWorkspace}
+          onWorkspaceChange={setWorkspace}
+        />
       </div>
     </Shell>
   );

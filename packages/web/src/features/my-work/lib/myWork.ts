@@ -4,7 +4,11 @@ import {
   unresolvedBlockerCountIn,
 } from "@/features/issues/lib/dependencyUtils";
 import {
+  type IssueRelation,
   type IssueListItem,
+  type MyWorkIssue,
+  type MyWorkWorkspace,
+  type PlanningCatalog,
   type Sprint,
   type Status,
   isResolvedStatus,
@@ -85,6 +89,7 @@ export function classifyDue(
 }
 
 export interface MyWorkItem {
+  workspace: string;
   issue: IssueListItem;
   dueState: DueState;
   blocked: boolean;
@@ -92,6 +97,7 @@ export interface MyWorkItem {
 }
 
 export interface MyWorkSprint {
+  workspace: string;
   sprintId: string;
   name: string;
   /** My open (unresolved) issues committed to the sprint. */
@@ -111,13 +117,18 @@ export interface MyWorkSummary {
   dueSoon: number;
   /** overdue + due-soon — the single "needs attention" number (AC3). */
   attention: number;
-  sprint: MyWorkSprint | null;
+  sprints: MyWorkSprint[];
 }
 
 export interface MyWork {
   /** Open items, focus-sorted (AC6). */
   items: MyWorkItem[];
   summary: MyWorkSummary;
+}
+
+export interface MyWorkWorkspaceContext extends MyWorkWorkspace {
+  relations: IssueRelation[];
+  planning: PlanningCatalog;
 }
 
 /**
@@ -160,8 +171,11 @@ export function compareFocus(a: MyWorkItem, b: MyWorkItem): number {
 
   const au = a.issue.updated_at ?? "";
   const bu = b.issue.updated_at ?? "";
-  if (au === bu) return 0;
-  return au < bu ? 1 : -1;
+  if (au !== bu) return au < bu ? 1 : -1;
+
+  if (a.workspace !== b.workspace) return a.workspace < b.workspace ? -1 : 1;
+  if (a.issue.id === b.issue.id) return 0;
+  return a.issue.id < b.issue.id ? -1 : 1;
 }
 
 export interface MyWorkGroup {
@@ -194,7 +208,6 @@ export function groupByStatus(items: readonly MyWorkItem[]): MyWorkGroup[] {
 
 export interface BuildMyWorkOptions {
   now: number;
-  currentSprint?: Sprint | null;
 }
 
 /**
@@ -205,20 +218,21 @@ export interface BuildMyWorkOptions {
  * row gets a primitive `blocked` boolean instead of the whole graph (REEF-097).
  */
 export function buildMyWork(
-  issues: readonly IssueListItem[],
-  graph: readonly IssueRelationLike[],
+  issues: readonly MyWorkIssue[],
+  workspaces: readonly MyWorkWorkspaceContext[],
   options: BuildMyWorkOptions,
 ): MyWork {
-  const { now, currentSprint } = options;
-  const currentSprintId = currentSprint?.id ?? null;
-  const index = indexIssuesById(graph);
-  // Blocked state is trustworthy against the whole-vault relation graph.
-  // While that projection is still loading (or failed) the graph is empty —
-  // skip blocked rather than mark work blocked from an incomplete graph, since
-  // a false "blocked" tells the user to skip actionable work (REEF-181
-  // autoreview). A non-empty vault consistently yields a non-empty projection, so an
-  // empty graph reliably means "not yet resolvable".
-  const canResolveBlocked = graph.length > 0;
+  const { now } = options;
+  const relationIndexes = new Map(
+    workspaces.map((workspace) => [
+      workspace.workspace,
+      {
+        index: indexIssuesById(workspace.relations as IssueRelationLike[]),
+        canResolveBlocked: workspace.relations.length > 0,
+        currentSprint: selectCurrentSprint(workspace.planning.sprints),
+      },
+    ]),
+  );
 
   const statusCounts = new Map<Status, number>(
     MY_WORK_OPEN_STATUSES.map((s) => [s, 0]),
@@ -226,21 +240,50 @@ export function buildMyWork(
   let wip = 0;
   let overdue = 0;
   let dueSoon = 0;
-  let sprintRemaining = 0;
-  let sprintDone = 0;
+  const sprintCounts = new Map<
+    string,
+    { workspace: string; sprint: Sprint; remaining: number; done: number }
+  >();
+  for (const workspace of workspaces) {
+    const currentSprint = selectCurrentSprint(workspace.planning.sprints);
+    if (!currentSprint) continue;
+    const done =
+      workspace.resolved_sprint_counts.find(
+        (count) => count.sprint_id === currentSprint.id,
+      )?.count ?? 0;
+    if (done > 0) {
+      sprintCounts.set(
+        JSON.stringify([workspace.workspace, currentSprint.id]),
+        {
+          workspace: workspace.workspace,
+          sprint: currentSprint,
+          remaining: 0,
+          done,
+        },
+      );
+    }
+  }
   const items: MyWorkItem[] = [];
 
-  for (const issue of issues) {
+  for (const source of issues) {
+    const { workspace, issue } = source;
     if (issue.archived_at != null) continue;
     const resolved = isResolvedStatus(issue.status);
-
-    // Sprint tally spans both sides (AC5), so it runs before the open-gate.
-    if (currentSprintId && issue.sprint_id === currentSprintId) {
-      if (resolved) sprintDone++;
-      else sprintRemaining++;
-    }
-
     if (resolved) continue;
+
+    const context = relationIndexes.get(workspace);
+    const currentSprint = context?.currentSprint;
+    if (currentSprint && issue.sprint_id === currentSprint.id) {
+      const key = JSON.stringify([workspace, currentSprint.id]);
+      const counts = sprintCounts.get(key) ?? {
+        workspace,
+        sprint: currentSprint,
+        remaining: 0,
+        done: 0,
+      };
+      counts.remaining += 1;
+      sprintCounts.set(key, counts);
+    }
 
     const dueState = classifyDue(issue.due_date, issue.status, now);
     if (dueState === "overdue") overdue++;
@@ -248,10 +291,11 @@ export function buildMyWork(
     if (issue.status === "in_progress") wip++;
     statusCounts.set(issue.status, (statusCounts.get(issue.status) ?? 0) + 1);
 
-    const blockerCount = canResolveBlocked
-      ? unresolvedBlockerCountIn(issue, index)
+    const blockerCount = context?.canResolveBlocked
+      ? unresolvedBlockerCountIn(issue, context.index)
       : 0;
     items.push({
+      workspace,
       issue,
       dueState,
       blocked: blockerCount > 0,
@@ -261,16 +305,27 @@ export function buildMyWork(
 
   items.sort(compareFocus);
 
-  const sprint: MyWorkSprint | null =
-    currentSprint && sprintRemaining + sprintDone > 0
-      ? {
-          sprintId: currentSprint.id,
-          name: currentSprint.name,
-          remaining: sprintRemaining,
-          done: sprintDone,
-          total: sprintRemaining + sprintDone,
-        }
-      : null;
+  const sprints: MyWorkSprint[] = [...sprintCounts.values()]
+    .filter(({ remaining, done }) => remaining + done > 0)
+    .map(({ workspace, sprint, remaining, done }) => ({
+      workspace,
+      sprintId: sprint.id,
+      name: sprint.name,
+      remaining,
+      done,
+      total: remaining + done,
+    }))
+    .sort((a, b) =>
+      a.workspace === b.workspace
+        ? a.sprintId < b.sprintId
+          ? -1
+          : a.sprintId > b.sprintId
+            ? 1
+            : 0
+        : a.workspace < b.workspace
+          ? -1
+          : 1,
+    );
 
   return {
     items,
@@ -284,7 +339,7 @@ export function buildMyWork(
       overdue,
       dueSoon,
       attention: overdue + dueSoon,
-      sprint,
+      sprints,
     },
   };
 }

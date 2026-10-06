@@ -8,6 +8,190 @@ import { uuidFor } from "./mock-utils.mjs";
 
 let activitySeq = 5000;
 
+const MY_WORK_STATUSES = new Set([
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+]);
+
+/** Handle the two read-only cross-vault queries used by the My Work endpoint. */
+export function handleMyWorkSql(state, sql, username, allowedVaults) {
+  const isIssueQuery = /FROM\s*\(\s*SELECT\s+issue_rows\.\*/i.test(sql);
+  const isCountQuery =
+    /FROM\s*\(\s*SELECT\s+'[^']+'\s+AS\s+workspace,\s*"sprint_id"/i.test(sql);
+  if (!isIssueQuery && !isCountQuery) return null;
+  if (isIssueQuery && state.issueListFailure) {
+    return {
+      kind: "sql_error",
+      status: 503,
+      body: { error: "e2e forced My Work read failure" },
+    };
+  }
+
+  const branches = isIssueQuery
+    ? [
+        ...sql.matchAll(
+          /SELECT\s+issue_rows\.\*,\s*'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_issues\s+AS\s+issue_rows\s+WHERE\s+lower\(btrim\(issue_rows\."assigned_to"\)\)\s*=\s*lower\(btrim\('([^']+)'\)\)\s+AND\s+issue_rows\."status"\s+IN\s*\(([^)]+)\)\s+AND\s+issue_rows\."archived_at"\s+IS\s+NULL/gi,
+        ),
+      ].map((match) => ({
+        workspace: match[1],
+        alias: match[2],
+        actor: match[3],
+      }))
+    : [
+        ...sql.matchAll(
+          /SELECT\s+'([^']+)'\s+AS\s+workspace,\s*"sprint_id",\s*COUNT\(\*\)\s+AS\s+assigned_count,[\s\S]*?FROM\s+([a-z0-9_]+)__reef_issues\s+WHERE\s+lower\(btrim\("assigned_to"\)\)\s*=\s*lower\(btrim\('([^']+)'\)\)\s+AND\s+"archived_at"\s+IS\s+NULL\s+GROUP\s+BY\s+"sprint_id"/gi,
+        ),
+      ].map((match) => ({
+        workspace: match[1],
+        alias: match[2],
+        actor: match[3],
+      }));
+
+  if (branches.length === 0) return unsupportedSql();
+
+  const requested = new Set(allowedVaults);
+  const sources = new Set();
+  const sourceRows = [];
+  for (const branch of branches) {
+    const workspace = branch.workspace;
+    const vault = state.vaults.get(workspace);
+    const alias = workspace.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    if (!vault || !requested.has(workspace) || alias !== branch.alias) {
+      return {
+        kind: "sql_error",
+        status: 400,
+        body: { error: "invalid_cross_vault_query" },
+      };
+    }
+    sources.add(workspace);
+    sourceRows.push({ ...branch, vault });
+  }
+  if (
+    sources.size !== requested.size ||
+    [...requested].some((workspace) => !sources.has(workspace))
+  ) {
+    return {
+      kind: "sql_error",
+      status: 400,
+      body: { error: "cross_vault_scope_mismatch" },
+    };
+  }
+
+  if (isCountQuery) {
+    const items = [];
+    for (const source of sourceRows) {
+      const assigned = source.vault.issues.filter(
+        (issue) =>
+          String(issue.assigned_to ?? "")
+            .trim()
+            .toLowerCase() === source.actor.trim().toLowerCase() &&
+          issue.archived_at == null,
+      );
+      const groups = new Map();
+      for (const issue of assigned) {
+        const sprintId = issue.sprint_id ?? null;
+        const key = sprintId ?? "__no_sprint__";
+        const group = groups.get(key) ?? {
+          workspace: source.workspace,
+          sprint_id: sprintId,
+          assigned_count: 0,
+          resolved_count: 0,
+        };
+        group.assigned_count += 1;
+        if (issue.status === "done" || issue.status === "closed") {
+          group.resolved_count += 1;
+        }
+        groups.set(key, group);
+      }
+      items.push(...groups.values());
+    }
+    items.sort(
+      (a, b) =>
+        compareStrings(a.workspace, b.workspace) ||
+        compareStrings(a.sprint_id ?? "\uffff", b.sprint_id ?? "\uffff"),
+    );
+    return tableQuery(
+      ["workspace", "sprint_id", "assigned_count", "resolved_count"],
+      items,
+    );
+  }
+
+  const items = [];
+  for (const source of sourceRows) {
+    const statusesMatch = sql.match(/issue_rows\."status"\s+IN\s*\(([^)]+)\)/i);
+    const statuses = new Set(
+      (statusesMatch?.[1].match(/'([^']+)'/g) ?? []).map((value) =>
+        value.slice(1, -1),
+      ),
+    );
+    for (const issue of source.vault.issues) {
+      if (
+        String(issue.assigned_to ?? "")
+          .trim()
+          .toLowerCase() !== source.actor.trim().toLowerCase() ||
+        !statuses.has(issue.status) ||
+        !MY_WORK_STATUSES.has(issue.status) ||
+        issue.archived_at != null
+      ) {
+        continue;
+      }
+      items.push({ ...issue, workspace: source.workspace });
+    }
+  }
+
+  const asOf = Date.parse(sql.match(/\('([^']+)'::timestamptz/i)?.[1] ?? "");
+  items.sort((a, b) => compareMyWorkIssues(a, b, asOf));
+  const offset = Number(sql.match(/\bOFFSET\s+(\d+)/i)?.[1] ?? 0);
+  const limit = sql.match(/\bLIMIT\s+(\d+)/i)?.[1];
+  const page = items.slice(
+    offset,
+    limit == null ? undefined : offset + Number(limit),
+  );
+  const columns = [...Object.keys(page[0] ?? items[0] ?? {}), "workspace"];
+  return tableQuery(columns, page);
+}
+
+function compareMyWorkIssues(a, b, asOf) {
+  const urgency = (issue) => {
+    if (!issue.due_date) return 2;
+    const due = Date.parse(issue.due_date);
+    if (Number.isNaN(due)) return 2;
+    if (due < asOf) return 0;
+    if (due <= asOf + 7 * 24 * 60 * 60 * 1000) return 1;
+    return 2;
+  };
+  const proximity = {
+    in_progress: 0,
+    in_review: 1,
+    todo: 2,
+    backlog: 3,
+  };
+  const priority = { critical: 4, high: 3, medium: 2, low: 1 };
+  const dueA = urgency(a);
+  const dueB = urgency(b);
+  if (dueA !== dueB) return dueA - dueB;
+  if (dueA !== 2 && a.due_date !== b.due_date) {
+    return compareStrings(a.due_date, b.due_date);
+  }
+  const priorityDifference =
+    (priority[b.priority] ?? 0) - (priority[a.priority] ?? 0);
+  if (priorityDifference !== 0) return priorityDifference;
+  const statusDifference =
+    (proximity[a.status] ?? 4) - (proximity[b.status] ?? 4);
+  if (statusDifference !== 0) return statusDifference;
+  const updatedDifference = compareStrings(
+    b.updated_at ?? "",
+    a.updated_at ?? "",
+  );
+  if (updatedDifference !== 0) return updatedDifference;
+  return (
+    compareStrings(a.workspace, b.workspace) ||
+    compareStrings(a.reef_id, b.reef_id)
+  );
+}
+
 export function handleSql(state, vault, sql, username) {
   const normalized = sql;
   const lower = normalized.toLowerCase();

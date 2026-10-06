@@ -1,37 +1,116 @@
 import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  resetFixture,
+  setIssueListFailure,
+} from "../harness/fixture";
 
 /**
- * Hermetic coverage for the personal My Work view (REEF-181). The page is
- * reachable by URL (its sidebar entry ships in REEF-204); these exercise the
- * auto-scoped summary + queue, the by-status grouping, and opening an issue.
+ * Hermetic coverage for account-wide My Work across ready workspaces.
  */
 test.describe("Hermetic My Work flow", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
-    await resetFixture(request, "configured");
+    await resetFixture(request, "my_work_multi");
   });
 
-  test("renders the auto-scoped summary and focus queue", async ({ page }) => {
-    await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/my-work");
+  test("renders one globally sorted queue while the sidebar stays on its workspace", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page, "reef-alpha");
+    await page.goto("/workspace/reef-alpha/my-work");
 
-    // Summary strip (no scope picker — auto-scoped to the signed-in user).
     await expect(page.getByTestId("my-work-summary")).toBeVisible();
     await expect(page.getByTestId("my-work-tile-wip")).toBeVisible();
     await expect(page.getByTestId("my-work-tile-overdue")).toBeVisible();
     await expect(page.getByTestId("my-work-stagebar")).toBeVisible();
 
-    // The queue has at least one row (alice owns fixture work).
     await expect(page.getByTestId("my-work-queue")).toBeVisible();
+    const rows = page.locator('a[data-testid^="my-work-row-"]');
+    await expect(rows).toHaveCount(3);
+    await expect(page.getByTestId("sidebar-workspace-trigger")).toHaveAttribute(
+      "aria-label",
+      /reef-alpha/,
+    );
+    await expect(page.getByRole("heading", { name: "Personal" })).toBeVisible();
     await expect(
-      page.locator('[data-testid^="my-work-row-"]').first(),
+      page.getByRole("heading", { name: "Workspace" }),
     ).toBeVisible();
+
+    const sourceWorkspaces = await rows.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("data-workspace")),
+    );
+    expect(sourceWorkspaces).toEqual(["reef-alpha", "reef-e2e", "reef-zeta"]);
+    await expect(
+      page.getByTestId("my-work-row-reef-alpha-REEF-001"),
+    ).toHaveAttribute("href", "/workspace/reef-alpha/issues/REEF-001");
+    await expect(
+      page.getByTestId("my-work-row-reef-zeta-REEF-001"),
+    ).toHaveAttribute("href", "/workspace/reef-zeta/issues/REEF-001");
+
+    for (const excludedId of ["REEF-901", "REEF-902", "REEF-903", "REEF-904"]) {
+      await expect(
+        page.getByTestId(`my-work-row-reef-e2e-${excludedId}`),
+      ).toHaveCount(0);
+    }
+  });
+
+  test("filters only the queue and opens duplicate IDs in their source workspace", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page, "reef-alpha");
+    await page.goto("/workspace/reef-alpha/my-work");
+    await expect(page.getByTestId("my-work-queue")).toBeVisible();
+
+    const filter = page.getByTestId("my-work-workspace-filter");
+    await expect(filter.locator("option")).toHaveCount(4);
+    await expect(filter.locator('option[value="raw-vault"]')).toHaveCount(0);
+    const summary = page.getByTestId("my-work-summary");
+    const summaryBeforeFilter = await summary.textContent();
+
+    await filter.selectOption("reef-zeta");
+    await page.waitForURL(/workspace=reef-zeta/);
+    const rows = page.locator('a[data-testid^="my-work-row-"]');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toHaveAttribute("data-workspace", "reef-zeta");
+    await expect(summary).toHaveText(summaryBeforeFilter ?? "");
+    await expect(page).toHaveURL(
+      /\/workspace\/reef-alpha\/my-work\?workspace=reef-zeta/,
+    );
+
+    await filter.selectOption("");
+    await expect(rows).toHaveCount(3);
+    await page.getByTestId("my-work-row-reef-alpha-REEF-001").click();
+    await page.waitForURL(/\/workspace\/reef-alpha\/issues\/REEF-001/);
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      "Initial issue Alpha",
+    );
+
+    await page.goto("/workspace/reef-alpha/my-work");
+    await page.getByTestId("my-work-row-reef-zeta-REEF-001").click();
+    await page.waitForURL(/\/workspace\/reef-zeta\/issues\/REEF-001/);
+  });
+
+  test("shows a read error separately from a genuinely empty workspace", async ({
+    page,
+    request,
+  }) => {
+    await setIssueListFailure(request, true);
+    await openExistingWorkspace(page, "reef-alpha");
+    await page.goto("/workspace/reef-alpha/my-work");
+
+    await expect(page.getByTestId("my-work-error")).toBeVisible();
+    await expect(page.getByTestId("my-work-empty")).toHaveCount(0);
+    await expect(page.getByTestId("my-work-caught-up")).toHaveCount(0);
+
+    await setIssueListFailure(request, false);
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(page.getByTestId("my-work-queue")).toBeVisible();
   });
 
   test("groups by status and writes the mode to the URL", async ({ page }) => {
-    await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/my-work");
+    await openExistingWorkspace(page, "reef-alpha");
+    await page.goto("/workspace/reef-alpha/my-work");
     await expect(page.getByTestId("my-work-queue")).toBeVisible();
 
     await page.getByTestId("my-work-group-status").click();
@@ -47,10 +126,10 @@ test.describe("Hermetic My Work flow", () => {
   });
 
   test("opens an issue from the queue", async ({ page }) => {
-    await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/my-work");
+    await openExistingWorkspace(page, "reef-alpha");
+    await page.goto("/workspace/reef-alpha/my-work");
 
-    const firstRow = page.locator('[data-testid^="my-work-row-"]').first();
+    const firstRow = page.locator('a[data-testid^="my-work-row-"]').first();
     await expect(firstRow).toBeVisible();
     await firstRow.click();
 
@@ -70,13 +149,13 @@ test.describe("Hermetic My Work flow", () => {
 
       const queue = page.getByTestId("my-work-queue");
       await expect(queue).toBeVisible();
-      const rows = page.locator('[data-testid^="my-work-row-REEF-"]');
+      const rows = page.locator('[data-testid^="my-work-row-reef-e2e-REEF-"]');
       await expect(rows.first()).toBeVisible();
 
       const geometry = await page.evaluate(() => {
         const rowElements = Array.from(
           document.querySelectorAll<HTMLElement>(
-            '[data-testid^="my-work-row-REEF-"]',
+            '[data-testid^="my-work-row-reef-e2e-REEF-"]',
           ),
         );
         const main = document.querySelector<HTMLElement>("main");

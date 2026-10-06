@@ -41,18 +41,21 @@ async function fetchPlanningCatalog(vault: string): Promise<PlanningCatalog> {
   if (!res.ok) {
     await throwHttpError(res, `Planning fetch returned ${res.status}`);
   }
-  const data = (await res.json()) as unknown;
-  return PlanningCatalogSchema.parse(data);
+  return PlanningCatalogSchema.parse(await res.json());
 }
 
-export function usePlanningCatalog(vault: string) {
-  const hydrated = useHydrated();
-  const result = useQuery({
+export function planningCatalogQueryOptions(vault: string) {
+  return {
     queryKey: planningCatalogKey(vault),
     queryFn: () => fetchPlanningCatalog(vault),
     enabled: vault.length > 0,
     staleTime: 60_000,
-  });
+  };
+}
+
+export function usePlanningCatalog(vault: string) {
+  const hydrated = useHydrated();
+  const result = useQuery(planningCatalogQueryOptions(vault));
 
   // Hydration gate. Like issue lists, planning catalog data can be restored
   // from PersistQueryClientProvider before the first client render while SSR

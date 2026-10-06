@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SchemaValidationError } from "../../../errors";
-import { SqlParameterBuilder, runSql } from "./sql";
+import { crossVaultTableRef, SqlParameterBuilder, runSql } from "./sql";
 import { makeSqlQueryResponse } from "./sqlTestSupport";
 import { makeAdapter, setupFetch, sqlRequestBody } from "./httpTestSupport";
 
@@ -22,6 +22,50 @@ describe("runSql", () => {
       sql: "SELECT 1",
       params: [],
     });
+  });
+
+  it("sends an explicit vault allowlist for cross-vault SQL", async () => {
+    const { calls } = setupFetch([{ body: makeSqlQueryResponse([], []) }]);
+
+    await runSql(
+      makeAdapter(),
+      "reef-e2e",
+      `SELECT * FROM ${crossVaultTableRef("reef-e2e", "reef_issues")}`,
+      [],
+      ["reef-e2e", "reef-zeta"],
+    );
+
+    expect(sqlRequestBody(calls[0])).toEqual({
+      sql: "SELECT * FROM reef_e2e__reef_issues",
+      params: [],
+      vaults: ["reef-e2e", "reef-zeta"],
+    });
+  });
+
+  it("rejects cross-vault aliases that are invalid, duplicated, or ambiguous", async () => {
+    const { calls } = setupFetch([]);
+    const adapter = makeAdapter();
+
+    expect(() => crossVaultTableRef("bad/name", "reef_issues")).toThrow(
+      SchemaValidationError,
+    );
+    await expect(
+      runSql(adapter, "reef-e2e", "SELECT 1", undefined, ["reef-zeta"]),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      runSql(adapter, "reef-e2e", "SELECT 1", undefined, [
+        "reef-e2e",
+        "reef-e2e",
+      ]),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      runSql(adapter, "reef-e2e", "SELECT 1", undefined, [
+        "reef-e2e",
+        "reef_e2e",
+      ]),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+
+    expect(calls).toHaveLength(0);
   });
 
   it("serializes scalar values without putting them in the SQL text", async () => {

@@ -291,6 +291,17 @@ export function runtimeDiscovery(state) {
         secondary_workspace: "reef-zeta",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      my_work_account_scope: {
+        scenario: "my_work_multi",
+        workspace: "reef-e2e",
+        additional_workspaces: ["reef-alpha", "reef-zeta"],
+        start_path: "/workspace/reef-e2e/my-work",
+        interaction: {
+          type: "account_scoped_my_work",
+          operation:
+            "review assigned work across ready workspaces without switching the sidebar workspace, filter only the queue by source workspace, and open the duplicate issue ID from its own workspace",
+        },
+      },
       backlog_bulk_partial_failure: {
         scenario: "backlog_bulk_partial_failure",
         workspace: "reef-e2e",

@@ -113,6 +113,7 @@ export const SUPPORTED_SCENARIOS = [
   "configured_caught_up",
   "updated_at_range",
   "configured_multi",
+  "my_work_multi",
   "assignee_picker",
   "backlog_bulk_partial_failure",
   "demo_board",
@@ -154,6 +155,7 @@ const CONFIGURED_SCENARIOS = new Set([
   "configured_caught_up",
   "updated_at_range",
   "configured_multi",
+  "my_work_multi",
   "assignee_picker",
   "backlog_bulk_partial_failure",
   "notifications",
@@ -221,9 +223,59 @@ export function createScenarioVaults(scenario) {
     }
     vaults.set(REEF_VAULT, vault);
     vaults.set("raw-vault", rawVault("raw-vault"));
-    if (scenario === "configured_multi") {
+    if (scenario === "configured_multi" || scenario === "my_work_multi") {
       vaults.set("reef-zeta", configuredVault("reef-zeta"));
       vaults.set("reef-alpha", configuredVault("reef-alpha"));
+    }
+    if (scenario === "my_work_multi") {
+      for (const workspace of [REEF_VAULT, "reef-alpha", "reef-zeta"]) {
+        const source = vaults.get(workspace);
+        source.issues = source.issues.filter(
+          (issue) => issue.reef_id === "REEF-001",
+        );
+        for (const issue of source.issues) {
+          issue.document_uri = issueDocumentUri(workspace, issue.reef_id);
+        }
+      }
+      const primary = vaults.get(REEF_VAULT);
+      const sprintId = primary.sprints[0]?.id ?? null;
+      const excludedIssues = [
+        issueRow({
+          id: "REEF-901",
+          title: "Assigned to another actor",
+          status: "todo",
+          assigned_to: "bob",
+        }),
+        issueRow({
+          id: "REEF-902",
+          title: "Resolved as done",
+          status: "done",
+          assigned_to: "alice",
+          sprint_id: sprintId,
+        }),
+        issueRow({
+          id: "REEF-903",
+          title: "Resolved as closed",
+          status: "closed",
+          assigned_to: "alice",
+          sprint_id: sprintId,
+        }),
+        issueRow({
+          id: "REEF-904",
+          title: "Archived open issue",
+          status: "todo",
+          assigned_to: "alice",
+          archived_at: NOW,
+        }),
+      ];
+      for (const issue of excludedIssues) {
+        issue.document_uri = issueDocumentUri(REEF_VAULT, issue.reef_id);
+        primary.issues.push(issue);
+      }
+      seedIssueDocument(primary, "REEF-901", "Other actor fixture.");
+      seedIssueDocument(primary, "REEF-902", "Done fixture.");
+      seedIssueDocument(primary, "REEF-903", "Closed fixture.");
+      seedIssueDocument(primary, "REEF-904", "Archived fixture.");
     }
   } else if (scenario === "markdown_fixture") {
     vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));

@@ -54,13 +54,12 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
 }
 
 /**
- * Sidebar-footer workspace row + switcher (REEF-146). Sits directly above the
- * account (person) row and answers "which workspace am I in, and how do I
- * switch or add one" without a trip back to full-screen onboarding.
+ * Workspace-group selector (REEF-146). It answers "which workspace am I in,
+ * and how do I switch or add one" without a trip back to full-screen
+ * onboarding.
  *
- *  - Expanded: the workspace monogram + the active vault name. (No left brand
- *    rail — the active-page rail is a nav signal; the footer identity rows
- *    stay symmetric with the account row below, REEF-168.)
+ *  - Expanded: the workspace monogram + the active vault name. (No active-page
+ *    rail: that marker belongs to route links; the account stays in the footer.)
  *  - Collapsed (w-14): the monogram just, with the vault name in `title`.
  *  - Click: an upward popover listing the user's active Reef workspaces (with
  *    search), the current one marked with ✓ + a brand rail; picking another
@@ -224,7 +223,7 @@ export function SidebarWorkspace({
 
   return (
     <div
-      className={cn("border-t border-border-subtle p-2", collapsed && "px-1.5")}
+      className={cn("px-2 py-1", collapsed && "px-1.5")}
       data-testid="sidebar-workspace"
     >
       <Popover open={open} onOpenChange={setOpen} className="w-full">
