@@ -64,7 +64,7 @@ export function WorkspaceAccessDenied({
         <ReefMark className="size-10" decorative />
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-display text-lg font-semibold text-foreground">
-            {t("title")}
+            {t(hasInstallationState ? "entry.title" : "title")}
           </h1>
           {body && <p className="text-sm text-muted-foreground">{body}</p>}
         </div>

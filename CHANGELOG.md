@@ -47,6 +47,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Unavailable workspace entries no longer imply an access denial.** Their
+  heading now describes availability in English and Korean, while genuine
+  access denials keep their existing guidance. (REEF-422)
 - **Onboarding keeps its creation form after an empty workspace response or a
   successful list retry.** Workspace resume checks no longer restart when the
   create panel mounts. (REEF-422)

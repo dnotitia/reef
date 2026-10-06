@@ -200,6 +200,7 @@
       "empty": "You don't have any reef workspaces yet.",
       "onboardingCta": "Set up a workspace",
       "entry": {
+        "title": "This workspace is unavailable.",
         "impact": "This workspace can't be used right now.",
         "nextAction": {
           "manager": "Check the workspace status again, or open its settings to review setup details.",

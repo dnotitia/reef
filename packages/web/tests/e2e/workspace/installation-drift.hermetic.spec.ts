@@ -329,7 +329,7 @@ test.describe("installation drift and readiness guidance", () => {
     await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
     await expect(
       page.getByRole("heading", {
-        name: "You don't have access to this workspace",
+        name: "This workspace is unavailable.",
       }),
     ).toBeVisible();
     await expect(
@@ -532,7 +532,7 @@ test.describe("installation drift and readiness guidance", () => {
             ).toBeVisible();
             await expect(
               page.getByRole("heading", {
-                name: /You don't have access to this workspace|이 워크스페이스에 접근할 수 없습니다/,
+                name: /This workspace is unavailable\.|지금 이 워크스페이스를 이용할 수 없습니다/,
               }),
             ).toBeVisible();
             const accessCard = page.getByTestId(
@@ -578,7 +578,7 @@ test.describe("installation drift and readiness guidance", () => {
               accessCard.getByTestId("installation-blocked-guidance"),
             ).toHaveCount(0);
             const accessHeading = page.getByRole("heading", {
-              name: /You don't have access to this workspace|이 워크스페이스에 접근할 수 없습니다/,
+              name: /This workspace is unavailable\.|지금 이 워크스페이스를 이용할 수 없습니다/,
             });
             const headingBounds = await accessHeading.boundingBox();
             expect(headingBounds?.y).toBeGreaterThanOrEqual(0);

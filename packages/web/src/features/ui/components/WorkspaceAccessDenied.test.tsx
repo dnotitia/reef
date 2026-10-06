@@ -44,6 +44,7 @@ function renderDenied(
     role?: string;
     installationStatus?: EnrichedVaultSummary["installation_status"];
     onCheckStatus?: () => Promise<void>;
+    locale?: "en" | "ko";
   } = {},
 ) {
   const queryClient = new QueryClient({
@@ -51,7 +52,7 @@ function renderDenied(
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <IntlTestProvider>
+      <IntlTestProvider locale={options.locale}>
         <WorkspaceAccessDenied
           appVersion="0.10.0"
           vault={denied}
@@ -109,6 +110,65 @@ describe("WorkspaceAccessDenied", () => {
     ).toBeNull();
   });
 
+  it.each([
+    { role: "owner", installationStatus: "blocked" },
+    { role: "owner", installationStatus: "uninstalled" },
+    { role: "reader", installationStatus: "blocked" },
+    { role: "reader", installationStatus: "uninstalled" },
+  ] as const)(
+    "announces availability for a $role workspace with $installationStatus status",
+    ({ role, installationStatus }) => {
+      renderDenied([], "reef-target", { role, installationStatus });
+
+      expect(
+        screen.getByRole("heading", { name: "This workspace is unavailable." }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("heading", {
+          name: "You don't have access to this workspace",
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it("uses the Korean availability heading for an unavailable workspace", () => {
+    renderDenied([], "reef-target", {
+      role: "owner",
+      installationStatus: "uninstalled",
+      locale: "ko",
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        name: "지금 이 워크스페이스를 이용할 수 없습니다",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", {
+        name: "이 워크스페이스에 접근할 수 없습니다",
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps the access-denied title and body when installation state is absent", () => {
+    renderDenied([], "reef-target");
+
+    expect(
+      screen.getByRole("heading", {
+        name: "You don't have access to this workspace",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'You\'re not a member of "reef-target", or it no longer exists. Open one of your workspaces instead.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByTestId("access-denied-onboarding")).toHaveAttribute(
+      "href",
+      "/onboarding",
+    );
+  });
+
   it("keeps the authenticated account menu available", () => {
     renderDenied([vault("reef-acme", true)]);
 
@@ -125,7 +185,7 @@ describe("WorkspaceAccessDenied", () => {
     expect(status).toHaveAttribute("data-status", "management_required");
     expect(
       screen.getByRole("heading", {
-        name: "You don't have access to this workspace",
+        name: "This workspace is unavailable.",
       }),
     ).toBeVisible();
     expect(status).toHaveTextContent("This workspace can't be used right now.");
@@ -222,7 +282,7 @@ describe("WorkspaceAccessDenied", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "You don't have access to this workspace",
+        name: "This workspace is unavailable.",
       }),
     ).toBeVisible();
     expect(
