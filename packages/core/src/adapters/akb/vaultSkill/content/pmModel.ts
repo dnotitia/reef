@@ -14,6 +14,7 @@ This vault, ${vault}, stores Reef PM work as AKB documents plus AKB tables.
 - reef_templates: issue templates.
 - reef_comments: per-issue discussion thread (one row per comment).
 - reef_activity: per-issue immutable activity/audit log (one row per recorded change).
+- reef_subscriptions: per-issue subscriber sources (manual, requester, assignee, or commenter).
 
 ## Querying Reef tables with akb_sql
 
@@ -54,6 +55,19 @@ reef_activity is an issue's immutable, append-only audit history, one row per re
 - meta (json): {actor, at, source}. actor is the reef-semantic actor who caused the event; at is the ISO-8601 event time and sort key; source is the trigger provenance or null. As with reef_comments, these live in meta, not akb's auto columns.
 
 Append-only: rows are written only as a side effect of a lifecycle change (see issue-workflows.md) and are never updated or deleted. See comments-and-activity.md to read the timeline.
+
+## reef_subscriptions columns
+
+reef_subscriptions has one row per issue, subscriber, and source. Columns:
+
+- subscription_key: the unique source identity, built as \`subscription:<reef_id length>:<reef_id>:<subscriber length>:<subscriber>:<source length>:<source>\` (for example \`subscription:8:REEF-001:3:bob:8:assignee\`).
+- reef_id and subscriber: the issue id and exact-case AKB username.
+- source: one of manual, requester, assignee, or commenter. Automatic lifecycle writes own only requester, assignee, and commenter rows; manual watch/mute owns only manual rows.
+- status: active or muted. Effective state is muted if any source is muted, watching if at least one source is active, and unwatched otherwise. Never rewrite or remove a manual row while syncing an automatic source.
+- subscribed_at: the ISO-8601 UTC time the row was created.
+- meta: optional source metadata; ordinary Reef writes leave it null.
+
+Use the \`ON CONFLICT (subscription_key)\` key to reapply an automatic source idempotently. Remove a departed requester or assignee by matching \`reef_id\`, \`subscriber\`, and that exact source; do not delete the subscriber's other sources.
 
 ## Identifiers and paths
 

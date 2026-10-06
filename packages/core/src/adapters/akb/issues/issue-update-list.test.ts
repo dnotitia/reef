@@ -309,15 +309,15 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (assignee=alice, priority=high)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
-      { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee_change
-      { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority_change
       { body: makeSqlQueryResponse([{ id: "removed" }], ["id"]) }, // remove old assignee source
       {
         body: makeSqlQueryResponse(
           [subscriptionRow("REEF-001", "bob", "assignee")],
           ["id"],
         ),
-      },
+      }, // upsert current assignee source before activity
+      { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee_change
+      { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority_change
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),
@@ -334,7 +334,7 @@ describe("updateIssue", () => {
     expect(result.issue.assigned_to).toBe("bob");
     expect(calls).toHaveLength(7);
 
-    const assigneeBody = sqlRequestBody(calls[3]);
+    const assigneeBody = sqlRequestBody(calls[5]);
     expect(assigneeBody.sql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(assigneeBody.params).toEqual(
       expect.arrayContaining([
@@ -349,7 +349,7 @@ describe("updateIssue", () => {
       ]),
     );
 
-    const priorityBody = sqlRequestBody(calls[4]);
+    const priorityBody = sqlRequestBody(calls[6]);
     expect(priorityBody.params).toEqual(
       expect.arrayContaining([
         "priority_change",
@@ -403,14 +403,14 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
-      { status: 500, body: { detail: "activity append failed" } },
       { body: makeSqlQueryResponse([{ id: "removed" }], ["id"]) },
       {
         body: makeSqlQueryResponse(
           [subscriptionRow("REEF-001", "bob", "assignee")],
           ["id"],
         ),
-      },
+      }, // upsert current assignee source before activity
+      { status: 500, body: { detail: "activity append failed" } },
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),

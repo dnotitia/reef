@@ -4,7 +4,6 @@ metadata:
   name: reef-event-processor-config
 data:
   AKB_BACKEND_URL: "http://akb-backend.akb.svc.cluster.local:8000"
-  REEF_EVENT_PROCESSOR_VAULT: "reef-test"
   REEF_EVENT_PROCESSOR_HOST: "0.0.0.0"
   REEF_EVENT_PROCESSOR_PORT: "9090"
   REEF_EVENT_PROCESSOR_RECONNECT_DELAY_MS: "1000"

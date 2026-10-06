@@ -211,6 +211,11 @@ export {
   type ControlPlaneTokenSource,
 } from "./controlPlane/installationReader";
 export {
+  createAkbAppInstallationInventoryReader,
+  type AkbAppInstallationInventoryReader,
+  type AkbAppInstallationInventoryReaderConfig,
+} from "./controlPlane/installationInventoryReader";
+export {
   readMemberInstallationActive,
   readInstallation,
   requestInstallation,

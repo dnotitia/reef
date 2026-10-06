@@ -192,9 +192,12 @@ explicitly in the entries below.
 ### Migration
 
 - Deploy the Event Processor alongside the web application with
-  `AKB_BACKEND_URL`, `REEF_EVENT_PROCESSOR_VAULT`, and the secret
-  `REEF_EVENT_PROCESSOR_AKB_TOKEN`. AKB must provide the Change Event stream
-  and source reconciliation APIs; cluster deployment additionally requires the
+  `AKB_BACKEND_URL`, the secret `REEF_EVENT_PROCESSOR_AKB_TOKEN`, and the
+  registered Reef app's `REEF_EVENT_PROCESSOR_APP_CREDENTIAL`. The processor
+  now discovers every active app installation dynamically; remove the obsolete
+  `REEF_EVENT_PROCESSOR_VAULT` setting. AKB must provide the Change Event
+  stream, source reconciliation APIs, and app-scoped inventory with the existing
+  `inventory:read` capability. Cluster deployment additionally requires the
   App Registry and rollout APIs plus an operator-only
   `REEF_CONTROL_PLANE_TOKEN`.
 - Refresh existing vault-skill/runbook documents through Settings to install the

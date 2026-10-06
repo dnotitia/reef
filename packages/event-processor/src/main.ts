@@ -1,7 +1,7 @@
-import { AuthError, EventTailError } from "@reef/core";
+import { AuthError, ControlPlaneError, EventTailError } from "@reef/core";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createEventProcessor } from "./index.js";
+import { createEventProcessorFleet } from "./index.js";
 import {
   parseEventProcessorConfig,
   type EventProcessorConfig,
@@ -31,7 +31,7 @@ function writeLog(
   );
 }
 
-function errorFields(error: unknown): Record<string, string | number> {
+export function errorFields(error: unknown): Record<string, string | number> {
   if (error instanceof EventTailError) {
     return {
       error_name: error.name,
@@ -40,7 +40,25 @@ function errorFields(error: unknown): Record<string, string | number> {
     };
   }
   if (error instanceof AuthError) {
-    return { error_name: error.name };
+    const { origin, status } = error.context;
+    return {
+      error_name: error.name,
+      ...(origin ? { error_origin: origin } : {}),
+      ...(typeof status === "number" &&
+      Number.isInteger(status) &&
+      status >= 100 &&
+      status <= 599
+        ? { upstream_status: status }
+        : {}),
+    };
+  }
+  if (error instanceof ControlPlaneError) {
+    return {
+      error_name: error.name,
+      error_category: error.category,
+      upstream_status: error.upstreamStatus,
+      ...(error.upstreamCode ? { error_code: error.upstreamCode } : {}),
+    };
   }
   return {
     error_name: error instanceof Error ? error.name : "UnknownError",
@@ -95,38 +113,103 @@ export async function main(): Promise<number> {
   }
 
   const controller = new AbortController();
-  let recoveryLogged = false;
-  const processor = createEventProcessor({
+  const processor = createEventProcessorFleet({
     baseUrl: config.baseUrl,
     credential: config.credential,
-    vault: config.vault,
+    appCredential: config.appCredential,
     reconnectDelayMs: config.reconnectDelayMs,
     reconciliationIntervalMs: config.reconciliationIntervalMs,
     requestPolicy: {
       timeoutMs: REQUEST_TIMEOUT_MS,
       maxJsonResponseBytes: MAX_JSON_RESPONSE_BYTES,
     },
-    onReady: () => {
-      health.markReady();
-      writeLog("info", "processor_ready");
-    },
-    onTailState: (state) => {
-      health.markTailState(state);
-      if (state === "connected") writeLog("info", "event_tail_connected");
-      if (state === "disconnected") writeLog("warn", "event_tail_disconnected");
-    },
-    onRecoveryChange: (recovering) => {
-      health.markRecoveryChange(recovering);
-      if (recovering && !recoveryLogged) {
-        recoveryLogged = true;
-        writeLog("warn", "event_gap_recovery_started");
-      } else if (!recovering && recoveryLogged) {
-        recoveryLogged = false;
-        writeLog("info", "event_gap_recovery_completed");
+    onInventoryRefresh: (outcome, count, error) => {
+      health.markInventoryRefresh(outcome);
+      if (outcome === "success") {
+        writeLog("info", "installation_inventory_refreshed", {
+          installation_count: count ?? 0,
+        });
+      } else {
+        writeLog("warn", "installation_inventory_refresh_failed", {
+          ...errorFields(error),
+        });
       }
     },
-    onReconciliation: (outcome) => health.recordReconciliation(outcome),
-    onError: (error) => writeLog("warn", "processor_retry", errorFields(error)),
+    onInstallationAdded: (installation) => {
+      health.registerInstallation(
+        installation.installationId,
+        installation.vaultId,
+      );
+      writeLog("info", "installation_processor_started", {
+        installation_id: installation.installationId,
+        vault_id: installation.vaultId,
+        vault_name: installation.vaultName,
+      });
+    },
+    onInstallationRemoved: (installation) => {
+      health.markInstallationRemoved(installation.installationId);
+      writeLog("info", "installation_processor_removed", {
+        installation_id: installation.installationId,
+        vault_id: installation.vaultId,
+        vault_name: installation.vaultName,
+      });
+    },
+    onInstallationReady: (installation) => {
+      health.markInstallationReady(installation.installationId);
+      writeLog("info", "installation_processor_ready", {
+        installation_id: installation.installationId,
+        vault_id: installation.vaultId,
+        vault_name: installation.vaultName,
+      });
+    },
+    onInstallationTailState: (installation, state) => {
+      health.markInstallationTailState(installation.installationId, state);
+      if (state === "connected") {
+        writeLog("info", "event_tail_connected", {
+          installation_id: installation.installationId,
+          vault_id: installation.vaultId,
+        });
+      }
+      if (state === "disconnected") {
+        writeLog("warn", "event_tail_disconnected", {
+          installation_id: installation.installationId,
+          vault_id: installation.vaultId,
+        });
+      }
+    },
+    onInstallationRecoveryChange: (installation, recovering) => {
+      health.markInstallationRecoveryChange(
+        installation.installationId,
+        recovering,
+      );
+      writeLog(
+        recovering ? "warn" : "info",
+        `event_gap_recovery_${recovering ? "started" : "completed"}`,
+        {
+          installation_id: installation.installationId,
+          vault_id: installation.vaultId,
+        },
+      );
+    },
+    onInstallationReconciliation: (installation, outcome) =>
+      health.recordInstallationReconciliation(
+        installation.installationId,
+        outcome,
+      ),
+    onInstallationFailure: (installation, error) => {
+      health.markInstallationFailed(installation.installationId);
+      writeLog("warn", "installation_processor_failed", {
+        installation_id: installation.installationId,
+        vault_id: installation.vaultId,
+        ...errorFields(error),
+      });
+    },
+    onInstallationError: (installation, error) =>
+      writeLog("warn", "processor_retry", {
+        installation_id: installation.installationId,
+        vault_id: installation.vaultId,
+        ...errorFields(error),
+      }),
   });
 
   const running: Promise<RunOutcome> = processor.run(controller.signal).then(

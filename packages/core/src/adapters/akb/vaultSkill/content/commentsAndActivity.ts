@@ -75,11 +75,25 @@ Resilience matches the activity read: a vault with no reef_comments table reads 
 
    If RETURNING yields no row, the issue does not exist; do not insert an orphan.
 
+After the comment INSERT returns a row, immediately upsert the author's active commenter source for this issue. This lets later issue activity reach a person who has commented, even when the comment was written through generic AKB MCP tools. Do the same after a reply; a comment edit does not add or refresh a commenter source. Use the source-specific key, never the manual key:
+
+INSERT INTO reef_subscriptions
+  (subscription_key, reef_id, subscriber, source, status, subscribed_at, meta)
+VALUES
+  ('subscription:8:REEF-001:5:alice:9:commenter', 'REEF-001', 'alice', 'commenter', 'active',
+   to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), NULL)
+ON CONFLICT (subscription_key) DO UPDATE SET status = 'active'
+RETURNING subscription_key;
+
+Replace the example issue id and username with the inserted comment's issue and author, and build the key using the exact segment lengths described in pm-model.md. Do not add a row if the guarded comment insert returned no row. Read back the expected subscription_key and active status. If the upsert errors or the read-back disagrees, retry only that same idempotent upsert once and read again; if it still disagrees, stop and report the partial write. The comment remains created, and the automatic commenter source does not override or modify an explicit manual mute.
+
 ## Reply to a comment
 
 Use the clicked target comment's AKB uuid as parent_comment_id. Do not accept author or thread_root_id from an untrusted client. Resolve the actor as above and calculate the root from persisted rows. Parent/root validation and the INSERT MUST be one conditional statement with RETURNING so a parent cannot change between validation and write.
 
 The conditional statement must enforce all of these before it inserts: the issue exists; the direct parent belongs to the same reef_id; a top-level parent becomes the root; a reply parent contributes its stored thread_root_id; the root belongs to the same issue and has both thread fields null; and a reply parent's own parent belongs to the same verified root. Store the direct parent plus the computed root in meta. If RETURNING yields no row, report the same parent-not-found error for missing, cross-issue, and malformed chains so another issue's discussion is not disclosed.
+
+After a reply INSERT returns a row, upsert the replying actor's active commenter source as shown under "Write a comment". Do not add it before the guarded INSERT succeeds.
 
 The Reef product's core create path implements this as target_issue, direct_parent, reply_target, valid_reply, and INSERT ... SELECT ... RETURNING CTEs. Trusted importers use that same path after mapping a source parent id to a target Reef comment uuid. Jira Cloud's public client comment contract does not make parentId a trusted Reef request field; never let a browser supply thread_root_id.
 
