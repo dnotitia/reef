@@ -17,9 +17,8 @@ interface OnboardingClientProps {
 }
 
 /**
- * `OnboardingClient` is a thin Client Component shell: it runs the shared
- * auth gate in `onboarding` mode (session) and renders the panel.
- * The panel handles its own loading/error states for vault and repo data.
+ * `OnboardingClient` owns the shared auth and workspace-resume state, then
+ * passes that state to the create-only panel.
  */
 export function OnboardingClient({
   appVersion,
@@ -27,8 +26,11 @@ export function OnboardingClient({
 }: OnboardingClientProps) {
   const authStatus = useAuthRedirect("onboarding");
   const establishedAuthSession = hasEstablishedAuthSession();
+  const shouldResume =
+    authStatus === "active" ||
+    (authStatus === "unavailable" && establishedAuthSession);
   const resume = useWorkspaceAutoResume({
-    enabled: authStatus === "active",
+    enabled: shouldResume,
   });
 
   if (authStatus === "unavailable" && !establishedAuthSession) {
@@ -68,9 +70,7 @@ export function OnboardingClient({
         >
           <AccountMenu appVersion={appVersion} placement="utility" />
         </div>
-        <OnboardingPanel
-          resumeState={authStatus === "active" ? resume : undefined}
-        />
+        <OnboardingPanel resumeState={resume} />
       </main>
     </>
   );

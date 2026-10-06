@@ -1,6 +1,8 @@
 "use client";
 
 import { ReefMark } from "@/components/ui/reef-mark";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { AccountMenu } from "@/features/auth/components/AccountMenu";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
@@ -10,6 +12,7 @@ import type {
 } from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useState } from "react";
 
 interface WorkspaceAccessDeniedProps {
   /** The running Reef version shown by the shared account menu. */
@@ -19,6 +22,8 @@ interface WorkspaceAccessDeniedProps {
   /** The vaults the user CAN access, from `useVaults()`. */
   vaults: EnrichedVaultSummary[];
   installationStatus?: WorkspaceInstallationStatus;
+  role?: string | null;
+  onCheckStatus: () => Promise<void>;
 }
 
 /**
@@ -35,18 +40,18 @@ export function WorkspaceAccessDenied({
   vault,
   vaults,
   installationStatus,
+  role,
+  onCheckStatus,
 }: WorkspaceAccessDeniedProps) {
   const t = useTranslations("workspace.accessDenied");
   const reefVaults = vaults.filter((v) => v.installation_status === "ready");
+  const canManage = role === "owner" || role === "admin";
   const hasInstallationState = installationStatus !== undefined;
-  const title = hasInstallationState ? t("installationTitle") : t("title");
-  const body = hasInstallationState
-    ? t(`installation.${installationStatus}`)
-    : t("body", { vault });
+  const body = hasInstallationState ? null : t("body", { vault });
 
   return (
     <div
-      className="relative flex h-screen flex-col items-center justify-center bg-surface-page px-6"
+      className="relative flex min-h-screen flex-col items-center justify-center bg-surface-page px-6 py-16"
       data-testid="workspace-access-denied"
     >
       <div
@@ -55,14 +60,24 @@ export function WorkspaceAccessDenied({
       >
         <AccountMenu appVersion={appVersion} placement="utility" />
       </div>
-      <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
+      <div className="flex w-full max-w-md flex-col items-center gap-6">
         <ReefMark className="size-10" decorative />
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-display text-lg font-semibold text-foreground">
-            {title}
+            {t(hasInstallationState ? "entry.title" : "title")}
           </h1>
-          <p className="text-sm text-muted-foreground">{body}</p>
+          {body && <p className="text-sm text-muted-foreground">{body}</p>}
         </div>
+
+        {installationStatus !== undefined && (
+          <WorkspaceAvailability
+            key={`${vault}:${installationStatus}:${canManage ? "manager" : "member"}`}
+            vault={vault}
+            initialStatus={installationStatus}
+            canManage={canManage}
+            onCheckStatus={onCheckStatus}
+          />
+        )}
 
         {reefVaults.length > 0 ? (
           <nav
@@ -85,8 +100,8 @@ export function WorkspaceAccessDenied({
               </Link>
             ))}
           </nav>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
+        ) : hasInstallationState ? null : (
+          <div className="flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-muted-foreground">{t("empty")}</p>
             <Link
               href="/onboarding"
@@ -99,5 +114,109 @@ export function WorkspaceAccessDenied({
         )}
       </div>
     </div>
+  );
+}
+
+function WorkspaceAvailability({
+  vault,
+  initialStatus,
+  canManage,
+  onCheckStatus,
+}: {
+  vault: string;
+  initialStatus: WorkspaceInstallationStatus;
+  canManage: boolean;
+  onCheckStatus: () => Promise<void>;
+}) {
+  const t = useTranslations("workspaceInstallation");
+  const entryT = useTranslations("workspace.accessDenied.entry");
+  const visibleStatus =
+    !canManage && initialStatus !== "ready"
+      ? "management_required"
+      : initialStatus;
+  const entryRole = canManage ? "manager" : "member";
+  const [checking, setChecking] = useState(false);
+  const [checkFailed, setCheckFailed] = useState(false);
+
+  const checkCurrentStatus = async () => {
+    if (checking) return;
+    setChecking(true);
+    setCheckFailed(false);
+    try {
+      await onCheckStatus();
+    } catch {
+      setCheckFailed(true);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <article
+      className="flex w-full flex-col gap-3 rounded-md border border-border-subtle bg-surface-subtle/40 px-4 py-3 text-left"
+      data-testid={`workspace-installation-${vault}`}
+      data-status={visibleStatus}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 className="type-control font-medium text-foreground">{vault}</h2>
+        <span className="type-caption text-muted-foreground">
+          {t(`status.${visibleStatus}`)}
+        </span>
+      </div>
+      <dl className="grid w-full grid-cols-1 gap-y-2 type-body">
+        <div>
+          <dt className="type-body font-semibold text-foreground">
+            {t("label.impact")}
+          </dt>
+          <dd className="mt-1 text-muted-foreground">{entryT("impact")}</dd>
+        </div>
+        <div>
+          <dt className="type-body font-semibold text-foreground">
+            {t("label.nextAction")}
+          </dt>
+          <dd className="mt-1 text-muted-foreground">
+            {entryT(`nextAction.${entryRole}`)}
+          </dd>
+        </div>
+        <div>
+          <dt className="type-body font-semibold text-foreground">
+            {t("label.responsible")}
+          </dt>
+          <dd className="mt-1 text-muted-foreground">
+            {entryT(`responsible.${entryRole}`)}
+          </dd>
+        </div>
+      </dl>
+      {checkFailed && (
+        <p className="type-caption text-destructive-text" role="alert">
+          {t("statusFailed")}
+        </p>
+      )}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={checking}
+        onClick={() => void checkCurrentStatus()}
+      >
+        {checking ? (
+          <>
+            <Spinner aria-hidden="true" />
+            {t("activity.checking")}
+          </>
+        ) : (
+          t("button.checkStatus")
+        )}
+      </Button>
+      {canManage && (
+        <Link
+          href={withVault(vault, "/settings/workspace")}
+          data-testid={`installation-diagnostics-link-${vault}`}
+          className="type-small-button text-foreground underline decoration-border underline-offset-4 hover:text-brand-text"
+        >
+          {t("button.openDiagnostics")}
+        </Link>
+      )}
+    </article>
   );
 }

@@ -1,3 +1,5 @@
+import type { ControlPlaneBlockedReason } from "../schemas/controlPlane";
+
 // ─── Abstract Base ─────────────────────────────────────────────────────────────
 
 /**
@@ -65,6 +67,27 @@ export const ERROR_MESSAGES_EN = {
     unknown: "An unexpected app service error occurred.",
   },
   workspaceReadiness: {
+    installationRequired:
+      "This workspace needs a Reef installation. A Vault owner or admin can approve a new installation or restore retained data.",
+    installationInProgress:
+      "AKB is installing Reef in this workspace. Check the installation status again shortly.",
+    upgradeInProgress:
+      "AKB is updating Reef in this workspace. Check the installation status again shortly.",
+    installationBlocked:
+      "AKB has blocked this installation ({reason}). An operator must inspect the current installation and recovery checks; this reason alone does not guarantee recovery.",
+    adoptionRequired:
+      "Existing Reef data needs an AKB operator's adoption review before this workspace can be used.",
+    managementRequired:
+      "Reef is not ready in this workspace. Ask a Vault owner or admin to inspect setup and finish initialization.",
+    installationStatusUnavailable:
+      "Reef could not confirm installation status. Retry the check or ask an operator to verify the deployment configuration.",
+    blockedReasons: {
+      worker_timeout: "worker timed out",
+      step_failed: "an installation step failed",
+      fixture_blocked: "a required installation condition is blocked",
+      checksum_mismatch: "the registered checksum did not match",
+      unknown: "reason unavailable",
+    },
     ownerActionRequired:
       "This workspace is not ready. Ask a workspace administrator to check its setup.",
     requiredTablesMissing:
@@ -186,6 +209,10 @@ export type AkbResourceLabel =
 export interface ErrorDescriptor {
   code: ErrorCode;
   status: number;
+  /** Optional public machine code for a bounded workspace readiness failure. */
+  machineCode?: WorkspaceReadinessMachineCode;
+  /** Canonical blocked reason; web localizes it through the shared catalog. */
+  blockedReason?: ControlPlaneBlockedReason;
   /** ICU interpolation values for `{resource}` / `{field}` placeholder codes. */
   params?: Record<string, string>;
   /** Caller-controlled validation strings safe to surface (clientValidated). */
@@ -452,6 +479,13 @@ export class ControlPlaneError extends ReefError {
 }
 
 export type WorkspaceReadinessFailure =
+  | "installation_required"
+  | "installation_in_progress"
+  | "upgrade_in_progress"
+  | "installation_blocked"
+  | "adoption_required"
+  | "management_required"
+  | "installation_status_unavailable"
   | "owner_action_required"
   | "required_tables_missing"
   | "required_tables_mismatch"
@@ -460,15 +494,31 @@ export type WorkspaceReadinessFailure =
   | "required_tables_transport"
   | "required_tables_invalid_response";
 
+export type WorkspaceReadinessMachineCode =
+  | "installation_required"
+  | "upgrade_required"
+  | "installation_blocked"
+  | "adoption_required"
+  | "management_required"
+  | "installation_status_unavailable";
+
 export interface WorkspaceReadinessErrorContext {
   reason: WorkspaceReadinessFailure;
   status: number;
+  blockedReason?: ControlPlaneBlockedReason;
 }
 
 const WORKSPACE_READINESS_ERROR_CODES: Record<
   WorkspaceReadinessFailure,
   keyof typeof ERROR_MESSAGES_EN.workspaceReadiness
 > = {
+  installation_required: "installationRequired",
+  installation_in_progress: "installationInProgress",
+  upgrade_in_progress: "upgradeInProgress",
+  installation_blocked: "installationBlocked",
+  adoption_required: "adoptionRequired",
+  management_required: "managementRequired",
+  installation_status_unavailable: "installationStatusUnavailable",
   owner_action_required: "ownerActionRequired",
   required_tables_missing: "requiredTablesMissing",
   required_tables_mismatch: "requiredTablesMismatch",
@@ -478,22 +528,52 @@ const WORKSPACE_READINESS_ERROR_CODES: Record<
   required_tables_invalid_response: "requiredTablesInvalidResponse",
 };
 
+const WORKSPACE_READINESS_MACHINE_CODES: Partial<
+  Record<WorkspaceReadinessFailure, WorkspaceReadinessMachineCode>
+> = {
+  installation_required: "installation_required",
+  installation_in_progress: "installation_required",
+  upgrade_in_progress: "upgrade_required",
+  installation_blocked: "installation_blocked",
+  adoption_required: "adoption_required",
+  management_required: "management_required",
+  installation_status_unavailable: "installation_status_unavailable",
+};
+
+const BLOCKED_REASON_MESSAGES_EN: Record<ControlPlaneBlockedReason, string> = {
+  worker_timeout: "worker timed out",
+  step_failed: "an installation step failed",
+  fixture_blocked: "a required installation condition is blocked",
+  checksum_mismatch: "the registered checksum did not match",
+};
+
 /** Safe, bounded failure from the read-only workspace readiness check. */
 export class WorkspaceReadinessError extends ReefError {
   readonly context: WorkspaceReadinessErrorContext;
   readonly reason: WorkspaceReadinessFailure;
   readonly status: number;
+  readonly blockedReason?: ControlPlaneBlockedReason;
+  readonly machineCode?: WorkspaceReadinessMachineCode;
 
   constructor(context: WorkspaceReadinessErrorContext) {
     super(
       resolveEnMessage(
         `workspaceReadiness.${WORKSPACE_READINESS_ERROR_CODES[context.reason]}`,
+        context.reason === "installation_blocked"
+          ? {
+              reason: context.blockedReason
+                ? BLOCKED_REASON_MESSAGES_EN[context.blockedReason]
+                : "reason unavailable",
+            }
+          : undefined,
       ),
     );
     this.name = "WorkspaceReadinessError";
     this.context = context;
     this.reason = context.reason;
     this.status = context.status;
+    this.blockedReason = context.blockedReason;
+    this.machineCode = WORKSPACE_READINESS_MACHINE_CODES[context.reason];
   }
 
   toUserMessage(): string {
@@ -688,6 +768,8 @@ export function describeError(err: unknown): ErrorDescriptor {
     return {
       code: `workspaceReadiness.${WORKSPACE_READINESS_ERROR_CODES[err.reason]}`,
       status: err.status,
+      ...(err.machineCode ? { machineCode: err.machineCode } : {}),
+      ...(err.blockedReason ? { blockedReason: err.blockedReason } : {}),
     };
   }
   if (err instanceof AuthError) return authErrorCode(err.context);

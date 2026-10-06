@@ -47,6 +47,8 @@ const VAULT_ID = "22222222-2222-4222-8222-222222222222";
 const INSTALLATION_ID = "33333333-3333-4333-8333-333333333333";
 const RELEASE_ID = "44444444-4444-4444-8444-444444444444";
 const SECRET = "private-control-plane-marker";
+const AKB_INSTALLATION_CONSUMER_REVISION =
+  "cf21b9e7f2f99a0d88527fccddbcab2d276d44da";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -97,20 +99,50 @@ function installationFixture(
     checkpoint: { marker: SECRET },
     recent_error: { detail: SECRET },
     drift: {
-      release: { status: "mismatch", expected: SECRET, actual: "1.0.0" },
-      schema: { status: "in_sync", expected: SECRET, actual: SECRET },
-      grant: { status: "unknown", expected: SECRET, actual: SECRET },
+      release: {
+        status: "mismatch",
+        desired: { id: RELEASE_ID, version: "2.0.0" },
+        observed: { id: RELEASE_ID, version: "1.0.0" },
+        actual: SECRET,
+      },
+      schema: {
+        status: "in_sync",
+        expected: "schema-target",
+        observed: "schema-1",
+        actual: SECRET,
+      },
+      grant: {
+        status: "unknown",
+        desired_generation: 3,
+        observed_generation: null,
+        actual: SECRET,
+      },
       overall: "drifted",
-      reasons: ["release_mismatch"],
-      unknown_dimensions: ["grant"],
+      reasons: ["release_mismatch", SECRET],
+      unknown_dimensions: ["grant", SECRET],
     },
     drift_classification: {
-      release: { status: "mismatch", expected: SECRET, actual: SECRET },
-      schema: { status: "in_sync", expected: SECRET, actual: SECRET },
-      grant: { status: "unknown", expected: SECRET, actual: SECRET },
+      release: {
+        status: "mismatch",
+        desired: { id: RELEASE_ID, version: "2.0.0" },
+        observed: { id: RELEASE_ID, version: "1.0.0" },
+        actual: SECRET,
+      },
+      schema: {
+        status: "in_sync",
+        expected: "schema-target",
+        observed: "schema-1",
+        actual: SECRET,
+      },
+      grant: {
+        status: "unknown",
+        desired_generation: 3,
+        observed_generation: null,
+        actual: SECRET,
+      },
       overall: "drifted",
-      reasons: ["release_mismatch"],
-      unknown_dimensions: ["grant"],
+      reasons: ["release_mismatch", SECRET],
+      unknown_dimensions: ["grant", SECRET],
     },
     created_at: "2026-08-14T09:00:00.000Z",
     updated_at: "2026-08-14T10:00:00.000Z",
@@ -146,7 +178,7 @@ afterEach(() => {
 });
 
 describe("createAkbAppInstallationReader", () => {
-  it("performs only the app installation GET and projects the bounded public shape", async () => {
+  it(`projects the bounded AKB installation contract at ${AKB_INSTALLATION_CONSUMER_REVISION}`, async () => {
     const { reader, calls } = makeReader(jsonResponse(installationFixture()));
 
     const result = await reader.getInstallation(VAULT_ID);
@@ -189,17 +221,41 @@ describe("createAkbAppInstallationReader", () => {
         capabilities: ["installation:read"],
       },
       drift: {
-        release: { status: "mismatch" },
-        schema: { status: "in_sync" },
-        grant: { status: "unknown" },
+        release: {
+          status: "mismatch",
+          desired: { id: RELEASE_ID, version: "2.0.0" },
+          observed: { id: RELEASE_ID, version: "1.0.0" },
+        },
+        schema: {
+          status: "in_sync",
+          expected: "schema-target",
+          observed: "schema-1",
+        },
+        grant: {
+          status: "unknown",
+          desiredGeneration: 3,
+          observedGeneration: null,
+        },
         overall: "drifted",
         reasons: ["release_mismatch"],
         unknownDimensions: ["grant"],
       },
       driftClassification: {
-        release: { status: "mismatch" },
-        schema: { status: "in_sync" },
-        grant: { status: "unknown" },
+        release: {
+          status: "mismatch",
+          desired: { id: RELEASE_ID, version: "2.0.0" },
+          observed: { id: RELEASE_ID, version: "1.0.0" },
+        },
+        schema: {
+          status: "in_sync",
+          expected: "schema-target",
+          observed: "schema-1",
+        },
+        grant: {
+          status: "unknown",
+          desiredGeneration: 3,
+          observedGeneration: null,
+        },
         overall: "drifted",
         reasons: ["release_mismatch"],
         unknownDimensions: ["grant"],
@@ -252,6 +308,43 @@ describe("createAkbAppInstallationReader", () => {
     expect(result.activeGrant).toBeNull();
     expect(result.drift).toBeNull();
     expect(result.driftClassification).toBeNull();
+  });
+
+  it("bounds blocked reasons and ignores unknown drift strings and private actuals", async () => {
+    const { reader } = makeReader(
+      jsonResponse(
+        installationFixture({
+          blocked_reason: { diagnostic: SECRET },
+          drift: {
+            release: { status: "unknown", desired: null, observed: null },
+            schema: {
+              status: "unknown",
+              expected: null,
+              observed: null,
+              actual: SECRET,
+            },
+            grant: {
+              status: "unknown",
+              desired_generation: null,
+              observed_generation: null,
+            },
+            overall: "unknown",
+            reasons: ["upstream_detail", "schema_mismatch"],
+            unknown_dimensions: ["private_dimension", "schema"],
+          },
+        }),
+      ),
+    );
+
+    const result = await reader.getInstallation(VAULT_ID);
+
+    expect(result.blockedReason).toBeNull();
+    expect(result.drift).toMatchObject({
+      schema: { status: "unknown", expected: null, observed: null },
+      reasons: ["schema_mismatch"],
+      unknownDimensions: ["schema"],
+    });
+    expect(JSON.stringify(result)).not.toContain(SECRET);
   });
 
   it.each([

@@ -9,6 +9,7 @@ import {
 } from "./mock-utils.mjs";
 import {
   E2E_REEF_APP_ID,
+  E2E_REEF_SCHEMA_FINGERPRINT,
   E2E_REEF_RELEASE_ID,
   E2E_REEF_RELEASE_VERSION,
 } from "./mock-installation.mjs";
@@ -27,6 +28,31 @@ export const REEF_VAULT = "reef-e2e";
 export const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
 export const NOTIFICATION_SCHEMA_MODES = ["healthy", "missing", "incompatible"];
 export const NOTIFICATION_DATA_MODES = ["healthy", "forbidden", "error"];
+export const INSTALLATION_LIFECYCLES = [
+  "active",
+  "installing",
+  "upgrading",
+  "blocked",
+  "uninstalled",
+];
+export const INSTALLATION_DRIFT_STATUSES = ["in_sync", "mismatch", "unknown"];
+export const INSTALLATION_LOOKUP_MODES = [
+  "healthy",
+  "forbidden",
+  "unavailable",
+  "invalid",
+];
+export const INSTALLATION_OBSERVATION_MODES = ["current", "stale", "missing"];
+export const INSTALLATION_BLOCKED_REASONS = [
+  "worker_timeout",
+  "step_failed",
+  "fixture_blocked",
+  "checksum_mismatch",
+  "unknown",
+  "null",
+  "malformed",
+];
+export const INSTALLATION_ROLES = ["owner", "admin", "writer", "reader"];
 export const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 export const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 export const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
@@ -133,6 +159,7 @@ export const SUPPORTED_SCENARIOS = [
   "epic_grouping",
   "sprint_rollover",
   "sprint_rollover_empty",
+  "installation_drift",
 ];
 export const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 export const ACCOUNT_DENIAL_CODES = new Set([
@@ -169,37 +196,40 @@ const CONFIGURED_SCENARIOS = new Set([
   "epic_grouping",
   "sprint_rollover",
   "sprint_rollover_empty",
+  "installation_drift",
 ]);
 
 export function createScenarioVaults(scenario) {
   const vaults = new Map();
   if (CONFIGURED_SCENARIOS.has(scenario)) {
     const vault =
-      scenario === "large_vault"
-        ? largeVault(REEF_VAULT)
-        : scenario === "configured_empty"
-          ? configuredEmptyVault(REEF_VAULT)
-          : scenario === "configured_caught_up"
-            ? configuredCaughtUpVault(REEF_VAULT)
-            : scenario === "updated_at_range"
-              ? updatedAtRangeVault(REEF_VAULT)
-              : scenario === "assignee_picker"
-                ? assigneePickerVault(REEF_VAULT)
-                : scenario === "planning_overflow"
-                  ? planningOverflowVault(REEF_VAULT)
-                  : scenario === "activity_display_names"
-                    ? activityDisplayNamesVault(REEF_VAULT)
-                    : scenario === "epic_grouping"
-                      ? epicGroupingVault(REEF_VAULT)
-                      : scenario === "sprint_rollover" ||
-                          scenario === "sprint_rollover_empty"
-                        ? sprintRolloverVault(
-                            REEF_VAULT,
-                            scenario === "sprint_rollover_empty",
-                          )
-                        : scenario === "typography"
-                          ? typographyVault(REEF_VAULT)
-                          : configuredVault(REEF_VAULT);
+      scenario === "installation_drift"
+        ? installationDriftVault(REEF_VAULT)
+        : scenario === "large_vault"
+          ? largeVault(REEF_VAULT)
+          : scenario === "configured_empty"
+            ? configuredEmptyVault(REEF_VAULT)
+            : scenario === "configured_caught_up"
+              ? configuredCaughtUpVault(REEF_VAULT)
+              : scenario === "updated_at_range"
+                ? updatedAtRangeVault(REEF_VAULT)
+                : scenario === "assignee_picker"
+                  ? assigneePickerVault(REEF_VAULT)
+                  : scenario === "planning_overflow"
+                    ? planningOverflowVault(REEF_VAULT)
+                    : scenario === "activity_display_names"
+                      ? activityDisplayNamesVault(REEF_VAULT)
+                      : scenario === "epic_grouping"
+                        ? epicGroupingVault(REEF_VAULT)
+                        : scenario === "sprint_rollover" ||
+                            scenario === "sprint_rollover_empty"
+                          ? sprintRolloverVault(
+                              REEF_VAULT,
+                              scenario === "sprint_rollover_empty",
+                            )
+                          : scenario === "typography"
+                            ? typographyVault(REEF_VAULT)
+                            : configuredVault(REEF_VAULT);
     if (scenario === "reports_outliers") seedReportOutlierIssues(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -276,6 +306,9 @@ export function createScenarioVaults(scenario) {
       seedIssueDocument(primary, "REEF-902", "Done fixture.");
       seedIssueDocument(primary, "REEF-903", "Closed fixture.");
       seedIssueDocument(primary, "REEF-904", "Archived fixture.");
+    }
+    if (scenario === "installation_drift") {
+      vaults.set("reef-zeta", installationDriftVault("reef-zeta"));
     }
   } else if (scenario === "markdown_fixture") {
     vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));
@@ -623,6 +656,58 @@ function vaultIdFor(name) {
 
 function installationIdFor(name) {
   return uuidFor(sha256(Buffer.from(`installation:${name}`)).slice(0, 12));
+}
+
+function installationDriftVault(name) {
+  const vault = configuredVault(name);
+  const installation = vault.installation;
+  installation.desiredReleaseId = E2E_REEF_RELEASE_ID;
+  installation.desiredReleaseVersion = E2E_REEF_RELEASE_VERSION;
+  installation.desiredGrantGeneration = 2;
+  installation.latestGrant = {
+    generation: 2,
+    status: "active",
+    capabilities: ["installation:read"],
+  };
+  installation.activeGrant = { ...installation.latestGrant };
+  installation.observationMode = "current";
+  installation.observed = {
+    generation: 1,
+    observedAt: NOW,
+    releaseId: E2E_REEF_RELEASE_ID,
+    releaseVersion: E2E_REEF_RELEASE_VERSION,
+    schemaFingerprint: E2E_REEF_SCHEMA_FINGERPRINT,
+    grantGeneration: 2,
+  };
+  installation.drift = {
+    release: {
+      status: "in_sync",
+      desired: {
+        id: E2E_REEF_RELEASE_ID,
+        version: E2E_REEF_RELEASE_VERSION,
+      },
+      observed: {
+        id: E2E_REEF_RELEASE_ID,
+        version: E2E_REEF_RELEASE_VERSION,
+      },
+    },
+    schema: {
+      status: "in_sync",
+      expected: E2E_REEF_SCHEMA_FINGERPRINT,
+      observed: E2E_REEF_SCHEMA_FINGERPRINT,
+    },
+    grant: {
+      status: "in_sync",
+      desired_generation: 2,
+      observed_generation: 2,
+    },
+    overall: "in_sync",
+    reasons: [],
+    unknown_dimensions: [],
+  };
+  installation.driftClassification = structuredClone(installation.drift);
+  installation.blockedReason = null;
+  return vault;
 }
 
 function configuredVault(name) {

@@ -4,8 +4,11 @@ import {
   type ControlPlaneInstallationCommandResult,
   type WorkspaceReadinessCheck,
   type WorkspaceInstallationStatus,
+  AkbApiError,
   ControlPlaneError,
   NotFoundError,
+  SchemaValidationError,
+  WorkspaceReadinessError,
   akbListVaults,
   akbInitializeReefWorkspace,
   akbCheckWorkspaceReadiness,
@@ -22,7 +25,9 @@ export interface WorkspaceInstallationState {
 }
 
 type WorkspaceReadinessInspection =
-  | { status: "target_unavailable" | "unknown" }
+  | {
+      status: "management_required" | "target_unavailable" | "unknown";
+    }
   | {
       canManage: boolean;
       readiness: WorkspaceReadinessCheck;
@@ -40,60 +45,150 @@ export async function requireWorkspaceReady(params: {
   if (!vault) throw new NotFoundError({ resource: `vault ${vaultName}` });
   const state = await readWorkspaceInstallationState({ adapter, vault });
   if (state.installation_status === "ready") return state;
+  throw readinessErrorForState(state);
+}
 
-  const managementRequired =
-    state.installation_status === "management_required";
-  const targetUnavailable =
-    state.installation_status === "target_unavailable" ||
-    state.installation_status === "unknown";
-  throw new ControlPlaneError({
-    category: managementRequired
-      ? "authorization"
-      : targetUnavailable
-        ? "unavailable"
-        : "conflict",
-    operation: "workspace.ready",
-    upstreamStatus: 0,
-    httpStatus: managementRequired ? 403 : targetUnavailable ? 503 : 409,
-    retryable: targetUnavailable,
-    upstreamCode: state.installation_status,
-  });
+function readinessErrorForState(
+  state: WorkspaceInstallationState,
+): WorkspaceReadinessError {
+  const installation = state.installation;
+  switch (state.installation_status) {
+    case "not_installed":
+    case "uninstalled":
+      return new WorkspaceReadinessError({
+        reason: "installation_required",
+        status: 409,
+      });
+    case "installing":
+      return new WorkspaceReadinessError({
+        reason: "installation_in_progress",
+        status: 409,
+      });
+    case "upgrading":
+      return new WorkspaceReadinessError({
+        reason: "upgrade_in_progress",
+        status: 409,
+      });
+    case "blocked":
+      return new WorkspaceReadinessError({
+        reason: "installation_blocked",
+        status: 409,
+        ...(installation?.blockedReason
+          ? { blockedReason: installation.blockedReason }
+          : {}),
+      });
+    case "adoption_required":
+      return new WorkspaceReadinessError({
+        reason: "adoption_required",
+        status: 409,
+      });
+    case "management_required":
+      return new WorkspaceReadinessError({
+        reason: "management_required",
+        status: 403,
+      });
+    case "target_unavailable":
+    case "unknown":
+      return new WorkspaceReadinessError({
+        reason: "installation_status_unavailable",
+        status: 503,
+      });
+    case "ready":
+      return new WorkspaceReadinessError({
+        reason: "owner_action_required",
+        status: 409,
+      });
+  }
+}
+
+function isInstallationStatusUnavailable(error: unknown): boolean {
+  if (error instanceof ControlPlaneError) {
+    return [
+      "unavailable",
+      "transport",
+      "invalid_response",
+      "rate_limited",
+    ].includes(error.category);
+  }
+  if (error instanceof AkbApiError) {
+    return error.context.status === 429 || error.context.status >= 500;
+  }
+  return (
+    error instanceof SchemaValidationError &&
+    error.context.clientValidated !== true
+  );
 }
 
 function hasManagementRole(role: string | null | undefined): boolean {
   return role === "owner" || role === "admin";
 }
 
+async function checkWorkspaceReadiness(params: {
+  adapter: AkbAdapter;
+  canManage: boolean;
+  target: NonNullable<ReturnType<typeof readInstallationTarget>>;
+  vaultId: string;
+  vaultName: string;
+}): Promise<WorkspaceReadinessCheck> {
+  try {
+    return await akbCheckWorkspaceReadiness({
+      adapter: params.adapter,
+      appId: params.target.appId,
+      vaultId: params.vaultId,
+      vault: params.vaultName,
+      canManage: params.canManage,
+      requiredTemplateNames: DEFAULT_ISSUE_TEMPLATES.map(({ name }) => name),
+    });
+  } catch (error) {
+    if (isInstallationStatusUnavailable(error)) {
+      throw new WorkspaceReadinessError({
+        reason: "installation_status_unavailable",
+        status: 503,
+      });
+    }
+    throw error;
+  }
+}
+
 async function inspectWorkspaceReadiness(params: {
   adapter: AkbAdapter;
   vault: VaultSummary;
 }): Promise<WorkspaceReadinessInspection> {
-  const target = readInstallationTarget();
-  if (!target) return { status: "target_unavailable" };
-  if (!params.vault.id) return { status: "unknown" };
-
   const canManage = hasManagementRole(params.vault.role);
-  const readiness = await akbCheckWorkspaceReadiness({
+  const target = readInstallationTarget();
+  if (!target) {
+    return {
+      status: canManage ? "target_unavailable" : "management_required",
+    };
+  }
+  if (!params.vault.id) {
+    return { status: canManage ? "unknown" : "management_required" };
+  }
+
+  const readiness = await checkWorkspaceReadiness({
     adapter: params.adapter,
-    appId: target.appId,
-    vaultId: params.vault.id,
-    vault: params.vault.name,
     canManage,
-    requiredTemplateNames: DEFAULT_ISSUE_TEMPLATES.map(({ name }) => name),
+    target,
+    vaultId: params.vault.id,
+    vaultName: params.vault.name,
   });
   return { canManage, readiness, target, vaultId: params.vault.id };
 }
 
 function stateFromReadiness(
   readiness: WorkspaceReadinessCheck,
+  canManage: boolean,
 ): WorkspaceInstallationState {
-  if (readiness.state === "inactive") {
+  if (
+    readiness.state === "inactive" ||
+    (!canManage && readiness.state !== "active")
+  ) {
     return { installation_status: "management_required" };
   }
   if (readiness.state !== "active") {
     return {
       installation_status: readiness.state,
-      ...("installation" in readiness && readiness.installation
+      ...(canManage && "installation" in readiness && readiness.installation
         ? { installation: readiness.installation }
         : {}),
     };
@@ -101,14 +196,16 @@ function stateFromReadiness(
   if (!readiness.initialization_complete) {
     return {
       installation_status: "management_required",
-      ...(readiness.installation
+      ...(canManage && readiness.installation
         ? { installation: readiness.installation }
         : {}),
     };
   }
   return {
     installation_status: "ready",
-    ...(readiness.installation ? { installation: readiness.installation } : {}),
+    ...(canManage && readiness.installation
+      ? { installation: readiness.installation }
+      : {}),
   };
 }
 
@@ -121,7 +218,7 @@ export async function readWorkspaceInstallationStatus(params: {
   if ("status" in inspection) {
     return { installation_status: inspection.status };
   }
-  return stateFromReadiness(inspection.readiness);
+  return stateFromReadiness(inspection.readiness, inspection.canManage);
 }
 
 /** Read AKB's canonical state and initialize Reef data only after it is active. */
@@ -135,44 +232,29 @@ export async function readWorkspaceInstallationState(params: {
     return { installation_status: inspection.status };
   }
   const { canManage, readiness: check, target, vaultId } = inspection;
-  if (check.state === "inactive") {
-    return { installation_status: "management_required" };
+  if (check.state !== "active" || check.initialization_complete || !canManage) {
+    return stateFromReadiness(check, canManage);
   }
-  if (check.state === "not_installed" || check.state === "adoption_required") {
-    return { installation_status: check.state };
-  }
-  if (check.state !== "active") {
-    return stateFromReadiness(check);
-  }
-  if (check.initialization_complete) {
-    return stateFromReadiness(check);
-  }
-  if (!canManage) return { installation_status: "management_required" };
 
   await akbInitializeReefWorkspace({
     adapter,
     vault: vault.name,
     defaultTemplates: DEFAULT_ISSUE_TEMPLATES,
   });
-  const afterInitialization = await akbCheckWorkspaceReadiness({
+  const afterInitialization = await checkWorkspaceReadiness({
     adapter,
-    appId: target.appId,
-    vaultId,
-    vault: vault.name,
     canManage,
-    requiredTemplateNames: DEFAULT_ISSUE_TEMPLATES.map(({ name }) => name),
+    target,
+    vaultId,
+    vaultName: vault.name,
   });
   return afterInitialization.state === "active" &&
     afterInitialization.initialization_complete
-    ? {
-        installation_status: "ready",
-        ...(afterInitialization.installation
-          ? { installation: afterInitialization.installation }
-          : {}),
-      }
+    ? stateFromReadiness(afterInitialization, canManage)
     : {
         installation_status: "management_required",
-        ...(afterInitialization.state === "active" &&
+        ...(canManage &&
+        afterInitialization.state === "active" &&
         afterInitialization.installation
           ? { installation: afterInitialization.installation }
           : {}),

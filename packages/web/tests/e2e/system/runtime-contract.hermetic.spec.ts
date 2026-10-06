@@ -710,6 +710,30 @@ test.describe("Hermetic runtime discovery", () => {
             data_mode: "healthy|forbidden|error",
           },
         },
+        installation_control: {
+          method: "POST",
+          path: "/__e2e/installation-control",
+          content_type: "application/json",
+          body: {
+            vault: "<vault>",
+            lifecycle: "active|installing|upgrading|blocked|uninstalled",
+            drift: {
+              release: "in_sync|mismatch|unknown",
+              schema: "in_sync|mismatch|unknown",
+              grant: "in_sync|mismatch|unknown",
+            },
+            observation: "current|stale|missing",
+            blocked_reason:
+              "worker_timeout|step_failed|fixture_blocked|checksum_mismatch|unknown|null|malformed",
+            member_lookup: "healthy|forbidden|unavailable|invalid",
+            detail_lookup: "healthy|forbidden|unavailable|invalid",
+            roles: {
+              alice: "owner|admin|writer|reader",
+              bob: "owner|admin|writer|reader",
+              writer: "owner|admin|writer|reader",
+            },
+          },
+        },
       },
       fixture_login: {
         ...fixtureLogin,
@@ -728,6 +752,28 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
       tasks: {
+        installation_drift: {
+          scenario: "installation_drift",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/settings/workspace",
+          identities: {
+            owner: {
+              username: fixtureLogin.username,
+              role: "owner",
+              installation_detail_access: "allowed",
+            },
+            writer: {
+              username: "writer",
+              role: "writer",
+              installation_detail_access: "not exposed",
+            },
+            reader: {
+              username: "bob",
+              role: "reader",
+              installation_detail_access: "not exposed",
+            },
+          },
+        },
         auth_soft_navigation: {
           scenario: "configured",
           workspace: "reef-e2e",
@@ -1046,6 +1092,7 @@ test.describe("Hermetic runtime discovery", () => {
     await setMarkdownLinkSearchControl(request, { query: "forced failure" });
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
+        "installation_drift",
         "configured_multi",
         "assignee_picker",
         "backlog_bulk_partial_failure",

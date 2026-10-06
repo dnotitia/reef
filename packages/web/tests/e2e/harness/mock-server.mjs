@@ -9,6 +9,12 @@ import {
   IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
   IMAGE_UPLOAD_FIXTURE_FILE_NAME,
   IMAGE_UPLOAD_FIXTURE_PATH,
+  INSTALLATION_BLOCKED_REASONS,
+  INSTALLATION_DRIFT_STATUSES,
+  INSTALLATION_LIFECYCLES,
+  INSTALLATION_LOOKUP_MODES,
+  INSTALLATION_OBSERVATION_MODES,
+  INSTALLATION_ROLES,
   MARKDOWN_MEDIA_ASSETS,
   NOTIFICATION_DATA_MODES,
   NOTIFICATION_SCHEMA_MODES,
@@ -22,6 +28,7 @@ import { runtimeDiscovery } from "./mock-runtime.mjs";
 import {
   createState,
   attachmentReadKey,
+  installationLookupModes,
   issueUpdateKey,
   markdownLinkSearchKey,
   normalizeScenario,
@@ -34,6 +41,10 @@ import {
   waitForAuthProbeHold,
 } from "./mock-state.mjs";
 import { sha256 } from "./mock-utils.mjs";
+import {
+  E2E_REEF_OLD_SCHEMA_FINGERPRINT,
+  E2E_REEF_SCHEMA_FINGERPRINT,
+} from "./mock-installation.mjs";
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
@@ -177,6 +188,171 @@ const server = createServer(async (req, res) => {
         operation,
         failures: state.workspaceInitFailureRemaining,
         successes_before_failure: state.workspaceInitFailureSuccessesBefore,
+      });
+    }
+    if (
+      url.pathname === "/__e2e/installation-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      if (state.scenario !== "installation_drift") {
+        return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      const vaultName = String(body?.vault ?? REEF_VAULT);
+      const vault = state.vaults.get(vaultName);
+      if (!vault?.installation) {
+        return json(res, 404, { error: "installation fixture not found" });
+      }
+      const installation = vault.installation;
+      const currentLookupModes = installationLookupModes(state, vaultName);
+      const memberLookup = INSTALLATION_LOOKUP_MODES.includes(
+        body?.member_lookup,
+      )
+        ? body.member_lookup
+        : currentLookupModes.member_lookup;
+      const detailLookup = INSTALLATION_LOOKUP_MODES.includes(
+        body?.detail_lookup,
+      )
+        ? body.detail_lookup
+        : currentLookupModes.detail_lookup;
+      state.installationLookupModes.set(vaultName, {
+        member_lookup: memberLookup,
+        detail_lookup: detailLookup,
+      });
+
+      if (INSTALLATION_LIFECYCLES.includes(body?.lifecycle)) {
+        installation.lifecycle = body.lifecycle;
+      }
+      if (INSTALLATION_OBSERVATION_MODES.includes(body?.observation)) {
+        installation.observationMode = body.observation;
+        if (body.observation === "missing") {
+          installation.observed = null;
+          for (const dimension of ["release", "schema", "grant"]) {
+            installation.drift[dimension].status = "unknown";
+          }
+          installation.drift.release.observed = null;
+          installation.drift.schema.observed = null;
+          installation.drift.grant.observed_generation = null;
+          installation.drift.overall = "unknown";
+          installation.drift.reasons = [];
+          installation.drift.unknown_dimensions = [
+            "release",
+            "schema",
+            "grant",
+          ];
+          installation.driftClassification = structuredClone(
+            installation.drift,
+          );
+        } else if (installation.observed) {
+          installation.observed.observedAt =
+            body.observation === "stale" ? "2020-01-01T00:00:00.000Z" : NOW;
+        }
+      }
+      if (INSTALLATION_BLOCKED_REASONS.includes(body?.blocked_reason)) {
+        const reason = body.blocked_reason;
+        installation.blockedReason =
+          reason === "null"
+            ? null
+            : reason === "unknown"
+              ? "unrecognized_fixture_reason"
+              : reason === "malformed"
+                ? { diagnostic: "private fixture detail" }
+                : reason;
+      }
+      if (body?.drift && typeof body.drift === "object") {
+        const nextStatuses = {
+          release:
+            installation.observationMode === "missing"
+              ? "unknown"
+              : INSTALLATION_DRIFT_STATUSES.includes(body.drift.release)
+                ? body.drift.release
+                : installation.drift.release.status,
+          schema:
+            installation.observationMode === "missing"
+              ? "unknown"
+              : INSTALLATION_DRIFT_STATUSES.includes(body.drift.schema)
+                ? body.drift.schema
+                : installation.drift.schema.status,
+          grant:
+            installation.observationMode === "missing"
+              ? "unknown"
+              : INSTALLATION_DRIFT_STATUSES.includes(body.drift.grant)
+                ? body.drift.grant
+                : installation.drift.grant.status,
+        };
+        const reasonFor = (dimension) => `${dimension}_mismatch`;
+        installation.drift.release = {
+          status: nextStatuses.release,
+          desired: {
+            id: installation.desiredReleaseId,
+            version: installation.desiredReleaseVersion,
+          },
+          observed:
+            nextStatuses.release === "unknown"
+              ? null
+              : {
+                  id: installation.currentReleaseId,
+                  version:
+                    nextStatuses.release === "mismatch"
+                      ? "0.15.0"
+                      : installation.currentReleaseVersion,
+                },
+        };
+        installation.drift.schema = {
+          status: nextStatuses.schema,
+          expected: E2E_REEF_SCHEMA_FINGERPRINT,
+          observed:
+            nextStatuses.schema === "unknown"
+              ? null
+              : nextStatuses.schema === "mismatch"
+                ? E2E_REEF_OLD_SCHEMA_FINGERPRINT
+                : E2E_REEF_SCHEMA_FINGERPRINT,
+        };
+        installation.drift.grant = {
+          status: nextStatuses.grant,
+          desired_generation: installation.desiredGrantGeneration,
+          observed_generation:
+            nextStatuses.grant === "unknown"
+              ? null
+              : nextStatuses.grant === "mismatch"
+                ? Math.max(0, installation.desiredGrantGeneration - 1)
+                : installation.desiredGrantGeneration,
+        };
+        installation.drift.overall = Object.values(nextStatuses).includes(
+          "mismatch",
+        )
+          ? "drifted"
+          : Object.values(nextStatuses).includes("unknown")
+            ? "unknown"
+            : "in_sync";
+        installation.drift.reasons = Object.entries(nextStatuses)
+          .filter(([, status]) => status === "mismatch")
+          .map(([dimension]) => reasonFor(dimension));
+        installation.drift.unknown_dimensions = Object.entries(nextStatuses)
+          .filter(([, status]) => status === "unknown")
+          .map(([dimension]) => dimension);
+        installation.driftClassification = structuredClone(installation.drift);
+      }
+      if (body?.roles && typeof body.roles === "object") {
+        for (const [username, role] of Object.entries(body.roles)) {
+          if (state.users.has(username) && INSTALLATION_ROLES.includes(role)) {
+            state.installationRoles.set(username, role);
+          }
+        }
+      }
+      return json(res, 200, {
+        ok: true,
+        vault: vaultName,
+        lifecycle: installation.lifecycle,
+        member_lookup: memberLookup,
+        detail_lookup: detailLookup,
+        observation: installation.observationMode,
+        drift: {
+          release: installation.drift.release.status,
+          schema: installation.drift.schema.status,
+          grant: installation.drift.grant.status,
+        },
+        roles: Object.fromEntries(state.installationRoles),
       });
     }
     if (

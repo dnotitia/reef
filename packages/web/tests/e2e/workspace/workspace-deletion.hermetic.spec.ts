@@ -85,24 +85,40 @@ test.describe("Hermetic workspace lifecycle danger zone", () => {
     await dialog.getByTestId("workspace-destructive-confirm").click();
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    const installationActions = page.getByTestId(
-      "workspace-installation-reef-e2e",
-    );
-    await expect(installationActions).toHaveAttribute(
-      "data-status",
-      "uninstalled",
-    );
+    await expect(page.getByTestId("onboarding-panel")).toBeVisible();
+    await expect(
+      page.getByTestId("workspace-installation-reef-e2e"),
+    ).toHaveCount(0);
+    for (const action of [
+      "Set up Reef",
+      "Restore installation",
+      "Request fresh setup",
+    ]) {
+      await expect(page.getByRole("button", { name: action })).toHaveCount(0);
+    }
 
-    const freshResponsePromise = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          "/api/vaults/reef-e2e/installation" &&
-        response.request().method() === "POST",
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
+    const accessGuidance = page.getByTestId("workspace-installation-reef-e2e");
+    await expect(accessGuidance).toHaveAttribute("data-status", "uninstalled");
+    await expect(
+      page.getByTestId("installation-diagnostics-link-reef-e2e"),
+    ).toBeVisible();
+    for (const action of [
+      "Set up Reef",
+      "Restore installation",
+      "Request fresh setup",
+    ]) {
+      await expect(
+        accessGuidance.getByRole("button", { name: action }),
+      ).toHaveCount(0);
+    }
+
+    const freshResponse = await page.request.post(
+      "/api/vaults/reef-e2e/installation",
+      { data: { mode: "fresh" } },
     );
-    await installationActions
-      .getByTestId("installation-reef-e2e-fresh")
-      .click();
-    expect((await freshResponsePromise).status()).toBe(409);
+    expect(freshResponse.status()).toBe(409);
 
     const afterFresh = await readFixtureState(request);
     const retainedAfterFresh = afterFresh.vaults.find(
@@ -115,16 +131,10 @@ test.describe("Hermetic workspace lifecycle danger zone", () => {
     expect(retainedAfterFresh?.issues).toEqual(reefBefore?.issues);
     expect(retainedAfterFresh?.documents).toEqual(reefBefore?.documents);
 
-    const restoreResponsePromise = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          "/api/vaults/reef-e2e/installation" &&
-        response.request().method() === "POST",
+    const restoreResponse = await page.request.post(
+      "/api/vaults/reef-e2e/installation",
+      { data: { mode: "restore" } },
     );
-    await installationActions
-      .getByTestId("installation-reef-e2e-restore")
-      .click();
-    const restoreResponse = await restoreResponsePromise;
     expect(restoreResponse.status()).toBe(202);
     const restoredBody = await restoreResponse.json();
     expect(restoredBody.installation.currentRelease.id).toBe(retainedReleaseId);

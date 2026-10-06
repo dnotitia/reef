@@ -41,7 +41,8 @@ export type FixtureScenario =
   | "planning_overflow"
   | "epic_grouping"
   | "sprint_rollover"
-  | "sprint_rollover_empty";
+  | "sprint_rollover_empty"
+  | "installation_drift";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {
@@ -162,6 +163,13 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
     roles: Record<string, string>;
     schema_mode: string;
     data_mode: string;
+  };
+  installation_drift: {
+    lookup_modes: Record<
+      string,
+      { member_lookup: string; detail_lookup: string }
+    >;
+    roles: Record<string, string>;
   };
   issue_update_calls: Record<string, number>;
   issue_update_pending: Record<string, number>;
@@ -374,6 +382,58 @@ export async function setNotificationControl(
       data: {
         schema_mode: control.schemaMode ?? "healthy",
         data_mode: control.dataMode ?? "healthy",
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setInstallationControl(
+  request: APIRequestContext,
+  control: {
+    vault?: string;
+    lifecycle?:
+      | "active"
+      | "installing"
+      | "upgrading"
+      | "blocked"
+      | "uninstalled";
+    drift?: {
+      release?: "in_sync" | "mismatch" | "unknown";
+      schema?: "in_sync" | "mismatch" | "unknown";
+      grant?: "in_sync" | "mismatch" | "unknown";
+    };
+    observation?: "current" | "stale" | "missing";
+    blockedReason?:
+      | "worker_timeout"
+      | "step_failed"
+      | "fixture_blocked"
+      | "checksum_mismatch"
+      | "unknown"
+      | "null"
+      | "malformed";
+    memberLookup?: "healthy" | "forbidden" | "unavailable" | "invalid";
+    detailLookup?: "healthy" | "forbidden" | "unavailable" | "invalid";
+    roles?: Partial<
+      Record<
+        "alice" | "bob" | "writer",
+        "owner" | "admin" | "writer" | "reader"
+      >
+    >;
+  },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/installation-control`,
+    {
+      data: {
+        vault: control.vault ?? REEF_E2E_VAULT,
+        lifecycle: control.lifecycle,
+        drift: control.drift,
+        observation: control.observation,
+        blocked_reason: control.blockedReason,
+        member_lookup: control.memberLookup,
+        detail_lookup: control.detailLookup,
+        roles: control.roles,
       },
     },
   );

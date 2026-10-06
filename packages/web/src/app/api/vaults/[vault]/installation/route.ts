@@ -4,6 +4,7 @@ import {
   WorkspaceInstallationStatusEnum,
   NotFoundError,
   akbListVaults as listVaults,
+  describeError,
 } from "@reef/core";
 import {
   VAULT_NAME_RE,
@@ -50,6 +51,24 @@ async function readState(
   });
 }
 
+function logInstallationFailure(
+  error: unknown,
+  vault: string,
+  operation: "status.read" | "installation.command" | "installation.uninstall",
+  message: string,
+): void {
+  const descriptor = describeError(error);
+  logger.error(
+    {
+      vault,
+      operation,
+      error_code: descriptor.code,
+      http_status: descriptor.status,
+    },
+    message,
+  );
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ vault: string }> },
@@ -63,8 +82,10 @@ export async function GET(
     const vault = await findVault(adapterResult.adapter, name);
     return await readState(adapterResult.adapter, vault);
   } catch (error) {
-    logger.error(
-      { err: error, vault: name },
+    logInstallationFailure(
+      error,
+      name,
+      "status.read",
       "installation status read failed",
     );
     return respondWithError(error, { resourceKind: "workspace" });
@@ -119,8 +140,10 @@ export async function POST(
       },
     );
   } catch (error) {
-    logger.error(
-      { err: error, vault: name, op: "installation.command" },
+    logInstallationFailure(
+      error,
+      name,
+      "installation.command",
       "installation command failed",
     );
     return respondWithError(error, { resourceKind: "workspace" });
@@ -154,8 +177,10 @@ export async function DELETE(
       },
     );
   } catch (error) {
-    logger.error(
-      { err: error, vault: name, op: "installation.uninstall" },
+    logInstallationFailure(
+      error,
+      name,
+      "installation.uninstall",
       "installation uninstall failed",
     );
     return respondWithError(error, { resourceKind: "workspace" });
