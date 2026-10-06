@@ -3477,7 +3477,6 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
         name: busyVault,
         description: "REEF Change Event heartbeat contract fixture",
       });
-      await ensureReefTables({ adapter, vault: busyVault });
 
       const openedAt = Date.now();
       const response = await adapter.stream(
@@ -3517,18 +3516,10 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       let busyEvents = 0;
       const busyWrites = (async () => {
         while (Date.now() < busyUntil) {
-          const at = new Date().toISOString();
-          const eventKey = `heartbeat-contract:${suffix}:${busyEvents}`;
-          await runSql(
+          await createTemporaryRelationDocument(
             adapter,
             busyVault,
-            "INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta) VALUES ($1, 'status_change', $2, $3::json, $4::json) RETURNING id",
-            [
-              `REEF-HEARTBEAT-${busyEvents}`,
-              eventKey,
-              JSON.stringify({ from: "todo", to: "in_progress" }),
-              JSON.stringify({ actor: USERNAME, at, source: null }),
-            ],
+            `REEF heartbeat contract ${suffix} ${busyEvents}`,
           );
           busyEvents += 1;
           await new Promise((resolve) => setTimeout(resolve, 2_500));
