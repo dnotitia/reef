@@ -209,7 +209,7 @@ test.describe("installation drift and readiness guidance", () => {
     const availability = page.getByTestId("workspace-installation-reef-e2e");
     await expect(availability).toHaveAttribute("data-status", "blocked");
     await expect(
-      availability.getByText("People can't use this workspace right now."),
+      availability.getByText("This workspace can't be used right now."),
     ).toBeVisible();
     await expect(
       availability.getByText(
@@ -224,6 +224,18 @@ test.describe("installation drift and readiness guidance", () => {
     await expect(
       availability.getByRole("button", { name: "Check status" }),
     ).toBeVisible();
+    for (const action of [
+      "Set up Reef",
+      "Restore installation",
+      "Request fresh setup",
+    ]) {
+      await expect(
+        availability.getByRole("button", { name: action }),
+      ).toHaveCount(0);
+    }
+    await expect(
+      page.getByTestId("installation-diagnostics-link-reef-e2e"),
+    ).toHaveAttribute("href", "/workspace/reef-e2e/settings/workspace");
     await expect(
       availability.getByTestId("installation-details-disclosure"),
     ).toHaveCount(0);
