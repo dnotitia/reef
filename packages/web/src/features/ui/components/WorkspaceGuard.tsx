@@ -154,6 +154,10 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         vaults={vaultsQuery.data}
         installationStatus={requestedVault?.installation_status}
         role={requestedVault?.role}
+        onCheckStatus={async () => {
+          const refreshed = await vaultsQuery.refetch();
+          if (refreshed.isError) throw new Error("Workspace recheck failed");
+        }}
       />
     );
   }

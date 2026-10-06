@@ -14,6 +14,7 @@ import {
   resetFixture,
   signInAsAlice,
   signInAsUser,
+  setInstallationControl,
   setWorkspaceInitializationControl,
   waitForPasswordLogin,
   writeIndexedDbConfig,
@@ -110,6 +111,57 @@ test.describe("Hermetic onboarding flow", () => {
       { data: { mode: "install" } },
     );
     expect(mutationResponse.status()).toBe(403);
+  });
+
+  test("onboarding keeps existing setup tasks out for owners and readers", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "installation_drift");
+    for (const vault of ["reef-e2e", "reef-zeta"]) {
+      await setInstallationControl(request, {
+        vault,
+        lifecycle: "uninstalled",
+        memberLookup: "healthy",
+      });
+    }
+
+    for (const account of ["owner", "reader"] as const) {
+      if (account === "owner") {
+        await signInAsAlice(page);
+      } else {
+        await context.clearCookies();
+        await signInAsUser(page, fixtureReaderLogin);
+      }
+
+      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+      await expect(page.getByTestId("onboarding-panel")).toBeVisible();
+      await expect(
+        page.getByTestId("greenfield-vault-name-input"),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Existing workspaces" }),
+      ).toHaveCount(0);
+      for (const action of [
+        "Set up Reef",
+        "Restore installation",
+        "Request fresh setup",
+        "Check status",
+      ]) {
+        await expect(page.getByRole("button", { name: action })).toHaveCount(0);
+      }
+
+      await expect(
+        page.getByTestId("workspace-installation-reef-e2e"),
+      ).toHaveCount(0);
+      await expect(
+        page.getByTestId("workspace-installation-reef-zeta"),
+      ).toHaveCount(0);
+      await expect(
+        page.getByTestId("workspace-installation-raw-vault"),
+      ).toHaveCount(0);
+    }
   });
 
   test("creates a reef workspace through real Route Handlers", async ({

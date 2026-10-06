@@ -1,9 +1,9 @@
 "use client";
 
 import { ReefMark } from "@/components/ui/reef-mark";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { AccountMenu } from "@/features/auth/components/AccountMenu";
-import { InstallationActionControls } from "@/features/workspaceInstallation/components/InstallationActionControls";
-import { useWorkspaceInstallationActions } from "@/features/workspaceInstallation/hooks/useWorkspaceInstallationActions";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import type {
@@ -12,6 +12,7 @@ import type {
 } from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useState } from "react";
 
 interface WorkspaceAccessDeniedProps {
   /** The running Reef version shown by the shared account menu. */
@@ -22,6 +23,7 @@ interface WorkspaceAccessDeniedProps {
   vaults: EnrichedVaultSummary[];
   installationStatus?: WorkspaceInstallationStatus;
   role?: string | null;
+  onCheckStatus: () => Promise<void>;
 }
 
 /**
@@ -39,6 +41,7 @@ export function WorkspaceAccessDenied({
   vaults,
   installationStatus,
   role,
+  onCheckStatus,
 }: WorkspaceAccessDeniedProps) {
   const t = useTranslations("workspace.accessDenied");
   const reefVaults = vaults.filter((v) => v.installation_status === "ready");
@@ -72,6 +75,7 @@ export function WorkspaceAccessDenied({
             vault={vault}
             initialStatus={installationStatus}
             canManage={canManage}
+            onCheckStatus={onCheckStatus}
           />
         )}
 
@@ -96,7 +100,7 @@ export function WorkspaceAccessDenied({
               </Link>
             ))}
           </nav>
-        ) : (
+        ) : hasInstallationState ? null : (
           <div className="flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-muted-foreground">{t("empty")}</p>
             <Link
@@ -117,21 +121,35 @@ function WorkspaceAvailability({
   vault,
   initialStatus,
   canManage,
+  onCheckStatus,
 }: {
   vault: string;
   initialStatus: WorkspaceInstallationStatus;
   canManage: boolean;
+  onCheckStatus: () => Promise<void>;
 }) {
   const t = useTranslations("workspaceInstallation");
-  const actions = useWorkspaceInstallationActions({
-    vault,
-    initialStatus,
-    canManage,
-  });
+  const entryT = useTranslations("workspace.accessDenied.entry");
   const visibleStatus =
-    !canManage && actions.status !== "ready"
+    !canManage && initialStatus !== "ready"
       ? "management_required"
-      : actions.status;
+      : initialStatus;
+  const entryRole = canManage ? "manager" : "member";
+  const [checking, setChecking] = useState(false);
+  const [checkFailed, setCheckFailed] = useState(false);
+
+  const checkCurrentStatus = async () => {
+    if (checking) return;
+    setChecking(true);
+    setCheckFailed(false);
+    try {
+      await onCheckStatus();
+    } catch {
+      setCheckFailed(true);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <article
@@ -150,16 +168,14 @@ function WorkspaceAvailability({
           <dt className="type-body font-semibold text-foreground">
             {t("label.impact")}
           </dt>
-          <dd className="mt-1 text-muted-foreground">
-            {t(`impact.${visibleStatus}`)}
-          </dd>
+          <dd className="mt-1 text-muted-foreground">{entryT("impact")}</dd>
         </div>
         <div>
           <dt className="type-body font-semibold text-foreground">
             {t("label.nextAction")}
           </dt>
           <dd className="mt-1 text-muted-foreground">
-            {t(`nextAction.${visibleStatus}`)}
+            {entryT(`nextAction.${entryRole}`)}
           </dd>
         </div>
         <div>
@@ -167,21 +183,31 @@ function WorkspaceAvailability({
             {t("label.responsible")}
           </dt>
           <dd className="mt-1 text-muted-foreground">
-            {t(`responsible.${visibleStatus}`)}
+            {entryT(`responsible.${entryRole}`)}
           </dd>
         </div>
       </dl>
-      <InstallationActionControls
-        vault={vault}
-        status={visibleStatus}
-        canManage={canManage}
-        busy={actions.busy}
-        activity={actions.activity}
-        acknowledgement={actions.acknowledgement}
-        error={actions.error}
-        onRunCommand={(mode) => void actions.runCommand(mode)}
-        onCheckStatus={() => void actions.checkStatus()}
-      />
+      {checkFailed && (
+        <p className="type-caption text-destructive-text" role="alert">
+          {t("statusFailed")}
+        </p>
+      )}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={checking}
+        onClick={() => void checkCurrentStatus()}
+      >
+        {checking ? (
+          <>
+            <Spinner aria-hidden="true" />
+            {t("activity.checking")}
+          </>
+        ) : (
+          t("button.checkStatus")
+        )}
+      </Button>
       {canManage && (
         <Link
           href={withVault(vault, "/settings/workspace")}

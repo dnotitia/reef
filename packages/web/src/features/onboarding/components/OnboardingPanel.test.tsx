@@ -2,7 +2,7 @@
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -263,6 +263,24 @@ describe("OnboardingPanel", () => {
     expect(await getActiveVault()).toBe("reef-zeta");
   });
 
+  it("routes a remembered unavailable workspace to its access guidance", async () => {
+    await setActiveVault("reef-zeta");
+    setupMockApi({
+      vaults: [
+        { name: "reef-zeta", installation_status: "uninstalled" },
+        { name: "raw-vault", installation_status: "not_installed" },
+      ],
+    });
+
+    render(wrap(<OnboardingPanel />));
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-zeta/issues"),
+    );
+    expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
+    expect(await getActiveVault()).toBe("reef-zeta");
+  });
+
   it("uses explicit ASCII order when the remembered workspace is invalid", async () => {
     await setActiveVault("missing");
     setupMockApi({
@@ -280,35 +298,56 @@ describe("OnboardingPanel", () => {
     expect(await getActiveVault()).toBe("reef-alpha");
   });
 
-  it("shows only compact rows for existing workspaces that need setup", async () => {
-    setupMockApi({
+  it.each([
+    {
+      role: "owner",
       vaults: [
         { name: "reef-blocked", installation_status: "blocked" },
         { name: "raw-vault", installation_status: "not_installed" },
       ],
-    });
+    },
+    {
+      role: "reader",
+      vaults: [
+        { name: "reef-blocked", installation_status: "blocked" },
+        { name: "raw-vault", installation_status: "not_installed" },
+      ],
+    },
+    {
+      role: "owner",
+      vaults: [{ name: "raw-vault", installation_status: "not_installed" }],
+    },
+    {
+      role: "reader",
+      vaults: [{ name: "raw-vault", installation_status: "not_installed" }],
+    },
+  ] as const)(
+    "keeps existing workspace setup tasks off onboarding for $role accounts",
+    async ({ role, vaults }) => {
+      setupMockApi({
+        vaults: vaults.map((entry) => ({ ...entry, role })),
+      });
 
-    render(wrap(<OnboardingPanel />));
+      render(wrap(<OnboardingPanel />));
 
-    expect(await screen.findByTestId("onboarding-panel")).toBeVisible();
-    const blocked = screen.getByTestId("workspace-installation-reef-blocked");
-    const raw = screen.getByTestId("workspace-installation-raw-vault");
-    expect(blocked).toHaveTextContent("Impact");
-    expect(blocked).toHaveTextContent("Next step");
-    expect(blocked).toHaveTextContent("Who can act");
-    expect(
-      within(blocked).getByRole("button", { name: "Check status" }),
-    ).toBeVisible();
-    expect(
-      within(raw).getByRole("button", { name: "Set up Reef" }),
-    ).toBeVisible();
-    expect(
-      screen.queryByTestId("installation-details-disclosure"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/review the active job and target/i),
-    ).not.toBeInTheDocument();
-  });
+      expect(await screen.findByTestId("onboarding-panel")).toBeVisible();
+      expect(screen.getByTestId("greenfield-vault-name-input")).toBeVisible();
+      expect(
+        screen.queryByRole("heading", { name: "Existing workspaces" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", {
+          name: /Set up Reef|Restore installation|Request fresh setup|Check status/,
+        }),
+      ).toBeNull();
+      expect(
+        screen.queryByTestId("workspace-installation-reef-blocked"),
+      ).toBeNull();
+      expect(
+        screen.queryByTestId("workspace-installation-raw-vault"),
+      ).toBeNull();
+    },
+  );
 
   it("persists and navigates once under Strict Effects", async () => {
     setupMockApi({

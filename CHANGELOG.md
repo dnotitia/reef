@@ -33,16 +33,17 @@ explicitly in the entries below.
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
   AKB data, while full vault deletion remains separate. (REEF-418)
-- **Workspace setup guidance follows the selected workspace and current task.**
-  Onboarding keeps remembered-workspace-first and deterministic ASCII
-  auto-resume, then lists only workspaces needing setup. Settings covers only
-  the selected workspace: ready readers and writers see no setup task, while
-  owners and admins can open installation details on demand. Unavailable
-  workspaces state their impact, next step, and responsible person; release
-  details distinguish the canonical drift comparison from the installation
-  snapshot, including release identities when versions alone collide. Access
-  denial describes only the requested workspace and keeps other ready
-  workspaces as plain switch links. (REEF-422)
+- **Workspace setup guidance follows the user's current task.** Onboarding only
+  creates a new workspace; it no longer lists existing installation states or
+  setup commands. Remembered ready-workspace entry and ASCII fallback remain,
+  while a remembered accessible but unavailable workspace opens its own access
+  guidance. That screen offers a safe status recheck and an owner/admin link to
+  the selected workspace's existing diagnostics, without setup mutations.
+  Settings remains scoped to the selected workspace, with admin details on
+  demand and no setup task for ready readers or writers. Release diagnostics
+  continue to distinguish canonical drift from the installation snapshot,
+  including release identities when versions alone collide.
+  (REEF-422)
 
 ### Fixed
 

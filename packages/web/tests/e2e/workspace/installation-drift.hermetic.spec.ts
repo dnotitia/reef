@@ -212,7 +212,14 @@ test.describe("installation drift and readiness guidance", () => {
       availability.getByText("People can't use this workspace right now."),
     ).toBeVisible();
     await expect(
-      availability.getByText(/contact the AKB installation operator/i),
+      availability.getByText(
+        "Check the workspace status again, or open its settings to review setup details.",
+      ),
+    ).toBeVisible();
+    await expect(
+      availability.getByText(
+        "Workspace owner or admin; an installation operator may need to help.",
+      ),
     ).toBeVisible();
     await expect(
       availability.getByRole("button", { name: "Check status" }),
@@ -230,7 +237,7 @@ test.describe("installation drift and readiness guidance", () => {
     expect(
       ownerState.calls.some(
         (call) =>
-          ["PUT", "DELETE"].includes(call.method) &&
+          ["POST", "PUT", "DELETE"].includes(call.method) &&
           call.path.includes("/installations/"),
       ),
     ).toBe(false);
@@ -316,7 +323,9 @@ test.describe("installation drift and readiness guidance", () => {
     await expect(
       page
         .getByTestId("workspace-installation-reef-e2e")
-        .getByText("Ask a workspace owner or admin to check the setup."),
+        .getByText(
+          "Check the workspace status again. If it remains unavailable, ask a workspace owner or admin to check it.",
+        ),
     ).toBeVisible();
     await expect(
       page.getByText("The installation worker timed out."),
@@ -352,7 +361,6 @@ test.describe("installation drift and readiness guidance", () => {
     ] as const;
     const surfacePaths = {
       settings: "/workspace/reef-e2e/settings/workspace",
-      onboarding: "/onboarding",
       access: "/workspace/reef-e2e/issues",
     } as const;
 
@@ -494,127 +502,6 @@ test.describe("installation drift and readiness guidance", () => {
                 )
                 .every((vault) => vault.installation_status !== "ready"),
             ).toBe(true);
-            await clearPersistedQueryCache(page);
-            await clearPersistedQueryCacheOnLoad(page);
-            await page.goto(surfacePaths.onboarding);
-            await expect(page.getByTestId("onboarding-panel")).toBeVisible();
-            const onboardingCard = page.getByTestId(
-              "workspace-installation-reef-e2e",
-            );
-            const secondBlockedCard = page.getByTestId(
-              "workspace-installation-reef-zeta",
-            );
-            const rawVaultCard = page.getByTestId(
-              "workspace-installation-raw-vault",
-            );
-            const onboardingCards = [
-              { card: onboardingCard, vault: "reef-e2e" },
-              { card: secondBlockedCard, vault: "reef-zeta" },
-              { card: rawVaultCard, vault: "raw-vault" },
-            ];
-            for (const { card, vault } of onboardingCards) {
-              await expect(
-                card.getByRole("heading", {
-                  name: vault,
-                }),
-              ).toBeVisible();
-            }
-            const onboardingHeadings = await Promise.all(
-              onboardingCards.map(({ card }) =>
-                card.getByRole("heading").textContent(),
-              ),
-            );
-            expect(new Set(onboardingHeadings).size).toBe(3);
-            await expect(onboardingCard).toHaveAttribute(
-              "data-status",
-              canManage ? "blocked" : "management_required",
-            );
-            await expect(secondBlockedCard).toHaveAttribute(
-              "data-status",
-              canManage ? "blocked" : "management_required",
-            );
-            await expect(rawVaultCard).toHaveAttribute(
-              "data-status",
-              canManage ? "not_installed" : "management_required",
-            );
-            const statusLabels =
-              locale === "en"
-                ? {
-                    blocked: "Unavailable",
-                    notInstalled: "Setup needed",
-                    managementRequired: "Owner or admin needed",
-                    checkStatus: "Check status",
-                    install: "Set up Reef",
-                  }
-                : {
-                    blocked: "사용할 수 없음",
-                    notInstalled: "설치 필요",
-                    managementRequired: "소유자 또는 관리자 확인 필요",
-                    checkStatus: "상태 확인",
-                    install: "Reef 설정하기",
-                  };
-            for (const [card, label] of [
-              [
-                onboardingCard,
-                canManage
-                  ? statusLabels.blocked
-                  : statusLabels.managementRequired,
-              ],
-              [
-                secondBlockedCard,
-                canManage
-                  ? statusLabels.blocked
-                  : statusLabels.managementRequired,
-              ],
-              [
-                rawVaultCard,
-                canManage
-                  ? statusLabels.notInstalled
-                  : statusLabels.managementRequired,
-              ],
-            ] as const) {
-              await expect(
-                card.getByText(label, { exact: true }),
-              ).toBeVisible();
-            }
-            for (const card of [onboardingCard, secondBlockedCard]) {
-              await expect(
-                card.getByRole("button", { name: statusLabels.checkStatus }),
-              ).toBeVisible();
-              await expect(
-                card.getByRole("button", { name: statusLabels.install }),
-              ).toHaveCount(0);
-            }
-            await expect(
-              rawVaultCard.getByRole("button", {
-                name: statusLabels.checkStatus,
-              }),
-            ).toBeVisible();
-            if (canManage) {
-              await expect(
-                rawVaultCard.getByRole("button", {
-                  name: statusLabels.install,
-                }),
-              ).toBeVisible();
-            } else {
-              await expect(
-                rawVaultCard.getByRole("button", {
-                  name: statusLabels.install,
-                }),
-              ).toHaveCount(0);
-            }
-            await attachFullPageScreenshot(
-              page,
-              testInfo,
-              `onboarding--${appearance}--default.png`,
-            );
-            await expect(
-              page.getByTestId("installation-details-disclosure"),
-            ).toHaveCount(0);
-            await expect(
-              page.getByText(/review the active job and target/i),
-            ).toHaveCount(0);
-
             await setInstallationControl(request, {
               vault: "reef-e2e",
               lifecycle: "blocked",
@@ -643,6 +530,30 @@ test.describe("installation drift and readiness guidance", () => {
               "data-status",
               canManage ? "blocked" : "management_required",
             );
+            await expect(
+              accessCard.getByRole("button", { name: "Check status" }),
+            ).toBeVisible();
+            for (const action of [
+              "Set up Reef",
+              "Restore installation",
+              "Request fresh setup",
+            ]) {
+              await expect(
+                accessCard.getByRole("button", { name: action }),
+              ).toHaveCount(0);
+            }
+            if (canManage) {
+              await expect(
+                page.getByTestId("installation-diagnostics-link-reef-e2e"),
+              ).toHaveAttribute(
+                "href",
+                "/workspace/reef-e2e/settings/workspace",
+              );
+            } else {
+              await expect(
+                page.getByTestId("installation-diagnostics-link-reef-e2e"),
+              ).toHaveCount(0);
+            }
             await attachFullPageScreenshot(
               page,
               testInfo,

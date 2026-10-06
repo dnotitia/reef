@@ -198,7 +198,18 @@
       "body": "You're not a member of \"{vault}\", or it no longer exists. Open one of your workspaces instead.",
       "switchHeading": "Your workspaces",
       "empty": "You don't have any reef workspaces yet.",
-      "onboardingCta": "Set up a workspace"
+      "onboardingCta": "Set up a workspace",
+      "entry": {
+        "impact": "This workspace can't be used right now.",
+        "nextAction": {
+          "manager": "Check the workspace status again, or open its settings to review setup details.",
+          "member": "Check the workspace status again. If it remains unavailable, ask a workspace owner or admin to check it."
+        },
+        "responsible": {
+          "manager": "Workspace owner or admin; an installation operator may need to help.",
+          "member": "Workspace owner or admin."
+        }
+      }
     }
   },
   "workspaceInstallation": {
@@ -1844,13 +1855,6 @@
     "createWorkspaceTitle": "Create a project workspace",
     "createWorkspaceSubtitle": "Start with a workspace for your project.",
     "installApprovalIntro": "An owner or admin approves Reef's setup before people can use this workspace. Existing data is preserved.",
-    "existingVaultsTitle": "Existing workspaces",
-    "existingVaultsDescription": "Workspaces that need setup are listed here. Only owners and admins can request setup changes.",
-    "existingWorkspace": "Use an existing reef workspace",
-    "existingWorkspaceHint": "Choose a workspace that already has Reef set up.",
-    "existingWorkspaceEmpty": "No existing reef workspaces found.",
-    "existingWorkspacePlaceholder": "Select a reef workspace...",
-    "continueToWorkspace": "Continue to workspace",
     "checkingWorkspaces": "Checking your workspaces...",
     "workspaceLoadError": "We could not load your workspaces. Try again.",
     "retry": "Retry",

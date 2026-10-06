@@ -1,7 +1,8 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { EnrichedVaultSummary } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockApiFetch } = vi.hoisted(() => ({ mockApiFetch: vi.fn() }));
@@ -42,6 +43,7 @@ function renderDenied(
   options: {
     role?: string;
     installationStatus?: EnrichedVaultSummary["installation_status"];
+    onCheckStatus?: () => Promise<void>;
   } = {},
 ) {
   const queryClient = new QueryClient({
@@ -56,6 +58,7 @@ function renderDenied(
           vaults={vaults}
           role={options.role}
           installationStatus={options.installationStatus}
+          onCheckStatus={options.onCheckStatus ?? (async () => undefined)}
         />
       </IntlTestProvider>
     </QueryClientProvider>,
@@ -91,6 +94,21 @@ describe("WorkspaceAccessDenied", () => {
     expect(screen.queryByTestId("access-denied-workspace-raw")).toBeNull();
   });
 
+  it("keeps an existing unavailable workspace in its entry guidance", () => {
+    renderDenied([vault("reef-target", false, "owner")], "reef-target", {
+      role: "owner",
+      installationStatus: "uninstalled",
+    });
+
+    expect(
+      screen.getByTestId("workspace-installation-reef-target"),
+    ).toBeVisible();
+    expect(screen.queryByTestId("access-denied-onboarding")).toBeNull();
+    expect(
+      screen.queryByText("You don't have any reef workspaces yet."),
+    ).toBeNull();
+  });
+
   it("keeps the authenticated account menu available", () => {
     renderDenied([vault("reef-acme", true)]);
 
@@ -110,11 +128,9 @@ describe("WorkspaceAccessDenied", () => {
         name: "You don't have access to this workspace",
       }),
     ).toBeVisible();
+    expect(status).toHaveTextContent("This workspace can't be used right now.");
     expect(status).toHaveTextContent(
-      "This workspace needs an owner or admin before it can be used.",
-    );
-    expect(status).toHaveTextContent(
-      "Ask a workspace owner or admin to check the setup.",
+      "Check the workspace status again. If it remains unavailable, ask a workspace owner or admin to check it.",
     );
     expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
     expect(
@@ -125,27 +141,78 @@ describe("WorkspaceAccessDenied", () => {
     expect(screen.queryByText(/AKB installation operator/i)).toBeNull();
   });
 
-  it("lets an owner recheck current-target status without showing diagnostics", () => {
-    renderDenied([vault("reef-acme", true)], "reef-blocked", {
-      role: "owner",
-      installationStatus: "blocked",
-    });
+  it.each([
+    { role: "owner", state: "not_installed", visibleState: "not_installed" },
+    {
+      role: "reader",
+      state: "not_installed",
+      visibleState: "management_required",
+    },
+    { role: "owner", state: "uninstalled", visibleState: "uninstalled" },
+    {
+      role: "reader",
+      state: "uninstalled",
+      visibleState: "management_required",
+    },
+  ] as const)(
+    "guides $role into $state workspace without setup mutations",
+    async ({ role, state, visibleState }) => {
+      const onCheckStatus = vi.fn(async () => undefined);
+      renderDenied([vault("reef-acme", true)], "reef-target", {
+        role,
+        installationStatus: state,
+        onCheckStatus,
+      });
 
-    const surface = screen.getByTestId("workspace-access-denied");
-    expect(surface).toHaveClass("min-h-screen", "py-16");
-    expect(surface).not.toHaveClass("h-screen");
-    const status = screen.getByTestId("workspace-installation-reef-blocked");
-    expect(status).toHaveAttribute("data-status", "blocked");
-    expect(status).toHaveTextContent("Impact");
-    expect(status).toHaveTextContent("Next step");
-    expect(status).toHaveTextContent("Who can act");
-    expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
-    expect(
-      screen.getByTestId("installation-diagnostics-link-reef-blocked"),
-    ).toHaveAttribute("href", "/workspace/reef-blocked/settings/workspace");
-    expect(screen.queryByTestId("installation-details-disclosure")).toBeNull();
-    expect(screen.queryByTestId("installation-blocked-guidance")).toBeNull();
-  });
+      const surface = screen.getByTestId("workspace-access-denied");
+      expect(surface).toHaveClass("min-h-screen", "py-16");
+      expect(surface).not.toHaveClass("h-screen");
+      const status = screen.getByTestId("workspace-installation-reef-target");
+      expect(status).toHaveAttribute("data-status", visibleState);
+      expect(status).toHaveTextContent("Impact");
+      expect(status).toHaveTextContent("Next step");
+      expect(status).toHaveTextContent("Who can act");
+      expect(status).toHaveTextContent(
+        role === "owner"
+          ? "Check the workspace status again, or open its settings to review setup details."
+          : "Check the workspace status again. If it remains unavailable, ask a workspace owner or admin to check it.",
+      );
+      const checkStatusButton = screen.getByRole("button", {
+        name: "Check status",
+      });
+      expect(checkStatusButton).toBeVisible();
+      expect(
+        screen.queryByRole("button", {
+          name: /Set up Reef|Restore installation|Request fresh setup/,
+        }),
+      ).toBeNull();
+      expect(
+        screen.queryByTestId("installation-details-disclosure"),
+      ).toBeNull();
+      expect(screen.queryByTestId("installation-blocked-guidance")).toBeNull();
+
+      const diagnostics = screen.queryByTestId(
+        "installation-diagnostics-link-reef-target",
+      );
+      if (role === "owner") {
+        expect(diagnostics).toHaveAttribute(
+          "href",
+          "/workspace/reef-target/settings/workspace",
+        );
+      } else {
+        expect(diagnostics).toBeNull();
+      }
+
+      await userEvent.setup().click(checkStatusButton);
+      await waitFor(() => expect(onCheckStatus).toHaveBeenCalledOnce());
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) =>
+            init?.method === "POST" && String(url).endsWith("/installation"),
+        ),
+      ).toBe(false);
+    },
+  );
 
   it("does not call an unknown installation state a setup requirement", () => {
     renderDenied([], "reef-unknown", {

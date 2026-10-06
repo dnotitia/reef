@@ -8,7 +8,10 @@ import { useVaults } from "@/features/settings/hooks/useVaults";
 import { withVault } from "@/lib/workspaceHref";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { selectConfiguredWorkspace } from "../workspaceResumePolicy";
+import {
+  selectConfiguredWorkspace,
+  selectRememberedUnavailableWorkspace,
+} from "../workspaceResumePolicy";
 
 export type WorkspaceAutoResumeStatus =
   | "disabled"
@@ -42,16 +45,13 @@ export function useWorkspaceAutoResume({
   const committedNavigationRef = useRef<string | null>(null);
   const emptyRedirectCommittedRef = useRef(false);
 
-  const target = useMemo(
-    () =>
-      vaultsQuery.data
-        ? selectConfiguredWorkspace(vaultsQuery.data, rememberedVault)
-        : null,
-    [vaultsQuery.data, rememberedVault],
-  );
-  const hasConfiguredWorkspace =
-    vaultsQuery.data?.some((vault) => vault.installation_status === "ready") ??
-    false;
+  const target = useMemo(() => {
+    if (!vaultsQuery.data) return null;
+    return (
+      selectConfiguredWorkspace(vaultsQuery.data, rememberedVault) ??
+      selectRememberedUnavailableWorkspace(vaultsQuery.data, rememberedVault)
+    );
+  }, [vaultsQuery.data, rememberedVault]);
 
   const retry = useCallback(() => {
     pendingResumeRef.current = null;
@@ -68,7 +68,7 @@ export function useWorkspaceAutoResume({
       !enabled ||
       vaultsQuery.isPending ||
       vaultsQuery.isError ||
-      (rememberedVaultLoading && hasConfiguredWorkspace) ||
+      rememberedVaultLoading ||
       !vaultsQuery.data
     ) {
       return;
@@ -114,7 +114,6 @@ export function useWorkspaceAutoResume({
     };
   }, [
     enabled,
-    hasConfiguredWorkspace,
     persistActiveVault,
     redirectWhenEmpty,
     rememberedVaultLoading,
@@ -131,7 +130,7 @@ export function useWorkspaceAutoResume({
   else if (vaultsQuery.isError || persistFailed) status = "error";
   else if (
     vaultsQuery.isPending ||
-    (rememberedVaultLoading && hasConfiguredWorkspace) ||
+    rememberedVaultLoading ||
     !vaultsQuery.data
   ) {
     status = "pending";

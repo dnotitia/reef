@@ -18,3 +18,13 @@ export function selectConfiguredWorkspace(
   if (configuredNames.includes(rememberedVault)) return rememberedVault;
   return configuredNames[0] ?? null;
 }
+
+export function selectRememberedUnavailableWorkspace(
+  vaults: ReadonlyArray<EnrichedVaultSummary>,
+  rememberedVault: string,
+): string | null {
+  const remembered = vaults.find((vault) => vault.name === rememberedVault);
+  return remembered && remembered.installation_status !== "ready"
+    ? remembered.name
+    : null;
+}

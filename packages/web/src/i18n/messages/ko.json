@@ -198,7 +198,18 @@
       "body": "\"{vault}\" 워크스페이스의 멤버가 아니거나 더 이상 존재하지 않습니다. 대신 내 워크스페이스 중 하나를 열어 주세요.",
       "switchHeading": "내 워크스페이스",
       "empty": "아직 reef 워크스페이스가 없습니다.",
-      "onboardingCta": "워크스페이스 설정하기"
+      "onboardingCta": "워크스페이스 설정하기",
+      "entry": {
+        "impact": "현재 이 워크스페이스를 사용할 수 없습니다.",
+        "nextAction": {
+          "manager": "워크스페이스 상태를 다시 확인하거나 설정에서 진단 정보를 확인하세요. 계속 사용할 수 없다면 AKB 설치 운영자에게 문의하세요.",
+          "member": "워크스페이스 상태를 다시 확인하세요. 계속 사용할 수 없다면 소유자나 관리자에게 문의하세요."
+        },
+        "responsible": {
+          "manager": "워크스페이스 소유자 또는 관리자, 필요한 경우 AKB 설치 운영자",
+          "member": "워크스페이스 소유자 또는 관리자"
+        }
+      }
     }
   },
   "workspaceInstallation": {
@@ -2059,13 +2070,6 @@
     "createWorkspaceTitle": "프로젝트 워크스페이스 만들기",
     "createWorkspaceSubtitle": "프로젝트에 사용할 워크스페이스를 만드세요.",
     "installApprovalIntro": "사람들이 워크스페이스를 사용하기 전에 소유자나 관리자가 Reef 설정을 승인해야 합니다. 기존 데이터는 보존됩니다.",
-    "existingVaultsTitle": "기존 워크스페이스",
-    "existingVaultsDescription": "설정이 필요한 워크스페이스를 표시합니다. 설정 변경은 소유자와 관리자만 요청할 수 있습니다.",
-    "existingWorkspace": "기존 reef 워크스페이스 사용",
-    "existingWorkspaceHint": "Reef가 이미 설정된 워크스페이스를 선택하세요.",
-    "existingWorkspaceEmpty": "기존 reef 워크스페이스를 찾을 수 없습니다.",
-    "existingWorkspacePlaceholder": "reef 워크스페이스 선택...",
-    "continueToWorkspace": "워크스페이스로 이동",
     "checkingWorkspaces": "워크스페이스를 확인하는 중입니다...",
     "workspaceLoadError": "워크스페이스를 불러오지 못했습니다. 다시 시도해 주세요.",
     "retry": "다시 시도",

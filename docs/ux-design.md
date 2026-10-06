@@ -1009,25 +1009,26 @@ reconciled away. There is no GitHub-OAuth sign-in, popup, or
 management-repository selection.
 
 After session validation, reef checks the user's accessible workspaces before
-showing onboarding. If at least one already has reef configuration, the app
-restores a valid last-viewed workspace or deterministically chooses one, saves
-that browser fallback, and replaces the current history entry with its Issues
-URL. During this check the creation form stays hidden; a failed list request
-shows an explicit retry state.
+showing onboarding. If a ready workspace exists, the app restores a valid
+last-viewed workspace or deterministically chooses the first ready workspace in
+ASCII order, saves that browser fallback, and replaces the current history entry
+with its Issues URL. The app waits for both the workspace list and the remembered
+Dexie value before choosing a destination. If no workspace is ready but the
+remembered workspace is still accessible, it opens that workspace's entry
+guidance so the user can recheck access. A failed list request shows an explicit
+retry state.
 
-Users with no configured workspace enter `/onboarding`. Its required step is
-**Create a project workspace**: name a new akb vault (lowercase/digits/
-hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
-description and monitored repositories, and create. Reef then asks the owner
-or admin to approve its registered AKB app release before initializing tables,
-templates, configuration, and managed instructions. Raw vaults do not count as
-configured workspaces and therefore do not bypass onboarding. An existing
-member can enter an active workspace after Reef initialization is complete.
-Installation guidance preserves remembered-workspace-first and deterministic
-ASCII auto-resume. It does not add a workspace chooser or confirmation step.
-Onboarding lists only existing workspaces that still need setup; each compact
-row names the workspace, summarizes the next action, and exposes only actions
-allowed to the current role.
+Users with no ready workspace and no remembered accessible workspace enter
+`/onboarding`. Its only workspace task is **Create a project workspace**: name
+a new akb vault (lowercase/digits/hyphens), choose an issue **prefix**
+(uppercase, e.g. `REEF`), optionally add a description and monitored
+repositories, and create. Reef then asks the owner or admin to approve its
+registered AKB app release before initializing tables, templates, configuration,
+and managed instructions. Existing workspace installation states and commands
+do not appear on onboarding for any role. An existing member can enter an
+active workspace after Reef initialization is complete. Ready-workspace
+selection preserves remembered-workspace-first and deterministic ASCII
+auto-resume without adding a workspace chooser or confirmation step.
 
 Settings concerns only the selected workspace. A ready workspace shows no
 installation task to readers or writers. Its owner or admin may expand a
@@ -1041,13 +1042,18 @@ healthy. The detailed comparison shows release, schema, and grant values,
 dimension states, a single overall drift result, and localized observation
 time; matching fingerprints appear once.
 
-The access-denied screen describes only the requested workspace and its next
-permitted action. Other ready Reef workspaces remain plain switch links. It does
-not show installation diagnostics or operator procedures. The status summary
-uses the existing product typography and remains usable at 390px and desktop in
-English and Korean, light and dark themes. Uninstall revokes Reef's grant but
-keeps the vault data; full vault deletion remains a separate owner-only,
-typed-name confirmation.
+For a remembered or explicitly requested unavailable workspace, the
+access-denied screen stays with that target's entry task: impact, a safe status
+recheck, and the responsible role. It does not offer install, restore, fresh
+setup, or an onboarding diversion. Owners and admins can explicitly open that
+workspace's existing settings to inspect its diagnosis; readers and writers see
+the minimum guidance and are asked to contact an owner or admin. Other ready
+Reef workspaces remain plain switch links. Installation details and operator
+procedures stay out of this public entry surface. The status summary uses the
+existing product typography and remains usable at 390px and desktop in English
+and Korean, light and dark themes. Uninstall revokes Reef's grant but keeps the
+vault data; full vault deletion remains a separate owner-only, typed-name
+confirmation.
 Monitored repository access comes from deployment-managed GitHub
 credentials, so onboarding configures a *workspace*, not a Git repo, and no
 issue is committed under anyone's GitHub identity.
