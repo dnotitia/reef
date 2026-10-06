@@ -17,6 +17,21 @@ import {
   writeIndexedDbConfig,
 } from "../harness/fixture";
 
+const localizedInstallationActions = {
+  en: {
+    checkStatus: "Check status",
+    setup: "Set up Reef",
+    restore: "Restore installation",
+    fresh: "Request fresh setup",
+  },
+  ko: {
+    checkStatus: "상태 확인",
+    setup: "Reef 설정하기",
+    restore: "설치 복원하기",
+    fresh: "새 설정 요청",
+  },
+} as const;
+
 async function attachFullPageScreenshot(
   page: Page,
   testInfo: TestInfo,
@@ -538,17 +553,18 @@ test.describe("installation drift and readiness guidance", () => {
             const accessCard = page.getByTestId(
               "workspace-installation-reef-e2e",
             );
+            const actions = localizedInstallationActions[locale];
             await expect(accessCard).toHaveAttribute(
               "data-status",
               canManage ? "blocked" : "management_required",
             );
             await expect(
-              accessCard.getByRole("button", { name: "Check status" }),
+              accessCard.getByRole("button", { name: actions.checkStatus }),
             ).toBeVisible();
             for (const action of [
-              "Set up Reef",
-              "Restore installation",
-              "Request fresh setup",
+              actions.setup,
+              actions.restore,
+              actions.fresh,
             ]) {
               await expect(
                 accessCard.getByRole("button", { name: action }),
