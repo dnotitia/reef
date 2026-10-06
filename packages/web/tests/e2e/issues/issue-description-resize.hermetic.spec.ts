@@ -253,15 +253,19 @@ test.describe("Hermetic issue description height resize", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button");
     await sourceToggle.click();
-    await expect(
-      page.locator('[data-markdown-mode="source"] textarea'),
-    ).toHaveClass(/resize-none/);
+    const sourceTextarea = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
+    await expect(sourceTextarea).toHaveClass(/resize-none/);
+    await expect(sourceTextarea).toBeFocused();
     await expect(frame).toHaveAttribute("style", /height: 740px/);
     await sourceToggle.click();
     await expect(page.locator(".reef-markdown-editor")).toBeVisible();
     await expect(handle).toHaveAttribute("aria-valuenow", "740");
+    await expect(editor.getByTestId("markdown-editor-content")).toBeFocused();
 
     await handle.focus();
+    await expect(handle).toBeFocused();
     await page.keyboard.press("Home");
     await expect(handle).toHaveAttribute("aria-valuenow", String(MIN_HEIGHT));
     await expect(frame).toHaveAttribute(
