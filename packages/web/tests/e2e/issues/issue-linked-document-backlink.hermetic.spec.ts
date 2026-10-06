@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  readFixtureState,
+  resetFixture,
+  REEF_E2E_VAULT,
+} from "../harness/fixture";
 
 // REEF-368: the linked-document "open in akb" backlink must be driven by the
 // akb web base the SERVER reads at request time (AKB_WEB_URL), handed to the
@@ -40,7 +45,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
     await expect(openLink).toHaveAttribute("href", EXPECTED_HREF);
   });
 
-  test("auto-links akb document URIs in the issue body and opens them with AKB_WEB_URL", async ({
+  test("keeps explicit AKB Markdown links canonical and opens them with AKB_WEB_URL", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -52,16 +57,9 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       .getByRole("button")
       .click();
     const source = page.locator('[data-markdown-mode="source"] textarea');
-    const resolved = `See [Spec overview](${REFERENCE_URI})`;
-    const resolveResponse = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/documents/resolve") &&
-        response.status() === 200,
-    );
-
-    await source.fill(`See ${REFERENCE_URI}`);
-    await resolveResponse;
-    await expect(source).toHaveValue(resolved);
+    const explicitMarkdown = `See [Spec overview](${REFERENCE_URI})`;
+    await source.fill(explicitMarkdown);
+    await expect(source).toHaveValue(explicitMarkdown);
 
     const saveResponse = page.waitForResponse(
       (response) =>
@@ -116,6 +114,62 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       anchorInsideEditor: false,
       focusInsideEditor: false,
     });
+  });
+
+  test("preserves a bare AKB document URI in Source through save and reopen", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = page.locator('[data-markdown-mode="source"] textarea');
+    const bareMarkdown = `See ${REFERENCE_URI}`;
+    await source.fill(bareMarkdown);
+    await expect(source).toHaveValue(bareMarkdown);
+
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        response.url().includes("/api/issues/REEF-001") &&
+        request.method() === "PATCH"
+      ) {
+        const body = request.postDataJSON() as {
+          update?: { content?: unknown };
+        };
+        return body.update?.content === bareMarkdown;
+      }
+      return false;
+    });
+    await page.getByTestId("issue-title-input").click();
+    const saved = await saveResponse;
+    expect(saved.ok()).toBeTruthy();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path === "issues/reef-001.md")
+          ?.content;
+      })
+      .toBe(bareMarkdown);
+
+    await page.reload();
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
+    await expect(reopenedSource).toHaveValue(bareMarkdown);
   });
 
   test("keeps ordinary body text clicks at the clicked paragraph after editor rerenders", async ({

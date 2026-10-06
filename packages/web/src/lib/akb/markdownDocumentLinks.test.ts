@@ -11,21 +11,19 @@ const BRACKET_TITLE = "[Plan] 260811 - 전체";
 const BRACKET_TITLES = new Map([[URI, BRACKET_TITLE]]);
 
 describe("normalizeAkbDocumentMarkdownLinks", () => {
-  it("converts bare akb document URIs into markdown links", () => {
+  it("preserves bare AKB document URIs as authored text", () => {
     expect(normalizeAkbDocumentMarkdownLinks(`See ${URI}.`)).toBe(
-      `See [report](${URI}).`,
+      `See ${URI}.`,
     );
   });
 
-  it("uses resolved document titles for auto-generated link text", () => {
+  it("uses resolved document titles for existing fallback link text", () => {
     const titles = new Map([[URI, "Research Report"]]);
 
     expect(normalizeAkbDocumentMarkdownLinks(`[report](${URI})`, titles)).toBe(
       `[Research Report](${URI})`,
     );
-    expect(normalizeAkbDocumentMarkdownLinks(URI, titles)).toBe(
-      `[Research Report](${URI})`,
-    );
+    expect(normalizeAkbDocumentMarkdownLinks(URI, titles)).toBe(URI);
   });
 
   it("preserves user-authored link text", () => {
@@ -37,7 +35,11 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
   });
 
   it("is idempotent for titles that start with brackets", () => {
-    const once = normalizeAkbDocumentMarkdownLinks(URI, BRACKET_TITLES);
+    const existingLink = `[report](${URI})`;
+    const once = normalizeAkbDocumentMarkdownLinks(
+      existingLink,
+      BRACKET_TITLES,
+    );
     const twice = normalizeAkbDocumentMarkdownLinks(once, BRACKET_TITLES);
     const thrice = normalizeAkbDocumentMarkdownLinks(twice, BRACKET_TITLES);
     const fourTimes = normalizeAkbDocumentMarkdownLinks(thrice, BRACKET_TITLES);
@@ -73,7 +75,8 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
 });
 
 describe("extractAkbDocumentUris", () => {
-  it("extracts unique document URIs from bare text and markdown links", () => {
+  it("extracts unique document URIs from explicit Markdown links", () => {
+    expect(extractAkbDocumentUris(URI)).toEqual([]);
     expect(
       extractAkbDocumentUris(`${URI}\n[Report](${URI})\nakb://v/file/abc`),
     ).toEqual([URI]);

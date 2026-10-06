@@ -317,7 +317,13 @@ function MarkdownEditorContent({
   );
   const queueDocumentTitleResolution = useCallback(
     (markdown: string) => {
-      if (!vault || activeVaultRef.current !== vault) return;
+      if (
+        !vault ||
+        activeVaultRef.current !== vault ||
+        modeRef.current === "source"
+      ) {
+        return;
+      }
       const unresolved = extractAkbDocumentUris(markdown).filter(
         (uri) =>
           !titleByUriRef.current.has(uri) &&
@@ -331,6 +337,7 @@ function MarkdownEditorContent({
           pendingTitleUrisRef.current.delete(uri);
           titleByUriRef.current.set(uri, titles.get(uri) ?? null);
         }
+        if (modeRef.current === "source") return;
         const next = normalizeMarkdown(latestValueRef.current);
         if (next === latestValueRef.current) return;
         latestValueRef.current = next;
@@ -427,12 +434,16 @@ function MarkdownEditorContent({
     pendingTitleUrisRef.current.clear();
   }, [vault]);
   useEffect(() => {
-    const normalized = normalizeMarkdown(value);
     if (sourceApplyPendingRef.current) {
       // Keep the pending Source edit as latest until the shared surface applies it.
-      queueDocumentTitleResolution(normalized);
       return;
     }
+    if (modeRef.current === "source") {
+      latestValueRef.current = value;
+      lastSyncedValueRef.current = value;
+      return;
+    }
+    const normalized = normalizeMarkdown(value);
     latestValueRef.current = normalized;
     if (normalized !== lastSyncedValueRef.current) {
       lastSyncedValueRef.current = normalized;
@@ -445,17 +456,12 @@ function MarkdownEditorContent({
     onBlurRef.current?.(latestValueRef.current);
   }, []);
 
-  const handleSourceChange = useCallback(
-    (rawMarkdown: string) => {
-      const next = normalizeMarkdown(rawMarkdown);
-      sourceApplyPendingRef.current = true;
-      latestValueRef.current = next;
-      lastSyncedValueRef.current = next;
-      onChangeRef.current(next);
-      queueDocumentTitleResolution(next);
-    },
-    [normalizeMarkdown, queueDocumentTitleResolution],
-  );
+  const handleSourceChange = useCallback((rawMarkdown: string) => {
+    sourceApplyPendingRef.current = true;
+    latestValueRef.current = rawMarkdown;
+    lastSyncedValueRef.current = rawMarkdown;
+    onChangeRef.current(rawMarkdown);
+  }, []);
 
   const handleMarkdownApplied = useCallback(() => {
     if (!sourceApplyPendingRef.current) return;
@@ -737,7 +743,7 @@ function MarkdownEditorContent({
       >
         <MarkdownEditingSurface
           editor={editor}
-          markdown={normalizeMarkdown(value)}
+          markdown={value}
           profile="preserve"
           onSourceChange={handleSourceChange}
           onMarkdownApplied={handleMarkdownApplied}

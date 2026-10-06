@@ -634,7 +634,7 @@ describe("MarkdownEditor product adapter", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("normalizes bare AKB document URIs without changing resource identity", () => {
+  it("preserves bare AKB document URIs without changing resource identity", () => {
     const onChange = vi.fn();
     renderEditor({
       value: "See akb://reef-test/coll/docs/doc/spec.md",
@@ -642,12 +642,10 @@ describe("MarkdownEditor product adapter", () => {
     });
 
     expect(markdownMocks.editorOptions).toMatchObject({
-      initialMarkdown: "See [spec](akb://reef-test/coll/docs/doc/spec.md)",
+      initialMarkdown: "See akb://reef-test/coll/docs/doc/spec.md",
       profile: "preserve",
     });
-    expect(onChange).toHaveBeenCalledWith(
-      "See [spec](akb://reef-test/coll/docs/doc/spec.md)",
-    );
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("opens external Markdown links only after confirmation", () => {
