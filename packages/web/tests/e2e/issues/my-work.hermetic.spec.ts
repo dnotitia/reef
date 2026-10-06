@@ -66,6 +66,11 @@ test.describe("Hermetic My Work flow", () => {
     await expect(filter.locator("option")).toHaveCount(4);
     await expect(filter.locator('option[value="raw-vault"]')).toHaveCount(0);
     const summary = page.getByTestId("my-work-summary");
+    for (const workspace of ["reef-alpha", "reef-e2e", "reef-zeta"]) {
+      await expect(
+        page.getByTestId(`my-work-tile-sprint-${workspace}`),
+      ).toBeVisible();
+    }
     const summaryBeforeFilter = await summary.textContent();
 
     await filter.selectOption("reef-zeta");
