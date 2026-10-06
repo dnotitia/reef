@@ -231,6 +231,16 @@ export function createState(scenario) {
           ]
         : [],
     ),
+    installationRoles: new Map(
+      scenario === "installation_drift"
+        ? [
+            [alice.username, "owner"],
+            [bob.username, "reader"],
+            [writer.username, "writer"],
+          ]
+        : [],
+    ),
+    installationLookupModes: new Map(),
     notificationSchemaMode: "healthy",
     notificationDataMode: "healthy",
     keycloakEnabled: false,
@@ -326,6 +336,9 @@ export function roleForVault(vault, state, username) {
   if (state.scenario === "notifications" && vault.name === REEF_VAULT) {
     return state.notificationRoles.get(username) ?? vault.role;
   }
+  if (state.scenario === "installation_drift") {
+    return state.installationRoles.get(username) ?? null;
+  }
   return vault.role;
 }
 
@@ -340,6 +353,18 @@ export function vaultSummary(vault, state, username) {
   };
 }
 
+export function installationLookupModes(state, vaultName) {
+  const modes = state.installationLookupModes.get(vaultName);
+  return {
+    member_lookup: modes?.member_lookup ?? "healthy",
+    detail_lookup: modes?.detail_lookup ?? "healthy",
+  };
+}
+
+export function installationLookupMode(state, vaultName, lookup) {
+  return installationLookupModes(state, vaultName)[lookup];
+}
+
 export function publicState(state) {
   return {
     scenario: state.scenario,
@@ -349,6 +374,17 @@ export function publicState(state) {
       roles: Object.fromEntries(state.notificationRoles),
       schema_mode: state.notificationSchemaMode,
       data_mode: state.notificationDataMode,
+    },
+    installation_drift: {
+      lookup_modes: Object.fromEntries(
+        [...state.vaults.values()]
+          .filter((vault) => vault.installation)
+          .map((vault) => [
+            vault.name,
+            installationLookupModes(state, vault.name),
+          ]),
+      ),
+      roles: Object.fromEntries(state.installationRoles),
     },
     issue_update_calls: Object.fromEntries(state.issueUpdateCalls),
     issue_update_pending: Object.fromEntries(state.issueUpdatePending),

@@ -2,7 +2,10 @@
 
 import type { EnrichedVaultSummary } from "@reef/core";
 import { describe, expect, it } from "vitest";
-import { selectConfiguredWorkspace } from "./workspaceResumePolicy";
+import {
+  selectConfiguredWorkspace,
+  selectRememberedUnavailableWorkspace,
+} from "./workspaceResumePolicy";
 
 function vault(name: string, ready: boolean): EnrichedVaultSummary {
   return {
@@ -41,6 +44,32 @@ describe("selectConfiguredWorkspace", () => {
   it("returns null when no configured workspace is accessible", () => {
     expect(
       selectConfiguredWorkspace([vault("raw-alpha", false)], ""),
+    ).toBeNull();
+  });
+});
+
+describe("selectRememberedUnavailableWorkspace", () => {
+  it("keeps the remembered accessible workspace as the entry target", () => {
+    expect(
+      selectRememberedUnavailableWorkspace(
+        [vault("reef-zeta", false), vault("raw-vault", false)],
+        "reef-zeta",
+      ),
+    ).toBe("reef-zeta");
+  });
+
+  it("does not choose an unremembered or ready workspace", () => {
+    expect(
+      selectRememberedUnavailableWorkspace(
+        [vault("reef-alpha", false), vault("reef-zeta", true)],
+        "missing",
+      ),
+    ).toBeNull();
+    expect(
+      selectRememberedUnavailableWorkspace(
+        [vault("reef-zeta", true)],
+        "reef-zeta",
+      ),
     ).toBeNull();
   });
 });

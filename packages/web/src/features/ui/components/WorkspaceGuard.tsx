@@ -9,8 +9,10 @@ import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVa
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { IssueDetailAuthPendingSkeleton } from "@/features/issues/components/detail/IssueDetailAuthPendingSkeleton";
 import { IssueDetailEntryHandoffProvider } from "@/features/issues/components/detail/IssueDetailEntryHandoff";
+import { BlockedWorkspaceInstallationSettings } from "@/features/settings/components/BlockedWorkspaceInstallationSettings";
 import { hasEstablishedAuthSession } from "@/lib/akb/authCoordinator";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
+import { withVault } from "@/lib/workspaceHref";
 import {
   notFound,
   useParams,
@@ -101,6 +103,14 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const requestedVault = vaultsQuery.data?.find(
     (entry) => entry.name === vault,
   );
+  const canManageRequestedVault =
+    requestedVault?.role === "owner" || requestedVault?.role === "admin";
+  const showBlockedInstallationDiagnostics =
+    canRenderAuthenticatedTree &&
+    vaultsQuery.isSuccess &&
+    canManageRequestedVault &&
+    requestedVault.installation_status !== "ready" &&
+    pathname === withVault(vault, "/settings/workspace");
   // One-way URL→Dexie sync: remember this vault as the per-browser default
   // after auth and membership are confirmed. Passing "" while the
   // session or membership is unknown makes the sync a no-op.
@@ -121,15 +131,33 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
+  // An established-session owner/admin may inspect the selected workspace's
+  // setup diagnostics while it is unavailable. Keep this exception on one
+  // route: ordinary feature pages and settings remain readiness-gated, and
+  // the URL does not become the remembered active workspace.
+  if (showBlockedInstallationDiagnostics) {
+    return (
+      <BlockedWorkspaceInstallationSettings
+        appVersion={appVersion}
+        vault={vault}
+      />
+    );
+  }
+
   // Keep the access-denied surface outside the dashboard shell so its
   // dedicated account utility and recovery layout stay unchanged.
-  if (authStatus === "active" && vaultsQuery.isSuccess && !isMember) {
+  if (canRenderAuthenticatedTree && vaultsQuery.isSuccess && !isMember) {
     return (
       <WorkspaceAccessDenied
         appVersion={appVersion}
         vault={vault}
         vaults={vaultsQuery.data}
         installationStatus={requestedVault?.installation_status}
+        role={requestedVault?.role}
+        onCheckStatus={async () => {
+          const refreshed = await vaultsQuery.refetch();
+          if (refreshed.isError) throw new Error("Workspace recheck failed");
+        }}
       />
     );
   }

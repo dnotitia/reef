@@ -33,9 +33,26 @@ explicitly in the entries below.
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
   AKB data, while full vault deletion remains separate. (REEF-418)
+- **Workspace setup guidance follows the user's current task.** Onboarding only
+  creates a new workspace; it no longer lists existing installation states or
+  setup commands. Remembered ready-workspace entry and ASCII fallback remain,
+  while a remembered accessible but unavailable workspace opens its own access
+  guidance. That screen offers a safe status recheck and an owner/admin link to
+  the selected workspace's existing diagnostics, without setup mutations.
+  Settings remains scoped to the selected workspace, with admin details on
+  demand and no setup task for ready readers or writers. Release diagnostics
+  continue to distinguish canonical drift from the installation snapshot,
+  including release identities when versions alone collide.
+  (REEF-422)
 
 ### Fixed
 
+- **Unavailable workspace entries no longer imply an access denial.** Their
+  heading now describes availability in English and Korean, while genuine
+  access denials keep their existing guidance. (REEF-422)
+- **Onboarding keeps its creation form after an empty workspace response or a
+  successful list retry.** Workspace resume checks no longer restart when the
+  create panel mounts. (REEF-422)
 - **Pointer drags on large Board columns keep the card under the pointer as the
   target through auto-scroll.** If hit testing finds only the dragged card,
   Board follows dnd-kit's valid target instead of rejecting the drop as a

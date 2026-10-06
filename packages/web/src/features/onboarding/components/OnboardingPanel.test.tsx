@@ -1,16 +1,15 @@
-// fake-indexeddb/auto - OnboardingPanel reads/writes the active vault via Dexie.
+// fake-indexeddb/auto - CreateWorkspaceForm stores the active vault via Dexie.
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode, StrictMode } from "react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPush = vi.fn();
-const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useParams: () => ({}),
 }));
 
@@ -32,7 +31,7 @@ vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
-import { getActiveVault, setActiveVault } from "@/lib/storage/config";
+import { getActiveVault } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
 import { DEFAULT_CONFIG } from "@reef/core";
 import { OnboardingPanel } from "./OnboardingPanel";
@@ -46,39 +45,17 @@ function wrap(ui: ReactNode) {
   return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
 }
 
-function vaultsResponse(
-  entries: ReadonlyArray<{
-    name: string;
-    installation_status: "ready" | "not_installed";
-  }>,
-) {
-  return new Response(
-    JSON.stringify({
-      vaults: entries.map((e) => ({
-        name: e.name,
-        description: null,
-        status: "active",
-        role: "owner",
-        created_at: null,
-        installation_status: e.installation_status,
-      })),
-    }),
-    { status: 200 },
-  );
+function emptyResumeState() {
+  return { status: "empty" as const, retry: vi.fn() };
 }
 
 interface MockApiOptions {
-  vaults?: ReadonlyArray<{
-    name: string;
-    installation_status: "ready" | "not_installed";
-  }>;
   repos?: ReadonlyArray<{ full_name: string; id: number }>;
   postStatus?: number;
   postBody?: Record<string, unknown>;
 }
 
 function setupMockApi({
-  vaults = [],
   repos = [],
   postStatus = 200,
   postBody = {
@@ -113,7 +90,6 @@ function setupMockApi({
         status: 200,
       });
     }
-    if (u === "/api/vaults") return vaultsResponse(vaults);
     if (u.startsWith("/api/repos")) {
       return new Response(JSON.stringify({ repos }), { status: 200 });
     }
@@ -131,7 +107,6 @@ describe("OnboardingPanel", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockPush.mockReset();
-    mockReplace.mockReset();
     appState.current = {
       isAvailable: true,
       isLoading: false,
@@ -149,7 +124,7 @@ describe("OnboardingPanel", () => {
   it("renders the greenfield form by default with REEF as the prefix", async () => {
     setupMockApi();
 
-    render(wrap(<OnboardingPanel />));
+    render(wrap(<OnboardingPanel resumeState={emptyResumeState()} />));
 
     expect(await screen.findByTestId("onboarding-panel")).toBeInTheDocument();
     expect(screen.getByTestId("greenfield-vault-name-input")).toBeVisible();
@@ -162,7 +137,7 @@ describe("OnboardingPanel", () => {
     setupMockApi();
     const user = userEvent.setup();
 
-    render(wrap(<OnboardingPanel />));
+    render(wrap(<OnboardingPanel resumeState={emptyResumeState()} />));
 
     await user.type(
       await screen.findByTestId("greenfield-vault-name-input"),
@@ -205,7 +180,7 @@ describe("OnboardingPanel", () => {
     });
     const user = userEvent.setup();
 
-    render(wrap(<OnboardingPanel />));
+    render(wrap(<OnboardingPanel resumeState={emptyResumeState()} />));
 
     await user.click(
       await screen.findByTestId("greenfield-monitored-repos-trigger"),
@@ -230,128 +205,32 @@ describe("OnboardingPanel", () => {
     ]);
   });
 
-  it("automatically resumes the remembered configured workspace", async () => {
-    await setActiveVault("reef-zeta");
-    setupMockApi({
-      vaults: [
-        { name: "reef-alpha", installation_status: "ready" },
-        { name: "reef-zeta", installation_status: "ready" },
-        { name: "raw-vault", installation_status: "not_installed" },
-      ],
-    });
-
-    render(wrap(<OnboardingPanel />));
-
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-zeta/issues"),
-    );
-    expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
-    expect(await getActiveVault()).toBe("reef-zeta");
-  });
-
-  it("uses explicit ASCII order when the remembered workspace is invalid", async () => {
-    await setActiveVault("missing");
-    setupMockApi({
-      vaults: [
-        { name: "reef-zeta", installation_status: "ready" },
-        { name: "reef-alpha", installation_status: "ready" },
-      ],
-    });
-
-    render(wrap(<OnboardingPanel />));
-
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-alpha/issues"),
-    );
-    expect(await getActiveVault()).toBe("reef-alpha");
-  });
-
-  it("persists and navigates once under Strict Effects", async () => {
-    setupMockApi({
-      vaults: [{ name: "reef-acme", installation_status: "ready" }],
-    });
-
+  it("renders the parent-provided loading state without the create form", () => {
     render(
       wrap(
-        <StrictMode>
-          <OnboardingPanel />
-        </StrictMode>,
+        <OnboardingPanel resumeState={{ status: "pending", retry: vi.fn() }} />,
       ),
     );
 
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-acme/issues"),
-    );
-    expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(await getActiveVault()).toBe("reef-acme");
-  });
-
-  it("shows onboarding only after a successful raw-only response", async () => {
-    setupMockApi({
-      vaults: [{ name: "raw-vault", installation_status: "not_installed" }],
-    });
-
-    render(wrap(<OnboardingPanel />));
-
-    expect(
-      await screen.findByTestId("greenfield-vault-name-input"),
-    ).toBeVisible();
-    expect(mockReplace).not.toHaveBeenCalled();
-  });
-
-  it("does not flash the form while vaults are loading", async () => {
-    let resolveVaults!: (response: Response) => void;
-    mockApiFetch.mockImplementation((url) => {
-      if (String(url).startsWith("/api/vaults")) {
-        return new Promise<Response>((resolve) => {
-          resolveVaults = resolve;
-        });
-      }
-      return Promise.resolve(new Response("{}", { status: 200 }));
-    });
-
-    render(wrap(<OnboardingPanel />));
-
-    expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
     expect(screen.getByRole("status")).toBeVisible();
-
-    resolveVaults(
-      vaultsResponse([{ name: "reef-acme", installation_status: "ready" }]),
-    );
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-acme/issues"),
-    );
+    expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
+    expect(mockApiFetch).not.toHaveBeenCalledWith("/api/vaults");
   });
 
-  it("shows a retryable error without flashing the form", async () => {
-    let attempts = 0;
-    mockApiFetch.mockImplementation(async (url) => {
-      if (String(url).startsWith("/api/vaults")) {
-        attempts += 1;
-        return attempts === 1
-          ? new Response("failed", { status: 500 })
-          : vaultsResponse([
-              { name: "reef-acme", installation_status: "ready" },
-            ]);
-      }
-      return new Response("{}", { status: 200 });
-    });
+  it("delegates retryable workspace errors to the parent", async () => {
+    const retry = vi.fn();
     const user = userEvent.setup();
-
-    render(wrap(<OnboardingPanel />));
+    render(wrap(<OnboardingPanel resumeState={{ status: "error", retry }} />));
 
     expect(await screen.findByRole("alert")).toBeVisible();
     expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
-
     await user.click(screen.getByRole("button", { name: /retry/i }));
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-acme/issues"),
-    );
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("does not render a Connect GitHub token panel (REEF-244)", async () => {
     setupMockApi();
-    render(wrap(<OnboardingPanel />));
+    render(wrap(<OnboardingPanel resumeState={emptyResumeState()} />));
 
     expect(await screen.findByTestId("onboarding-panel")).toBeInTheDocument();
     expect(

@@ -1,5 +1,11 @@
 // @vitest-environment node
-import { AuthError, ConflictError, LlmError, NotFoundError } from "@reef/core";
+import {
+  AuthError,
+  ConflictError,
+  LlmError,
+  NotFoundError,
+  WorkspaceReadinessError,
+} from "@reef/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -28,8 +34,12 @@ import {
 
 async function bodyOf(
   res: Response,
-): Promise<{ error: string; details?: unknown }> {
-  return (await res.json()) as { error: string; details?: unknown };
+): Promise<{ error: string; code?: string; details?: unknown }> {
+  return (await res.json()) as {
+    error: string;
+    code?: string;
+    details?: unknown;
+  };
 }
 
 async function agentBodyOf(res: Response): Promise<{
@@ -107,6 +117,24 @@ describe("localizeError — core error path (AC1, AC2, AC4)", () => {
     expect((await bodyOf(res)).error).toBe(
       "AI 서비스를 사용할 수 없습니다. 다시 시도하거나 LLM 설정을 확인해 주세요.",
     );
+  });
+
+  it("returns the stable installation readiness machine code with localized copy", async () => {
+    cookieLocale.current = "ko";
+    const response = await localizeError(
+      new WorkspaceReadinessError({
+        reason: "installation_blocked",
+        blockedReason: "checksum_mismatch",
+        status: 409,
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      code: "installation_blocked",
+      error:
+        "AKB가 설치를 차단했습니다(등록된 체크섬이 일치하지 않습니다). 운영자가 현재 설치 상태와 복구 조건을 확인해야 합니다. 이 사유만으로 복구를 보장할 수는 없습니다.",
+    });
   });
 });
 

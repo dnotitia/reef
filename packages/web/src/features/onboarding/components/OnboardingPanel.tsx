@@ -1,37 +1,37 @@
 "use client";
 
-import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
-import { useVaults } from "@/features/settings/hooks/useVaults";
+import type { WorkspaceAutoResumeStatus } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 import { useTranslations } from "next-intl";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
 import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
-import { WorkspaceInstallationActions } from "./WorkspaceInstallationActions";
 
 /**
- * Single-screen onboarding for new projects. Configured workspaces are
- * resumed before this panel renders, so this surface creates a workspace.
+ * Single-screen onboarding for new projects. Ready workspaces and remembered
+ * unavailable workspaces are routed before this panel renders, so this surface
+ * creates a workspace.
  *
- * Required greenfield step: create or select an AKB vault, request Reef's app
- * installation, then write the workspace config. The create form is the shared CreateWorkspaceForm,
- * which the sidebar "New workspace" dialog reuses (REEF-146). GitHub monitored
- * repos remain optional; AI is configured at deployment level and shown as
- * unavailable if the server lacks LLM settings.
+ * Required greenfield step: create a new AKB vault, request Reef's app
+ * installation, then write the workspace config. The shared
+ * CreateWorkspaceForm is also used by the sidebar "New workspace" dialog
+ * (REEF-146). GitHub monitored repos remain optional; AI is configured at
+ * deployment level and shown as unavailable if the server lacks LLM settings.
  */
 export function OnboardingPanel({
   resumeState,
 }: {
-  resumeState?: ReturnType<typeof useWorkspaceAutoResume>;
-} = {}) {
+  resumeState: {
+    status: WorkspaceAutoResumeStatus;
+    retry: () => void;
+  };
+}) {
   const t = useTranslations("onboarding");
-  const ownResume = useWorkspaceAutoResume({
-    enabled: resumeState === undefined,
-  });
-  const resume = resumeState ?? ownResume;
-  const vaultsQuery = useVaults();
 
-  if (resume.status !== "empty") {
+  if (resumeState.status !== "empty") {
     return (
-      <WorkspaceResumeStatus status={resume.status} onRetry={resume.retry} />
+      <WorkspaceResumeStatus
+        status={resumeState.status}
+        onRetry={resumeState.retry}
+      />
     );
   }
 
@@ -50,39 +50,6 @@ export function OnboardingPanel({
 
         <CreateWorkspaceForm idPrefix="greenfield" />
       </section>
-
-      {(vaultsQuery.data ?? []).some(
-        (vault) => vault.installation_status !== "ready",
-      ) && (
-        <section
-          className="flex flex-col gap-4"
-          aria-labelledby="existing-vaults-heading"
-        >
-          <div className="flex flex-col gap-1">
-            <h2
-              id="existing-vaults-heading"
-              className="type-settings-group text-foreground"
-            >
-              {t("existingVaultsTitle")}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {t("existingVaultsDescription")}
-            </p>
-          </div>
-          <div className="flex flex-col gap-3">
-            {(vaultsQuery.data ?? [])
-              .filter((vault) => vault.installation_status !== "ready")
-              .map((vault) => (
-                <WorkspaceInstallationActions
-                  key={vault.name}
-                  vault={vault.name}
-                  initialStatus={vault.installation_status}
-                  canManage={vault.role === "owner" || vault.role === "admin"}
-                />
-              ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
