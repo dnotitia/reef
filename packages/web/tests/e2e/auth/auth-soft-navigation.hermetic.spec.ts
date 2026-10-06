@@ -1505,8 +1505,13 @@ test.describe("auth soft navigation", () => {
     await setAkbAccountDenial(request, "membership_required");
     await page.reload();
     await expectLogin(page);
-    expect(new URL(page.url()).searchParams.get("sso_error")).toBe(
-      "membership_required",
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === "/login" &&
+        url.searchParams.get("sso_error") === "membership_required",
+    );
+    await expect(page.getByTestId("login-error-alert")).toContainText(
+      "does not have workspace access",
     );
   });
 
