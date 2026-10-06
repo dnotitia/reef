@@ -147,4 +147,87 @@ describe("GET /api/documents/search", () => {
     expect(body.documents).toHaveLength(1);
     expect(body.documents[0].uri).toBe("akb://v/coll/x/doc/spec.md");
   });
+
+  it("opts into canonical document and file results for the shared link picker", async () => {
+    mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+    mockSearchDocuments.mockResolvedValue([
+      {
+        uri: "akb://v/coll/x/doc/spec.md",
+        title: "Spec",
+        summary: "Design notes",
+        source_type: "document",
+        tags: [],
+      },
+      {
+        uri: "akb://v/issues/file/incident-log",
+        title: "incident.log",
+        source_type: "file",
+        tags: [],
+      },
+      {
+        uri: "akb://v/table/pipeline",
+        title: "Pipeline",
+        source_type: "table",
+        tags: [],
+      },
+      {
+        uri: "akb://other/issues/file/foreign-file",
+        title: "foreign.log",
+        source_type: "file",
+        tags: [],
+      },
+      {
+        uri: "akb://v/issues/file/untitled",
+        title: null,
+        source_type: "file",
+        tags: [],
+      },
+      {
+        uri: "https://files.test/signed-url",
+        title: "Runtime URL",
+        source_type: "file",
+        tags: [],
+      },
+    ]);
+
+    const res = await GET(
+      new Request(
+        "http://localhost/api/documents/search?vault=v&q=incident&include_files=true",
+        { headers: authedHeaders() },
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      results: [
+        {
+          uri: "akb://v/coll/x/doc/spec.md",
+          title: "Spec",
+          kind: "document",
+          snippet: "Design notes",
+        },
+        {
+          uri: "akb://v/issues/file/incident-log",
+          title: "incident.log",
+          kind: "file",
+        },
+      ],
+    });
+    expect(mockSearchDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ vault: "v", query: "incident" }),
+    );
+  });
+
+  it("returns the opted-in empty result shape before calling akb", async () => {
+    const res = await GET(
+      new Request(
+        "http://localhost/api/documents/search?vault=v&q=%20&include_files=true",
+        { headers: authedHeaders() },
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ results: [] });
+    expect(mockSearchDocuments).not.toHaveBeenCalled();
+  });
 });

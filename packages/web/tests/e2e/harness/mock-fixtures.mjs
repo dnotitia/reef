@@ -507,6 +507,19 @@ function markdownFixtureVault(name) {
         confirmed: true,
       },
     ],
+    [
+      "incident-log-unconfirmed",
+      {
+        id: "incident-log-unconfirmed",
+        uri: `akb://${name}/issues/file/incident-log-unconfirmed`,
+        filename: "incident-draft.log",
+        mimeType: "text/plain",
+        sizeBytes: 0,
+        body: null,
+        contentHash: "unconfirmed-fixture",
+        confirmed: false,
+      },
+    ],
   ]);
   vault.attachments = [
     {
@@ -697,7 +710,7 @@ function configuredVault(name) {
       {
         id: uuidFor(41),
         reef_id: "REEF-001",
-        body: "Agreed. Pushed the schema_version stamp:\n\n```ts\nawait ensureReefTables({ adapter, vault });\n```",
+        body: "Agreed. AKB reconciles the workspace schema; Reef checks required table metadata before serving requests.",
         meta: {
           author: "alice",
           created_at: "2026-06-16T10:30:00.000Z",
@@ -1342,16 +1355,19 @@ function largeVault(name) {
     const updatedAt = new Date(
       Date.UTC(2026, 0, 1 + ((index * 37) % total)),
     ).toISOString();
+    const title = isSparseMatch
+      ? "Sparse residual match"
+      : index === 4 || index === 600 || index === 1_200
+        ? `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")} — ${"variable-height Board sample title segment ".repeat(6)}`
+        : index < 2
+          ? "! Symbol duplicate"
+          : index < 4
+            ? "힣 duplicate"
+            : `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")}`;
     issues.push(
       issueRow({
         id,
-        title: isSparseMatch
-          ? "Sparse residual match"
-          : index < 2
-            ? "! Symbol duplicate"
-            : index < 4
-              ? "힣 duplicate"
-              : `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")}`,
+        title,
         status: "todo",
         priority,
         start_date: fixtureDate,
@@ -1655,8 +1671,7 @@ export function rawVault(name) {
   };
 }
 
-/** Build a seeded reef_activity row (REEF-277). `at` is unique per event so it
- * doubles as a stable id seed and a sufficient event_key for dedup. */
+/** Build a seeded reef_activity row (REEF-277) with a stable unique event key. */
 function activityRow(reefId, eventType, at, payload, actor = "alice") {
   return {
     id: uuidFor(at.replace(/\D/g, "").slice(-12)),
@@ -1707,8 +1722,7 @@ function notificationRow({
 /**
  * Notification Inbox fixture: exactly 100 unread Alice rows exercises the
  * bounded badge contract, plus reader and writer rows for role-scoped API
- * checks. Each role is a real fixture user; the old schema stamp stays below
- * the current Reef version so notification reads cannot rely on reconciliation.
+ * checks. The stale schema stamp verifies it is ignored and left untouched.
  */
 function seedNotifications(vault) {
   vault.settings.set("schema_version", "2");

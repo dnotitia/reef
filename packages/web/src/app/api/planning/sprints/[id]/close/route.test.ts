@@ -3,13 +3,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConflictError } from "@reef/core";
 
-const { closeMock, currentActorMock, getAdapterMock, requireWriterMock } =
-  vi.hoisted(() => ({
-    closeMock: vi.fn(),
-    currentActorMock: vi.fn(),
-    getAdapterMock: vi.fn(),
-    requireWriterMock: vi.fn(),
-  }));
+const {
+  closeMock,
+  currentActorMock,
+  getWorkspaceAdapterMock,
+  requireWriterMock,
+} = vi.hoisted(() => ({
+  closeMock: vi.fn(),
+  currentActorMock: vi.fn(),
+  getWorkspaceAdapterMock: vi.fn(),
+  requireWriterMock: vi.fn(),
+}));
 
 vi.mock("@/lib/logging/logger", () => ({
   logger: { error: vi.fn() },
@@ -21,7 +25,7 @@ vi.mock("@/lib/api/requestHelpers", async () => {
   >("@/lib/api/requestHelpers");
   return {
     ...actual,
-    getAkbAdapter: getAdapterMock,
+    getWorkspaceAkbAdapter: getWorkspaceAdapterMock,
     getAkbCurrentActor: currentActorMock,
     requireVaultWriter: requireWriterMock,
   };
@@ -55,7 +59,7 @@ function request(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getAdapterMock.mockReturnValue({ adapter: { request: vi.fn() } });
+  getWorkspaceAdapterMock.mockReturnValue({ adapter: { request: vi.fn() } });
   requireWriterMock.mockResolvedValue({ writer: true });
   currentActorMock.mockResolvedValue({ actor: "alice" });
   closeMock.mockResolvedValue({
@@ -151,7 +155,7 @@ describe("POST /api/planning/sprints/[id]/close", () => {
       routeParams("not-a-uuid"),
     );
     expect(invalidIdResponse.status).toBe(400);
-    expect(getAdapterMock).not.toHaveBeenCalled();
+    expect(getWorkspaceAdapterMock).not.toHaveBeenCalled();
 
     const invalidBodyResponse = await POST(
       request({

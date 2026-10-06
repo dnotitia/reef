@@ -48,8 +48,9 @@ interface CommandModeProps {
   onPushPage: (page: Exclude<CommandPage, "root">) => void;
   onExecute: (
     policy: PaletteFocusPolicy,
-    run: () => void,
+    run: (focusTarget?: HTMLElement | null) => void,
     runBeforeClose?: boolean,
+    localeAction?: boolean,
   ) => void;
 }
 
@@ -96,12 +97,19 @@ export function CommandMode({
     ...(target ? CONTEXTUAL_COMMAND_PAGES : []),
   ];
 
-  const executeAction = (action: BoundAppAction) =>
-    onExecute(
-      action.descriptor.focusPolicy,
-      action.run,
-      action.descriptor.id === "status.closed",
-    );
+  const executeAction = (action: BoundAppAction) => {
+    const runBeforeClose = action.descriptor.id === "status.closed";
+    if (action.descriptor.id.startsWith("locale.")) {
+      onExecute(
+        action.descriptor.focusPolicy,
+        action.run,
+        runBeforeClose,
+        true,
+      );
+      return;
+    }
+    onExecute(action.descriptor.focusPolicy, action.run, runBeforeClose);
+  };
 
   if (page === "assignee" && target) {
     return (

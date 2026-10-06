@@ -5,7 +5,7 @@ import { GET } from "./route";
 
 const mocks = vi.hoisted(() => ({
   adapter: { kind: "test-adapter" },
-  getAkbAdapter: vi.fn(),
+  getWorkspaceAkbAdapter: vi.fn(),
   getAkbCurrentActor: vi.fn(),
   akbListNotifications: vi.fn(),
   akbUpdateNotificationState: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("@/lib/api/requestHelpers", async () => {
   >("@/lib/api/requestHelpers");
   return {
     ...actual,
-    getAkbAdapter: mocks.getAkbAdapter,
+    getWorkspaceAkbAdapter: mocks.getWorkspaceAkbAdapter,
     getAkbCurrentActor: mocks.getAkbCurrentActor,
   };
 });
@@ -55,7 +55,7 @@ const notification = {
 describe("notification Route Handlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAkbAdapter.mockReturnValue({ adapter: mocks.adapter });
+    mocks.getWorkspaceAkbAdapter.mockReturnValue({ adapter: mocks.adapter });
     mocks.getAkbCurrentActor.mockResolvedValue({ actor: "alice" });
     mocks.akbListNotifications.mockResolvedValue([notification]);
     mocks.akbUpdateNotificationState.mockResolvedValue({

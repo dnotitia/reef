@@ -12,8 +12,16 @@ import {
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { NO_SELECTION } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { type ComponentProps, type ReactNode, type Ref, useId } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  type Ref,
+  useId,
+  useMemo,
+} from "react";
 import type { PrioritySelection } from "../../lib/issueDraftForm";
+import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
+import { createMarkdownTargetResolver } from "../../lib/markdownEditor.actions";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { IssueFormSection } from "../shared/IssueFormSection";
 
@@ -131,6 +139,16 @@ export function IssueDraftFields({
   const sections = useTranslations("sections");
   const common = useTranslations("common");
   const t = useTranslations("issues.create");
+  const akbWebBase = useAkbWebUrl();
+  const markdownAdapters = useMemo(
+    () =>
+      vault
+        ? {
+            targetResolver: createMarkdownTargetResolver({ vault, akbWebBase }),
+          }
+        : undefined,
+    [akbWebBase, vault],
+  );
   // Fall back to the catalog defaults when a caller doesn't supply its own
   // placeholder.
   const resolvedTitlePlaceholder = titlePlaceholder ?? t("titlePlaceholder");
@@ -248,6 +266,7 @@ export function IssueDraftFields({
             readOnly={disabled}
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}
+            adapters={markdownAdapters}
             mentionConfig={mentionConfig}
             enableHeightResize={enableHeightResize}
             preferredHeight={preferredDescriptionHeight}

@@ -53,7 +53,6 @@ export function IssueDetailMain({
   onUploadBodyFiles,
   markdownAdapters,
   resolveBodyImageSrc,
-  resolveBodyAttachmentHref,
   commitTitle,
   commitBody,
   commit,
@@ -79,9 +78,6 @@ export function IssueDetailMain({
   resolveBodyImageSrc?: ComponentProps<
     typeof MarkdownEditor
   >["resolveImageSrc"];
-  resolveBodyAttachmentHref?: ComponentProps<
-    typeof MarkdownEditor
-  >["resolveAttachmentHref"];
   commitTitle: (value: string) => void;
   commitBody: (value: string) => void;
   commit: (patch: IssueUpdatePatch) => void;
@@ -98,24 +94,12 @@ export function IssueDetailMain({
       issues: allIssues,
       searchDocuments: (query: string, signal: AbortSignal) =>
         fetchVaultDocumentSearch(query, vault, signal),
-      suggestionsLabel: markdownEditor("mentionSuggestions"),
       mentionOptionLabel: (username: string) =>
         markdownEditor("mentionOption", { username: `@${username}` }),
-      peopleSectionLabel: markdownEditor("peopleSection"),
-      issuesSectionLabel: markdownEditor("issuesSection"),
-      documentsSectionLabel: markdownEditor("documentsSection"),
-      issueOptionLabel: (candidate: IssueListItem) =>
-        markdownEditor("issueOption", {
-          id: candidate.id,
-          title: candidate.title,
-        }),
       documentOptionLabel: (hit: DocumentSearchHit) =>
         markdownEditor("documentOption", {
           title: hit.title ?? akbDocumentSlugTitle(hit.uri),
         }),
-      documentSearchLoadingLabel: markdownEditor("documentSearchLoading"),
-      documentSearchErrorLabel: markdownEditor("documentSearchError"),
-      documentSearchEmptyLabel: markdownEditor("documentSearchEmpty"),
     }),
     [allIssues, markdownEditor, vault, vaultMembers],
   );
@@ -198,7 +182,6 @@ export function IssueDetailMain({
           onUploadFiles={onUploadBodyFiles}
           adapters={markdownAdapters}
           resolveImageSrc={resolveBodyImageSrc}
-          resolveAttachmentHref={resolveBodyAttachmentHref}
           placeholder={t("descriptionWysiwygPlaceholder")}
           sourcePlaceholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}

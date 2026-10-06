@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   missingVaultParamResponse,
   parseVaultParam,
   respondWithError,
@@ -35,7 +35,7 @@ export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") ?? "";
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

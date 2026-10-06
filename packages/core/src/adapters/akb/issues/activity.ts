@@ -67,7 +67,6 @@ import {
   REEF_ACTIVITY_TABLE,
   REEF_ISSUES_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   SqlParameterBuilder,
@@ -189,11 +188,11 @@ function setKeySegment(added: string[], removed: string[]): string {
 /**
  * Deterministic idempotency key for an activity event. The same logical change
  * (same discriminant + from→to at the same recorded time) yields the same key,
- * so a retried best-effort append de-dupes against the existing row instead of
- * stacking a duplicate (REEF-125 AC8). `at` ties the key to the update that
- * produced it, so a literal re-run of the identical `updateIssue` call (same
- * merged patch, same timestamp) reproduces the key while two separate edits get
- * distinct keys.
+ * so the composite database constraint treats a replay as an idempotent
+ * no-op and preserves the original row (REEF-125 AC8). `at` ties the key to the
+ * update that produced it, so a literal re-run of the identical `updateIssue`
+ * call (same merged patch, same timestamp) reproduces the key while two
+ * separate edits get distinct keys.
  */
 export function activityEventKey(
   descriptor: ActivityEventDescriptor,
@@ -283,20 +282,11 @@ interface ActivityRowInput {
 
 /**
  * Append an immutable event row to `reef_activity`, idempotent on
- * `(reef_id, event_key)` (REEF-125 AC8). The `NOT EXISTS` probe and the insert
- * share a single statement, so the check and insert see the same snapshot and
- * avoid a two-round-trip time-of-check/time-of-use window. A sequential retry
- * of the same logical change finds the committed row and adds nothing. Event
- * rows have an append path without an update path. Returns whether a row was added.
- *
- * Residual: until an explicit operator migration installs the unique key (or
- * where migration execution is unavailable), the extension envelope lets two
- * *simultaneous* inserts of the identical event_key both pass `NOT EXISTS`.
- * That needs concurrent
- * retries of the very same update; it is de-duplicated downstream on `event_key`
- * by the timeline (REEF-064). A DB-enforced unique index is an akb-layer
- * follow-up. Callers `ensureReefTables` first so a vault predating the table
- * self-heals on first write (REEF-125 AC7).
+ * `(reef_id, event_key)` (REEF-366). The composite database key serializes
+ * concurrent retries; a conflict on that exact key leaves the original row,
+ * including its payload and meta, untouched. Other database errors propagate.
+ * Event rows have an append path without an update path. Returns whether a row
+ * was added.
  */
 async function insertActivityEventRow(
   adapter: AkbAdapter,
@@ -312,18 +302,11 @@ async function insertActivityEventRow(
   const columns = ["reef_id", "event_type", "event_key", "payload", "meta"]
     .map(quoteIdent)
     .join(", ");
-  const selectValues = [reefId, eventType, key, payload, meta].join(", ");
-  // Single-statement conditional insert: the `NOT EXISTS` probe and the insert
-  // share one snapshot, so an already-recorded change is skipped atomically (no
-  // separate read-then-write race). RETURNING tells us whether a row was added.
+  const values = [reefId, eventType, key, payload, meta].join(", ");
   const res = await runSql(
     adapter,
     vault,
-    `INSERT INTO ${tableRef(
-      REEF_ACTIVITY_TABLE,
-    )} (${columns}) SELECT ${selectValues} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
-      REEF_ACTIVITY_TABLE,
-    )} WHERE reef_id = ${reefId} AND event_key = ${key}) RETURNING id`,
+    `INSERT INTO ${tableRef(REEF_ACTIVITY_TABLE)} (${columns}) VALUES (${values}) ON CONFLICT (reef_id, event_key) DO NOTHING RETURNING id`,
     params.params,
   );
   return res.kind === "table_query" && res.items.length > 0;
@@ -345,7 +328,6 @@ export async function appendStatusChangeEvent(
     "akb.append_status_change_event",
     { vault, reef_id: event.reefId },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       const appended = await insertActivityEventRow(adapter, vault, {
         reefId: event.reefId,
         eventType: ACTIVITY_EVENT_STATUS_CHANGE,
@@ -383,7 +365,6 @@ export async function appendIssueBodyMentionsChangeEvent(
         removed: event.removed,
         document_commit: event.documentCommit,
       });
-      await ensureReefTables({ adapter, vault });
       const appended = await insertActivityEventRow(adapter, vault, {
         reefId: event.reefId,
         eventType: ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
@@ -435,7 +416,6 @@ export async function appendActivityEvents(
     "akb.append_activity_events",
     { vault, reef_id: first.reefId, count: events.length },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       let appended = 0;
       for (const [index, event] of events.entries()) {
         const ok = await insertActivityEventRow(adapter, vault, {
@@ -503,7 +483,6 @@ export async function reconcileJiraChangelogActivityEvents(
     "akb.reconcile_jira_changelog_activity_events",
     { vault, reef_id: first.reefId, count: events.length },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       let updated = 0;
       let inserted = 0;
       for (const [index, event] of events.entries()) {
@@ -594,7 +573,6 @@ export async function reconcileJiraImportedAttachmentActivityActor(
     "akb.reconcile_jira_imported_attachment_activity_actor",
     { vault, reef_id: input.reefId },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
       const params = new SqlParameterBuilder();
       const actorParam = params.addJson(
         input.toActor,
@@ -980,9 +958,8 @@ export async function listIssueActivity(
  * Report calculations stay in core, so raw events never cross into the browser.
  *
  * The query selects status changes, projects them through the same parser
- * as the issue timeline, skips malformed rows, and collapses duplicate
- * `(reef_id, event_key)` records before returning. A missing activity table is
- * an empty history, matching the per-issue read's resilience contract.
+ * as the issue timeline, and skips malformed rows. A missing activity table
+ * is an empty history, matching the per-issue read's resilience contract.
  */
 export async function listReportStatusActivity(
   adapter: AkbAdapter,
@@ -1014,15 +991,9 @@ export async function listReportStatusActivity(
       throw err;
     }
 
-    const seen = new Set<string>();
-    const events: ActivityEvent[] = [];
-    for (const event of parseActivityRows(rows)) {
-      if (event.event_type !== ACTIVITY_EVENT_STATUS_CHANGE) continue;
-      const dedupeKey = `${event.reef_id}:${event.event_key}`;
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      events.push(event);
-    }
+    const events = parseActivityRows(rows).filter(
+      (event) => event.event_type === ACTIVITY_EVENT_STATUS_CHANGE,
+    );
     span.setAttribute("event_count", events.length);
     return events;
   });

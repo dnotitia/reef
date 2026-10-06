@@ -167,6 +167,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_list_pending: Record<string, number>;
   issue_read_pending: Record<string, number>;
   attachment_read_pending: Record<string, number>;
+  markdown_link_search_pending: Record<string, number>;
   workspace_initialization: {
     failure_operation: "document" | "document_get" | "tables" | null;
     failures_remaining: number;
@@ -248,6 +249,12 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       tags: string[];
       current_commit: string;
     }>;
+    files: Array<{
+      uri: string;
+      filename: string;
+      mime_type: string;
+      confirmed: boolean;
+    }>;
   }>;
 }> {
   const response = await request.get(`${E2E_MOCK_URL}/__e2e/state`);
@@ -298,6 +305,59 @@ export async function setContentSearchMode(
     { data: { mode, delay_ms: delayMs } },
   );
   expect(response.ok()).toBeTruthy();
+}
+
+export async function setMarkdownLinkSearchControl(
+  request: APIRequestContext,
+  options: {
+    query: string;
+    delayMs?: number;
+    failureStatus?: 500 | 503 | null;
+  },
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/markdown-link-search-control`,
+    {
+      data: {
+        vault,
+        query: options.query,
+        delay_ms: options.delayMs ?? 0,
+        failure_status: options.failureStatus ?? null,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function waitForMarkdownLinkSearchPending(
+  request: APIRequestContext,
+  query: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const key = `${vault}:${query.trim().toLowerCase()}`;
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).markdown_link_search_pending[key] ??
+        0,
+    )
+    .toBeGreaterThan(0);
+}
+
+export async function waitForMarkdownLinkSearchIdle(
+  request: APIRequestContext,
+  query: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const key = `${vault}:${query.trim().toLowerCase()}`;
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).markdown_link_search_pending[key] ??
+        0,
+    )
+    .toBe(0);
 }
 
 export async function setNotificationControl(
@@ -561,7 +621,11 @@ export async function signInAsUser(
   await page.waitForURL((url) => url.pathname !== "/login", {
     timeout: 10_000,
   });
-  await page.goto("/onboarding");
+  if (new URL(page.url()).pathname !== "/onboarding") {
+    // Preserve the first mount when login already landed there; a second mount
+    // would consume one-shot API controls before the caller can observe them.
+    await page.goto("/onboarding");
+  }
 }
 
 export async function signInAsAlice(page: Page): Promise<void> {

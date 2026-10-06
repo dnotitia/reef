@@ -57,7 +57,7 @@ export interface BoundAppAction {
   keywords: ReadonlyArray<string>;
   current: boolean;
   target?: CommandIssueTarget;
-  run: () => void;
+  run: (focusTarget?: HTMLElement | null) => void;
 }
 
 interface RegistryOptions {
@@ -68,7 +68,7 @@ interface RegistryOptions {
   toggleAskAi: () => void;
   startChord: (prefix: string) => void;
   clearChord: () => void;
-  focusDestination: () => void;
+  focusDestination: (target?: HTMLElement | null) => void;
   clearSelection: () => void;
   moveIssueFocus: (scope: IssueKeyboardScope, delta: 1 | -1) => void;
   openFocusedIssue: (scope: IssueKeyboardScope) => void;
@@ -236,7 +236,11 @@ export function useCommandRegistry({
   );
 
   const executeAction = useCallback(
-    (descriptor: AppActionDescriptor, target?: CommandIssueTarget) => {
+    (
+      descriptor: AppActionDescriptor,
+      target?: CommandIssueTarget,
+      focusTarget?: HTMLElement | null,
+    ) => {
       const { id } = descriptor;
       if (id in NAVIGATION_HREFS) {
         navigate(buildNavigationHref(vault, NAVIGATION_HREFS[id] ?? "/issues"));
@@ -266,12 +270,12 @@ export function useCommandRegistry({
       if (id.startsWith("locale.")) {
         const next = actionValue(id) as Locale;
         if (locale !== next) {
-          focusDestination();
+          focusDestination(focusTarget);
           void setLocale(next).then(() => {
             // Persisting the preference resolves before the App Router refresh
             // commits the new locale; leave the destination handoff armed for
             // the shell's locale-settle effect as well.
-            focusDestination();
+            focusDestination(focusTarget);
           });
         }
         return;
@@ -347,7 +351,8 @@ export function useCommandRegistry({
             ],
             current,
             target: target ?? undefined,
-            run: () => executeAction(descriptor, target ?? undefined),
+            run: (focusTarget) =>
+              executeAction(descriptor, target ?? undefined, focusTarget),
           },
         ];
       });

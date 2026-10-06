@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   activityEvents,
-  ensureTables,
   issueRows,
   issueState,
   phaseFailure,
@@ -13,7 +12,6 @@ const {
   updateIssueMock,
 } = vi.hoisted(() => ({
   activityEvents: [] as unknown[],
-  ensureTables: vi.fn(),
   issueRows: [] as Record<string, unknown>[],
   issueState: new Map<string, Record<string, unknown>>(),
   phaseFailure: {
@@ -35,7 +33,6 @@ vi.mock("../core/shared", async () => {
     await vi.importActual<typeof import("../core/shared")>("../core/shared");
   return {
     ...actual,
-    ensureReefTables: ensureTables,
     runSql: runSqlMock,
     selectIssueRows: selectIssueRowsMock,
   };

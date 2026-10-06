@@ -32,3 +32,5 @@
 @source "../../node_modules/@streamdown/code/dist/*.js";
 @source "../../node_modules/@streamdown/math/dist/*.js";
 @source "../../node_modules/@streamdown/mermaid/dist/*.js";
+/* The shared editor ships Tailwind classes in its public React bundle. */
+@source "../../node_modules/@akb/markdown-editor/dist/react/*.js";

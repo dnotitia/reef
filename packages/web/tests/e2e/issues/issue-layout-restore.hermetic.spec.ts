@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   openExistingWorkspace,
   releaseAuthProbe,
@@ -18,7 +18,28 @@ const SAVED_HEIGHT = 740;
 
 interface LayoutFrame {
   phase: "auth-pending" | "detail-skeleton" | "editor-loading" | "loaded";
+  timeMs: number;
+  navigationTimeOrigin: number;
+  documentReadyState: DocumentReadyState;
+  navigationTiming: {
+    responseStart: number;
+    responseEnd: number;
+    domInteractive: number;
+    domContentLoadedEventEnd: number;
+    loadEventEnd: number;
+  } | null;
+  viewportWidth: number;
+  viewportHeight: number;
+  appShellVisible: boolean;
+  detailPanelFound: boolean;
+  detailPanelVisible: boolean;
+  detailPreviewFound: boolean;
+  detailPreviewVisible: boolean;
   panelWidth: number | null;
+  panelCssWidth: string | null;
+  panelCssMaxWidth: string | null;
+  panelTransition: string | null;
+  panelAnimation: string | null;
   bodyHeight: number | null;
   toolbarHeight: number | null;
   toolbarControlsHeight: number | null;
@@ -28,6 +49,61 @@ interface LayoutFrame {
   darkTheme: boolean;
   documentOverflow: boolean;
   panelOverflow: boolean;
+}
+
+async function measureToolbarControls(page: Page) {
+  return page.evaluate(() => {
+    const toolbar = document.querySelector<HTMLElement>(
+      '#issue-description [data-testid="markdown-toolbar"]',
+    );
+    const controls = toolbar?.querySelector<HTMLElement>(
+      '[data-testid="markdown-toolbar-controls"]',
+    );
+    const sourceToggle = toolbar?.querySelector<HTMLElement>(
+      '[data-testid="markdown-source-toggle"]',
+    );
+    if (!toolbar || !controls || !sourceToggle) {
+      throw new Error("Markdown toolbar controls are not mounted");
+    }
+    const buttons = Array.from(toolbar.querySelectorAll("button"));
+    const visibleButtons = buttons.filter((button) => {
+      const rect = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    });
+    const buttonBounds = visibleButtons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      const owner = sourceToggle.contains(button) ? sourceToggle : controls;
+      const ownerRect = owner.getBoundingClientRect();
+      return {
+        y: rect.y,
+        width: rect.width,
+        insideOwner:
+          rect.left >= ownerRect.left - 1 &&
+          rect.right <= ownerRect.right + 1 &&
+          rect.top >= ownerRect.top - 1 &&
+          rect.bottom <= ownerRect.bottom + 1,
+      };
+    });
+    return {
+      toolbarWidth: toolbar.clientWidth,
+      toolbarScrollWidth: toolbar.scrollWidth,
+      controlsWidth: controls.clientWidth,
+      controlsScrollWidth: controls.scrollWidth,
+      buttonCount: buttons.length,
+      visibleButtonCount: visibleButtons.length,
+      buttonRows: new Set(buttonBounds.map((button) => Math.round(button.y)))
+        .size,
+      minButtonWidth: Math.min(...buttonBounds.map((button) => button.width)),
+      buttonsInsideOwner: buttonBounds.every((button) => button.insideOwner),
+      sourceToggleVisible: sourceToggle.getClientRects().length > 0,
+    };
+  });
 }
 
 test.use({ video: "on" });
@@ -130,16 +206,33 @@ test.describe("Hermetic persisted issue layout", () => {
 
     await page.addInitScript((frameKey) => {
       const frames: LayoutFrame[] = [];
+      const isVisible = (element: HTMLElement | null) => {
+        if (!element?.isConnected) return false;
+        const rect = element.getBoundingClientRect();
+        let ancestor: HTMLElement | null = element;
+        while (ancestor) {
+          const style = getComputedStyle(ancestor);
+          if (
+            style.display === "none" ||
+            style.visibility === "hidden" ||
+            Number(style.opacity) === 0
+          ) {
+            return false;
+          }
+          ancestor = ancestor.parentElement;
+        }
+        return rect.width > 0 && rect.height > 0;
+      };
       const record = () => {
         if (location.pathname !== "/workspace/reef-e2e/issues/REEF-101") {
           requestAnimationFrame(record);
           return;
         }
 
-        const appShell = document.querySelector(
+        const appShell = document.querySelector<HTMLElement>(
           '[data-testid="app-shell-skeleton"]',
         );
-        const detailSkeleton = document.querySelector(
+        const detailSkeleton = document.querySelector<HTMLElement>(
           '[data-testid="issue-detail-skeleton"]',
         );
         const editorSkeleton = document.querySelector(
@@ -181,9 +274,38 @@ test.describe("Hermetic persisted issue layout", () => {
         const panelElement = panel?.querySelector<HTMLElement>(
           '[data-testid="issue-detail-scroll"]',
         );
+        const panelStyle = panel ? getComputedStyle(panel) : null;
+        const navigation = performance.getEntriesByType("navigation")[0] as
+          | PerformanceNavigationTiming
+          | undefined;
         const frame: LayoutFrame = {
           phase,
+          timeMs: performance.now(),
+          navigationTimeOrigin: performance.timeOrigin,
+          documentReadyState: document.readyState,
+          navigationTiming: navigation
+            ? {
+                responseStart: navigation.responseStart,
+                responseEnd: navigation.responseEnd,
+                domInteractive: navigation.domInteractive,
+                domContentLoadedEventEnd: navigation.domContentLoadedEventEnd,
+                loadEventEnd: navigation.loadEventEnd,
+              }
+            : null,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          appShellVisible: isVisible(appShell),
+          detailPanelFound: panel !== null,
+          detailPanelVisible: isVisible(panel),
+          detailPreviewFound: detailSkeleton !== null,
+          detailPreviewVisible: isVisible(detailSkeleton),
           panelWidth: panel ? panel.getBoundingClientRect().width : null,
+          panelCssWidth: panelStyle?.width ?? null,
+          panelCssMaxWidth: panelStyle?.maxWidth ?? null,
+          panelTransition: panel
+            ? `${panelStyle?.transitionProperty} ${panelStyle?.transitionDuration}`
+            : null,
+          panelAnimation: panelStyle?.animationName ?? null,
           bodyHeight: bodyFrame
             ? bodyFrame.getBoundingClientRect().height
             : null,
@@ -265,6 +387,7 @@ test.describe("Hermetic persisted issue layout", () => {
     await expect(
       page.getByTestId("markdown-editor-resize-handle"),
     ).toHaveAttribute("aria-valuenow", String(SAVED_HEIGHT));
+    const wideToolbarControls = await measureToolbarControls(page);
     const loadedScreenshot = await page.screenshot({
       path: testInfo.outputPath("loaded-editor.png"),
     });
@@ -284,6 +407,71 @@ test.describe("Hermetic persisted issue layout", () => {
       contentType: "application/json",
     });
 
+    const persistedGeometry = await page.evaluate(
+      ({ widthKey, heightKey }) => ({
+        width: sessionStorage.getItem(widthKey),
+        height: sessionStorage.getItem(heightKey),
+        initialWidth: getComputedStyle(
+          document.documentElement,
+        ).getPropertyValue("--reef-issue-detail-initial-width"),
+        initialHeight: getComputedStyle(
+          document.documentElement,
+        ).getPropertyValue("--reef-markdown-editor-initial-frame-height"),
+      }),
+      { widthKey: WIDTH_KEY, heightKey: HEIGHT_KEY },
+    );
+    const diagnosticPhases: LayoutFrame["phase"][] = [
+      "detail-skeleton",
+      "auth-pending",
+      "editor-loading",
+      "loaded",
+    ];
+    console.log(
+      "[LAYOUT_RELOAD_PERSISTED_GEOMETRY]",
+      JSON.stringify(persistedGeometry),
+    );
+    for (const phase of diagnosticPhases) {
+      const phaseFrames = frames.filter((frame) => frame.phase === phase);
+      const panelStyles = new Map(
+        phaseFrames.map((frame) => [
+          JSON.stringify([
+            frame.panelCssWidth,
+            frame.panelCssMaxWidth,
+            frame.panelTransition,
+            frame.panelAnimation,
+          ]),
+          {
+            width: frame.panelCssWidth,
+            maxWidth: frame.panelCssMaxWidth,
+            transition: frame.panelTransition,
+            animation: frame.panelAnimation,
+          },
+        ]),
+      );
+      console.log(
+        "[LAYOUT_RELOAD_GEOMETRY]",
+        JSON.stringify({
+          phase,
+          navigationTimeOrigins: [
+            ...new Set(phaseFrames.map((frame) => frame.navigationTimeOrigin)),
+          ],
+          viewports: [
+            ...new Set(
+              phaseFrames.map(
+                (frame) => `${frame.viewportWidth}x${frame.viewportHeight}`,
+              ),
+            ),
+          ],
+          panelStyles: [...panelStyles.values()],
+          samples: phaseFrames.map((frame) => [
+            Math.round(frame.timeMs * 100) / 100,
+            frame.panelWidth,
+            frame.bodyHeight,
+          ]),
+        }),
+      );
+    }
+
     const authFrames = frames.filter((frame) => frame.phase === "auth-pending");
     const loadingFrames = frames.filter(
       (frame) => frame.phase === "editor-loading",
@@ -293,15 +481,82 @@ test.describe("Hermetic persisted issue layout", () => {
     expect(loadingFrames.length).toBeGreaterThan(0);
     expect(loadedFrames.length).toBeGreaterThan(0);
 
+    const describeDisplayFrame = (frame: LayoutFrame | undefined) =>
+      frame
+        ? {
+            timeMs: Math.round(frame.timeMs * 100) / 100,
+            documentReadyState: frame.documentReadyState,
+            appShellVisible: frame.appShellVisible,
+            detailPanelFound: frame.detailPanelFound,
+            detailPanelVisible: frame.detailPanelVisible,
+            detailPreviewFound: frame.detailPreviewFound,
+            detailPreviewVisible: frame.detailPreviewVisible,
+            panelWidth: frame.panelWidth,
+            bodyHeight: frame.bodyHeight,
+            navigationTiming: frame.navigationTiming,
+          }
+        : null;
+    const firstPanelDisplay = frames.find((frame) => frame.detailPanelVisible);
+    const firstPanelDisplayTime = firstPanelDisplay?.timeMs ?? Infinity;
+    const preDisplayAuthFrames = authFrames.filter(
+      (frame) => frame.timeMs < firstPanelDisplayTime,
+    );
+    const visibilityDiagnostic = {
+      navigationTiming: authFrames[0]?.navigationTiming ?? null,
+      firstAppShellDisplay: describeDisplayFrame(
+        frames.find((frame) => frame.appShellVisible),
+      ),
+      firstPanelDisplay: describeDisplayFrame(firstPanelDisplay),
+      firstPreviewDisplay: describeDisplayFrame(
+        frames.find((frame) => frame.detailPreviewVisible),
+      ),
+      preDisplayAuthFrames: preDisplayAuthFrames.map(describeDisplayFrame),
+    };
+    await writeFile(
+      testInfo.outputPath("reload-visibility.json"),
+      JSON.stringify(visibilityDiagnostic, null, 2),
+    );
+    console.log(
+      "[LAYOUT_RELOAD_VISIBILITY]",
+      JSON.stringify(visibilityDiagnostic),
+    );
+
+    expect(firstPanelDisplay).toBeDefined();
+    expect(
+      preDisplayAuthFrames.every(
+        (frame) =>
+          frame.documentReadyState === "loading" &&
+          !frame.detailPanelFound &&
+          !frame.detailPreviewFound,
+      ),
+    ).toBe(true);
     for (const phaseFrames of [authFrames, loadingFrames, loadedFrames]) {
+      const measurableFrames = phaseFrames.filter(
+        (frame) => frame.timeMs >= firstPanelDisplayTime,
+      );
+      expect(measurableFrames.length).toBeGreaterThan(0);
+      expect(measurableFrames.every((frame) => frame.detailPanelVisible)).toBe(
+        true,
+      );
+      if (phaseFrames === authFrames) {
+        expect(
+          measurableFrames.every((frame) => frame.detailPreviewVisible),
+        ).toBe(true);
+      }
       expect(
-        phaseFrames.every(
-          (frame) => Math.abs((frame.panelWidth ?? 0) - SAVED_WIDTH) <= 1,
+        measurableFrames.every(
+          (frame) =>
+            frame.panelWidth !== null &&
+            frame.panelWidth > 0 &&
+            Math.abs(frame.panelWidth - SAVED_WIDTH) <= 1,
         ),
       ).toBe(true);
       expect(
-        phaseFrames.every(
-          (frame) => Math.abs((frame.bodyHeight ?? 0) - SAVED_HEIGHT) <= 1,
+        measurableFrames.every(
+          (frame) =>
+            frame.bodyHeight !== null &&
+            frame.bodyHeight > 0 &&
+            Math.abs(frame.bodyHeight - SAVED_HEIGHT) <= 1,
         ),
       ).toBe(true);
     }
@@ -309,6 +564,7 @@ test.describe("Hermetic persisted issue layout", () => {
     const skeletonFrame = loadingFrames[loadingFrames.length - 1];
     const loadedFrame = loadedFrames[loadedFrames.length - 1];
     expect(skeletonFrame?.toolbarHeight).not.toBeNull();
+    expect(skeletonFrame?.toolbarHeight).toBeCloseTo(80, 0);
     expect(loadedFrame?.toolbarHeight).toBeCloseTo(
       skeletonFrame?.toolbarHeight ?? 0,
       0,
@@ -357,10 +613,35 @@ test.describe("Hermetic persisted issue layout", () => {
           document.documentElement.clientWidth,
       };
     });
+    const narrowToolbarControls = await measureToolbarControls(page);
     expect(narrowGeometry.panelWidth).toBeCloseTo(1024 * 0.94, 0);
     expect(narrowGeometry.bodyHeight).toBe(SAVED_HEIGHT);
-    expect(narrowGeometry.toolbarHeight).toBeGreaterThan(
-      loadedFrame?.toolbarHeight ?? 0,
+    expect(wideToolbarControls.visibleButtonCount).toBe(
+      wideToolbarControls.buttonCount,
+    );
+    expect(wideToolbarControls.buttonsInsideOwner).toBe(true);
+    expect(wideToolbarControls.sourceToggleVisible).toBe(true);
+    expect(wideToolbarControls.controlsScrollWidth).toBe(
+      wideToolbarControls.controlsWidth,
+    );
+    expect(wideToolbarControls.toolbarScrollWidth).toBe(
+      wideToolbarControls.toolbarWidth,
+    );
+    expect(narrowToolbarControls.buttonCount).toBe(
+      wideToolbarControls.buttonCount,
+    );
+    expect(narrowToolbarControls.visibleButtonCount).toBe(
+      narrowToolbarControls.buttonCount,
+    );
+    expect(narrowToolbarControls.buttonRows).toBeGreaterThan(1);
+    expect(narrowToolbarControls.minButtonWidth).toBeGreaterThanOrEqual(32);
+    expect(narrowToolbarControls.buttonsInsideOwner).toBe(true);
+    expect(narrowToolbarControls.sourceToggleVisible).toBe(true);
+    expect(narrowToolbarControls.controlsScrollWidth).toBe(
+      narrowToolbarControls.controlsWidth,
+    );
+    expect(narrowToolbarControls.toolbarScrollWidth).toBe(
+      narrowToolbarControls.toolbarWidth,
     );
     expect(narrowGeometry.panelOverflow).toBe(false);
     expect(narrowGeometry.documentOverflow).toBe(false);

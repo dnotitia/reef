@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import {
+  clearPersistedQueryCacheOnLoad,
   readFixtureState,
   resetFixture,
   setAttachmentReadControl,
@@ -117,6 +118,7 @@ test.describe("Issue attachment loading layout", () => {
     request,
   }, testInfo) => {
     await signInAsAlice(page);
+    await clearPersistedQueryCacheOnLoad(page);
     await installLayoutSampler(page);
 
     const status = page

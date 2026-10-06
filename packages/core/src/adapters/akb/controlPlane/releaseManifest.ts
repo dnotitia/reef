@@ -10,8 +10,10 @@ import {
   ReleaseImageDigestSchema,
   ReleaseManifestTableSchema,
   type AppReleaseManifest,
+  type ReleaseAddIndexPayload,
   type FinalizedReleasePayload,
   type ReleaseBlueprint,
+  type ReleaseAddUniqueKeyPayload,
   type ReleaseCreateTablePayload,
   type ReleaseDesiredSchemaProjection,
   type ReleaseManifestStep,
@@ -24,13 +26,45 @@ import {
   REEF_SCHEMA_VERSION,
   type ReefTableProjectionInput,
 } from "../core/tableManifest";
+import { REEF_ACTIVITY_TABLE } from "../core/constants";
 
 const REEF_TABLE_COUNT = 12;
 const REEF_BASELINE_RELEASE_VERSION = "0.14.0";
 const REEF_BASELINE_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
+const REEF_CURRENT_SCHEMA_FINGERPRINT =
+  "ec53a0d4dd7242e2f47c915f3e07c048044c9b68efc3383597d10df69244e080";
 
-/** Explicit source releases that may use the schema no-op transition. */
+/** Unique keys absent from Reef schema v3 and added by the v4 transition. */
+const REEF_SCHEMA_V3_ADDED_ACTIVITY_KEY: ReleaseAddUniqueKeyPayload = {
+  table: REEF_ACTIVITY_TABLE,
+  columns: ["reef_id", "event_key"],
+};
+
+/** Indexes absent from Reef schema v3 and added by the v4 transition. */
+const REEF_SCHEMA_V3_ADDED_INDEXES: readonly ReleaseAddIndexPayload[] = [
+  {
+    table: "reef_activity",
+    columns: [
+      { name: "reef_id", order: "asc" },
+      { name: "event_key", order: "asc" },
+    ],
+  },
+  {
+    table: "reef_attachments",
+    columns: [{ name: "reef_id", order: "asc" }],
+  },
+  {
+    table: "reef_comments",
+    columns: [{ name: "reef_id", order: "asc" }],
+  },
+  ...["document_uri", "parent_id", "reef_id", "status"].map((name) => ({
+    table: "reef_issues",
+    columns: [{ name, order: "asc" as const }],
+  })),
+];
+
+/** Exact v3 schema sources supported by the v4 transition. */
 export const REEF_SUPPORTED_TRANSITION_SOURCES: readonly ReleaseTransitionSource[] =
   Object.freeze([
     Object.freeze({
@@ -220,6 +254,104 @@ async function createTableStep(
   };
 }
 
+async function addActivityEventKeyStep(): Promise<ReleaseManifestStep> {
+  const payload = REEF_SCHEMA_V3_ADDED_ACTIVITY_KEY;
+  const stepWithoutDigest = {
+    id: "add_reef_activity_event_key_unique_key",
+    phase: "expand" as const,
+    operation: "add_unique_key" as const,
+    payload,
+  };
+  return {
+    ...stepWithoutDigest,
+    checksum: await sha256Hex(canonicalJson(stepWithoutDigest)),
+  };
+}
+
+async function addIndexStep(
+  payload: ReleaseAddIndexPayload,
+): Promise<ReleaseManifestStep> {
+  const stepWithoutDigest = {
+    id: `add_index_${payload.table}_${payload.columns
+      .map((column) => column.name)
+      .join("_")}`,
+    phase: "expand" as const,
+    operation: "add_index" as const,
+    payload,
+  };
+  return {
+    ...stepWithoutDigest,
+    checksum: await sha256Hex(canonicalJson(stepWithoutDigest)),
+  };
+}
+
+async function validateSchemaV3Transition(
+  schema: ReleaseDesiredSchemaProjection,
+): Promise<void> {
+  const indexesByTable = new Map<string, Set<string>>();
+  for (const transitionIndex of REEF_SCHEMA_V3_ADDED_INDEXES) {
+    const targetTable = schema.tables.find(
+      (table) => table.name === transitionIndex.table,
+    );
+    const indexKey = canonicalJson(transitionIndex.columns);
+    const matches =
+      targetTable?.indexes.filter(
+        (index) => canonicalJson(index.columns) === indexKey,
+      ) ?? [];
+    if (matches.length !== 1) {
+      throw releaseValidationError(
+        `Schema v3 transition index does not match the ${transitionIndex.table} desired schema`,
+      );
+    }
+    const tableIndexes = indexesByTable.get(transitionIndex.table) ?? new Set();
+    tableIndexes.add(indexKey);
+    indexesByTable.set(transitionIndex.table, tableIndexes);
+  }
+
+  const uniqueKeysByTable = new Map<string, Set<string>>();
+  for (const transitionKey of [REEF_SCHEMA_V3_ADDED_ACTIVITY_KEY]) {
+    const targetTable = schema.tables.find(
+      (table) => table.name === transitionKey.table,
+    );
+    const uniqueKey = canonicalJson(transitionKey.columns);
+    const matches =
+      targetTable?.unique_keys.filter(
+        (key) => canonicalJson(key.columns) === uniqueKey,
+      ) ?? [];
+    if (matches.length !== 1) {
+      throw releaseValidationError(
+        `Schema v3 transition unique key does not match the ${transitionKey.table} desired schema`,
+      );
+    }
+    const tableKeys = uniqueKeysByTable.get(transitionKey.table) ?? new Set();
+    tableKeys.add(uniqueKey);
+    uniqueKeysByTable.set(transitionKey.table, tableKeys);
+  }
+
+  const sourceTables = schema.tables.map((table) => ({
+    ...table,
+    unique_keys: table.unique_keys.filter(
+      (key) =>
+        !uniqueKeysByTable.get(table.name)?.has(canonicalJson(key.columns)),
+    ),
+    indexes: table.indexes.filter(
+      (index) =>
+        !indexesByTable.get(table.name)?.has(canonicalJson(index.columns)),
+    ),
+  }));
+  const sourceFingerprint = await tableSchemaFingerprint(sourceTables);
+  if (
+    sourceFingerprint !== REEF_BASELINE_SCHEMA_FINGERPRINT ||
+    REEF_SUPPORTED_TRANSITION_SOURCES.some(
+      (source) => source.schema_fingerprint !== sourceFingerprint,
+    )
+  ) {
+    throw releaseValidationError(
+      "Supported schema v3 sources do not converge through the declared add_unique_key and add_index transition",
+    );
+  }
+}
+
 function releaseBoundBlueprint(blueprint: ReleaseBlueprint): JsonObject {
   return {
     app_key: blueprint.app_definition.app_key,
@@ -252,33 +384,47 @@ async function parseCurrentBlueprint(
   return blueprint;
 }
 
-/** Build the source-committed current Reef v3 release blueprint. */
+/** Build the source-committed current Reef v4 release blueprint. */
 export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
   const schema = await buildDesiredSchemaProjection();
+  if (schema.fingerprint !== REEF_CURRENT_SCHEMA_FINGERPRINT) {
+    throw releaseValidationError(
+      "Desired schema differs from the explicitly supported Reef v4 projection",
+    );
+  }
+  await validateSchemaV3Transition(schema);
   const steps = await Promise.all(schema.tables.map(createTableStep));
   for (const source of REEF_SUPPORTED_TRANSITION_SOURCES) {
-    if (source.schema_fingerprint !== schema.fingerprint) {
+    if (source.schema_fingerprint !== REEF_BASELINE_SCHEMA_FINGERPRINT) {
       throw releaseValidationError(
-        `Supported transition source ${source.release_version} does not match the desired schema fingerprint`,
+        `Supported transition source ${source.release_version} differs from the explicit v3 baseline`,
       );
     }
   }
+  const uniqueKeyStep = await addActivityEventKeyStep();
+  const indexSteps = await Promise.all(
+    REEF_SCHEMA_V3_ADDED_INDEXES.map(addIndexStep),
+  );
+  const transitionSteps = [uniqueKeyStep, ...indexSteps];
+  const upgradePlans = await Promise.all(
+    [...REEF_SUPPORTED_TRANSITION_SOURCES]
+      .sort((left, right) =>
+        canonicalJson(left) < canonicalJson(right)
+          ? -1
+          : canonicalJson(left) > canonicalJson(right)
+            ? 1
+            : 0,
+      )
+      .map(async (source) => ({
+        source,
+        steps: transitionSteps,
+      })),
+  );
   return ReleaseBlueprintSchema.parse({
     app_definition: { ...REEF_APP_DEFINITION },
     schema_version: REEF_SCHEMA_VERSION,
     schema,
-    transition_plans: [
-      { source: "fresh", steps },
-      ...[...REEF_SUPPORTED_TRANSITION_SOURCES]
-        .sort((left, right) =>
-          canonicalJson(left) < canonicalJson(right)
-            ? -1
-            : canonicalJson(left) > canonicalJson(right)
-              ? 1
-              : 0,
-        )
-        .map((source) => ({ source, steps: [] })),
-    ],
+    transition_plans: [{ source: "fresh", steps }, ...upgradePlans],
   });
 }
 

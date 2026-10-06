@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ALL_REEF_TABLES,
   ConflictError,
   ISSUE_ROW_COLUMNS,
   MILESTONE_ROW_COLUMNS,
@@ -17,7 +16,6 @@ import {
   listPlanningCatalog,
   makeAdapter,
   makeIssueRow,
-  makeListTablesResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
   readPlanningCreateClaim,
@@ -95,7 +93,6 @@ describe("planning metadata", () => {
 
   it("inserts a sprint atomically and returns it with the akb-assigned uuid", async () => {
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -130,7 +127,7 @@ describe("planning metadata", () => {
     // akb assigns the uuid id and returns the row in one statement via the
     // data-modifying CTE — no separate read-back to race.
     expect(sprint.id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    const insertBody = JSON.parse(calls[1]?.init?.body as string);
+    const insertBody = JSON.parse(calls[0]?.init?.body as string);
     const insertSql = insertBody.sql;
     expect(insertSql).toContain("claim_lock AS MATERIALIZED");
     expect(insertSql).toContain("RETURNING *");
@@ -152,9 +149,7 @@ describe("planning metadata", () => {
       meta: { create_idempotency_key: "sprint:cloud-1:42" },
     };
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
       { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
     ]);
@@ -197,9 +192,7 @@ describe("planning metadata", () => {
   });
 
   it("rejects an invalid sprint before inserting", async () => {
-    const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
-    ]);
+    const { calls } = setupFetch([]);
     const adapter = makeAdapter();
     await expect(
       createSprint({
@@ -214,14 +207,12 @@ describe("planning metadata", () => {
         },
       }),
     ).rejects.toThrow();
-    // just ensureReefTables (listTables) ran; the item is validated before any
-    // INSERT, so no invalid row is written and read-back is does not reached.
-    expect(calls).toHaveLength(1);
+    // Validation happens before any adapter request, so no invalid row is written.
+    expect(calls).toHaveLength(0);
   });
 
   it("blocks duplicate planning names case-insensitively", async () => {
     setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       {
         body: makeSqlQueryResponse(
           [
@@ -263,7 +254,6 @@ describe("planning metadata", () => {
       notes: "Release candidate is building",
     };
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([], RELEASE_ROW_COLUMNS) },
       { body: makeSqlQueryResponse([release], RELEASE_ROW_COLUMNS) },
       { body: makeSqlMutationResponse("UPDATE 1") },
@@ -277,7 +267,7 @@ describe("planning metadata", () => {
         item: release,
       }),
     ).resolves.toMatchObject({ status: "in_progress" });
-    const updateBody = JSON.parse(calls[3]?.init?.body as string);
+    const updateBody = JSON.parse(calls[2]?.init?.body as string);
     const updateSql = updateBody.sql;
     expect(updateSql).toContain(`UPDATE ${REEF_RELEASES_TABLE} SET`);
     expect(updateSql).toContain("WHERE id = $7");
@@ -301,7 +291,6 @@ describe("planning metadata", () => {
       },
     };
     const { calls } = setupFetch([
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) },
       { body: makeSqlQueryResponse([row], SPRINT_ROW_COLUMNS) },
       { body: makeSqlMutationResponse("UPDATE 1") },
@@ -314,7 +303,7 @@ describe("planning metadata", () => {
       item: sprint,
     });
 
-    const updateBody = JSON.parse(calls[3]?.init?.body as string) as {
+    const updateBody = JSON.parse(calls[2]?.init?.body as string) as {
       sql: string;
     };
     expect(updateBody.sql).toContain('"meta" = COALESCE');

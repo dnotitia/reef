@@ -24,8 +24,8 @@ describe("notification storage manifest", () => {
     );
   });
 
-  it("declares the additive schema version and both complete create-time tables", () => {
-    expect(REEF_SCHEMA_VERSION).toBe(3);
+  it("declares the schema version and complete create-time tables", () => {
+    expect(REEF_SCHEMA_VERSION).toBe(4);
     expect(REEF_DESIRED_TABLES).toHaveLength(12);
     expect(
       REEF_DESIRED_TABLES.flatMap((table) =>
@@ -65,6 +65,13 @@ describe("notification storage manifest", () => {
       "archived_at",
       "payload",
       "meta",
+    ]);
+
+    const activity = REEF_DESIRED_TABLES.find(
+      (table) => table.name === "reef_activity",
+    );
+    expect(activity?.unique_keys).toEqual([
+      { columns: ["reef_id", "event_key"] },
     ]);
 
     const subscriptions = REEF_DESIRED_TABLES.find(

@@ -14,9 +14,21 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Markdown link insertion searches documents and files in the active vault.**
+  Selected resources persist as canonical AKB links while their display text
+  stays in Markdown. (REEF-629)
+- Milestone and release names now open a shared URL-backed detail panel with
+  rendered notes, linked issue previews, and the shared planning rollup; sprint
+  details remain on their dedicated route. (REEF-597)
+- **AKB owns every Reef table schema.** Workspace readiness now verifies the
+  canonical installation, required table metadata, and Reef data initialization
+  through a read-only Core check. Normal product and agent requests no longer
+  create, migrate, or stamp tables. (REEF-419)
 - Reports now receive validated server-computed aggregates, flow metrics, health
   rollups, pivots, and forecasts in one workspace-scoped response instead of
   loading issue and activity rows into the browser. (REEF-617)
+- Board columns now virtualize card rendering for large groups while preserving
+  complete issue counts and keyboard traversal. (REEF-616)
 - **Workspace setup follows AKB's app installation lifecycle.** Owners and
   admins explicitly approve install, restore, or fresh-install commands;
   ordinary members receive only the canonical active status. Uninstall retains
@@ -24,6 +36,20 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Pointer drags on large Board columns keep the card under the pointer as the
+  target through auto-scroll.** If hit testing finds only the dragged card,
+  Board follows dnd-kit's valid target instead of rejecting the drop as a
+  self-drop. Reorders also no longer fall through to the column tail when
+  collision data lags. (REEF-616)
+- **Board navigation restores the focused issue occurrence and its column position.**
+  When an already-focused card matches its saved position, restoration skips
+  the intermediate scroll. The in-memory anchor is scoped to the signed-in
+  account and workspace, so a matching issue id in another vault does not
+  inherit the previous view.
+  (REEF-616)
+- **Markdown link search stays opaque and readable in both themes.** Reef maps
+  the shared editor's surface, muted, selected, and destructive color roles so
+  the dialog, inputs, and result list remain legible. (REEF-629)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity
@@ -47,6 +73,12 @@ explicitly in the entries below.
   the issue or editor loads.** Loading skeletons use the saved dimensions from
   first paint, so the panel, toolbar, and content below the editor do not jump
   when the loaded UI takes over. (REEF-650)
+- **Markdown editor labels follow the selected language in New Issue and issue
+  details.** The app uses the shared editor's public API for its toolbar,
+  mentions, slash commands, and attachment uploads.
+- **Issue-body references stay presentation-only in Markdown editing.** Runtime
+  labels and destinations no longer feed back into the editor document, so
+  Source mode and save/reload preserve the authored tokens. (REEF-626)
 - **Issue search keeps one results-level progress indicator through debounce and
   refresh.** Empty searches start quietly, and board, list, backlog, and timeline
   searches share one progress bar and live announcement. (REEF-645)
@@ -71,9 +103,37 @@ explicitly in the entries below.
 
 ### Migration
 
+- **Reef schema v4 adds a unique key on `reef_activity(reef_id, event_key)` and
+  seven non-unique lookup indexes.** Fresh installs get both in complete
+  `create_table` descriptors from the canonical Desired Schema Projection.
+  Existing v3 installs can transition only from releases `0.14.0`, `0.15.0`, or
+  `0.16.0` with the exact v3 schema fingerprint
+  `dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727`, using
+  explicit AKB `add_unique_key` and `add_index` rollout steps. Reef requests do
+  not modify schemas. (REEF-366, REEF-654)
+- Deploy the AKB release that installs or reconciles Reef's canonical required
+  tables before this version. Reef readiness treats missing or stale local
+  `schema_version` settings as non-authoritative and performs no table schema
+  writes. (REEF-419)
 - Deploy an AKB build with the app installation lifecycle API before deploying
   this Reef version. Readiness no longer falls back to the presence of Reef
   configuration or tables. (REEF-418)
+
+### Operational
+
+- **Apply the schema v4 transition in an operator-approved maintenance window.**
+  Block access to the affected workspace and stop the old Reef runtime; do not
+  run both versions concurrently. After the AKB rollout reaches terminal
+  `applied`, deploy the matching Release identity, Reef image, and installation
+  target settings. Resume access only after an authenticated Workspace Ready
+  check succeeds; neither `/api/healthz` nor `/api/readyz` alone confirms schema
+  validation. On partial failure, `blocked`, or timeout, keep maintenance in
+  place and preserve the job ID and applied results. If duplicate activity keys
+  block the rollout, existing rows and that target's schema remain unchanged;
+  Reef does not clean up or rewrite activity data automatically. Fix the cause,
+  then explicitly resume the same rollout with a new idempotency key. Reverting
+  only the image after schema changes are applied does not restore schema
+  compatibility. (REEF-366, REEF-654)
 
 ## v0.16.1 - 2026-09-28
 

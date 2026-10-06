@@ -11,7 +11,13 @@ export function sprintDetailHref(vault: string, sprintId: string): string {
   return withVault(vault, sprintDetailPath(sprintId));
 }
 
-/** Canonical List URL that opens a milestone or release's existing disclosure. */
+/** Canonical vault-scoped List URL for a planning kind. */
+export function planningListHref(vault: string, kind: PlanningKind): string {
+  const params = new URLSearchParams({ view: "list", kind });
+  return withVault(vault, `/planning?${params.toString()}`);
+}
+
+/** Canonical List URL that opens a milestone or release detail panel. */
 export function planningListDetailHref(
   vault: string,
   kind: PlanningKind,
@@ -23,4 +29,19 @@ export function planningListDetailHref(
     detail: itemId,
   });
   return withVault(vault, `/planning?${params.toString()}`);
+}
+
+/** Canonical vault-scoped Issues URL filtered to one planning item. */
+export function planningIssueFilterHref(
+  vault: string,
+  kind: PlanningKind,
+  itemId: string,
+): string {
+  const filterKey = {
+    sprints: "sprint_id",
+    milestones: "milestone_id",
+    releases: "release_id",
+  }[kind];
+  const params = new URLSearchParams({ [filterKey]: itemId });
+  return withVault(vault, `/issues?${params.toString()}`);
 }

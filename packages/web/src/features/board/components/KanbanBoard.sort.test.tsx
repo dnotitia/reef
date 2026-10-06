@@ -1,6 +1,12 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { IssueMetadata } from "@reef/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -189,6 +195,87 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
       after_id: "REEF-010",
     });
     expect(body.group).toBeUndefined();
+  });
+
+  it("keeps dnd-kit target when pointer hit testing only finds the active card", async () => {
+    const manualIssues = FILTER_ISSUES.map((issue) =>
+      issue.id === "REEF-010"
+        ? { ...issue, rank: 1000 }
+        : issue.id === "REEF-013"
+          ? { ...issue, rank: 2000 }
+          : issue,
+    );
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/issues?vault=reef-acme")) {
+        return new Response(JSON.stringify({ issues: manualIssues }), {
+          status: 200,
+        });
+      }
+      if (url === "/api/issues/reorder") {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            assignments: [{ id: "REEF-013", rank: 1500 }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+    await screen.findByText("Backend blocker");
+    const activeCard = screen
+      .getByText("Backend blocker")
+      .closest<HTMLElement>('[data-testid="kanban-card"]');
+    if (!activeCard) throw new Error("missing active Board card");
+
+    const originalHitTest = Object.getOwnPropertyDescriptor(
+      document,
+      "elementsFromPoint",
+    );
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [activeCard],
+    });
+    try {
+      fireEvent.pointerMove(screen.getByTestId("kanban-board"), {
+        clientX: 424,
+        clientY: 509,
+      });
+      act(() => {
+        dndHarness.contextProps?.onDragEnd?.({
+          active: { data: { current: { issue: manualIssues[3] } } },
+          over: { id: "todo:REEF-010" },
+          activatorEvent: { type: "pointerdown" },
+        });
+      });
+
+      await waitFor(() =>
+        expect(
+          mockApiFetch.mock.calls.some(
+            ([url]) => url === "/api/issues/reorder",
+          ),
+        ).toBe(true),
+      );
+      const call = mockApiFetch.mock.calls.find(
+        ([url]) => url === "/api/issues/reorder",
+      );
+      const body = JSON.parse(String(call?.[1]?.body));
+      expect(body).toMatchObject({
+        scope: "active",
+        issue_id: "REEF-013",
+        before_id: null,
+        after_id: "REEF-010",
+      });
+      expect(body.group).toBeUndefined();
+    } finally {
+      if (originalHitTest) {
+        Object.defineProperty(document, "elementsFromPoint", originalHitTest);
+      } else {
+        Reflect.deleteProperty(document, "elementsFromPoint");
+      }
+    }
   });
 
   it("keeps Board feedback on the moved identity until canonical success settles", async () => {

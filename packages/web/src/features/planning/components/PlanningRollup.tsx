@@ -1,22 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { withVault } from "@/lib/workspaceHref";
+import { planningIssueFilterHref } from "../lib/planningUrls";
 import type { PlanningRollup as PlanningRollupData } from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
 import { useId } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 
 export type IssueAggregationState = "loading" | "unavailable" | "available";
-
-const ISSUE_FILTER_KEY: Record<
-  PlanningKind,
-  "sprint_id" | "milestone_id" | "release_id"
-> = {
-  sprints: "sprint_id",
-  milestones: "milestone_id",
-  releases: "release_id",
-};
 
 const STATUS_SEGMENTS = [
   { key: "completed", className: "bg-status-done-chart" },
@@ -30,12 +21,6 @@ function formatNumber(locale: string, value: number): string {
   }).format(value);
 }
 
-function issuesHref(vault: string, kind: PlanningKind, id: string): string {
-  const params = new URLSearchParams();
-  params.set(ISSUE_FILTER_KEY[kind], id);
-  return withVault(vault, `/issues?${params.toString()}`);
-}
-
 function segmentWidth(count: number, total: number): string {
   return total > 0 ? `${(count / total) * 100}%` : "0%";
 }
@@ -47,6 +32,7 @@ export function PlanningRollup({
   rollup,
   state,
   compact = false,
+  interactive = true,
 }: {
   vault: string;
   kind: PlanningKind;
@@ -54,6 +40,7 @@ export function PlanningRollup({
   rollup: PlanningRollupData | undefined;
   state: IssueAggregationState;
   compact?: boolean;
+  interactive?: boolean;
 }) {
   const t = useTranslations("planning");
   const locale = useLocale();
@@ -135,20 +122,8 @@ export function PlanningRollup({
     .filter((part): part is string => Boolean(part))
     .join(" · ");
 
-  return (
-    <a
-      data-testid={`planning-rollup-${item.id}`}
-      href={issuesHref(vault, kind, item.id)}
-      aria-label={t("viewIssueRollup", {
-        count: number(rollup.total),
-        name: item.name,
-      })}
-      aria-describedby={descriptionId}
-      className={cn(
-        "group/rollup flex flex-col gap-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
-        compact ? "min-w-0 max-w-full" : "min-w-[12rem]",
-      )}
-    >
+  const content = (
+    <>
       <span id={descriptionId} className="sr-only">
         {description}
       </span>
@@ -197,6 +172,40 @@ export function PlanningRollup({
         )}
       </span>
       {capacity}
+    </>
+  );
+
+  const className = cn(
+    "flex flex-col gap-1 rounded-md px-1 py-0.5 text-left",
+    interactive &&
+      "group/rollup transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+    compact ? "min-w-0 max-w-full" : "min-w-[12rem]",
+  );
+
+  if (!interactive) {
+    return (
+      <div
+        data-testid={`planning-rollup-${item.id}`}
+        aria-describedby={descriptionId}
+        className={className}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <a
+      data-testid={`planning-rollup-${item.id}`}
+      href={planningIssueFilterHref(vault, kind, item.id)}
+      aria-label={t("viewIssueRollup", {
+        count: number(rollup.total),
+        name: item.name,
+      })}
+      aria-describedby={descriptionId}
+      className={className}
+    >
+      {content}
     </a>
   );
 }

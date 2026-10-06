@@ -112,6 +112,26 @@ export type ControlPlaneInstallationInventoryItem = z.infer<
   typeof ControlPlaneInstallationInventoryItemSchema
 >;
 
+/**
+ * Read-only workspace readiness snapshot. `active` is emitted only after the
+ * canonical AKB installation check and required-table verification succeed;
+ * Reef data initialization remains an explicit separate operation.
+ */
+export const WorkspaceReadinessCheckSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("active"),
+    installation: ControlPlaneInstallationSchema.optional(),
+    initialization_complete: z.boolean(),
+  }),
+  z.strictObject({ state: z.literal("inactive") }),
+  z.strictObject({ state: z.literal("not_installed") }),
+  z.strictObject({ state: z.literal("adoption_required") }),
+  z.strictObject({
+    state: z.enum(["installing", "upgrading", "blocked", "uninstalled"]),
+    installation: ControlPlaneInstallationSchema,
+  }),
+]);
+
 /** Public app-registry projection; opaque registry metadata is not exposed. */
 export const ControlPlaneAppDefinitionSchema = z.object({
   id: ControlPlaneIdSchema,
@@ -243,6 +263,9 @@ export type ControlPlaneDrift = z.infer<typeof ControlPlaneDriftSchema>;
 export type ControlPlaneInstallation = z.infer<
   typeof ControlPlaneInstallationSchema
 >;
+export type WorkspaceReadinessCheck = z.infer<
+  typeof WorkspaceReadinessCheckSchema
+>;
 export type WorkspaceInstallationStatus = z.infer<
   typeof WorkspaceInstallationStatusEnum
 >;
@@ -367,7 +390,37 @@ export const ReleaseCreateTablePayloadSchema = z.strictObject({
   indexes: z.array(ReleaseManifestIndexSchema).max(256),
 });
 
-export const ReleaseBlueprintStepSchema = z.strictObject({
+export const ReleaseAddUniqueKeyPayloadSchema = z
+  .strictObject({
+    table: ReleaseIdentifierSchema,
+    columns: z.array(ReleaseIdentifierSchema).min(1).max(256),
+    name: ReleaseIdentifierSchema.optional(),
+  })
+  .refine(
+    (payload) => new Set(payload.columns).size === payload.columns.length,
+    {
+      message: "Unique key columns must be distinct",
+      path: ["columns"],
+    },
+  );
+
+const ReleaseAddIndexColumnsSchema = z
+  .array(ReleaseManifestIndexColumnSchema)
+  .min(1)
+  .max(256)
+  .refine(
+    (columns) =>
+      new Set(columns.map((column) => column.name)).size === columns.length,
+    "Index columns must be distinct",
+  );
+
+export const ReleaseAddIndexPayloadSchema = z.strictObject({
+  table: ReleaseIdentifierSchema,
+  name: ReleaseIdentifierSchema.optional(),
+  columns: ReleaseAddIndexColumnsSchema,
+});
+
+const ReleaseCreateTableStepSchema = z.strictObject({
   id: ReleaseStepIdSchema,
   phase: z.literal("expand"),
   operation: z.literal("create_table"),
@@ -375,13 +428,29 @@ export const ReleaseBlueprintStepSchema = z.strictObject({
   checksum: ReleaseSha256Schema,
 });
 
-export const ReleaseManifestStepSchema = z.strictObject({
+const ReleaseAddUniqueKeyStepSchema = z.strictObject({
   id: ReleaseStepIdSchema,
   phase: z.literal("expand"),
-  operation: z.literal("create_table"),
-  payload: ReleaseCreateTablePayloadSchema,
+  operation: z.literal("add_unique_key"),
+  payload: ReleaseAddUniqueKeyPayloadSchema,
   checksum: ReleaseSha256Schema,
 });
+
+const ReleaseAddIndexStepSchema = z.strictObject({
+  id: ReleaseStepIdSchema,
+  phase: z.literal("expand"),
+  operation: z.literal("add_index"),
+  payload: ReleaseAddIndexPayloadSchema,
+  checksum: ReleaseSha256Schema,
+});
+
+export const ReleaseBlueprintStepSchema = z.discriminatedUnion("operation", [
+  ReleaseCreateTableStepSchema,
+  ReleaseAddUniqueKeyStepSchema,
+  ReleaseAddIndexStepSchema,
+]);
+
+export const ReleaseManifestStepSchema = ReleaseBlueprintStepSchema;
 
 export const ReleaseBlueprintTransitionPlanSchema = z.strictObject({
   source: ReleaseTransitionPlanSourceSchema,
@@ -402,7 +471,7 @@ export const ReefAppDefinitionSchema = z.strictObject({
 
 export const ReleaseBlueprintSchema = z.strictObject({
   app_definition: ReefAppDefinitionSchema,
-  schema_version: z.literal(3),
+  schema_version: z.literal(4),
   schema: ReleaseDesiredSchemaProjectionSchema,
   transition_plans: z
     .array(ReleaseBlueprintTransitionPlanSchema)
@@ -415,7 +484,7 @@ export const AppReleaseManifestSchema = z.strictObject({
   app_key: z.literal("reef"),
   source_revision: ReleaseSourceRevisionSchema,
   image_digest: ReleaseImageDigestSchema,
-  schema_version: z.literal(3),
+  schema_version: z.literal(4),
   schema: ReleaseDesiredSchemaProjectionSchema,
   transition_plans: z
     .array(ReleaseManifestTransitionPlanSchema)
@@ -449,6 +518,12 @@ export type ReleaseTransitionPlanSource = z.infer<
 >;
 export type ReleaseCreateTablePayload = z.infer<
   typeof ReleaseCreateTablePayloadSchema
+>;
+export type ReleaseAddUniqueKeyPayload = z.infer<
+  typeof ReleaseAddUniqueKeyPayloadSchema
+>;
+export type ReleaseAddIndexPayload = z.infer<
+  typeof ReleaseAddIndexPayloadSchema
 >;
 export type ReleaseBlueprintStep = z.infer<typeof ReleaseBlueprintStepSchema>;
 export type ReleaseManifestStep = z.infer<typeof ReleaseManifestStepSchema>;

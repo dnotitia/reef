@@ -1,7 +1,6 @@
 "use client";
 
 import { MarkdownEditor } from "@/components/MarkdownEditor";
-import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +18,7 @@ import {
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { planningListDetailHref, sprintDetailHref } from "../lib/planningUrls";
 import {
   computePlanningRollup,
@@ -34,6 +34,8 @@ import { itemsForKind } from "../lib/planningItems";
 import { PlanningRollup, type IssueAggregationState } from "./PlanningRollup";
 import { PlanningLoadError } from "./PlanningLoadError";
 import { PlanningTableSkeleton } from "./PlanningTableSkeleton";
+import { PlanningDates } from "./PlanningDates";
+import { PlanningDetailPanel } from "./PlanningDetailPanel";
 
 export type { IssueAggregationState } from "./PlanningRollup";
 
@@ -110,8 +112,9 @@ function PlanningNameCell({
   if (kind === "sprints") {
     return (
       <div className="flex min-w-0 items-center gap-1.5">
-        <a
+        <Link
           href={sprintDetailHref(vault, item.id)}
+          id={`planning-item-${kind}-${item.id}`}
           data-testid={`planning-sprint-link-${item.id}`}
           aria-label={t("openSprintDetail", { name: item.name })}
           className={cn(
@@ -120,7 +123,7 @@ function PlanningNameCell({
           )}
         >
           {item.name}
-        </a>
+        </Link>
         {disclosure}
       </div>
     );
@@ -128,8 +131,9 @@ function PlanningNameCell({
 
   return (
     <div className="flex min-w-0 items-center gap-1.5">
-      <a
+      <Link
         href={planningListDetailHref(vault, kind, item.id)}
+        id={`planning-item-${kind}-${item.id}`}
         data-testid={`planning-list-detail-link-${item.id}`}
         aria-label={t("openPlanningListDetail", { name: item.name })}
         className={cn(
@@ -138,8 +142,7 @@ function PlanningNameCell({
         )}
       >
         {item.name}
-      </a>
-      {disclosure}
+      </Link>
     </div>
   );
 }
@@ -192,6 +195,29 @@ export function PlanningTable({
   const common = useTranslations("common");
   const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
+  const detailItem =
+    kind === "milestones"
+      ? (items.find((item) => item.id === expandedId) as Milestone | undefined)
+      : kind === "releases"
+        ? (items.find((item) => item.id === expandedId) as Release | undefined)
+        : undefined;
+  const detailOpen = Boolean(
+    catalog && (kind === "milestones" || kind === "releases") && expandedId,
+  );
+  const detailPanel =
+    kind === "milestones" || kind === "releases" ? (
+      <PlanningDetailPanel
+        open={detailOpen}
+        vault={vault}
+        kind={kind}
+        item={detailItem}
+        issues={issues}
+        issueAggregationState={issueAggregationState}
+        isIssueFetching={isIssueFetching}
+        onClose={() => onExpandedIdChange(null)}
+        onRetryIssues={onRetryIssues}
+      />
+    ) : null;
   const rollups = useMemo(
     () =>
       issueAggregationState === "available" && issues
@@ -250,15 +276,18 @@ export function PlanningTable({
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        data-testid={`planning-empty-${kind}`}
-        title={t("emptyKindTitle", {
-          kind: planningKindLabels[kind].toLowerCase(),
-        })}
-        description={t("emptyKindDescription", {
-          kind: planningKindSingular[kind].toLowerCase(),
-        })}
-      />
+      <>
+        <EmptyState
+          data-testid={`planning-empty-${kind}`}
+          title={t("emptyKindTitle", {
+            kind: planningKindLabels[kind].toLowerCase(),
+          })}
+          description={t("emptyKindDescription", {
+            kind: planningKindSingular[kind].toLowerCase(),
+          })}
+        />
+        {detailPanel}
+      </>
     );
   }
 
@@ -292,6 +321,7 @@ export function PlanningTable({
           rolloverDisabledReason={rolloverDisabledReason}
           deletingId={deletingId}
         />
+        {detailPanel}
       </>
     );
   }
@@ -317,7 +347,7 @@ export function PlanningTable({
                       vault={vault}
                       kind={kind}
                       item={item}
-                      hasDetails={Boolean(body)}
+                      hasDetails={kind === "sprints" && Boolean(body)}
                       isExpanded={isExpanded}
                       panelId={panelId}
                       onToggle={() =>
@@ -376,7 +406,7 @@ export function PlanningTable({
                     </div>
                   </TableCell>
                 </TableRow>
-                {isExpanded && body && (
+                {kind === "sprints" && isExpanded && body && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell
                       colSpan={6}
@@ -398,6 +428,7 @@ export function PlanningTable({
           })}
         </TableBody>
       </Table>
+      {detailPanel}
     </>
   );
 }
@@ -469,7 +500,7 @@ function PlanningCompactList({
                   vault={vault}
                   kind={kind}
                   item={item}
-                  hasDetails={Boolean(body)}
+                  hasDetails={kind === "sprints" && Boolean(body)}
                   isExpanded={isExpanded}
                   panelId={panelId}
                   compact
@@ -535,7 +566,7 @@ function PlanningCompactList({
               </dd>
             </dl>
 
-            {isExpanded && body && (
+            {kind === "sprints" && isExpanded && body && (
               <div
                 id={panelId}
                 className="mt-3 min-w-0 rounded-md bg-surface-subtle/40 p-2"
@@ -652,44 +683,4 @@ function PlanningDeleteAction({
       ) : null}
     </>
   );
-}
-
-function PlanningDates({
-  kind,
-  item,
-}: {
-  kind: PlanningKind;
-  item: PlanningItem;
-}) {
-  const t = useTranslations("planning");
-  if (kind === "sprints") {
-    const sprint = item as Sprint;
-    if (!sprint.start_date && !sprint.end_date) return <>—</>;
-    return (
-      <span className="inline-flex flex-wrap items-center gap-1">
-        <DateDisplay date={sprint.start_date} emptyText="?" />
-        <span aria-hidden="true">–</span>
-        <DateDisplay date={sprint.end_date} emptyText="?" />
-      </span>
-    );
-  }
-  if (kind === "milestones") {
-    return <DateDisplay date={(item as Milestone).target_date} emptyText="—" />;
-  }
-  const release = item as Release;
-  if (release.released_at) {
-    return (
-      <span>
-        {t("released")} <DateDisplay date={release.released_at} />
-      </span>
-    );
-  }
-  if (release.target_date) {
-    return (
-      <span>
-        {t("target")} <DateDisplay date={release.target_date} />
-      </span>
-    );
-  }
-  return <>—</>;
 }

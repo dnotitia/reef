@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
-  ALL_REEF_TABLES,
   AkbApiError,
   ISSUE_ROW_COLUMNS,
   NotFoundError,
@@ -14,7 +13,6 @@ import {
   makeAdapter,
   makeDocumentResponse,
   makeIssueRow,
-  makeListTablesResponse,
   makePutResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
@@ -134,7 +132,6 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
     ]);
     const adapter = makeAdapter();
@@ -149,14 +146,14 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.status).toBe("in_progress");
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(4);
 
     // The row UPDATE is a plain committing statement (akb routes by leading
     // keyword), not a SELECT-wrapped CTE.
     const updateSql = JSON.parse(calls[2]?.init?.body as string).sql;
     expect(updateSql.startsWith("UPDATE reef_issues SET")).toBe(true);
 
-    const insertBody = sqlRequestBody(calls[4]);
+    const insertBody = sqlRequestBody(calls[3]);
     expect(insertBody.sql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(insertBody.params).toEqual(
       expect.arrayContaining([
@@ -189,7 +186,6 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
     ]);
     const adapter = makeAdapter();
@@ -205,7 +201,7 @@ describe("updateIssue", () => {
       },
     });
 
-    const insertBody = sqlRequestBody(calls[4]);
+    const insertBody = sqlRequestBody(calls[3]);
     expect(insertBody.params).toContain(
       JSON.stringify({ from: "todo", to: "done" }),
     );
@@ -237,7 +233,6 @@ describe("updateIssue", () => {
         ),
       }, // read: row already carries last_status_change = 09:00 (status todo)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
     ]);
     const adapter = makeAdapter();
@@ -252,8 +247,8 @@ describe("updateIssue", () => {
       },
     });
     // The event is recorded despite the repeated timestamp.
-    expect(calls).toHaveLength(5);
-    expect(sqlRequestBody(calls[4]).params).toContain(
+    expect(calls).toHaveLength(4);
+    expect(sqlRequestBody(calls[3]).params).toContain(
       "status_change:todo->in_review@2026-06-18T09:00:00.000Z",
     );
   });
@@ -275,7 +270,7 @@ describe("updateIssue", () => {
       partial: { status: "in_progress" },
     });
     expect(result.issue.status).toBe("in_progress");
-    // No ensureReefTables / probe / INSERT — the activity funnel did not fire.
+    // No activity INSERT — the activity funnel did not fire.
     expect(calls).toHaveLength(3);
   });
 
@@ -286,7 +281,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
-      { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
+      { status: 500, body: { detail: "activity append failed" } },
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -321,7 +316,6 @@ describe("updateIssue", () => {
           ["id"],
         ),
       }, // upsert current assignee source before activity
-      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables (once)
       { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee_change
       { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority_change
     ]);
@@ -338,9 +332,9 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    expect(calls).toHaveLength(8);
+    expect(calls).toHaveLength(7);
 
-    const assigneeBody = sqlRequestBody(calls[6]);
+    const assigneeBody = sqlRequestBody(calls[5]);
     expect(assigneeBody.sql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(assigneeBody.params).toEqual(
       expect.arrayContaining([
@@ -355,7 +349,7 @@ describe("updateIssue", () => {
       ]),
     );
 
-    const priorityBody = sqlRequestBody(calls[7]);
+    const priorityBody = sqlRequestBody(calls[6]);
     expect(priorityBody.params).toEqual(
       expect.arrayContaining([
         "priority_change",
@@ -416,7 +410,7 @@ describe("updateIssue", () => {
           ["id"],
         ),
       }, // upsert current assignee source before activity
-      { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
+      { status: 500, body: { detail: "activity append failed" } },
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),

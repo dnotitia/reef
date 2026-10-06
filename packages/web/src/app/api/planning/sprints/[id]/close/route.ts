@@ -1,5 +1,5 @@
 import {
-  getAkbAdapter,
+  getWorkspaceAkbAdapter,
   getAkbCurrentActor,
   invalidBodyResponse,
   invalidJsonBodyResponse,
@@ -32,7 +32,10 @@ export async function POST(
   const parsed = CloseSprintRequestSchema.safeParse(rawBody);
   if (!parsed.success) return invalidBodyResponse(parsed.error);
 
-  const adapterResult = getAkbAdapter(request);
+  const adapterResult = await getWorkspaceAkbAdapter(
+    request,
+    parsed.data.vault,
+  );
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 

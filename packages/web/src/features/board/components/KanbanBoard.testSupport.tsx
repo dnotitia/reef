@@ -7,6 +7,7 @@ import { vi } from "vitest";
 export interface CapturedDragEvent {
   active: { data: { current?: unknown } };
   over?: { id: string } | null;
+  activatorEvent?: { type: string };
 }
 
 export interface CapturedDndContextProps {
@@ -86,6 +87,52 @@ vi.mock("@dnd-kit/sortable", () => ({
     isOver: false,
   })),
   verticalListSortingStrategy: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-virtual", () => ({
+  defaultRangeExtractor: (range: {
+    startIndex: number;
+    endIndex: number;
+    overscan: number;
+    count: number;
+  }) => {
+    const start = Math.max(0, range.startIndex - range.overscan);
+    const end = Math.min(range.count - 1, range.endIndex + range.overscan);
+    return Array.from(
+      { length: Math.max(0, end - start + 1) },
+      (_, index) => start + index,
+    );
+  },
+  useVirtualizer: (options: {
+    count: number;
+    getItemKey: (index: number) => string | number;
+    rangeExtractor: (range: {
+      startIndex: number;
+      endIndex: number;
+      overscan: number;
+      count: number;
+    }) => number[];
+  }) => {
+    const endIndex = Math.min(options.count - 1, 7);
+    const indexes = options.rangeExtractor({
+      startIndex: 0,
+      endIndex,
+      overscan: 0,
+      count: options.count,
+    });
+    return {
+      getVirtualItems: () =>
+        indexes.map((index) => ({
+          index,
+          key: options.getItemKey(index),
+          start: index * 180,
+          size: 180,
+        })),
+      getTotalSize: () => options.count * 180,
+      measureElement: () => {},
+      scrollToIndex: () => {},
+    };
+  },
 }));
 
 // Stub auto-animate (used by KanbanColumn) so its controller doesn't trigger

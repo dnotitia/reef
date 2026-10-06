@@ -429,6 +429,15 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
 
       await Promise.all([planningStarted, issueListStarted]);
       await planningLoaded;
+      // A response event can resolve before React commits the catalog update or
+      // replaces the route Suspense fallback. Sample the live pending workspace,
+      // not a still-painted IssuesWorkspaceSkeleton from that intermediate frame.
+      await expect(page.getByTestId("issues-skeleton")).toHaveCount(0);
+      await expect(page.getByTestId("current-sprint-shortcut")).toBeVisible();
+      await expect(
+        page.getByTestId("sprint-rollover-pending-skeleton"),
+      ).toBeVisible();
+      await expect(page.getByTestId("board-columns-skeleton")).toBeVisible();
       const dataPending = await captureBoardGeometry(
         page,
         testInfo,

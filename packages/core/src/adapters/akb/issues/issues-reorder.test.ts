@@ -9,11 +9,7 @@ import {
   setupFetch,
 } from "../../../test-support/akb/fetchMock";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
-import {
-  ALL_REEF_TABLES,
-  makeListTablesResponse,
-  makeSqlQueryResponse,
-} from "../core/akb.testSupport";
+import { makeSqlQueryResponse } from "../core/akb.testSupport";
 import { reorderIssue } from "./issues";
 
 mockOpenTelemetry();
@@ -271,7 +267,6 @@ describe("reorderIssue (REEF-570)", () => {
           total: 3,
         },
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
     ]);
 
@@ -306,14 +301,14 @@ describe("reorderIssue (REEF-570)", () => {
     expect(String(updateBody.sql)).toMatch(
       /"closed_reason" = CASE "reef_id" WHEN \$\d+ THEN NULL ELSE "closed_reason" END/,
     );
-    const activityBody = bodyOf(calls[3]);
+    const activityBody = bodyOf(calls[2]);
     expect(activityBody.params).toEqual(
       expect.arrayContaining([
         "REEF-001",
         "status_change:done->in_progress@2026-05-02T00:00:00.000Z",
       ]),
     );
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(3);
   });
 
   it("preserves neighbor status times when exhausted ranks are re-spaced", async () => {
@@ -358,7 +353,6 @@ describe("reorderIssue (REEF-570)", () => {
           total: 3,
         },
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
     ]);
 
@@ -388,13 +382,13 @@ describe("reorderIssue (REEF-570)", () => {
       { id: "REEF-002", rank: 3000 },
     ]);
     expectStatusTimestampOnlyFor(bodyOf(calls[1]), "REEF-003");
-    expect(bodyOf(calls[3]).params).toEqual(
+    expect(bodyOf(calls[2]).params).toEqual(
       expect.arrayContaining([
         "REEF-003",
         "status_change:todo->in_progress@2026-05-02T00:00:00.000Z",
       ]),
     );
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(3);
   });
 
   it("stamps a single issue on a status-only move", async () => {
@@ -423,7 +417,6 @@ describe("reorderIssue (REEF-570)", () => {
           total: 1,
         },
       },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ id: "status-event" }], ["id"]) },
     ]);
 
@@ -448,13 +441,13 @@ describe("reorderIssue (REEF-570)", () => {
     });
 
     expectStatusTimestampOnlyFor(bodyOf(calls[1]), "REEF-001");
-    expect(bodyOf(calls[3]).params).toEqual(
+    expect(bodyOf(calls[2]).params).toEqual(
       expect.arrayContaining([
         "REEF-001",
         "status_change:todo->in_progress@2026-05-02T00:00:00.000Z",
       ]),
     );
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(3);
   });
 
   it("does not change status time on a same-status reorder", async () => {

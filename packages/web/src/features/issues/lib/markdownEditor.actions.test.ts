@@ -11,7 +11,7 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import {
-  createIssueMarkdownTargetResolver,
+  createMarkdownTargetResolver,
   uploadIssueMarkdownFiles,
 } from "./markdownEditor.actions";
 
@@ -118,9 +118,8 @@ describe("issue Markdown adapters", () => {
     expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
-  it("resolves stable attachments and rejects cross-vault document links", async () => {
-    const resolver = createIssueMarkdownTargetResolver({
-      issueId: "REEF-001",
+  it("resolves stable attachments and same-vault document links", async () => {
+    const resolver = createMarkdownTargetResolver({
       vault: "reef-test",
       akbWebBase: "https://akb.example",
     });
@@ -151,6 +150,38 @@ describe("issue Markdown adapters", () => {
       status: "unavailable",
       reason: "cross-vault",
     });
+    await expect(
+      resolver.resolve("akb://reef-test/coll/docs/doc/guide.md", {
+        vault: "reef-test",
+      }),
+    ).resolves.toEqual({
+      target: "akb://reef-test/coll/docs/doc/guide.md",
+      kind: "document",
+      status: "available",
+      runtimeUrl: "https://akb.example/vault/reef-test/doc/docs%2Fguide.md",
+    });
+    await expect(
+      resolver.resolve("akb://reef-test/coll/incidents/file/incident-1", {
+        vault: "reef-test",
+      }),
+    ).resolves.toEqual({
+      target: "akb://reef-test/coll/incidents/file/incident-1",
+      kind: "file",
+      status: "available",
+      runtimeUrl:
+        "/api/files?vault=reef-test&uri=akb%3A%2F%2Freef-test%2Fcoll%2Fincidents%2Ffile%2Fincident-1&download=1",
+    });
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not resolve a cross-vault file through the active vault", async () => {
+    const resolver = createMarkdownTargetResolver({ vault: "reef-test" });
+
+    await expect(
+      resolver.resolve("akb://other/coll/incidents/file/incident-1", {
+        vault: "reef-test",
+      }),
+    ).resolves.toMatchObject({ status: "unavailable", reason: "cross-vault" });
+    expect(mockApiFetch).not.toHaveBeenCalled();
   });
 });
