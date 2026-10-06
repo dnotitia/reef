@@ -47,6 +47,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Onboarding keeps its creation form after an empty workspace response or a
+  successful list retry.** Workspace resume checks no longer restart when the
+  create panel mounts. (REEF-422)
 - **Pointer drags on large Board columns keep the card under the pointer as the
   target through auto-scroll.** If hit testing finds only the dragged card,
   Board follows dnd-kit's valid target instead of rejecting the drop as a

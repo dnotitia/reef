@@ -1,6 +1,6 @@
 "use client";
 
-import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
+import type { WorkspaceAutoResumeStatus } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 import { useTranslations } from "next-intl";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
 import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
@@ -19,17 +19,19 @@ import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
 export function OnboardingPanel({
   resumeState,
 }: {
-  resumeState?: ReturnType<typeof useWorkspaceAutoResume>;
-} = {}) {
+  resumeState: {
+    status: WorkspaceAutoResumeStatus;
+    retry: () => void;
+  };
+}) {
   const t = useTranslations("onboarding");
-  const ownResume = useWorkspaceAutoResume({
-    enabled: resumeState === undefined,
-  });
-  const resume = resumeState ?? ownResume;
 
-  if (resume.status !== "empty") {
+  if (resumeState.status !== "empty") {
     return (
-      <WorkspaceResumeStatus status={resume.status} onRetry={resume.retry} />
+      <WorkspaceResumeStatus
+        status={resumeState.status}
+        onRetry={resumeState.retry}
+      />
     );
   }
 

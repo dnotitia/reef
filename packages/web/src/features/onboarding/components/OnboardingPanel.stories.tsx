@@ -3,38 +3,14 @@ import { http, HttpResponse } from "msw";
 import { DEFAULT_CONFIG } from "@reef/core";
 import { OnboardingPanel } from "./OnboardingPanel";
 
-function vaultPayload(
-  entries: ReadonlyArray<{
-    name: string;
-    installation_status: "ready" | "not_installed";
-  }>,
-) {
-  return {
-    vaults: entries.map((e) => ({
-      name: e.name,
-      description: null,
-      status: "active",
-      role: "owner" as const,
-      created_at: null,
-      installation_status: e.installation_status,
-    })),
-  };
-}
-
 function handlers({
-  vaults = [],
   repos = [],
   createStatus = 200,
 }: {
-  vaults?: ReadonlyArray<{
-    name: string;
-    installation_status: "ready" | "not_installed";
-  }>;
   repos?: ReadonlyArray<{ full_name: string; id: number }>;
   createStatus?: number;
 } = {}) {
   return [
-    http.get("/api/vaults", () => HttpResponse.json(vaultPayload(vaults))),
     http.get("/api/repos", () => HttpResponse.json({ repos })),
     http.post("/api/vaults", async () => {
       if (createStatus !== 200) {
@@ -69,6 +45,9 @@ function handlers({
 const meta: Meta<typeof OnboardingPanel> = {
   title: "Features/Onboarding/OnboardingPanel",
   component: OnboardingPanel,
+  args: {
+    resumeState: { status: "empty", retry: () => {} },
+  },
   parameters: {
     layout: "centered",
   },
@@ -78,19 +57,8 @@ export default meta;
 type Story = StoryObj<typeof OnboardingPanel>;
 
 export const Loading: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get("/api/vaults", async () => {
-          await new Promise(() => {});
-          return HttpResponse.json(vaultPayload([]));
-        }),
-        http.get("/api/repos", async () => {
-          await new Promise(() => {});
-          return HttpResponse.json({ repos: [] });
-        }),
-      ],
-    },
+  args: {
+    resumeState: { status: "pending", retry: () => {} },
   },
 };
 
@@ -114,25 +82,10 @@ export const WithRepos: Story = {
   },
 };
 
-export const ExistingWorkspaces: Story = {
-  parameters: {
-    msw: {
-      handlers: handlers({
-        vaults: [
-          { name: "reef-acme", installation_status: "ready" },
-          { name: "reef-zen", installation_status: "ready" },
-          { name: "raw-personal", installation_status: "not_installed" },
-        ],
-      }),
-    },
-  },
-};
-
 export const NoGitHubToken: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/vaults", () => HttpResponse.json(vaultPayload([]))),
         http.get("/api/repos", () =>
           HttpResponse.json(
             { error: "Authentication required." },
