@@ -164,7 +164,7 @@ describe("SidebarWorkspace", () => {
     expect(trigger).not.toHaveTextContent("Workspace");
   });
 
-  it("opens an upward popover listing only reef-config vaults, marking the current one (AC2)", async () => {
+  it("opens a downward popover listing only reef-config vaults, marking the current one (AC2)", async () => {
     await setActiveVault("reef-acme");
     setupVaults([
       { name: "reef-acme", installation_status: "ready" },
@@ -179,8 +179,8 @@ describe("SidebarWorkspace", () => {
 
     const popover = await screen.findByTestId("workspace-switcher");
     expect(screen.getByTestId("workspace-switcher-search")).toHaveFocus();
-    // Opens upward — the side="top" content anchors to the trigger's top edge.
-    expect(popover).toHaveClass("bottom-full");
+    // Opens below the trigger inside the scrollable workspace nav.
+    expect(popover).toHaveClass("top-full");
     expect(
       await screen.findByTestId("workspace-switcher-option-reef-acme"),
     ).toHaveAttribute("aria-current", "true");

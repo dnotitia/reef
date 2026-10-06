@@ -61,7 +61,7 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
  *  - Expanded: the workspace monogram + the active vault name. (No active-page
  *    rail: that marker belongs to route links; the account stays in the footer.)
  *  - Collapsed (w-14): the monogram just, with the vault name in `title`.
- *  - Click: an upward popover listing the user's active Reef workspaces (with
+ *  - Click: a downward popover listing the user's active Reef workspaces (with
  *    search), the current one marked with ✓ + a brand rail; picking another
  *    switches the active vault. A pinned "New workspace" entry is consistently
  *    present — even with zero reef vaults — and opens the create dialog.
@@ -275,7 +275,7 @@ export function SidebarWorkspace({
         </PopoverTrigger>
 
         <PopoverContent
-          side="top"
+          side="bottom"
           align="start"
           role="dialog"
           aria-label={tw("selectWorkspaceAria")}

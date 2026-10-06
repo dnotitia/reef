@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ReefMark } from "@/components/ui/reef-mark";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, ChevronsUpDown, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 type SidebarNavKey = (typeof SIDEBAR_NAV_ITEMS)[number]["labelKey"];
@@ -130,7 +130,10 @@ export function AppShellSkeleton({
             </span>
           </Button>
         </div>
-        <nav className="flex-1 px-2 py-3" aria-label={nav("mainNavLandmark")}>
+        <nav
+          className="flex-1 overflow-y-auto px-2 py-3"
+          aria-label={nav("mainNavLandmark")}
+        >
           {[
             {
               id: "personal",
@@ -146,7 +149,11 @@ export function AppShellSkeleton({
             <section
               key={id}
               data-testid={`sidebar-${id}-group`}
-              className={id === "workspace" ? "pt-2" : undefined}
+              className={
+                id === "workspace"
+                  ? "mt-2 border-t border-border-subtle pt-2"
+                  : undefined
+              }
             >
               <h2
                 className={cn(
@@ -156,6 +163,41 @@ export function AppShellSkeleton({
               >
                 {label}
               </h2>
+              {id === "workspace" && (
+                <div
+                  data-testid="sidebar-workspace-placeholder"
+                  aria-hidden="true"
+                  className={cn("px-2 py-1", sidebarCollapsed && "px-1.5")}
+                >
+                  <div
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md",
+                      sidebarCollapsed
+                        ? "justify-center px-0 py-1"
+                        : "px-2 py-1.5",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-md bg-surface-elevated ring-1 ring-border",
+                        sidebarCollapsed ? "size-9" : "size-7",
+                      )}
+                    />
+                    {!sidebarCollapsed && (
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="h-[19.5px] w-24 rounded-sm bg-surface-hover" />
+                        <span className="h-[16.5px] w-16 rounded-sm bg-surface-hover" />
+                      </span>
+                    )}
+                    {!sidebarCollapsed && (
+                      <ChevronsUpDown
+                        aria-hidden="true"
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
               <ul className="flex flex-col gap-0.5">
                 {items.map(({ labelKey, testId, icon: Icon }) => {
                   const isActive = labelKey === activeNav;
