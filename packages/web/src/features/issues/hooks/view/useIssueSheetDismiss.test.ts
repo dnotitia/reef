@@ -8,18 +8,6 @@ const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({ vault: "reef-test" }),
-}));
-
-// goBack builds its target with the active vault (REEF-315) via useActiveVault,
-// which calls useQuery; this hook test has no QueryClient, so resolve it to a
-// fixed vault that scopes the back href.
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: () => ({
-    vault: "reef-test",
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
 }));
 
 afterEach(() => {
@@ -37,6 +25,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
       useIssueSheetDismiss({
         entryRoute: "modal",
         issueId: "REEF-Z",
+        vault: "reef-test",
         onExit: vi.fn(),
       }),
     );
@@ -56,6 +45,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
       useIssueSheetDismiss({
         entryRoute: "modal",
         issueId: "REEF-B",
+        vault: "reef-test",
         onExit: vi.fn(),
       }),
     );
@@ -71,6 +61,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
       useIssueSheetDismiss({
         entryRoute: "modal",
         issueId: "REEF-B",
+        vault: "reef-test",
         onExit: vi.fn(),
       }),
     );
@@ -83,7 +74,12 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     const onExit = vi.fn();
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ entryRoute: "modal", issueId: "REEF-B", onExit }),
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-B",
+        vault: "reef-test",
+        onExit,
+      }),
     );
 
     act(() => result.current.dismissViaEsc());
@@ -95,12 +91,40 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     expect(onExit).not.toHaveBeenCalled();
   });
 
+  it("builds Back routes from the owning workspace", () => {
+    useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-B" });
+    const { result } = renderHook(() =>
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-B",
+        vault: "reef-e2e",
+        onExit: vi.fn(),
+      }),
+    );
+
+    act(() => result.current.goBack());
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-e2e/issues/REEF-A",
+    );
+  });
+
   it("Esc closes to the entry view when there is no trail (AC3)", () => {
-    useIssueNavStack.setState({ trail: [], currentId: "REEF-B" });
+    useIssueNavStack.setState({
+      trail: [],
+      currentId: "REEF-B",
+      entryRoute: null,
+      exitOwner: null,
+    });
     const onExit = vi.fn();
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ entryRoute: "modal", issueId: "REEF-B", onExit }),
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-B",
+        vault: "reef-test",
+        onExit,
+      }),
     );
 
     act(() => result.current.dismissViaEsc());
@@ -117,7 +141,12 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     const onExit = vi.fn();
 
     const { result } = renderHook(() =>
-      useIssueSheetDismiss({ entryRoute: "modal", issueId: "REEF-C", onExit }),
+      useIssueSheetDismiss({
+        entryRoute: "modal",
+        issueId: "REEF-C",
+        vault: "reef-test",
+        onExit,
+      }),
     );
 
     act(() => result.current.exit());
@@ -134,6 +163,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
       useIssueSheetDismiss({
         entryRoute: "base",
         issueId: "REEF-103",
+        vault: "reef-test",
         onExit: deepLinkExit,
       }),
     );
@@ -142,6 +172,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
       useIssueSheetDismiss({
         entryRoute: "modal",
         issueId: "REEF-102",
+        vault: "reef-test",
         onExit: interceptedRouteExit,
       }),
     );
@@ -158,6 +189,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
       useIssueSheetDismiss({
         entryRoute: "base",
         issueId: "REEF-B",
+        vault: "reef-test",
         onExit: vi.fn(),
       }),
     );
@@ -177,6 +209,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
         useIssueSheetDismiss({
           entryRoute: "modal",
           issueId: "REEF-103",
+          vault: "reef-test",
           onExit,
         }),
       { initialProps: { onExit: firstExit } },

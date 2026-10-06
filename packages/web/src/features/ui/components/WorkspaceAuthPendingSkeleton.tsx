@@ -121,9 +121,11 @@ function InboxAuthPendingSkeleton() {
 }
 
 function AuthPendingContent({
+  vault,
   routeSegments,
   searchParams,
 }: {
+  vault: string;
   routeSegments: string[];
   searchParams: string;
 }) {
@@ -132,6 +134,7 @@ function AuthPendingContent({
     return (
       <IssueDetailAuthPendingSkeleton
         issueId={routeSegments[1] ?? ""}
+        vault={vault}
         searchParams={searchParams}
       />
     );
@@ -211,9 +214,11 @@ function activeNavForPath(routeSegments: string[]) {
  * navigation keeps its destination chrome visible while `/auth/me` resolves.
  */
 export function WorkspaceAuthPendingSkeleton({
+  vault,
   pathname,
   searchParams = "",
 }: {
+  vault: string;
   pathname: string | null;
   searchParams?: string;
 }) {
@@ -228,6 +233,7 @@ export function WorkspaceAuthPendingSkeleton({
       content={
         hasContent ? (
           <AuthPendingContent
+            vault={vault}
             routeSegments={routeSegments}
             searchParams={searchParams}
           />

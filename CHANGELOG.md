@@ -51,6 +51,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **My Work issue detail stays bound to its source workspace.** Status edits,
+  related issue links, and drill Back routes now keep using the workspace that
+  owns the opened issue, including when another workspace contains the same id.
+  (REEF-658)
 - **Unavailable workspace entries no longer imply an access denial.** Their
   heading now describes availability in English and Korean, while genuine
   access denials keep their existing guidance. (REEF-422)

@@ -190,6 +190,8 @@ function IssueChildRow({
 interface IssueChildrenProps {
   /** The parent issue whose children we list. */
   issueId: string;
+  /** Workspace that owns the parent issue route. */
+  vault: string;
   /** Whole-vault list already loaded by the detail panel. */
   allIssues: readonly IssueListItem[];
   /** True only while the list has no successful result yet. */
@@ -234,6 +236,7 @@ interface IssueChildrenProps {
  */
 export const IssueChildren = memo(function IssueChildren({
   issueId,
+  vault,
   allIssues,
   allIssuesPending,
   allIssuesError,
@@ -277,7 +280,7 @@ export const IssueChildren = memo(function IssueChildren({
 
   // Opening a sub-issue is an in-sheet drill (REEF-270): it swaps the panel to
   // the child and records the hop so Back returns to this parent.
-  const getDrillProps = useIssueDrill(issueId);
+  const getDrillProps = useIssueDrill(issueId, vault);
 
   const total = children.length;
   const doneCount = children.filter((child) =>

@@ -94,6 +94,98 @@ test.describe("Hermetic My Work flow", () => {
     await page.goto("/workspace/reef-alpha/my-work");
     await page.getByTestId("my-work-row-reef-zeta-REEF-001").click();
     await page.waitForURL(/\/workspace\/reef-zeta\/issues\/REEF-001/);
+
+    await page.goto("/workspace/reef-alpha/my-work");
+    await expect(page.getByTestId("my-work-queue")).toBeVisible();
+    await page.getByTestId("my-work-workspace-filter").selectOption("reef-e2e");
+    await page.waitForURL(/workspace=reef-e2e/);
+    const e2eRow = page.getByTestId("my-work-row-reef-e2e-REEF-001");
+    await expect(e2eRow).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/issues/REEF-001?workspace=reef-e2e",
+    );
+    await e2eRow.click();
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/REEF-001/);
+
+    const softOpenPatchPromise = page.waitForRequest(
+      (request) =>
+        request.method() === "PATCH" &&
+        new URL(request.url()).pathname === "/api/issues/REEF-001",
+    );
+    await page.getByTestId("issue-status-select").click();
+    await page.getByRole("option", { name: "In Review", exact: true }).click();
+    const softOpenPatch = await softOpenPatchPromise;
+    const softOpenPatchBody: unknown = JSON.parse(
+      softOpenPatch.postData() ?? "null",
+    );
+    await expect.soft(softOpenPatchBody).toEqual(
+      expect.objectContaining({
+        vault: "reef-e2e",
+        update: expect.objectContaining({
+          patch: expect.objectContaining({ status: "in_review" }),
+        }),
+      }),
+    );
+    const softOpenPatchResponse = await softOpenPatch.response();
+    expect(softOpenPatchResponse?.ok()).toBeTruthy();
+
+    await page.reload();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001/);
+    const directEntryPatchPromise = page.waitForRequest(
+      (request) =>
+        request.method() === "PATCH" &&
+        new URL(request.url()).pathname === "/api/issues/REEF-001",
+    );
+    await page.getByTestId("issue-status-select").click();
+    await page
+      .getByRole("option", { name: "In Progress", exact: true })
+      .click();
+    const directEntryPatch = await directEntryPatchPromise;
+    const directEntryPatchBody: unknown = JSON.parse(
+      directEntryPatch.postData() ?? "null",
+    );
+    await expect.soft(directEntryPatchBody).toEqual(
+      expect.objectContaining({
+        vault: "reef-e2e",
+        update: expect.objectContaining({
+          patch: expect.objectContaining({ status: "in_progress" }),
+        }),
+      }),
+    );
+    const directEntryPatchResponse = await directEntryPatch.response();
+    expect(directEntryPatchResponse?.ok()).toBeTruthy();
+
+    await page.goto("/workspace/reef-alpha/my-work");
+    await expect(page.getByTestId("my-work-queue")).toBeVisible();
+    await page.getByTestId("my-work-group-status").click();
+    await expect(page.getByTestId("my-work-group-status")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const sourceStatuses = await page
+      .locator('[data-testid^="my-work-row-"][data-testid$="-REEF-001"]')
+      .evaluateAll((rows) =>
+        Object.fromEntries(
+          rows.map((row) => {
+            let groupHeader = row.previousElementSibling;
+            while (
+              groupHeader &&
+              !groupHeader.matches('[data-testid^="my-work-group-header-"]')
+            ) {
+              groupHeader = groupHeader.previousElementSibling;
+            }
+            return [
+              row.getAttribute("data-workspace"),
+              groupHeader?.getAttribute("data-testid"),
+            ];
+          }),
+        ),
+      );
+    expect.soft(sourceStatuses).toEqual({
+      "reef-alpha": "my-work-group-header-todo",
+      "reef-e2e": "my-work-group-header-in_progress",
+      "reef-zeta": "my-work-group-header-todo",
+    });
   });
 
   test("shows a read error separately from a genuinely empty workspace", async ({

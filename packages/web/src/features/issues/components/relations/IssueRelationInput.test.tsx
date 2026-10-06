@@ -8,9 +8,20 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { IssueRelationInput } from "./IssueRelationInput";
+import { IssueRelationInput as IssueRelationInputComponent } from "./IssueRelationInput";
+
+type IssueRelationInputProps = ComponentProps<
+  typeof IssueRelationInputComponent
+>;
+
+function IssueRelationInput({
+  vault = "reef-test",
+  ...props
+}: Omit<IssueRelationInputProps, "vault"> & { vault?: string }) {
+  return <IssueRelationInputComponent {...props} vault={vault} />;
+}
 
 // Navigable rows drill in place through `useIssueDrill` (REEF-284), which reads
 // the router + live query, so stub both navigation primitives. An empty
@@ -20,18 +31,6 @@ const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({ vault: "reef-test" }),
-}));
-
-// Navigable rows' drill hook reads the active vault (REEF-315) via
-// useActiveVault, which calls useQuery; this component renders without a
-// QueryClient, so resolve it to a fixed vault that scopes the row hrefs.
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: () => ({
-    vault: "reef-test",
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
 }));
 
 vi.mock("next/link", () => ({
@@ -216,6 +215,7 @@ describe("IssueRelationInput", () => {
         <IssueRelationInput
           id="depends-on"
           label="Depends on"
+          vault="reef-e2e"
           value={["REEF-001"]}
           allIssues={RICH}
           onChange={() => {}}
@@ -226,7 +226,7 @@ describe("IssueRelationInput", () => {
       const link = screen.getByRole("link");
       expect(link).toHaveAttribute(
         "href",
-        "/workspace/reef-test/issues/REEF-001",
+        "/workspace/reef-e2e/issues/REEF-001",
       );
       // Self-describing: the id AND the title render inside the link, matching
       // the Sub-issues row (not the old id fallback pill).

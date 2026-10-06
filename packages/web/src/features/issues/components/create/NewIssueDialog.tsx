@@ -544,6 +544,7 @@ export function NewIssueDialog({
   // editable Sub-issues list before the issue exists.
   const relationFields = (
     <NewIssueRelationFields
+      vault={queryVault}
       isSubmitting={isSubmitting}
       existingIssues={existingIssues ?? []}
       relations={relations}

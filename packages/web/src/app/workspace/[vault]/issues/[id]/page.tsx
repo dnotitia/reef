@@ -79,6 +79,7 @@ export default function IssuePage({ params }: IssuePageProps) {
       !completeGuardHandoff ? (
         <IssueDetailAuthPendingSkeleton
           issueId={id}
+          vault={vault}
           searchParams={searchParams.toString()}
           showWorkspaceSkeleton={!mounted}
         />
@@ -87,6 +88,7 @@ export default function IssuePage({ params }: IssuePageProps) {
         <IssueDetailSheet
           entryRoute="base"
           issueId={sheetIssueId}
+          vault={vault}
           onReady={handleSheetReady}
           disableOpenAnimation
           onClose={() => router.push(withVault(vault, entryViewPath))}

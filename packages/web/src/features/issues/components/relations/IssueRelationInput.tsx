@@ -44,6 +44,8 @@ const RECENT_LIMIT = 8;
 interface IssueRelationInputProps {
   id: string;
   label: string;
+  /** Workspace that owns the issue whose relations are being edited. */
+  vault: string;
   value: readonly string[];
   allIssues: readonly IssueListItem[];
   /**
@@ -152,6 +154,7 @@ function RelationCandidateOption({
 export function IssueRelationInput({
   id,
   label,
+  vault,
   value,
   allIssues,
   relationGraph,
@@ -686,6 +689,7 @@ export function IssueRelationInput({
             <NavigableRelationRows
               value={value}
               currentIssueId={currentIssueId}
+              vault={vault}
               issuesById={issuesById}
               blockedIndex={blockedIndex}
               disabled={disabled}
@@ -733,6 +737,7 @@ export function IssueRelationInput({
 function NavigableRelationRows({
   value,
   currentIssueId,
+  vault,
   issuesById,
   blockedIndex,
   disabled,
@@ -740,12 +745,13 @@ function NavigableRelationRows({
 }: {
   value: readonly string[];
   currentIssueId?: string;
+  vault: string;
   issuesById: Map<string, IssueListItem>;
   blockedIndex: ReturnType<typeof indexIssuesById>;
   disabled: boolean;
   onRemove: (id: string) => void;
 }) {
-  const getDrillProps = useIssueDrill(currentIssueId ?? "");
+  const getDrillProps = useIssueDrill(currentIssueId ?? "", vault);
   return (
     <ul className="flex flex-col gap-0.5">
       {value.map((relationId) => {

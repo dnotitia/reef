@@ -9,11 +9,8 @@ import {
 import { useIssue } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueSheetDismiss } from "@/features/issues/hooks/view/useIssueSheetDismiss";
-import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
-import { withVault } from "@/lib/workspaceHref";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -28,7 +25,6 @@ import { IssueChromeIdentity } from "./IssueChromeIdentity";
 import { IssueChromeSlotProvider } from "./IssueChromeSlot";
 import { IssueDetail } from "./IssueDetail";
 import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
-import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
 import { IssueDrillBackBar } from "./IssueDrillBackBar";
 import type { IssueDetailEntryRoute } from "../../stores/useIssueNavStack";
 import {
@@ -46,6 +42,8 @@ import {
 interface IssueDetailSheetProps {
   /** Issue ID like "REEF-001". */
   issueId: string;
+  /** Workspace that owns this issue route. */
+  vault: string;
   /** Route that owns this sheet for the lifetime of the current detail session. */
   entryRoute: IssueDetailEntryRoute;
   /**
@@ -395,13 +393,13 @@ function useIssueDetailResize(): IssueDetailResizeHandlers {
  */
 export function IssueDetailSheet({
   issueId,
+  vault,
   entryRoute,
   onClose,
   onReady,
   disableOpenAnimation = false,
 }: IssueDetailSheetProps) {
   const t = useTranslations("issues.detail");
-  const nav = useTranslations("nav");
   const {
     hasLoadedSessionState,
     isExpanded,
@@ -417,9 +415,9 @@ export function IssueDetailSheet({
     onPointerUp,
     onToggleExpanded,
   } = useIssueDetailResize();
-  const { vault, isLoading: vaultLoading } = useActiveVault();
   const { backTo, goBack, exit, dismissViaEsc } = useIssueSheetDismiss({
     issueId,
+    vault,
     entryRoute,
     onExit: onClose,
   });
@@ -447,12 +445,10 @@ export function IssueDetailSheet({
   }, []);
 
   // Identity data for the persistent bar. Read here (not in the body) so the
-  // status glyph / type pill / parent breadcrumb fill the bar the moment they
-  // land and survive the body skeleton. Both queries are vault-gated, so while
-  // the vault pointer is loading or unset they stay pending and the bar shows
-  // the route-param id alone. `useUpdateIssue` patches these caches
-  // optimistically (REEF-098), so an inline status / type / parent edit reflects
-  // in the bar immediately.
+  // status glyph / type pill / parent breadcrumb fill the bar when the
+  // workspace-scoped queries land and survive the body skeleton.
+  // `useUpdateIssue` patches these caches optimistically (REEF-098), so an
+  // inline status / type / parent edit reflects in the bar immediately.
   const { data } = useIssue(issueId, vault);
   const { data: allIssues, isPending: allIssuesPending } = useIssueList(vault);
   const issue = data?.issue;
@@ -460,44 +456,6 @@ export function IssueDetailSheet({
   // The bar's action slot: the loaded body portals its save-status + ⋮ cluster
   // here, so that wiring stays in the body while the controls land in the bar.
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
-
-  // `useIssue` is gated on `vault`. When the pointer is still loading or
-  // unset, TanStack Query v5 keeps the query in `isPending: true`, which
-  // would leave a permanent skeleton — so we render the skeleton / empty
-  // CTA ourselves here instead of mounting `IssueDetail` empty.
-  function renderBody() {
-    if (vaultLoading) return <IssueDetailSkeleton />;
-    if (!vault) {
-      return (
-        <div
-          data-testid="issue-detail-no-vault"
-          className="p-6 text-sm text-muted-foreground"
-        >
-          {t.rich("noVaultPrompt", {
-            onboarding: nav("onboarding"),
-            link: (chunks) => (
-              <Link
-                href={withVault(vault, "/settings")}
-                className="text-brand-text underline"
-              >
-                {chunks}
-              </Link>
-            ),
-          })}
-        </div>
-      );
-    }
-    // Key by vault so an active-vault switch (now reachable from anywhere via
-    // the sidebar workspace switcher, REEF-146) fully remounts the detail with
-    // fresh state from a fresh query. Without this the form re-syncs on issue
-    // id just, so a same-id issue in the new workspace would briefly show — and
-    // could autosave — the previous workspace's edited values. Same-id
-    // navigation within one vault keeps the key stable, preserving the
-    // edit-across-refetch behavior IssueDetail relies on.
-    return (
-      <IssueDetail key={vault} issueId={issueId} vault={vault} onClose={exit} />
-    );
-  }
 
   return (
     <div data-testid="issue-detail-modal">
@@ -648,6 +606,7 @@ export function IssueDetailSheet({
                 ) : null}
                 <IssueChromeIdentity
                   issueId={issueId}
+                  vault={vault}
                   status={issue?.status}
                   issueType={issue ? (issue.issue_type ?? "task") : undefined}
                   isArchived={issue?.archived_at != null}
@@ -685,7 +644,12 @@ export function IssueDetailSheet({
                 data-testid="issue-detail-scroll"
                 className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
               >
-                {renderBody()}
+                <IssueDetail
+                  key={vault}
+                  issueId={issueId}
+                  vault={vault}
+                  onClose={exit}
+                />
               </div>
             </div>
           </IssueChromeSlotProvider>

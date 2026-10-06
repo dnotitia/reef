@@ -13,24 +13,30 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueChildren as IssueChildrenComponent } from "./IssueChildren";
 
 type IssueChildrenProps = ComponentProps<typeof IssueChildrenComponent>;
+type TestIssueChildrenProps = Omit<
+  IssueChildrenProps,
+  "vault" | "allIssuesPending" | "allIssuesError" | "onRetryAllIssues"
+> &
+  Partial<
+    Pick<
+      IssueChildrenProps,
+      "vault" | "allIssuesPending" | "allIssuesError" | "onRetryAllIssues"
+    >
+  >;
 
-function IssueChildren(
-  props: Omit<
-    IssueChildrenProps,
-    "allIssuesPending" | "allIssuesError" | "onRetryAllIssues"
-  > &
-    Partial<
-      Pick<
-        IssueChildrenProps,
-        "allIssuesPending" | "allIssuesError" | "onRetryAllIssues"
-      >
-    >,
-) {
+function IssueChildren({
+  vault = "reef-test",
+  allIssuesPending = false,
+  allIssuesError = false,
+  onRetryAllIssues = () => {},
+  ...props
+}: TestIssueChildrenProps) {
   return (
     <IssueChildrenComponent
-      allIssuesPending={false}
-      allIssuesError={false}
-      onRetryAllIssues={() => {}}
+      vault={vault}
+      allIssuesPending={allIssuesPending}
+      allIssuesError={allIssuesError}
+      onRetryAllIssues={onRetryAllIssues}
       {...props}
     />
   );
@@ -63,18 +69,6 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({ vault: "reef-test" }),
-}));
-
-// useIssueDrill resolves the active vault (REEF-315) via useActiveVault, which
-// calls useQuery; this component renders without a QueryClient, so resolve it to
-// a fixed vault that scopes the drill hrefs.
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: () => ({
-    vault: "reef-test",
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
 }));
 
 afterEach(() => {
@@ -258,12 +252,12 @@ describe("IssueChildren", () => {
   });
 
   it("links each child to its detail route", () => {
-    render(<IssueChildren issueId={PARENT} allIssues={ALL} />);
+    render(<IssueChildren issueId={PARENT} vault="reef-e2e" allIssues={ALL} />);
     const openLink = screen
       .getAllByRole("link")
       .find((a) => a.getAttribute("data-issue-id") === "REEF-101");
     expect(openLink?.getAttribute("href")).toBe(
-      "/workspace/reef-test/issues/REEF-101",
+      "/workspace/reef-e2e/issues/REEF-101",
     );
   });
 
