@@ -1,7 +1,17 @@
+/* Tiptap wraps editable tables in this keyboard-focusable scroll surface.
+ * Constrain it so wide cell content cannot expand the editor or detail sheet. */
+.reef-markdown-editor > .tableWrapper {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* Basic GFM tables deliberately remain a small, editor-owned surface: no
  * resize handles, alignment toolbar, merged-cell affordance, or global table
  * prose changes. Long cell text wraps instead of widening the detail sheet. */
-.reef-markdown-editor > table {
+.reef-markdown-editor > .tableWrapper > table {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -13,8 +23,8 @@
   line-height: 20px;
 }
 
-.reef-markdown-editor > table th,
-.reef-markdown-editor > table td {
+.reef-markdown-editor > .tableWrapper > table th,
+.reef-markdown-editor > .tableWrapper > table td {
   min-width: 0;
   border: 1px solid var(--border-subtle);
   padding: 6px 8px;
@@ -24,7 +34,7 @@
   word-break: break-word;
 }
 
-.reef-markdown-editor > table th {
+.reef-markdown-editor > .tableWrapper > table th {
   background: var(--surface-subtle);
   font-weight: 600;
 }

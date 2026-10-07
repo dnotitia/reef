@@ -1,4 +1,5 @@
 import type { MarkdownReferenceAdapter } from "@akb/markdown-editor/react";
+import type { MarkdownEditingSurfaceProps } from "@akb/markdown-editor/react";
 import {
   act,
   fireEvent,
@@ -44,6 +45,7 @@ const markdownMocks = vi.hoisted(() => ({
   state: { isEmpty: true },
   targetResolutions: new Map<string, unknown>(),
   referenceResolutions: new Map<string, unknown>(),
+  latestMarkdown: null as string | null,
   surfaceProps: null as Record<string, unknown> | null,
   toolbarLink: null as Record<string, unknown> | null,
   surfaceLink: null as {
@@ -54,11 +56,75 @@ const markdownMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
+  const React = await import("react");
   const actual =
     await importOriginal<typeof import("@akb/markdown-editor/react")>();
 
   return {
     ...actual,
+    MarkdownEditingSurface: ({
+      editor,
+      markdown,
+      onSourceChange,
+      onMarkdownApplied,
+      readOnly = false,
+      modeSwitchDisabled = false,
+      toolbar,
+      renderHeader,
+      sourcePlaceholder,
+      sourceAriaLabel,
+      sourceClassName,
+      children,
+      ...props
+    }: MarkdownEditingSurfaceProps) => {
+      const [mode, setMode] = React.useState<"wysiwyg" | "source">("wysiwyg");
+      const [source, setSource] = React.useState(markdown);
+      const sourceDirty = React.useRef(false);
+      React.useEffect(() => {
+        if (!sourceDirty.current) setSource(markdown);
+      }, [markdown]);
+
+      const onModeChange = (nextMode: "wysiwyg" | "source") => {
+        if (nextMode === mode || modeSwitchDisabled || readOnly) return;
+        if (nextMode === "source") {
+          setSource(markdownMocks.latestMarkdown ?? markdown);
+        } else if (sourceDirty.current && editor) {
+          onMarkdownApplied?.(editor);
+        }
+        sourceDirty.current = false;
+        setMode(nextMode);
+      };
+      const header = renderHeader?.({
+        mode,
+        onModeChange,
+        disabled: !editor || modeSwitchDisabled,
+        toolbar: mode === "wysiwyg" ? toolbar : null,
+      });
+
+      return (
+        <div {...props} data-markdown-mode={mode}>
+          {header}
+          <div hidden={mode !== "wysiwyg"} data-markdown-mode-panel="wysiwyg">
+            {children}
+          </div>
+          <div hidden={mode !== "source"} data-markdown-mode-panel="source">
+            <textarea
+              aria-label={sourceAriaLabel ?? "Markdown source"}
+              className={sourceClassName}
+              placeholder={sourcePlaceholder}
+              readOnly={readOnly}
+              value={source}
+              onChange={(event) => {
+                const next = event.currentTarget.value;
+                sourceDirty.current = true;
+                setSource(next);
+                if (editor && !readOnly) onSourceChange?.(next, editor);
+              }}
+            />
+          </div>
+        </div>
+      );
+    },
     MarkdownSurface: (props: {
       className?: string;
       contentClassName?: string;
@@ -186,6 +252,7 @@ function renderEditor(
 }
 
 function emitEditorChange(markdown: string) {
+  markdownMocks.latestMarkdown = markdown;
   const options = markdownMocks.editorOptions as {
     onChange: (markdown: string) => void;
   };
@@ -276,6 +343,7 @@ describe("MarkdownEditor product adapter", () => {
     markdownMocks.surfaceLink = null;
     markdownMocks.targetResolutions = new Map();
     markdownMocks.referenceResolutions = new Map();
+    markdownMocks.latestMarkdown = null;
     markdownMocks.state.isEmpty = true;
     sessionStorage.clear();
     setPointerCapability(true);
@@ -470,7 +538,7 @@ describe("MarkdownEditor product adapter", () => {
     const onUploadFiles = vi.fn().mockResolvedValue(successfulUpload);
     renderEditor({ value: "Existing body", onChange, onUploadFiles });
     fireEvent.click(screen.getByTitle("Toggle source mode"));
-    const source = screen.getByTestId("markdown-source-textarea");
+    const source = screen.getByRole("textbox", { name: "Markdown source" });
     fireEvent.change(source, { target: { value: "Source draft" } });
     mockImageInsertion("Source draft");
 
@@ -505,7 +573,7 @@ describe("MarkdownEditor product adapter", () => {
     expect(onChange).toHaveBeenCalledWith("Latest editor text");
 
     fireEvent.click(screen.getByTitle("Toggle source mode"));
-    const source = screen.getByTestId("markdown-source-textarea");
+    const source = screen.getByRole("textbox", { name: "Markdown source" });
     expect(source).toHaveValue("Latest editor text");
     expect(source).toHaveAttribute("placeholder", "Source hint");
     fireEvent.change(source, { target: { value: "Latest source text" } });
@@ -531,9 +599,9 @@ describe("MarkdownEditor product adapter", () => {
     markdownMocks.commands.setMarkdown.mockClear();
 
     fireEvent.click(screen.getByTitle("Toggle source mode"));
-    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue(
-      markdown,
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Markdown source" }),
+    ).toHaveValue(markdown);
     fireEvent.click(screen.getByTitle("Toggle source mode"));
 
     expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
@@ -566,7 +634,7 @@ describe("MarkdownEditor product adapter", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("normalizes bare AKB document URIs without changing resource identity", () => {
+  it("preserves bare AKB document URIs without changing resource identity", () => {
     const onChange = vi.fn();
     renderEditor({
       value: "See akb://reef-test/coll/docs/doc/spec.md",
@@ -574,11 +642,22 @@ describe("MarkdownEditor product adapter", () => {
     });
 
     expect(markdownMocks.editorOptions).toMatchObject({
-      initialMarkdown: "See [spec](akb://reef-test/coll/docs/doc/spec.md)",
+      initialMarkdown: "See akb://reef-test/coll/docs/doc/spec.md",
       profile: "preserve",
     });
-    expect(onChange).toHaveBeenCalledWith(
-      "See [spec](akb://reef-test/coll/docs/doc/spec.md)",
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("still normalizes bare AKB document URIs entered in WYSIWYG", () => {
+    const target = "akb://reef-test/coll/docs/doc/spec.md";
+    const onChange = vi.fn();
+    renderEditor({ value: "", onChange, vault: "reef-test" });
+
+    emitEditorChange(`See ${target}`);
+
+    expect(onChange).toHaveBeenLastCalledWith(`See [spec](${target})`);
+    expect(markdownMocks.commands.setMarkdown).toHaveBeenLastCalledWith(
+      `See [spec](${target})`,
     );
   });
 
@@ -788,16 +867,16 @@ describe("MarkdownEditor product adapter", () => {
         .parentElement?.parentElement;
       expect(scrollSurface).toHaveClass(EDITOR_MANUAL_SCROLL_SURFACE_CLASS);
       fireEvent.click(screen.getByTitle("Toggle source mode"));
-      expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
-        "resize-none",
-      );
+      expect(
+        screen.getByRole("textbox", { name: "Markdown source" }),
+      ).toHaveClass("resize-none");
       expect(frame).toHaveStyle({ height: "480px" });
 
       setViewport(EDITOR_BODY_RESIZE_MIN_WIDTH - 1, 900);
       await waitFor(() => expect(handle).not.toBeInTheDocument());
-      expect(screen.getByTestId("markdown-source-textarea")).toHaveClass(
-        "resize-y",
-      );
+      expect(
+        screen.getByRole("textbox", { name: "Markdown source" }),
+      ).toHaveClass("resize-y");
     });
 
     it("omits the resize handle for coarse pointers", () => {

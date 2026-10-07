@@ -7,7 +7,7 @@ import {
 const validEnvironment = {
   AKB_BACKEND_URL: "https://akb.example.test",
   REEF_EVENT_PROCESSOR_AKB_TOKEN: "processor-test-credential",
-  REEF_EVENT_PROCESSOR_VAULT: "reef-test",
+  REEF_EVENT_PROCESSOR_APP_CREDENTIAL: "reef-app-credential",
 };
 
 describe("event processor configuration", () => {
@@ -15,7 +15,7 @@ describe("event processor configuration", () => {
     expect(parseEventProcessorConfig(validEnvironment)).toEqual({
       baseUrl: "https://akb.example.test",
       credential: "processor-test-credential",
-      vault: "reef-test",
+      appCredential: "reef-app-credential",
       host: "0.0.0.0",
       port: 9090,
       reconnectDelayMs: 1_000,
@@ -24,11 +24,11 @@ describe("event processor configuration", () => {
     });
   });
 
-  it("requires an AKB URL, deployment credential, and explicit vault", () => {
+  it("requires AKB URL and both deployment-managed credentials", () => {
     for (const name of [
       "AKB_BACKEND_URL",
       "REEF_EVENT_PROCESSOR_AKB_TOKEN",
-      "REEF_EVENT_PROCESSOR_VAULT",
+      "REEF_EVENT_PROCESSOR_APP_CREDENTIAL",
     ]) {
       const environment = { ...validEnvironment };
       delete environment[name as keyof typeof environment];
@@ -86,9 +86,8 @@ describe("event processor configuration", () => {
     }
   });
 
-  it("rejects malformed vault names, URL credentials, and header-breaking tokens", () => {
+  it("rejects URL credentials and header-breaking tokens", () => {
     for (const environment of [
-      { ...validEnvironment, REEF_EVENT_PROCESSOR_VAULT: "Uppercase" },
       {
         ...validEnvironment,
         AKB_BACKEND_URL: "https://user:pw@akb.example.test",

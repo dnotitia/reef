@@ -4,12 +4,12 @@ import {
   parseAkbDocumentUri,
 } from "./documentUri";
 
-const BARE_AKB_URI_RE = /akb:\/\/[^\s<>"'`()[\]]+/g;
 const MARKDOWN_AKB_LINK_RE =
   /(!?)\[((?:\\[^\r\n]|[^\\\]\r\n]|\](?!\())*)\]\((akb:\/\/[^\s)]+)([^)]*)\)/g;
 const MARKDOWN_LINK_RE =
   /(!?)\[((?:\\[^\r\n]|[^\\\]\r\n]|\](?!\())*)\]\(([^\s)]+)([^)]*)\)/g;
 const TRAILING_PUNCTUATION_RE = /[.,;:!?]+$/;
+const BARE_AKB_URI_RE = /akb:\/\/[^\s<>"'`()[\]]+/g;
 
 interface LinkRange {
   from: number;
@@ -118,6 +118,13 @@ export function extractAkbDocumentUris(markdown: string): string[] {
     if (isAkbDocumentUri(uri)) uris.add(uri);
   }
   return [...uris];
+}
+
+export function normalizeExistingAkbDocumentMarkdownLinks(
+  markdown: string,
+  titleByUri: ReadonlyMap<string, string | null | undefined> = new Map(),
+): string {
+  return normalizeExistingAkbLinks(markdown, titleByUri);
 }
 
 export function normalizeAkbDocumentMarkdownLinks(

@@ -63,6 +63,25 @@ describe("issueDetailDraftReducer sync (REEF-227 form re-sync)", () => {
     expect(result.body).toBe("external body");
   });
 
+  it("keeps a dirty body through external sync, then resets it to the winning body on conflict", () => {
+    const previous = createIssueDetailDraft(makeDoc({}, "Original body"));
+    const dirty = { ...previous, body: "Local body draft" };
+    const server = createIssueDetailDraft(makeDoc({}, "Winning server body"));
+
+    const synced = issueDetailDraftReducer(dirty, {
+      type: "sync",
+      previous,
+      next: server,
+    });
+    expect(synced.body).toBe("Local body draft");
+
+    const reset = issueDetailDraftReducer(synced, {
+      type: "reset",
+      next: server,
+    });
+    expect(reset.body).toBe("Winning server body");
+  });
+
   it("is a no-op when the server snapshot did not change", () => {
     const previous = createIssueDetailDraft(makeDoc({ title: "Same" }));
     const next = createIssueDetailDraft(makeDoc({ title: "Same" }));

@@ -15,6 +15,7 @@ import {
   canonicalJson,
   createAkbAdapter,
   createAkbAppInstallationReader,
+  createAkbAppInstallationInventoryReader,
   createAkbAppRegistry,
   createAkbAppRollout,
   createAkbChangeEventTail,
@@ -70,6 +71,7 @@ import {
   akbUpdateNotificationState,
   akbUpsertSubscription,
   akbWatchIssue,
+  buildSubscriptionKey,
   akbProjectNotifications,
   IssueListQuerySchema,
   notificationWakeupForChange,
@@ -189,6 +191,23 @@ function lifecycleFixture(
 ): Record<string, unknown> {
   const fixtures = record(discovery.fixtures, "lifecycle fixture catalog");
   return record(fixtures[fixtureName], `lifecycle fixture ${fixtureName}`);
+}
+
+async function genericSubscriptionUpsert(
+  adapter: AkbAdapter,
+  vault: string,
+  reefId: string,
+  subscriber: string,
+  source: "requester" | "assignee" | "commenter",
+): Promise<void> {
+  const subscriptionKey = buildSubscriptionKey({ reefId, subscriber, source });
+  const subscribedAt = new Date().toISOString();
+  await runSql(
+    adapter,
+    vault,
+    `INSERT INTO reef_subscriptions (subscription_key, reef_id, subscriber, source, status, subscribed_at, meta) VALUES ($1, $2, $3, $4, 'active', $5, NULL) ON CONFLICT (subscription_key) DO UPDATE SET status = 'active' RETURNING subscription_key`,
+    [subscriptionKey, reefId, subscriber, source, subscribedAt],
+  );
 }
 
 function lifecycleActorControl(
@@ -2198,6 +2217,32 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
         expect(activeResult).not.toHaveProperty("commandStatus");
         expect(activeResult).not.toHaveProperty("replayed");
 
+        const inventoryReader = createAkbAppInstallationInventoryReader({
+          baseUrl,
+          appCredential: issuedCredential,
+        });
+        const inventory = await inventoryReader.listActiveInstallations();
+        const activeInventory = inventory.find(
+          (item) => item.installationId === active.installationId,
+        );
+        expect(activeInventory).toEqual({
+          installationId: active.installationId,
+          appId: targetAppId,
+          vaultId: active.vaultId,
+          vaultName: expect.any(String),
+          lifecycle: "active",
+        });
+        expect(inventory.every((item) => item.appId === targetAppId)).toBe(
+          true,
+        );
+        expect(
+          inventory.every(
+            (item) =>
+              Object.keys(item).sort().join(",") ===
+              "appId,installationId,lifecycle,vaultId,vaultName",
+          ),
+        ).toBe(true);
+
         const foreignError = await reader
           .getInstallation(foreignVaultId)
           .catch((caught) => caught);
@@ -2929,6 +2974,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       failed: boolean;
     }> = [];
     let activityCursor: string | undefined;
+    let commentCursor: string | undefined;
 
     const consume = (async () => {
       try {
@@ -2939,6 +2985,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
           if (record.type !== "change") continue;
           const source = notificationWakeupForChange(record.event, vault);
           if (!source || observedSources.has(source)) continue;
+          if (source === "comment") commentCursor = record.cursor;
 
           const result = await akbProjectNotifications({ adapter, vault });
           projectionResults.push({
@@ -2985,6 +3032,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect([...observedSources].sort()).toEqual(["activity", "comment"]);
     expect(projectionResults.every(({ failed }) => !failed)).toBe(true);
     expect(activityCursor).toEqual(expect.any(String));
+    expect(commentCursor).toEqual(expect.any(String));
 
     const firstNotifications = await akbListNotifications(adapter, vault, {
       recipient,
@@ -3051,6 +3099,290 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     );
     expect(archivedActivity).toHaveLength(1);
     expect(archivedActivity[0]?.state).toBe("archived");
+
+    // Exercise the same source ordering documented for generic AKB MCP writes:
+    // update the issue projection, synchronize only automatic source rows,
+    // insert a comment, add its commenter source, then append activity.
+    const genericRequester = `${USERNAME}-generic-requester-${runToken}`;
+    const genericAssignee = `${USERNAME}-generic-assignee-${runToken}`;
+    const genericCommenter = `${USERNAME}-generic-commenter-${runToken}`;
+    const priorIssueResult = await runSql(
+      adapter,
+      vault,
+      "SELECT requester, assigned_to FROM reef_issues WHERE reef_id = $1",
+      [SEED_ISSUE_ID],
+    );
+    if (priorIssueResult.kind !== "table_query" || !priorIssueResult.items[0]) {
+      throw new Error("Live generic-write issue was not found");
+    }
+    const priorIssue = record(
+      priorIssueResult.items[0],
+      "issue source snapshot",
+    );
+    const previousRequester =
+      typeof priorIssue.requester === "string" ? priorIssue.requester : null;
+    const previousAssignee =
+      typeof priorIssue.assigned_to === "string"
+        ? priorIssue.assigned_to
+        : null;
+    await runSql(
+      adapter,
+      vault,
+      "UPDATE reef_issues SET requester = $1, assigned_to = $2 WHERE reef_id = $3 RETURNING reef_id",
+      [genericRequester, genericAssignee, SEED_ISSUE_ID],
+    );
+    if (previousRequester && previousRequester !== genericRequester) {
+      await runSql(
+        adapter,
+        vault,
+        "DELETE FROM reef_subscriptions WHERE reef_id = $1 AND subscriber = $2 AND source = 'requester' RETURNING id",
+        [SEED_ISSUE_ID, previousRequester],
+      );
+    }
+    if (previousAssignee && previousAssignee !== genericAssignee) {
+      await runSql(
+        adapter,
+        vault,
+        "DELETE FROM reef_subscriptions WHERE reef_id = $1 AND subscriber = $2 AND source = 'assignee' RETURNING id",
+        [SEED_ISSUE_ID, previousAssignee],
+      );
+    }
+    await genericSubscriptionUpsert(
+      adapter,
+      vault,
+      SEED_ISSUE_ID,
+      genericRequester,
+      "requester",
+    );
+    await genericSubscriptionUpsert(
+      adapter,
+      vault,
+      SEED_ISSUE_ID,
+      genericAssignee,
+      "assignee",
+    );
+    await akbMuteIssue(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: genericCommenter,
+    });
+
+    const genericController = new AbortController();
+    let resolveGenericConnected: () => void = () => undefined;
+    const genericConnected = new Promise<void>((resolve) => {
+      resolveGenericConnected = resolve;
+    });
+    const genericSources = new Set<string>();
+    const genericProjectionResults: Array<{
+      source: string;
+      failed: boolean;
+    }> = [];
+    let genericCommentCursor: string | undefined;
+    let genericActivityCursor: string | undefined;
+    const genericConsume = (async () => {
+      try {
+        for await (const record of tail.subscribe({
+          vault,
+          lastEventId: commentCursor,
+          signal: genericController.signal,
+          onOpen: resolveGenericConnected,
+        })) {
+          if (record.type !== "change") continue;
+          const source = notificationWakeupForChange(record.event, vault);
+          if (!source) continue;
+          const result = await akbProjectNotifications({ adapter, vault });
+          genericProjectionResults.push({
+            source,
+            failed: result.activity.failed || result.comment.failed,
+          });
+          expect(result.activity.failed).toBe(false);
+          expect(result.comment.failed).toBe(false);
+          genericSources.add(source);
+          if (source === "comment") genericCommentCursor = record.cursor;
+          if (source === "activity") {
+            genericActivityCursor = record.cursor;
+            genericController.abort();
+            return;
+          }
+        }
+      } catch (error) {
+        if (!genericController.signal.aborted) throw error;
+      }
+    })();
+    await genericConnected;
+
+    const genericCommentAt = new Date().toISOString();
+    const genericCommentBody = `Generic AKB comment ${runToken}`;
+    const genericCommentInsert = await runSql(
+      adapter,
+      vault,
+      `WITH target_issue AS (SELECT reef_id FROM reef_issues WHERE reef_id = $1) INSERT INTO reef_comments (reef_id, body, meta) SELECT reef_id, $2, $3::json FROM target_issue RETURNING id`,
+      [
+        SEED_ISSUE_ID,
+        genericCommentBody,
+        JSON.stringify({
+          author: genericCommenter,
+          created_at: genericCommentAt,
+          edited_at: null,
+          parent_comment_id: null,
+          thread_root_id: null,
+        }),
+      ],
+    );
+    expect(
+      genericCommentInsert.kind === "table_query" &&
+        genericCommentInsert.items.length,
+    ).toBe(1);
+    await genericSubscriptionUpsert(
+      adapter,
+      vault,
+      SEED_ISSUE_ID,
+      genericCommenter,
+      "commenter",
+    );
+
+    const genericActivityAt = new Date().toISOString();
+    const genericActivityKey = `assignee_change:${previousAssignee ?? "∅"}->${genericAssignee}@${genericActivityAt}`;
+    await runSql(
+      adapter,
+      vault,
+      "INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta) VALUES ($1, 'assignee_change', $2, $3::json, $4::json) RETURNING id",
+      [
+        SEED_ISSUE_ID,
+        genericActivityKey,
+        JSON.stringify({
+          from: previousAssignee,
+          to: genericAssignee,
+        }),
+        JSON.stringify({
+          actor: USERNAME,
+          at: genericActivityAt,
+          source: "ai-agent:user_request",
+        }),
+      ],
+    );
+    await genericConsume;
+
+    expect([...genericSources].sort()).toEqual(["activity", "comment"]);
+    expect(genericProjectionResults.every(({ failed }) => !failed)).toBe(true);
+    expect(genericCommentCursor).toEqual(expect.any(String));
+    expect(genericActivityCursor).toEqual(expect.any(String));
+
+    const requesterSources = await akbListSubscriptions(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: genericRequester,
+    });
+    const assigneeSources = await akbListSubscriptions(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: genericAssignee,
+    });
+    const commenterSources = await akbListSubscriptions(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: genericCommenter,
+    });
+    expect(
+      requesterSources.some(
+        ({ source, status }) => source === "requester" && status === "active",
+      ),
+    ).toBe(true);
+    expect(
+      assigneeSources.some(
+        ({ source, status }) => source === "assignee" && status === "active",
+      ),
+    ).toBe(true);
+    expect(
+      commenterSources.some(
+        ({ source, status }) => source === "commenter" && status === "active",
+      ),
+    ).toBe(true);
+    expect(
+      commenterSources.some(
+        ({ source, status }) => source === "manual" && status === "muted",
+      ),
+    ).toBe(true);
+
+    const requesterNotifications = await akbListNotifications(adapter, vault, {
+      recipient: genericRequester,
+      limit: 100,
+    });
+    const assigneeNotifications = await akbListNotifications(adapter, vault, {
+      recipient: genericAssignee,
+      limit: 100,
+    });
+    const commenterNotifications = await akbListNotifications(adapter, vault, {
+      recipient: genericCommenter,
+      limit: 100,
+    });
+    const requesterEvent = requesterNotifications.filter(
+      (notification) =>
+        notification.source_type === "activity" &&
+        notification.source_ref === genericActivityKey,
+    );
+    const assigneeEvent = assigneeNotifications.filter(
+      (notification) =>
+        notification.source_type === "activity" &&
+        notification.source_ref === genericActivityKey,
+    );
+    expect(requesterEvent).toHaveLength(1);
+    expect(assigneeEvent).toHaveLength(1);
+    expect(
+      commenterNotifications.some(
+        (notification) =>
+          notification.source_type === "activity" &&
+          notification.source_ref === genericActivityKey,
+      ),
+    ).toBe(false);
+
+    const genericRequesterNotification = requesterEvent[0];
+    if (
+      !genericRequesterNotification ||
+      !genericCommentCursor ||
+      !genericActivityCursor
+    ) {
+      throw new Error("Generic AKB activity notification was not projected");
+    }
+    await akbUpdateNotificationState(adapter, vault, {
+      notificationKey: genericRequesterNotification.notification_key,
+      recipient: genericRequester,
+      state: "archived",
+      changedAt: new Date(Date.now() + 1_000).toISOString(),
+    });
+
+    const genericReplayController = new AbortController();
+    let replayedGenericActivity = false;
+    try {
+      for await (const record of tail.subscribe({
+        vault,
+        lastEventId: genericCommentCursor,
+        signal: genericReplayController.signal,
+      })) {
+        if (
+          record.type !== "change" ||
+          record.cursor !== genericActivityCursor
+        ) {
+          continue;
+        }
+        const result = await akbProjectNotifications({ adapter, vault });
+        expect(result.activity.failed).toBe(false);
+        expect(result.comment.failed).toBe(false);
+        replayedGenericActivity = true;
+        genericReplayController.abort();
+        break;
+      }
+    } catch (error) {
+      if (!genericReplayController.signal.aborted) throw error;
+    }
+    expect(replayedGenericActivity).toBe(true);
+    const requesterAfterReplay = await akbListNotifications(adapter, vault, {
+      recipient: genericRequester,
+      limit: 100,
+    });
+    const preservedGenericNotification = requesterAfterReplay.filter(
+      (notification) =>
+        notification.notification_key ===
+        genericRequesterNotification.notification_key,
+    );
+    expect(preservedGenericNotification).toHaveLength(1);
+    expect(preservedGenericNotification[0]?.state).toBe("archived");
 
     // Force a partial fan-out failure after a new activity event. The first
     // recipient may be written, but the source checkpoint must remain behind;
@@ -3129,4 +3461,91 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect(preservedRetryNotification).toHaveLength(1);
     expect(preservedRetryNotification[0]?.state).toBe("archived");
   });
+
+  it("change event tail — quiet vault receives heartbeat while another vault stays busy", async () => {
+    const suffix =
+      `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+        .padEnd(17, "0")
+        .slice(0, 17);
+    const busyVault = `reef-live-heartbeat-${suffix}`;
+    const quietController = new AbortController();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let heartbeatTimer: NodeJS.Timeout | undefined;
+    try {
+      await createVault({
+        adapter,
+        name: busyVault,
+        description: "REEF Change Event heartbeat contract fixture",
+      });
+
+      const openedAt = Date.now();
+      const response = await adapter.stream(
+        `/api/v1/events/${encodeURIComponent(vault)}`,
+        {
+          query: { kind: "table.rows_changed" },
+          signal: quietController.signal,
+        },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")?.toLowerCase()).toContain(
+        "text/event-stream",
+      );
+      if (!response.body) throw new Error("Live event stream has no body");
+      const streamReader = response.body.getReader();
+      reader = streamReader;
+
+      const heartbeatRead = (async () => {
+        const decoder = new TextDecoder();
+        let buffered = "";
+        while (!quietController.signal.aborted) {
+          const { done, value } = await streamReader.read();
+          if (done || !value) return false;
+          buffered += decoder.decode(value, { stream: true });
+          if (/(?:^|\r?\n):[ \t]*heartbeat\r?\n\r?\n/u.test(buffered)) {
+            return true;
+          }
+          if (buffered.length > 256) buffered = buffered.slice(-64);
+        }
+        return false;
+      })().catch(() => false);
+      const heartbeatDeadline = new Promise<boolean>((resolve) => {
+        heartbeatTimer = setTimeout(() => resolve(false), 20_000);
+      });
+
+      const busyUntil = openedAt + 18_000;
+      let busyEvents = 0;
+      const busyWrites = (async () => {
+        while (Date.now() < busyUntil) {
+          await createTemporaryRelationDocument(
+            adapter,
+            busyVault,
+            `REEF heartbeat contract ${suffix} ${busyEvents}`,
+          );
+          busyEvents += 1;
+          await new Promise((resolve) => setTimeout(resolve, 2_500));
+        }
+      })();
+
+      const heartbeatObserved = await Promise.race([
+        heartbeatRead,
+        heartbeatDeadline,
+      ]);
+      const heartbeatElapsedMs = Date.now() - openedAt;
+      await busyWrites;
+      if (heartbeatTimer) clearTimeout(heartbeatTimer);
+      expect(busyEvents).toBeGreaterThan(1);
+      expect(heartbeatObserved).toBe(true);
+      expect(heartbeatElapsedMs).toBeLessThanOrEqual(20_000);
+    } finally {
+      if (heartbeatTimer) clearTimeout(heartbeatTimer);
+      quietController.abort();
+      await reader?.cancel().catch(() => undefined);
+      await adapter
+        .request(`/api/v1/vaults/${encodeURIComponent(busyVault)}`, {
+          method: "DELETE",
+          resource: `vault ${busyVault}`,
+        })
+        .catch(() => undefined);
+    }
+  }, 30_000);
 });

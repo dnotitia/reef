@@ -64,12 +64,14 @@ vi.mock("@/components/MarkdownEditor", () => ({
       <>
         <span data-testid="markdown-wysiwyg-placeholder">{placeholder}</span>
         <button type="button">Source</button>
-        <textarea
-          data-testid="markdown-source-textarea"
-          value={value}
-          placeholder={sourcePlaceholder ?? placeholder}
-          onChange={(event) => onChange(event.target.value)}
-        />
+        <div data-markdown-mode="source">
+          <textarea
+            aria-label="Markdown source"
+            value={value}
+            placeholder={sourcePlaceholder ?? placeholder}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </div>
       </>
     );
   },
@@ -405,7 +407,7 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
 
     const title = screen.getByTestId("new-issue-title-input");
-    const body = screen.getByTestId("markdown-source-textarea");
+    const body = screen.getByRole("textbox", { name: "Markdown source" });
     await user.type(title, "Keep this draft");
     await user.type(body, "Keep this body");
     body.scrollTop = 42;
@@ -593,10 +595,9 @@ describe("NewIssueDialog", () => {
       expect(
         screen.getByTestId("markdown-wysiwyg-placeholder"),
       ).toHaveTextContent(wysiwyg);
-      expect(screen.getByTestId("markdown-source-textarea")).toHaveAttribute(
-        "placeholder",
-        source,
-      );
+      expect(
+        screen.getByRole("textbox", { name: "Markdown source" }),
+      ).toHaveAttribute("placeholder", source);
     },
   );
 
@@ -628,7 +629,7 @@ describe("NewIssueDialog", () => {
       target: { value: "Child work" },
     });
     fireEvent.click(await screen.findByRole("button", { name: "Source" }));
-    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown source" }), {
       target: { value: "Draft body" },
     });
     fireEvent.click(screen.getByTestId("create-and-add-another"));
@@ -664,7 +665,9 @@ describe("NewIssueDialog", () => {
     await waitFor(() =>
       expect(screen.getByTestId("new-issue-title-input")).toHaveValue(""),
     );
-    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue("");
+    expect(
+      screen.getByRole("textbox", { name: "Markdown source" }),
+    ).toHaveValue("");
     expect(mockViewStore.state.newIssueDialogOpen).toBe(true);
   });
 

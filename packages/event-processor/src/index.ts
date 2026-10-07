@@ -1,9 +1,16 @@
 import {
   akbProjectNotifications,
   createAkbAdapter,
+  createAkbAppInstallationInventoryReader,
   createAkbChangeEventTail,
   type AkbRequestPolicy,
+  type ControlPlaneInstallationInventoryItem,
 } from "@reef/core";
+import {
+  runEventProcessorFleet,
+  type EventProcessorFleetOptions,
+  type EventProcessorFleetWorkerHandlers,
+} from "./fleet.js";
 import {
   runEventProcessor,
   type EventProcessorReconciliationOutcome,
@@ -24,6 +31,20 @@ export interface EventProcessorOptions {
   onTailState?: (state: EventProcessorTailState) => void;
   onRecoveryChange?: (recovering: boolean) => void;
   onReconciliation?: (outcome: EventProcessorReconciliationOutcome) => void;
+  requestPolicy?: AkbRequestPolicy;
+}
+
+export interface EventProcessorFleetCompositionOptions
+  extends Omit<
+    EventProcessorFleetOptions,
+    "listActiveInstallations" | "createRunner" | "refreshIntervalMs" | "signal"
+  > {
+  baseUrl: string;
+  credential: string;
+  appCredential: string;
+  batchSize?: number;
+  reconnectDelayMs?: number;
+  reconciliationIntervalMs?: number;
   requestPolicy?: AkbRequestPolicy;
 }
 
@@ -67,5 +88,56 @@ export function createEventProcessor(
   });
   return {
     run: (signal) => runEventProcessor(runtime, runOptions(signal)),
+  };
+}
+
+/** Compose a dynamically refreshed worker for every active app installation. */
+export function createEventProcessorFleet(
+  options: EventProcessorFleetCompositionOptions,
+): EventProcessor {
+  const {
+    baseUrl,
+    credential,
+    appCredential,
+    batchSize,
+    reconnectDelayMs,
+    reconciliationIntervalMs: configuredReconciliationIntervalMs,
+    requestPolicy,
+    ...fleetCallbacks
+  } = options;
+  const inventory = createAkbAppInstallationInventoryReader({
+    baseUrl,
+    appCredential,
+    requestPolicy,
+  });
+  const reconciliationIntervalMs =
+    configuredReconciliationIntervalMs ?? 5 * 60 * 1_000;
+
+  return {
+    run: (signal) =>
+      runEventProcessorFleet({
+        ...fleetCallbacks,
+        listActiveInstallations: () => inventory.listActiveInstallations(),
+        refreshIntervalMs: reconciliationIntervalMs,
+        signal,
+        createRunner: (
+          installation: ControlPlaneInstallationInventoryItem,
+          handlers: EventProcessorFleetWorkerHandlers,
+        ) =>
+          createEventProcessor({
+            baseUrl,
+            credential,
+            vault: installation.vaultName,
+            batchSize,
+            reconnectDelayMs,
+            reconciliationIntervalMs: configuredReconciliationIntervalMs,
+            requestPolicy,
+            onReady: handlers.onReady,
+            onTailState: handlers.onTailState,
+            onRecoveryChange: handlers.onRecoveryChange,
+            onReconciliation: handlers.onReconciliation,
+            onError: handlers.onError,
+          }),
+      }),
   };
 }
