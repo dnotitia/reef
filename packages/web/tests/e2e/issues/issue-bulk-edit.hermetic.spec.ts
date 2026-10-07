@@ -65,6 +65,75 @@ async function backlogIds(page: Page) {
     );
 }
 
+async function configuredBacklogIds(
+  request: Parameters<typeof readFixtureState>[0],
+) {
+  const vault = reefVault(await readFixtureState(request));
+  return vault.issues
+    .filter((issue) => issue.id === "REEF-001" || issue.id === "REEF-003")
+    .sort(
+      (left, right) =>
+        (left.rank ?? Number.POSITIVE_INFINITY) -
+        (right.rank ?? Number.POSITIVE_INFINITY),
+    )
+    .map((issue) => issue.id);
+}
+
+async function persistedConfiguredBacklogIds(page: Page) {
+  return page.evaluate(() => {
+    type PersistedIssue = { id?: unknown; rank?: unknown };
+    type PersistedQuery = {
+      queryKey?: unknown;
+      state?: { data?: unknown };
+    };
+    type PersistedClient = {
+      clientState?: { queries?: PersistedQuery[] };
+    };
+
+    try {
+      const raw = window.localStorage.getItem("REACT_QUERY_OFFLINE_CACHE");
+      if (!raw) return [];
+      const persisted = JSON.parse(raw) as PersistedClient;
+      const backlogQuery = persisted.clientState?.queries?.find((query) => {
+        const key = query.queryKey;
+        if (!Array.isArray(key) || key[0] !== "issues" || key[1] !== "list") {
+          return false;
+        }
+        const filters = key[3] as
+          | { status?: unknown; sort_field?: unknown }
+          | undefined;
+        return (
+          key[2] === "reef-e2e" &&
+          filters?.sort_field === "rank" &&
+          Array.isArray(filters.status) &&
+          filters.status.includes("backlog")
+        );
+      });
+      const data = backlogQuery?.state?.data;
+      if (!Array.isArray(data)) return [];
+
+      const ranks = new Map<string, number>();
+      for (const issue of data as PersistedIssue[]) {
+        if (
+          typeof issue.id === "string" &&
+          (issue.id === "REEF-001" || issue.id === "REEF-003") &&
+          typeof issue.rank === "number"
+        ) {
+          ranks.set(issue.id, issue.rank);
+        }
+      }
+      const firstRank = ranks.get("REEF-001");
+      const secondRank = ranks.get("REEF-003");
+      if (firstRank === undefined || secondRank === undefined) return [];
+      return firstRank < secondRank
+        ? ["REEF-001", "REEF-003"]
+        : ["REEF-003", "REEF-001"];
+    } catch {
+      return [];
+    }
+  });
+}
+
 async function prepareConfiguredTwoRowBacklog(
   page: Page,
   request: Parameters<typeof resetFixture>[0],
@@ -291,7 +360,13 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await dragBacklogGrip(page, "REEF-003", "REEF-001");
     await expect((await reorderResponse).ok()).toBeTruthy();
 
+    await expect
+      .poll(() => configuredBacklogIds(request))
+      .toEqual(["REEF-001", "REEF-003"]);
     await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
+    await expect
+      .poll(() => persistedConfiguredBacklogIds(page), { timeout: 5_000 })
+      .toEqual(["REEF-001", "REEF-003"]);
     await page.reload();
     await expect(page.getByTestId("backlog-row").first()).toBeVisible();
     await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
@@ -327,7 +402,13 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(liveRegion).toHaveText("REEF-003 moved to position 2.");
     await expect((await reorderResponse).ok()).toBeTruthy();
 
+    await expect
+      .poll(() => configuredBacklogIds(request))
+      .toEqual(["REEF-001", "REEF-003"]);
     await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
+    await expect
+      .poll(() => persistedConfiguredBacklogIds(page), { timeout: 5_000 })
+      .toEqual(["REEF-001", "REEF-003"]);
     await page.reload();
     await expect(page.getByTestId("backlog-row").first()).toBeVisible();
     await expect.poll(() => backlogIds(page)).toEqual(["REEF-001", "REEF-003"]);
