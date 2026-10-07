@@ -465,7 +465,9 @@ export function IssuesWorkspaceSkeleton({
           </div>
         </div>
         {scope === "active" && layout === "board" ? (
-          <SprintRolloverPendingSkeleton />
+          <div className="mx-6">
+            <SprintRolloverPendingSkeleton />
+          </div>
         ) : null}
         {scope === "backlog" && layout === "list" ? (
           <BacklogTableSkeleton />

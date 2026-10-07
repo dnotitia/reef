@@ -184,6 +184,31 @@ async function readPlanningHeaderGeometry(page: Page) {
   });
 }
 
+async function expectPlanningRolloverAlignedWithContent(
+  page: Page,
+  contentSelector: string,
+) {
+  const geometry = await page.evaluate((selector) => {
+    const nudge = document.querySelector<HTMLElement>(
+      '[data-testid="sprint-rollover-nudge"]',
+    );
+    const content = document.querySelector<HTMLElement>(selector);
+    const container = nudge?.parentElement;
+    if (!nudge || !content || !container) {
+      throw new Error("Planning rollover alignment targets are unavailable");
+    }
+    return {
+      nudge: nudge.getBoundingClientRect().left,
+      container:
+        container.getBoundingClientRect().left +
+        Number.parseFloat(getComputedStyle(container).paddingLeft),
+      content: content.getBoundingClientRect().left,
+    };
+  }, contentSelector);
+  expect(geometry.nudge).toBeCloseTo(geometry.container, 0);
+  expect(geometry.nudge).toBeCloseTo(geometry.content, 0);
+}
+
 async function expectEditorChromeInViewport(page: Page, title: string) {
   const dialog = page.locator('[data-testid="planning-editor-dialog"]');
   await expect(dialog).toBeVisible();
@@ -400,6 +425,10 @@ test.describe("Hermetic planning workflow", () => {
 
     await expect(page.getByTestId("planning-overview")).toBeVisible();
     await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    await expectPlanningRolloverAlignedWithContent(
+      page,
+      '[data-testid="planning-overview"]',
+    );
     await expect(
       page.getByRole("button", { name: "New sprint" }),
     ).toBeVisible();
@@ -472,6 +501,10 @@ test.describe("Hermetic planning workflow", () => {
     await expect(page).toHaveURL(`/workspace/reef-e2e/planning?view=list`);
     await expect(page.getByTestId("planning-kind-switcher")).toBeVisible();
     await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    await expectPlanningRolloverAlignedWithContent(
+      page,
+      '[data-testid="planning-table"]',
+    );
     const desktopListHeaderGeometry = await readPlanningHeaderGeometry(page);
     expect(
       desktopListHeaderGeometry.header.bottom -

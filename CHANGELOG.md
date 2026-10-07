@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **The overdue sprint rollover notice now follows the Issues content alignment and
+  reads as a neutral status row.** Its action and dismiss controls share one
+  aligned group, with a matching pending frame across Issues and Planning.
+  (REEF-663)
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)
