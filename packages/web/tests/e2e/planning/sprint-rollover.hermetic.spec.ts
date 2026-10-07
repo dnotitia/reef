@@ -245,6 +245,12 @@ test.describe("Hermetic sprint rollover workflow", () => {
     await expect(
       page.getByTestId("sprint-rollover-resume-notice"),
     ).toBeVisible();
+    const currentSprintNudge = page.getByTestId("sprint-rollover-nudge");
+    await expect(currentSprintNudge).toBeVisible();
+    await expect(currentSprintNudge).toHaveAttribute(
+      "data-priority",
+      "secondary",
+    );
     await page
       .getByRole("button", {
         name: "Resume Sprint 14 - Rollover fixture rollover",

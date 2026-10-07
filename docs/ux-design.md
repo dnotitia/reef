@@ -1095,6 +1095,15 @@ monitored repos, templates, and authoring language. These pages share the
 standard page header + body chrome and the same field leaves where issue fields
 appear.
 
+The overdue sprint rollover notice appears on the Active Issues Board and in
+Planning as a compact, neutral status row. Issues gives it the same 24px
+horizontal inset as its filter toolbar and Board content; Planning follows its
+existing `PageBody` inset. The row uses the shared `type-control` title,
+`type-caption` count, a subtle surface and border, an outline rollover action,
+and a ghost dismiss action in one aligned group. Its pending frame follows the
+same responsive text and action layout, and disappears when the notice is not
+eligible or the required issue data is unavailable.
+
 Planning opens to one Overview by default: a Current sprint section followed by
 Upcoming milestones and Upcoming releases. The Overview chooses at most one
 active sprint using the catalog's deterministic current-sprint rule, keeps all

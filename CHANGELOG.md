@@ -19,6 +19,10 @@ explicitly in the entries below.
   installation details or product readiness for every accessible vault.
   Pickers and resume select only confirmed active installations; selected
   workspace requests still enforce Reef readiness. (REEF-664)
+- **The overdue sprint rollover notice now follows the Issues content alignment and
+  reads as a neutral status row.** Its action and dismiss controls share one
+  aligned group, with a matching pending frame across Issues and Planning.
+  (REEF-663)
 - **My Work now spans every ready workspace accessible to the signed-in actor.**
   Its workspace filter narrows only the queue, duplicate issue IDs retain their
   source-workspace links, and the sidebar separates Personal from Workspace
@@ -63,6 +67,9 @@ explicitly in the entries below.
   retains the full validated preference set when a favorite is absent, inactive,
   or has an unknown activity result, then shows it again when confirmed active.
   (REEF-664)
+- **Auth-pending Issues chrome now holds the loaded board position at narrow
+  widths.** The filter row and rollover title placeholder match their resolved
+  frame heights during first render. (REEF-663)
 - **My Work issue detail stays bound to its source workspace.** Status edits,
   related issue links, and drill Back routes now keep using the workspace that
   owns the opened issue, including when another workspace contains the same id.
