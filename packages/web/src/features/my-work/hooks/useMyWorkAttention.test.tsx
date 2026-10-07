@@ -1,28 +1,14 @@
-import type { IssueListItem } from "@reef/core";
+import type { IssueListItem, MyWorkResponse } from "@reef/core";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: () => ({
-    vault: "reef-acme",
-    isLoading: false,
-    refetch: () => Promise.resolve(),
-  }),
+const state = vi.hoisted(() => ({
+  login: "ann" as string | null,
+  data: undefined as MyWorkResponse | undefined,
 }));
 
-vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
-  useCurrentUserLogin: () => loginState.value,
-}));
-
-// The hook rides MyWorkPage's `useIssueList` cache; mock the query so the test
-// drives the rows directly and asserts the derivation, not the fetch.
-vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
-  useIssueList: () => ({ data: issuesState.value }),
-}));
-
-const { loginState, issuesState } = vi.hoisted(() => ({
-  loginState: { value: null as string | null },
-  issuesState: { value: undefined as IssueListItem[] | undefined },
+vi.mock("@/features/my-work/hooks/useMyWorkData", () => ({
+  useMyWorkResponse: () => ({ login: state.login, data: state.data }),
 }));
 
 import { useMyWorkAttention } from "./useMyWorkAttention";
@@ -38,37 +24,44 @@ const makeIssue = (
     status: "todo",
     issue_type: "task",
     assigned_to: "ann",
+    created_by: "ann",
+    updated_by: "ann",
     created_at: "2026-04-01T00:00:00.000Z",
     updated_at: "2026-04-01T00:00:00.000Z",
     ...overrides,
   }) as IssueListItem;
 
+function setIssues(issues: IssueListItem[]) {
+  state.data = {
+    workspaces: [],
+    issues: issues.map((issue) => ({ workspace: "reef-alpha", issue })),
+    next_offset: null,
+    as_of: new Date().toISOString(),
+  };
+}
+
 describe("useMyWorkAttention", () => {
   beforeEach(() => {
-    loginState.value = "ann";
-    issuesState.value = undefined;
+    state.login = "ann";
+    state.data = undefined;
   });
 
-  it("counts overdue + due-soon over the signed-in user's server-scoped rows", () => {
-    // The server `assigned_to` facet is now an exact match (REEF-267), so the
-    // rows it returns are already exactly this user's work — the hook counts them
-    // directly with no client re-scope.
-    issuesState.value = [
-      makeIssue({ id: "A", status: "in_progress", due_date: iso(-DAY) }), // overdue
-      makeIssue({ id: "B", status: "todo", due_date: iso(DAY) }), // due soon
-      makeIssue({ id: "C", status: "todo", due_date: iso(30 * DAY) }), // far → none
-      // Resolved work has no deadline state even when past due.
+  it("counts overdue and due-soon rows from the shared global response", () => {
+    setIssues([
+      makeIssue({ id: "A", status: "in_progress", due_date: iso(-DAY) }),
+      makeIssue({ id: "B", status: "todo", due_date: iso(DAY) }),
+      makeIssue({ id: "C", status: "todo", due_date: iso(30 * DAY) }),
       makeIssue({ id: "E", status: "done", due_date: iso(-DAY) }),
-    ];
+    ]);
 
     const { result } = renderHook(() => useMyWorkAttention());
 
     expect(result.current).toEqual({ attention: 2, overdue: 1, dueSoon: 1 });
   });
 
-  it("returns zeros when logged out without reading any rows", () => {
-    loginState.value = null;
-    issuesState.value = [makeIssue({ id: "A", due_date: iso(-DAY) })];
+  it("returns zeros when logged out", () => {
+    state.login = null;
+    setIssues([makeIssue({ id: "A", due_date: iso(-DAY) })]);
 
     const { result } = renderHook(() => useMyWorkAttention());
 
@@ -76,14 +69,14 @@ describe("useMyWorkAttention", () => {
   });
 
   it("ignores archived work", () => {
-    issuesState.value = [
-      makeIssue({ id: "A", due_date: iso(-DAY) }), // overdue, counts
+    setIssues([
+      makeIssue({ id: "A", due_date: iso(-DAY) }),
       makeIssue({
         id: "B",
         due_date: iso(-DAY),
         archived_at: "2026-05-01T00:00:00.000Z",
       }),
-    ];
+    ]);
 
     const { result } = renderHook(() => useMyWorkAttention());
 

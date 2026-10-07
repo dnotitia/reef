@@ -1624,7 +1624,7 @@ test.describe("large Board column virtualization", () => {
         return result;
       };
 
-      observer.observe(document.documentElement, {
+      observer.observe(document, {
         childList: true,
         subtree: true,
       });

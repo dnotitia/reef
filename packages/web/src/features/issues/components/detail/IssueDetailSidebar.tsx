@@ -434,6 +434,7 @@ export function IssueDetailSidebar({
         <IssueRelationInput
           id="issue-parent"
           label={fieldNames.parent}
+          vault={vault}
           hideLabel
           value={parentId ? [parentId] : []}
           allIssues={allIssues}
@@ -457,6 +458,7 @@ export function IssueDetailSidebar({
           <IssueRelationInput
             id="issue-depends-on"
             label={fieldNames.dependsOn}
+            vault={vault}
             value={dependsOn}
             allIssues={allIssues}
             relationGraph={relations}
@@ -472,6 +474,7 @@ export function IssueDetailSidebar({
           <IssueRelationInput
             id="issue-blocks"
             label={fieldNames.blocks}
+            vault={vault}
             value={blocks}
             allIssues={allIssues}
             relationGraph={relations}
@@ -487,6 +490,7 @@ export function IssueDetailSidebar({
           <IssueRelationInput
             id="issue-related-to"
             label={fieldNames.related}
+            vault={vault}
             value={relatedTo}
             allIssues={allIssues}
             relationGraph={relations}

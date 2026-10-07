@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **My Work now spans every ready workspace accessible to the signed-in actor.**
+  Its workspace filter narrows only the queue, duplicate issue IDs retain their
+  source-workspace links, and the sidebar separates Personal from Workspace
+  navigation. (REEF-658)
 - **Issue Markdown editing uses the shared Source surface.** Reef delegates
   Source mode and draft synchronization to the shared editor while preserving
   issue-body Markdown and Source attachment uploads. (REEF-630)
@@ -50,6 +54,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **My Work issue detail stays bound to its source workspace.** Status edits,
+  related issue links, and drill Back routes now keep using the workspace that
+  owns the opened issue, including when another workspace contains the same id.
+  (REEF-658)
 - **Unavailable workspace entries no longer imply an access denial.** Their
   heading now describes availability in English and Korean, while genuine
   access denials keep their existing guidance. (REEF-422)

@@ -29,18 +29,6 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({ vault: "reef-test" }),
-}));
-
-// useIssueDrill resolves the active vault (REEF-315) via useActiveVault, which
-// calls useQuery; this component renders without a QueryClient, so resolve the
-// hook to a fixed vault that scopes the drill hrefs.
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: () => ({
-    vault: "reef-test",
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
 }));
 
 afterEach(() => {
@@ -71,6 +59,7 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
 function setup(overrides: Partial<IdentityProps> = {}) {
   const props: IdentityProps = {
     issueId: "REEF-111",
+    vault: "reef-test",
     status: "todo",
     issueType: "bug",
     isArchived: false,
@@ -126,7 +115,7 @@ describe("IssueChromeIdentity", () => {
     });
 
     it("renders the resolved crumb as a status glyph + title, with the id only in href/data (REEF-279)", () => {
-      setup({ parentId: PARENT_ID, allIssues: [parent] });
+      setup({ vault: "reef-e2e", parentId: PARENT_ID, allIssues: [parent] });
 
       const nav = screen.getByRole("navigation", { name: "Issue hierarchy" });
       expect(nav).toBeInTheDocument();
@@ -134,7 +123,7 @@ describe("IssueChromeIdentity", () => {
       const link = screen.getByTestId("issue-parent-breadcrumb");
       expect(link).toHaveAttribute(
         "href",
-        "/workspace/reef-test/issues/REEF-182",
+        "/workspace/reef-e2e/issues/REEF-182",
       );
       expect(link).toHaveAttribute("data-issue-id", "REEF-182");
       expect(link).toHaveTextContent("Reports & analytics epic");

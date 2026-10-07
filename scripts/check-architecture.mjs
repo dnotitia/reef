@@ -20,9 +20,14 @@ const obsoleteSchemaApi =
 const tableSchemaMutationRequest =
   /(?:\.request|\bfetch)\s*\(\s*(`[^`]*\/api\/v1\/tables\/[^`]*`|["'][^"']*\/api\/v1\/tables\/[^"']*["'])\s*,\s*\{[\s\S]{0,240}?\bmethod\s*:\s*["'](?:POST|PATCH|DELETE)["']/iu;
 const tableDdl = /\b(?:CREATE|ALTER|DROP|TRUNCATE)\s+TABLE\b/iu;
-const setupOnlyRawAdapterRoutes = new Set([
+// Endpoints without one workspace to preflight use the request adapter
+// directly. My Work resolves every accessible workspace and checks readiness
+// before its single cross-vault query; the remaining entries are identity or
+// workspace setup/lifecycle routes.
+const rawAdapterRoutes = new Set([
   "packages/web/src/app/api/auth/akb/me/route.ts",
   "packages/web/src/app/api/users/search/route.ts",
+  "packages/web/src/app/api/my-work/route.ts",
   "packages/web/src/app/api/vaults/route.ts",
   "packages/web/src/app/api/vaults/[vault]/installation/route.ts",
   "packages/web/src/app/api/vaults/[vault]/members/route.ts",
@@ -83,7 +88,7 @@ for (const sourceRoot of sourceRoots) {
     if (
       relativePath.startsWith("packages/web/src/app/api/") &&
       /\bgetAkbAdapter\s*\(/u.test(content) &&
-      !setupOnlyRawAdapterRoutes.has(relativePath)
+      !rawAdapterRoutes.has(relativePath)
     ) {
       schemaGuardFailures.push(
         `${relativePath}: product API route bypasses getWorkspaceAkbAdapter`,

@@ -146,6 +146,19 @@ export {
 } from "./requests";
 
 export {
+  MyWorkQuerySchema,
+  MyWorkIssueSchema,
+  MyWorkResolvedSprintCountSchema,
+  MyWorkWorkspaceSchema,
+  MyWorkResponseSchema,
+  type MyWorkQuery,
+  type MyWorkIssue,
+  type MyWorkResolvedSprintCount,
+  type MyWorkWorkspace,
+  type MyWorkResponse,
+} from "./myWork";
+
+export {
   PersistedIssueFilterEnvelopeSchema,
   normalizePersistedIssueFilter,
   type PersistedIssueFilter,

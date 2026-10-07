@@ -12,7 +12,7 @@ afterEach(cleanup);
 function renderPending(pathname: string) {
   return render(
     <IntlTestProvider>
-      <WorkspaceAuthPendingSkeleton pathname={pathname} />
+      <WorkspaceAuthPendingSkeleton vault="reef-test" pathname={pathname} />
     </IntlTestProvider>,
   );
 }

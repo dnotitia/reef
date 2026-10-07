@@ -1248,10 +1248,24 @@ test.describe("Hermetic typography role contract", () => {
     });
     await openExistingWorkspace(page);
     await page.setViewportSize(VIEWPORTS[0]);
+    const boardStatuses = [
+      "todo",
+      "in_progress",
+      "in_review",
+      "done",
+      "closed",
+    ];
     const issueResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      const statuses = url.searchParams.getAll("status");
       return (
         response.request().method() === "GET" &&
-        new URL(response.url()).pathname === "/api/issues" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("vault") === REEF_E2E_VAULT &&
+        url.searchParams.get("sort_field") === "rank" &&
+        url.searchParams.get("sort_order") === "asc" &&
+        statuses.length === boardStatuses.length &&
+        boardStatuses.every((status) => statuses.includes(status)) &&
         response.ok()
       );
     });
@@ -1364,57 +1378,73 @@ test.describe("Hermetic typography role contract", () => {
       ),
     ).toHaveLength(0);
 
-    const browserMetrics = await page.evaluate((responseUrl) => {
-      const runtimeWindow = window as Window & {
-        __reefSmallBoardMetrics?: SmallBoardMetrics;
-      };
-      const measurement = runtimeWindow.__reefSmallBoardMetrics;
-      const response = measurement?.issueResponses.find(
-        ({ url }) => url === responseUrl,
-      );
-      return {
-        evidence: {
-          responseUrl: response?.url ?? null,
-          responseDocumentId: response?.documentId ?? null,
-          responseTimeOrigin: response?.timeOrigin ?? null,
-          responseHref: response?.href ?? null,
-          responseReadyState: response?.readyState ?? null,
-          currentDocumentId: measurement?.documentId ?? null,
-          currentTimeOrigin: performance.timeOrigin,
-          currentHref: location.href,
-          currentReadyState: document.readyState,
-          observerAttachedAt: measurement?.observerAttachedAt ?? null,
-          observerRegistrationError:
-            measurement?.observerRegistrationError ?? null,
-          observerTargetConnectedAtAttach:
-            measurement?.observerTargetConnected ?? null,
-          observerTargetConnectedNow:
-            measurement?.observerTarget?.isConnected ?? null,
-          sameDocument: measurement?.observerTarget
-            ? document === measurement.observerTarget
-            : null,
-          mutationCallbackCount: measurement?.mutationCallbackCount ?? null,
-          mutationSnapshots: measurement?.mutationSnapshots ?? [],
-          firstCardDomAt: measurement?.firstCardDomAt ?? null,
-          firstCardDocumentId: measurement?.firstCardDocumentId ?? null,
-          firstCardHref: measurement?.firstCardHref ?? null,
-          firstCardObservationReason:
-            measurement?.firstCardObservationReason ?? null,
-        },
-        metrics: {
-          parseMs: response?.parseMs ?? null,
-          issueCount: response?.issueCount ?? null,
-          responseBytes: response?.responseBytes ?? null,
-          postParseToFirstCardDomMs:
-            response &&
-            measurement?.firstCardDomAt !== null &&
-            measurement?.firstCardDomAt !== undefined
-              ? measurement.firstCardDomAt - response.parsedAt
+    const browserMetrics = await page.evaluate(
+      ({ responseUrl, expectedIssueCount }) => {
+        const runtimeWindow = window as Window & {
+          __reefSmallBoardMetrics?: SmallBoardMetrics;
+        };
+        const measurement = runtimeWindow.__reefSmallBoardMetrics;
+        const responseMatches =
+          measurement?.issueResponses.filter(
+            (candidate) =>
+              candidate.url === responseUrl &&
+              candidate.documentId === measurement.documentId &&
+              candidate.timeOrigin === performance.timeOrigin &&
+              candidate.href === location.href &&
+              candidate.issueCount === expectedIssueCount,
+          ) ?? [];
+        const response =
+          responseMatches.length === 1 ? responseMatches[0] : undefined;
+        return {
+          evidence: {
+            responseMatchCount: responseMatches.length,
+            responseUrl: response?.url ?? null,
+            responseDocumentId: response?.documentId ?? null,
+            responseTimeOrigin: response?.timeOrigin ?? null,
+            responseHref: response?.href ?? null,
+            responseReadyState: response?.readyState ?? null,
+            currentDocumentId: measurement?.documentId ?? null,
+            currentTimeOrigin: performance.timeOrigin,
+            currentHref: location.href,
+            currentReadyState: document.readyState,
+            observerAttachedAt: measurement?.observerAttachedAt ?? null,
+            observerRegistrationError:
+              measurement?.observerRegistrationError ?? null,
+            observerTargetConnectedAtAttach:
+              measurement?.observerTargetConnected ?? null,
+            observerTargetConnectedNow:
+              measurement?.observerTarget?.isConnected ?? null,
+            sameDocument: measurement?.observerTarget
+              ? document === measurement.observerTarget
               : null,
-          mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
-        },
-      };
-    }, issueResponse.url());
+            mutationCallbackCount: measurement?.mutationCallbackCount ?? null,
+            mutationSnapshots: measurement?.mutationSnapshots ?? [],
+            firstCardDomAt: measurement?.firstCardDomAt ?? null,
+            firstCardDocumentId: measurement?.firstCardDocumentId ?? null,
+            firstCardHref: measurement?.firstCardHref ?? null,
+            firstCardObservationReason:
+              measurement?.firstCardObservationReason ?? null,
+          },
+          metrics: {
+            parseMs: response?.parseMs ?? null,
+            issueCount: response?.issueCount ?? null,
+            responseBytes: response?.responseBytes ?? null,
+            postParseToFirstCardDomMs:
+              response &&
+              measurement?.firstCardDomAt !== null &&
+              measurement?.firstCardDomAt !== undefined
+                ? measurement.firstCardDomAt - response.parsedAt
+                : null,
+            mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
+          },
+        };
+      },
+      {
+        responseUrl: issueResponse.url(),
+        expectedIssueCount: CARD_BASELINE.count,
+      },
+    );
+    expect(browserMetrics.evidence.responseMatchCount).toBe(1);
     console.log(
       "[BOARD_VIRTUALIZATION_TIMELINE]",
       JSON.stringify({

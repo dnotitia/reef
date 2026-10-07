@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { use, useEffect } from "react";
 
 interface IssueModalPageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; vault: string }>;
 }
 
 /**
@@ -29,18 +29,24 @@ export default function IssueModalPage({ params }: IssueModalPageProps) {
   const pathname = usePathname();
   const clear = useIssueNavStack((state) => state.clear);
   const entryRoute = useIssueNavStack((state) => state.entryRoute);
-  const isActiveIssuePath = pathname.endsWith(`/issues/${id}`);
+  // During cross-workspace soft navigation, Next can retain the background
+  // layout's `[vault]` param in this intercepted parallel route. The pathname
+  // identifies the actual destination route and owns the detail workspace.
+  const issuePath = pathname.match(/^\/workspace\/([^/]+)\/issues\/([^/]+)$/);
+  const vault = issuePath?.[1];
+  const isActiveIssuePath = issuePath?.[2] === id;
 
   useEffect(() => {
     if (entryRoute !== "base" && !isActiveIssuePath) clear();
   }, [clear, entryRoute, isActiveIssuePath]);
 
-  if (!isActiveIssuePath || entryRoute === "base") return null;
+  if (!vault || !isActiveIssuePath || entryRoute === "base") return null;
 
   return (
     <IssueDetailSheet
       entryRoute="modal"
       issueId={id}
+      vault={vault}
       onClose={() => router.back()}
     />
   );

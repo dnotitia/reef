@@ -536,9 +536,9 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail;
   narrow viewports use the icon rail so the main column remains usable. It holds
-  the reef wordmark, a prominent New Issue button, the primary nav (Issues / My
-  Work / Inbox / Planning / Reports / Settings), a footer utility
-  row for keyboard shortcuts, and the workspace/account identity block.
+  a full-width New Issue button, then a **Personal** group (My Work / Inbox) and
+  a **Workspace** group (workspace selector, Issues / Planning / Reports /
+  Settings). Keyboard shortcuts and account identity stay in the footer.
   The workspace switcher keeps the full configured `useVaults()` candidate set,
   applies search before splitting it into localized Favorites and Other
   workspaces groups, and keeps a separate favorite toggle beside each
@@ -711,12 +711,14 @@ workspace creation.
 `scope=active|backlog` selects the work collection and `view=board|list|timeline`
 selects its rendering layout. Active supports Board, List, and Timeline;
 Backlog supports Board and List, and a Backlog + Timeline URL is normalized to
-List. Every dashboard surface is vault-scoped under `/workspace/{vault}/…`
+List. Workspace content routes are vault-scoped under `/workspace/{vault}/…`
 (REEF-315): a malformed vault segment 404s, a well-formed vault the signed-in
 user cannot access shows an explicit access-denied surface (with their own
-workspaces to switch to). Vault-less dashboard paths are not part of the route
-tree; use the explicit workspace URL or the root workspace picker. The old
-mixed `view=backlog` URL is not a supported route.
+workspaces to switch to). My Work retains that URL for sidebar and route
+context, while its assignment query remains actor-scoped across ready
+workspaces. Vault-less dashboard paths are not part of the route tree; use the
+explicit workspace URL or the root workspace picker. The old mixed
+`view=backlog` URL is not a supported route.
 
 The shell owns one lazy instance of each global dialog. A dialog's code and
 feature-specific subscriptions are prepared on its first user intent; pointer
@@ -1068,9 +1070,19 @@ Keycloak post-logout route.
 
 ### Planning, Reports, Settings
 
-The remaining nav destinations are first-class pages: **My Work** (the signed-in
-user's overdue and due-soon work), **Planning** (sprints, milestones, releases
-that issues link to), **Reports**, and **Settings**. Settings separates
+**My Work** is an account-wide view. The server identifies the signed-in actor
+and combines their open assignments across every accessible, ready workspace in
+one globally ordered result. Its workspace filter narrows only the queue; the
+summary remains global and the selected sidebar workspace does not change.
+Rows show their source workspace, and duplicate reef IDs remain separate links
+to the matching workspace's issue detail. The server excludes assignments for
+other actors, resolved or archived issues, and workspaces that are not ready.
+True empty, caught-up, and read-error states remain distinct; empty and caught-up
+states stay passive. The result is held in memory and is not written to the
+persisted browser query cache.
+
+The remaining nav destinations are first-class pages: **Planning** (sprints,
+milestones, releases that issues link to), **Reports**, and **Settings**. Settings separates
 per-user preferences from team-shared workspace settings such as project prefix,
 monitored repos, templates, and authoring language. These pages share the
 standard page header + body chrome and the same field leaves where issue fields
@@ -1243,9 +1255,9 @@ CTA placement belongs to the surrounding page composition, not to the shared
 
 | Surface / state | Role | Form and placement | Applies when |
 | --- | --- | --- | --- |
-| My Work: assigned work is empty | Passive | No PageHeader action and no frame action | There are no issues assigned to the signed-in user |
-| My Work: caught up | Passive | No PageHeader action and no frame action | Assigned issues exist, but none are open |
-| My Work: populated | None | Existing summary and queue only | Open work is available |
+| My Work: assigned work is empty | Passive | No PageHeader action and no frame action | No ready workspace has an assignment for the signed-in actor |
+| My Work: caught up | Passive | No PageHeader action and no frame action | Assignments exist across ready workspaces, but none are open |
+| My Work: populated | None | Global summary, queue, and queue-only workspace filter | Open work is available |
 | Planning: true empty | Primary create/continue | One existing filled `PageHeader` New button | The selected planning kind has no entries |
 | Reports: true empty | Primary create/continue | One filled `PageHeader` New issue button opens the shared issue creation flow; the section frame remains passive | Reports has no active issues |
 | Board: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches |
@@ -1253,8 +1265,9 @@ CTA placement belongs to the surrounding page composition, not to the shared
 | Workspace navigation | Navigation | Existing sidebar Issues link and Issues view switcher | All My Work states; navigation is not duplicated in an empty frame |
 
 The My Work passive states keep their title, description, and personal scope
-copy. Removing the duplicate Board action does not change the existing Issues
-or Board navigation, and keyboard focus follows the remaining visual order.
+copy. A read error shows a retry action instead of either empty state. Removing
+the duplicate Board action does not change the existing Issues or Board
+navigation, and keyboard focus follows the remaining visual order.
 
 ### Empty & Loading States
 

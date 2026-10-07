@@ -193,6 +193,7 @@ export function IssueDetailMain({
 
       <IssueChildren
         issueId={issueId}
+        vault={vault}
         allIssues={allIssues}
         allIssuesPending={allIssuesPending}
         allIssuesError={allIssuesError}

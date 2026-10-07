@@ -89,6 +89,7 @@ export {
   reorderIssue,
   deleteIssue,
   listIssues,
+  listMyWorkIssues,
   searchSimilarIssues,
   searchIssueContent,
   listIssueRelations,
