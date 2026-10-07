@@ -3,12 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
+  readFixtureState,
   resetFixture,
   setAuthControl,
   setIssueListFailure,
   setPlanningCatalogFailure,
   waitForPasswordLogin,
+  writeIndexedDbConfig,
 } from "../harness/fixture";
+import { PERSISTED_QUERY_CACHE_KEY } from "../../../src/lib/storage/clientCache";
 
 // Regression guard for the warm-cache hydration mismatch on the issues board.
 //
@@ -361,6 +364,261 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
       hydrationErrors,
       `Unexpected hydration mismatch(es):\n${hydrationErrors.join("\n---\n")}`,
     ).toEqual([]);
+  });
+
+  test("keeps the rollover row readable across viewport, locale, and theme combinations", async ({
+    context,
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    await context.clearCookies();
+    await resetFixture(request, "sprint_rollover");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openExistingWorkspace(page);
+
+    const catalogResponse = await page.request.get(
+      `/api/planning?vault=${REEF_E2E_VAULT}`,
+    );
+    expect(catalogResponse.ok()).toBeTruthy();
+    const catalog = (await catalogResponse.json()) as {
+      sprints: Array<{
+        id: string;
+        name: string;
+        status: string;
+        start_date: string | null;
+        end_date: string | null;
+        goal: string;
+        capacity_points: number | null;
+      }>;
+    };
+    const activeSprint = catalog.sprints.find(
+      (sprint) => sprint.status === "active",
+    );
+    if (!activeSprint) throw new Error("Active fixture sprint is missing");
+    const longName = `Sprint 14 - Rollover fixture — ${"긴스프린트이름확인용".repeat(5)}`;
+    const updateResponse = await page.request.put(
+      `/api/planning/sprints/${activeSprint.id}`,
+      {
+        data: {
+          vault: REEF_E2E_VAULT,
+          item: { ...activeSprint, name: longName },
+        },
+      },
+    );
+    expect(updateResponse.ok()).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.sprints.find((sprint) => sprint.id === activeSprint.id)?.name;
+      })
+      .toBe(longName);
+
+    await page.close();
+    const visualPage = await context.newPage();
+    await visualPage.goto("/api/healthz");
+    await visualPage.evaluate((cacheKey) => {
+      window.localStorage.removeItem(cacheKey);
+    }, PERSISTED_QUERY_CACHE_KEY);
+    await visualPage.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
+    await expect(visualPage.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    await expect(visualPage.getByTestId("sprint-rollover-nudge")).toContainText(
+      longName,
+    );
+
+    const widths = [320, 375, 414, 768, 1440];
+    const locales = ["en", "ko"] as const;
+    const themes = ["light", "dark"] as const;
+    for (const locale of locales) {
+      await context.addCookies([
+        {
+          name: "NEXT_LOCALE",
+          value: locale,
+          url: visualPage.url(),
+        },
+      ]);
+      for (const theme of themes) {
+        await writeIndexedDbConfig(visualPage, "theme", theme);
+        await visualPage.evaluate((preference) => {
+          window.localStorage.setItem("reef.theme", preference);
+        }, theme);
+        await visualPage.emulateMedia({ colorScheme: theme });
+        await visualPage.reload();
+        await expect(
+          visualPage.getByTestId("sprint-rollover-nudge"),
+        ).toBeVisible();
+        await expect(visualPage.locator("html")).toHaveAttribute(
+          "lang",
+          locale,
+        );
+        await expect(
+          visualPage.getByTestId("sprint-rollover-nudge"),
+        ).toContainText(longName);
+
+        for (const width of widths) {
+          await visualPage.setViewportSize({ width, height: 900 });
+          const sample = `${locale}-${theme}-${width}`;
+          const geometry = await visualPage.evaluate((sampleName) => {
+            const row = document.querySelector<HTMLElement>(
+              '[data-testid="sprint-rollover-nudge"]',
+            );
+            const toolbar = document.querySelector<HTMLElement>(
+              '[data-testid="issue-filter-toolbar"]',
+            );
+            const board = document.querySelector<HTMLElement>(
+              '[data-testid="kanban-board"]',
+            );
+            if (!row || !toolbar || !board) {
+              throw new Error("Rollover row, toolbar, or board is missing");
+            }
+            const title = row.querySelector<HTMLElement>("p");
+            const description = row.querySelectorAll<HTMLElement>("p")[1];
+            const action = row.querySelector<HTMLButtonElement>("button");
+            const dismiss =
+              row.querySelectorAll<HTMLButtonElement>("button")[1];
+            if (!title || !description || !action || !dismiss) {
+              throw new Error("Rollover copy or actions are missing");
+            }
+            const rect = (element: Element) => {
+              const bounds = element.getBoundingClientRect();
+              const round = (value: number) => Math.round(value * 10) / 10;
+              return {
+                top: round(bounds.top),
+                right: round(bounds.right),
+                bottom: round(bounds.bottom),
+                left: round(bounds.left),
+                width: round(bounds.width),
+                height: round(bounds.height),
+              };
+            };
+            const textLineCount = (element: HTMLElement) => {
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              return range.getClientRects().length;
+            };
+            const rowStyle = getComputedStyle(row);
+            const titleStyle = getComputedStyle(title);
+            const descriptionStyle = getComputedStyle(description);
+            const toolbarStyle = getComputedStyle(toolbar);
+            const contentElement = title.parentElement;
+            const actionsElement = action.parentElement;
+            const contentRect = contentElement?.getBoundingClientRect();
+            const actionsRect = actionsElement?.getBoundingClientRect();
+            return {
+              sample: sampleName,
+              viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+              },
+              locale: document.documentElement.lang,
+              dark: document.documentElement.classList.contains("dark"),
+              titleText: title.innerText,
+              descriptionText: description.innerText,
+              row: rect(row),
+              content:
+                contentRect && contentElement ? rect(contentElement) : null,
+              actions:
+                actionsRect && actionsElement ? rect(actionsElement) : null,
+              action: rect(action),
+              dismiss: rect(dismiss),
+              toolbar: {
+                ...rect(toolbar),
+                paddingLeft: toolbarStyle.paddingLeft,
+                paddingRight: toolbarStyle.paddingRight,
+              },
+              board: rect(board),
+              documentWidth: document.documentElement.scrollWidth,
+              styles: {
+                rowBackground: rowStyle.backgroundColor,
+                rowBorderBottomColor: rowStyle.borderBottomColor,
+                rowBorderBottomWidth: rowStyle.borderBottomWidth,
+                rowBorderRadius: rowStyle.borderRadius,
+                titleColor: titleStyle.color,
+                titleFontSize: titleStyle.fontSize,
+                titleLineHeight: titleStyle.lineHeight,
+                titleScrollHeight: title.scrollHeight,
+                titleClientHeight: title.clientHeight,
+                descriptionColor: descriptionStyle.color,
+                descriptionFontSize: descriptionStyle.fontSize,
+                descriptionLineHeight: descriptionStyle.lineHeight,
+                descriptionScrollHeight: description.scrollHeight,
+                descriptionClientHeight: description.clientHeight,
+                actionTextLines: textLineCount(action),
+              },
+            };
+          }, sample);
+
+          expect(geometry.locale).toBe(locale);
+          expect(geometry.dark).toBe(theme === "dark");
+          expect(geometry.titleText).toContain(longName);
+          expect(geometry.descriptionText).toMatch(/2|두/);
+          expect(geometry.row.left).toBeGreaterThanOrEqual(0);
+          expect(geometry.row.right).toBeLessThanOrEqual(width);
+          expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+          expect(geometry.row.left).toBeCloseTo(
+            geometry.toolbar.left +
+              Number.parseFloat(geometry.toolbar.paddingLeft),
+            0,
+          );
+          expect(geometry.row.right).toBeCloseTo(
+            geometry.toolbar.right -
+              Number.parseFloat(geometry.toolbar.paddingRight),
+            0,
+          );
+          expect(geometry.content).not.toBeNull();
+          expect(geometry.actions).not.toBeNull();
+          expect(geometry.action.top + geometry.action.height / 2).toBeCloseTo(
+            geometry.dismiss.top + geometry.dismiss.height / 2,
+            0,
+          );
+          expect(geometry.styles.actionTextLines).toBe(1);
+          expect(geometry.styles.titleScrollHeight).toBe(
+            geometry.styles.titleClientHeight,
+          );
+          expect(geometry.styles.descriptionScrollHeight).toBe(
+            geometry.styles.descriptionClientHeight,
+          );
+          expect(geometry.styles.rowBorderBottomWidth).toBe("1px");
+          expect(geometry.styles.rowBorderRadius).toBe("0px");
+          expect(geometry.styles.rowBackground).not.toBe("rgba(0, 0, 0, 0)");
+          expect(geometry.styles.rowBorderBottomColor).not.toBe(
+            "rgba(0, 0, 0, 0)",
+          );
+          expect(geometry.styles.titleColor).not.toBe(
+            geometry.styles.descriptionColor,
+          );
+
+          if (width < 640) {
+            expect(geometry.content?.bottom).toBeLessThanOrEqual(
+              geometry.actions?.top ?? 0,
+            );
+          } else {
+            expect(geometry.content?.right).toBeLessThanOrEqual(
+              geometry.actions?.left ?? 0,
+            );
+          }
+
+          const geometryPath = testInfo.outputPath(`${sample}.json`);
+          const screenshotPath = testInfo.outputPath(`${sample}.png`);
+          await mkdir(testInfo.outputDir, { recursive: true });
+          await writeFile(geometryPath, JSON.stringify(geometry, null, 2));
+          await writeFile(
+            screenshotPath,
+            await visualPage.screenshot({ animations: "disabled" }),
+          );
+          await testInfo.attach(`${sample}-geometry`, {
+            path: geometryPath,
+            contentType: "application/json",
+          });
+          await testInfo.attach(`${sample}-screen`, {
+            path: screenshotPath,
+            contentType: "image/png",
+          });
+        }
+      }
+    }
   });
 
   for (const viewport of [

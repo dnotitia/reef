@@ -478,12 +478,32 @@ describe("IssuesWorkspace", () => {
 
   it("does not enable the rollover-only issue read outside the active board", async () => {
     navigationState.searchParams = new URLSearchParams("view=list");
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [OVERDUE_SPRINT],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+    });
+    mockUseIssueList.mockReturnValue({
+      data: ROLLOVER_ISSUES,
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
     render(wrap(<IssuesWorkspace />));
 
     await screen.findByTestId("list-body");
     expect(mockUseIssueList).toHaveBeenCalledWith("reef-acme", undefined, {
       enabled: false,
     });
+    expect(screen.queryByTestId("sprint-rollover-nudge")).toBeNull();
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
   });
 
   it("pins a detail workspace to its sprint without exposing scope switching", () => {
@@ -510,6 +530,42 @@ describe("IssuesWorkspace", () => {
     );
     expect(screen.queryByTestId("scope-switcher")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Issues" })).toBeNull();
+  });
+
+  it("does not show the active-sprint nudge in a fixed sprint board", async () => {
+    navigationState.pathname =
+      "/workspace/reef-acme/planning/sprints/fixed-sprint";
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [OVERDUE_SPRINT],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+    });
+    mockUseIssueList.mockReturnValue({
+      data: ROLLOVER_ISSUES,
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(() => Promise.resolve()),
+    });
+
+    render(
+      wrap(
+        <IssuesWorkspace
+          fixedSprintId="fixed-sprint"
+          fixedSprintName="Sprint One"
+        />,
+      ),
+    );
+
+    expect(await screen.findByTestId("board-body")).toBeInTheDocument();
+    expect(screen.queryByTestId("sprint-rollover-nudge")).toBeNull();
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
   });
 
   it("passes the shareable group choice to the toolbar and active view", () => {

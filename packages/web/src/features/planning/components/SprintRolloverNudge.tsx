@@ -54,20 +54,19 @@ export function SprintRolloverNudge({
   return (
     <div
       data-testid="sprint-rollover-nudge"
+      data-priority={priority}
       role="status"
-      className={
-        secondary
-          ? "relative mb-3 flex min-h-[132px] flex-col items-stretch gap-2 rounded-md border border-border-subtle bg-surface-subtle/60 px-3 py-2.5 sm:min-h-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pr-12"
-          : "relative mb-3 flex min-h-[132px] flex-col items-stretch gap-2 rounded-md border border-status-in-progress-focus/40 bg-status-in-progress-fill/5 px-3 py-2.5 sm:min-h-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pr-12"
-      }
+      className={`mb-3 flex min-w-0 flex-col gap-2 border-b border-border-subtle py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${
+        secondary ? "bg-surface-page" : "bg-surface-subtle/60"
+      }`}
     >
-      <div className="min-w-0 flex-1 pr-10">
+      <div className="min-w-0 flex-1">
         <p
-          className={
-            secondary
-              ? "type-control font-medium text-foreground"
-              : "type-body font-medium text-foreground"
-          }
+          className={`type-control font-medium text-foreground ${
+            locale === "ko"
+              ? "[overflow-wrap:anywhere] [word-break:keep-all]"
+              : "[overflow-wrap:anywhere]"
+          }`}
         >
           {t("nudgeTitle", { name: sprint.name })}
         </p>
@@ -75,18 +74,18 @@ export function SprintRolloverNudge({
           className={
             locale === "ko"
               ? "mt-0.5 type-caption text-muted-foreground [overflow-wrap:anywhere] [word-break:keep-all]"
-              : "mt-0.5 type-caption text-muted-foreground"
+              : "mt-0.5 type-caption text-muted-foreground [overflow-wrap:anywhere]"
           }
         >
           {t("nudgeDescription", { count })}
         </p>
       </div>
-      <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+      <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
         <Button
           type="button"
           size="sm"
-          variant={secondary ? "outline" : "default"}
-          className="w-full sm:w-auto"
+          variant="outline"
+          className="shrink-0"
           onClick={() => onOpen(sprint)}
           disabled={!canEdit}
           aria-disabled={!canEdit || undefined}
@@ -100,7 +99,7 @@ export function SprintRolloverNudge({
           variant="ghost"
           hitTarget="coarse"
           aria-label={t("dismissNudge")}
-          className="absolute top-1 right-1 text-muted-foreground hover:text-foreground"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
           onClick={() => setDismissedSprintId(sprint.id)}
         >
           <X aria-hidden="true" className="size-4" />

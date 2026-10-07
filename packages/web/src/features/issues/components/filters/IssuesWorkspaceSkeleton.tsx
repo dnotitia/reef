@@ -407,11 +407,11 @@ export function IssuesWorkspaceSkeleton({
             />
           </div>
           {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
-          {/* The live narrow FilterBar owns a fixed 234.5px row budget; cap
-              the inert labels to the same frame when font metrics wrap an
-              extra placeholder row before hydration. */}
+          {/* The live narrow FilterBar measures 233.5px in the supported 390px
+              frame; cap inert labels to that same frame when their widths wrap
+              an extra placeholder row before hydration. */}
           <div
-            className="flex flex-wrap items-center gap-2 max-[480px]:h-[234.5px] max-[480px]:overflow-hidden"
+            className="flex flex-wrap items-center gap-2 max-[480px]:h-[233.5px] max-[480px]:overflow-hidden"
             data-testid="filter-bar"
           >
             {visibleFilterChips.map((chip) =>
@@ -465,7 +465,9 @@ export function IssuesWorkspaceSkeleton({
           </div>
         </div>
         {scope === "active" && layout === "board" ? (
-          <SprintRolloverPendingSkeleton />
+          <div className="mx-6">
+            <SprintRolloverPendingSkeleton />
+          </div>
         ) : null}
         {scope === "backlog" && layout === "list" ? (
           <BacklogTableSkeleton />

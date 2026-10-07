@@ -2294,6 +2294,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(placeholder).toHaveText(
       "Describe the issue or type / to insert a block…",
     );
+    await expect(editor).toBeVisible();
+    await expect(editor).toBeEditable();
 
     const sourceToggle = dialog
       .getByTestId("markdown-source-toggle")
@@ -2305,6 +2307,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await sourceToggle.click();
 
     await editor.click();
+    await expect(editor).toBeFocused();
     await page.keyboard.type("Body authored in the editor");
     await expect(placeholder).toHaveCount(0);
 

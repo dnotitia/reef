@@ -41,6 +41,9 @@ describe("SprintRolloverNudge", () => {
     );
 
     expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    expect(screen.getByTestId("sprint-rollover-nudge")).toHaveTextContent(
+      "1 unfinished issue",
+    );
     await user.click(
       screen.getByRole("button", { name: "Close and roll over" }),
     );
@@ -100,6 +103,31 @@ describe("SprintRolloverNudge", () => {
     );
   });
 
+  it("keeps the visible action group in keyboard order", async () => {
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <SprintRolloverNudge
+          sprint={SPRINT}
+          issues={ISSUES}
+          issueState="available"
+          now={Date.parse("2026-09-06T00:00:00Z")}
+          canEdit
+          onOpen={vi.fn()}
+        />,
+      ),
+    );
+
+    const action = screen.getByRole("button", { name: "Close and roll over" });
+    const dismiss = screen.getByRole("button", {
+      name: "Dismiss sprint rollover notice",
+    });
+    await user.tab();
+    expect(action).toHaveFocus();
+    await user.tab();
+    expect(dismiss).toHaveFocus();
+  });
+
   it("keeps Korean nudge descriptions together at word boundaries", () => {
     render(
       <IntlTestProvider locale="ko">
@@ -121,7 +149,7 @@ describe("SprintRolloverNudge", () => {
     ).toHaveClass("[word-break:keep-all]");
   });
 
-  it("lowers the nudge when a resumable rollover is already visible", () => {
+  it("keeps the nudge secondary when a resumable rollover is already visible", () => {
     render(
       wrap(
         <SprintRolloverNudge
@@ -137,11 +165,10 @@ describe("SprintRolloverNudge", () => {
     );
 
     const nudge = screen.getByTestId("sprint-rollover-nudge");
-    expect(nudge).toHaveClass("border-border-subtle");
-    expect(nudge).toHaveClass("sm:pr-12");
+    expect(nudge).toHaveAttribute("data-priority", "secondary");
     expect(nudge).toHaveTextContent("Sprint 14 has passed its end date");
     expect(
       screen.getByRole("button", { name: "Close and roll over" }),
-    ).toHaveClass("border");
+    ).toBeEnabled();
   });
 });
