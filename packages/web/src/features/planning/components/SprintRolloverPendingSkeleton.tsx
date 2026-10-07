@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocale, useTranslations } from "next-intl";
 
 /**
  * Reserves the responsive frame occupied by a visible rollover nudge while a
@@ -6,21 +7,48 @@ import { Skeleton } from "@/components/ui/skeleton";
  * intentionally unavailable in that state, so this inert placeholder keeps
  * the fixed content frame from jumping when the nudge resolves.
  */
-export function SprintRolloverPendingSkeleton() {
+export function SprintRolloverPendingSkeleton({
+  priority = "primary",
+  sprintName,
+}: {
+  priority?: "primary" | "secondary";
+  sprintName?: string;
+}) {
+  const locale = useLocale();
+  const t = useTranslations("planning.rollover");
+  const secondary = priority === "secondary";
+
   return (
     <div
       data-testid="sprint-rollover-pending-skeleton"
       aria-hidden="true"
-      className="mb-3 flex h-[132px] shrink-0 flex-col items-stretch gap-2 rounded-md border border-border-subtle bg-surface-subtle/60 px-3 py-2.5 sm:h-[60px] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pr-12"
+      className={`mb-3 flex min-w-0 shrink-0 flex-col gap-2 border-b border-border-subtle py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${
+        secondary ? "bg-surface-page" : "bg-surface-subtle/60"
+      }`}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-2 pr-10">
-        <Skeleton className="h-10 w-3/4 max-w-64 sm:h-4" />
-        <div className="flex flex-col gap-0.5">
-          <Skeleton className="h-3 w-full max-w-80" />
-          <Skeleton className="h-3 w-3/4 max-w-64 sm:hidden" />
+      <div className="min-w-0 flex-1">
+        {sprintName ? (
+          <p
+            className={`type-control font-medium text-foreground [overflow-wrap:anywhere] ${
+              locale === "ko" ? "[word-break:keep-all]" : ""
+            }`}
+          >
+            {t("nudgeTitle", { name: sprintName })}
+          </p>
+        ) : (
+          <Skeleton className="h-[var(--type-control-line-height)] w-3/4 max-w-64" />
+        )}
+        <div className="mt-0.5 flex flex-col">
+          <Skeleton className="h-4 w-full max-w-80" />
+          {locale === "ko" ? (
+            <Skeleton className="h-4 w-3/4 max-w-64 sm:hidden" />
+          ) : null}
         </div>
       </div>
-      <Skeleton className="h-8 w-full shrink-0 sm:w-28" />
+      <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+        <Skeleton className="h-7 w-28 shrink-0 [@media(pointer:coarse)]:h-11" />
+        <Skeleton className="h-7 w-7 shrink-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" />
+      </div>
     </div>
   );
 }

@@ -497,22 +497,29 @@ export function IssuesWorkspace({
             />
           ) : null}
           {shouldShowRolloverPendingFrame ? (
-            <SprintRolloverPendingSkeleton />
+            <div className="mx-6">
+              <SprintRolloverPendingSkeleton
+                priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
+                sprintName={activeSprint?.name}
+              />
+            </div>
           ) : null}
           {!fixedSprintId && scope === "active" && layout === "board" ? (
-            <SprintRolloverNudge
-              sprint={activeSprint}
-              issues={rolloverIssueQuery.data}
-              issueState={rolloverIssueState}
-              now={now}
-              canEdit={workspaceAccess.canEditWorkspace}
-              priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
-              onOpen={() => {
-                setRolloverResume(null);
-                setRolloverMounted(true);
-                setRolloverOpen(true);
-              }}
-            />
+            <div className="mx-6">
+              <SprintRolloverNudge
+                sprint={activeSprint}
+                issues={rolloverIssueQuery.data}
+                issueState={rolloverIssueState}
+                now={now}
+                canEdit={workspaceAccess.canEditWorkspace}
+                priority={rolloverResumes.length > 0 ? "secondary" : "primary"}
+                onOpen={() => {
+                  setRolloverResume(null);
+                  setRolloverMounted(true);
+                  setRolloverOpen(true);
+                }}
+              />
+            </div>
           ) : null}
           {layout === "list" ? (
             <IssueBulkActionBar
