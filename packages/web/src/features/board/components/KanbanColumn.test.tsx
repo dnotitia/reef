@@ -217,6 +217,7 @@ describe("KanbanColumn", () => {
       tabStopOccurrenceKey: { list: null, board: null, backlog: null },
       visibleIssueIds: { list: [], board: [], backlog: [] },
       visibleOccurrences: { list: [], board: [], backlog: [] },
+      boardViewportAnchors: {},
     });
   });
 
@@ -457,6 +458,112 @@ describe("KanbanColumn", () => {
     expect(pendingFrames.size).toBe(0);
     expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(targetCard);
+  });
+
+  it("does not save an intermediate restore focus and yields to user scrolling", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const anchor: BoardViewportAnchor = {
+      bucketId: "todo",
+      occurrenceKey: "todo:reef-005",
+      issueId: "reef-005",
+      offset: 9230,
+      itemOffset: 522,
+      focused: true,
+    };
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = ++nextFrameId;
+      pendingFrames.set(id, callback);
+      return id;
+    });
+    const cancelFrame = vi.fn((id: number) => {
+      pendingFrames.delete(id);
+    });
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
+    useIssueKeyboardStore.setState({
+      boardViewportAnchors: { [continuityKey]: anchor },
+      focusedIssueId: { list: null, board: anchor.issueId, backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: anchor.occurrenceKey,
+        backlog: null,
+      },
+      tabStopIssueId: { list: null, board: anchor.issueId, backlog: null },
+      tabStopOccurrenceKey: {
+        list: null,
+        board: anchor.occurrenceKey,
+        backlog: null,
+      },
+    });
+
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      focusRequestBaselineSerial: 1,
+      issues,
+    };
+    const { rerender } = renderColumn(initialProps);
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    let cardTop = 100;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
+    );
+
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={anchor} />);
+    expect(pendingFrames.size).toBe(1);
+
+    // Simulate the align-start position before the restore callback requests DOM focus.
+    scrollElement.scrollTop = 16522;
+    const restoreFrame = pendingFrames.get(1);
+    if (!restoreFrame) throw new Error("missing initial restore frame");
+    act(() => {
+      pendingFrames.delete(1);
+      restoreFrame(0);
+      targetCard.focus();
+    });
+
+    expect(
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
+    ).toEqual(anchor);
+    expect(pendingFrames.size).toBe(1);
+
+    const userAnchor = {
+      ...anchor,
+      offset: 9814,
+      itemOffset: 0,
+    };
+    scrollElement.scrollTop = userAnchor.offset;
+    cardTop = 100;
+    fireEvent.wheel(scrollElement);
+    fireEvent.scroll(scrollElement);
+
+    const saveFrameId = Math.max(...pendingFrames.keys());
+    const saveFrame = pendingFrames.get(saveFrameId);
+    if (!saveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.delete(saveFrameId);
+      saveFrame(0);
+    });
+    const capturedAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedAnchor).toMatchObject(userAnchor);
+
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={capturedAnchor} />);
+    expect(cancelFrame).toHaveBeenCalledWith(2);
+    expect(pendingFrames.size).toBe(0);
   });
 
   it("uses an independent serial baseline for quick-edit requests", () => {

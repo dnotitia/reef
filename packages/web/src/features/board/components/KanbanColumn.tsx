@@ -107,6 +107,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   const restoredAnchorRef = useRef<BoardViewportAnchor | null>(null);
   const restoreAnchorRef = useRef(restoreAnchor);
   restoreAnchorRef.current = restoreAnchor;
+  const restoreInProgressRef = useRef<BoardViewportAnchor | null>(null);
   const saveAnchorFrameRef = useRef(0);
   const setCardListRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -236,10 +237,14 @@ export const KanbanColumn = memo(function KanbanColumn({
       }
     }
     restoredAnchorRef.current = anchor;
+    // Align-start emits ordinary scroll/focus events. Keep those intermediate
+    // positions from replacing this anchor until its pixel correction finishes.
+    restoreInProgressRef.current = anchor;
     virtualizer.scrollToIndex(restoreIndex, { align: "start" });
     let frame = 0;
     let attempts = 0;
     const restore = () => {
+      if (restoreInProgressRef.current !== anchor) return;
       const scrollElement = scrollElementRef.current;
       const card = scrollElement
         ? Array.from(
@@ -254,6 +259,8 @@ export const KanbanColumn = memo(function KanbanColumn({
         if (attempts < 4) {
           attempts += 1;
           frame = requestAnimationFrame(restore);
+        } else {
+          restoreInProgressRef.current = null;
         }
         return;
       }
@@ -264,6 +271,7 @@ export const KanbanColumn = memo(function KanbanColumn({
         });
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
+          if (restoreInProgressRef.current !== anchor) return;
           const currentScrollElement = scrollElementRef.current;
           const currentCard = currentScrollElement
             ? Array.from(
@@ -280,6 +288,8 @@ export const KanbanColumn = memo(function KanbanColumn({
               attempts += 1;
               currentScrollElement.scrollTop = anchor.offset;
               frame = requestAnimationFrame(restore);
+            } else {
+              restoreInProgressRef.current = null;
             }
             return;
           }
@@ -288,11 +298,17 @@ export const KanbanColumn = memo(function KanbanColumn({
           const scrollRect = currentScrollElement.getBoundingClientRect();
           currentScrollElement.scrollTop +=
             cardRect.top - scrollRect.top - anchor.itemOffset;
+          restoreInProgressRef.current = null;
         });
       });
     };
     frame = requestAnimationFrame(restore);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      if (restoreInProgressRef.current === anchor) {
+        restoreInProgressRef.current = null;
+      }
+      cancelAnimationFrame(frame);
+    };
   }, [continuityKey, restoreAnchor, restoreIndex, virtualizer]);
 
   const saveFocusedAnchor = useCallback(() => {
@@ -321,10 +337,10 @@ export const KanbanColumn = memo(function KanbanColumn({
   }, [bucket.id, continuityKey]);
 
   const scheduleFocusedAnchorSave = useCallback(() => {
-    if (saveAnchorFrameRef.current) return;
+    if (restoreInProgressRef.current || saveAnchorFrameRef.current) return;
     saveAnchorFrameRef.current = requestAnimationFrame(() => {
       saveAnchorFrameRef.current = 0;
-      saveFocusedAnchor();
+      if (!restoreInProgressRef.current) saveFocusedAnchor();
     });
   }, [saveFocusedAnchor]);
 
@@ -416,8 +432,49 @@ export const KanbanColumn = memo(function KanbanColumn({
       >
         <div
           ref={setCardListRef}
-          onFocus={(_event: FocusEvent<HTMLDivElement>) => saveFocusedAnchor()}
-          onScroll={scheduleFocusedAnchorSave}
+          onFocus={(event: FocusEvent<HTMLDivElement>) => {
+            const focusedOccurrenceKey =
+              event.target instanceof HTMLElement
+                ? event.target.closest<HTMLElement>(
+                    '[data-testid="kanban-card"]',
+                  )?.dataset.occurrenceKey
+                : undefined;
+            if (
+              restoreInProgressRef.current?.occurrenceKey ===
+              focusedOccurrenceKey
+            ) {
+              return;
+            }
+            restoreInProgressRef.current = null;
+            saveFocusedAnchor();
+          }}
+          onKeyDownCapture={() => {
+            restoreInProgressRef.current = null;
+          }}
+          onPointerDownCapture={(event) => {
+            const targetOccurrenceKey =
+              event.target instanceof Element
+                ? event.target.closest<HTMLElement>(
+                    '[data-testid="kanban-card"]',
+                  )?.dataset.occurrenceKey
+                : undefined;
+            if (
+              targetOccurrenceKey &&
+              targetOccurrenceKey !==
+                restoreInProgressRef.current?.occurrenceKey
+            ) {
+              restoreInProgressRef.current = null;
+            }
+          }}
+          onTouchStartCapture={() => {
+            restoreInProgressRef.current = null;
+          }}
+          onWheelCapture={() => {
+            restoreInProgressRef.current = null;
+          }}
+          onScroll={() => {
+            if (!restoreInProgressRef.current) scheduleFocusedAnchorSave();
+          }}
           className="min-h-0 max-h-[calc(100dvh_-_8rem)] flex-1 overflow-y-auto overscroll-contain lg:max-h-none"
           data-testid="kanban-column-scroll-container"
         >

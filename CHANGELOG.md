@@ -64,9 +64,10 @@ explicitly in the entries below.
   account and workspace, so a matching issue id in another vault does not
   inherit the previous view.
   (REEF-616)
-- **Closing an issue detail preserves the focused Board card's position.** A
-  pending restoration now yields when the same card records a newer pixel
-  anchor. (REEF-661)
+- **Board restoration preserves the focused card's pixel anchor across detail
+  close and workspace reentry.** Internal refocus no longer records a transient
+  align-start position, while a newer user anchor still takes precedence.
+  (REEF-661)
 - **Markdown link search stays opaque and readable in both themes.** Reef maps
   the shared editor's surface, muted, selected, and destructive color roles so
   the dialog, inputs, and result list remain legible. (REEF-629)
