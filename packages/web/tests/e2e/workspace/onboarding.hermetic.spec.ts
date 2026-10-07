@@ -80,7 +80,7 @@ test.describe("Hermetic onboarding flow", () => {
     page,
     request,
   }) => {
-    await resetFixture(request, "notifications");
+    await resetFixture(request, "notifications_personal");
     await signInAsAlice(page);
 
     const ownerVaults = await page.request.get("/api/vaults");

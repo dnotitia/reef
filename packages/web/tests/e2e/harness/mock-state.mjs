@@ -223,7 +223,7 @@ export function createState(scenario) {
     issueUpdateCalls: new Map(),
     sqlCalls: [],
     notificationRoles: new Map(
-      scenario === "notifications"
+      scenario === "notifications_personal"
         ? [
             [alice.username, "owner"],
             [bob.username, "reader"],
@@ -231,6 +231,9 @@ export function createState(scenario) {
           ]
         : [],
     ),
+    notificationWorkspaceRoles: new Map(),
+    notificationSchemaModes: new Map(),
+    notificationDataModes: new Map(),
     installationRoles: new Map(
       scenario === "installation_drift"
         ? [
@@ -333,7 +336,12 @@ export function roleForVault(vault, state, username) {
   if (state.protectedResponse === "forbidden" && vault.name === REEF_VAULT) {
     return "reader";
   }
-  if (state.scenario === "notifications" && vault.name === REEF_VAULT) {
+  if (state.scenario === "notifications_personal") {
+    const scopedRole = state.notificationWorkspaceRoles.get(
+      `${vault.name}:${username}`,
+    );
+    if (scopedRole === "none") return null;
+    if (scopedRole) return scopedRole;
     return state.notificationRoles.get(username) ?? vault.role;
   }
   if (state.scenario === "installation_drift") {
@@ -372,8 +380,11 @@ export function publicState(state) {
     sql_calls: state.sqlCalls,
     notification: {
       roles: Object.fromEntries(state.notificationRoles),
+      workspace_roles: Object.fromEntries(state.notificationWorkspaceRoles),
       schema_mode: state.notificationSchemaMode,
       data_mode: state.notificationDataMode,
+      schema_modes: Object.fromEntries(state.notificationSchemaModes),
+      data_modes: Object.fromEntries(state.notificationDataModes),
     },
     installation_drift: {
       lookup_modes: Object.fromEntries(

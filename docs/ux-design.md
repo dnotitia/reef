@@ -971,20 +971,24 @@ the thread's position among system events, while replies sort within the thread.
 
 ### Notification Inbox
 
-`/workspace/{vault}/inbox` is the signed-in actor's collaboration inbox for
-activity and comment notifications. It is backed by the persisted
-`reef_notifications` state, so unread/read/archive changes survive a refresh
-and another device. The sidebar badge is derived from the unread list with a
-maximum query of 100 rows: the visible pill caps at `9+`, while assistive text
-announces `100 or more unread notifications` (or the equivalent localized
-wording) when the boundary is reached.
+`/workspace/{vault}/inbox` is the signed-in actor's personal collaboration inbox
+for activity and comment notifications across every ready workspace they can
+access. Each row names its source workspace, and matching issue ids or
+notification keys in different workspaces remain separate. The response holds
+the latest 100 unread and 100 read notifications across that scope. The sidebar
+badge is derived from the account-scoped in-memory response: the visible pill
+caps at `9+`, while assistive text announces `100 or more unread notifications`
+(or the equivalent localized wording) when the boundary is reached. The
+selected workspace in the URL does not filter the Inbox.
 
 The Inbox list is independent from the on-demand AI surfaces. Each row shows
-the event type, actor, related issue, occurred time, and read state. Opening a
-row marks an unread notification read before navigating to the issue Activity
-section when that issue is available. Mark unread and Archive are server
-state transitions; the browser does not persist notification data or a
-last-visit marker. Empty, loading, and fetch-failure states remain distinct.
+the event type, actor, related issue, source workspace, occurred time, and read
+state. Opening a row marks that workspace's unread notification read before
+navigating to the source issue and its comment, activity, or description
+anchor. Mark unread and Archive are server state transitions; the browser does
+not persist notification data or a last-visit marker. Empty, loading, and
+fetch-failure states remain distinct, and a failed workspace discovery or
+notification source read shows an error instead of a partial list.
 
 ### Ask AI
 

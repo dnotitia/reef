@@ -1,14 +1,13 @@
 import { tracer } from "@/lib/telemetry";
-import { readWorkspaceInstallationStatus } from "@/server/adapters/workspaceInstallation";
 import {
   MyWorkResponseSchema,
   akbListMyWorkIssues,
-  akbListVaults,
   type AkbAdapter,
   type MyWorkQuery,
   type MyWorkResponse,
 } from "@reef/core";
 import { SpanStatusCode } from "@opentelemetry/api";
+import { listReadyWorkspaces } from "../workspaces/listReadyWorkspaces";
 
 /**
  * Resolve the actor and ready workspace scope before reading personal work.
@@ -22,20 +21,9 @@ export async function listMyWork(params: {
 }): Promise<MyWorkResponse> {
   return tracer.startActiveSpan("application.list_my_work", async (span) => {
     try {
-      const { vaults } = await akbListVaults({ adapter: params.adapter });
-      const checked = await Promise.all(
-        vaults.map(async (vault) => ({
-          vault,
-          state: await readWorkspaceInstallationStatus({
-            adapter: params.adapter,
-            vault,
-          }),
-        })),
-      );
-      const readyWorkspaces = checked
-        .filter(({ state }) => state.installation_status === "ready")
-        .map(({ vault }) => vault.name)
-        .sort();
+      const readyWorkspaces = await listReadyWorkspaces({
+        adapter: params.adapter,
+      });
       span.setAttribute("workspace_count", readyWorkspaces.length);
 
       const result = await akbListMyWorkIssues({

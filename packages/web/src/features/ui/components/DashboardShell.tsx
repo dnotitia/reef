@@ -438,10 +438,10 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // against the same cache key and dedupe to this fetch instead of issuing
   // their own.
   useProjectConfig(vault);
-  // Inbox unread state is an account-scoped persisted notification list. The
-  // hook reads the bounded unread list itself; there is deliberately no count
-  // endpoint and no browser visit marker in this path.
-  const unreadNotificationCount = useUnreadNotificationCount(vault);
+  // Inbox unread state comes from the account-wide, in-memory personal list.
+  // An unknown count stays hidden until workspace discovery and every source
+  // read succeed.
+  const unreadNotificationCount = useUnreadNotificationCount();
 
   // Account-wide overdue + due-soon work for the My Work sidebar badge. The
   // page shares this in-memory response query; it stays hidden on /my-work.
@@ -461,7 +461,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
 
   // Resolve the badge a nav link shows, if any.
   function navBadgeFor(href: string, isActive: boolean): NavBadge | null {
-    if (href === "/inbox" && unreadNotificationCount > 0) {
+    if (
+      href === "/inbox" &&
+      unreadNotificationCount !== null &&
+      unreadNotificationCount > 0
+    ) {
       return {
         kind: "count",
         display: cap(unreadNotificationCount),

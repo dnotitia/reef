@@ -370,22 +370,24 @@ export function runtimeDiscovery(state) {
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
-      notifications: {
-        scenario: "notifications",
+      notifications_personal: {
+        scenario: "notifications_personal",
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/inbox",
         controls: {
           notification_control: [
+            "ready reef-e2e, reef-alpha, and odd_workspace sources plus a non-ready raw-vault",
             "stale schema_version=2 is ignored and remains unchanged",
-            "schema_mode=healthy|missing|incompatible",
-            "data_mode=healthy|forbidden|error",
+            "schema_mode=healthy|missing|incompatible and data_mode=healthy|forbidden|error, optionally scoped to a vault",
+            "role=owner|admin|writer|reader|none, optionally scoped to a vault",
+            "vault-list failure and per-workspace installation lookup failure controls",
             "Alice owner, writer writer, and Bob reader fixture sessions",
           ],
         },
         interaction: {
           type: "notification_inbox",
           operation:
-            "verify reader listing and unread badge, writer state transitions, recipient/key isolation, reader PATCH 403 with session preservation, and explicit schema/data failures",
+            "verify account-wide scope, workspace-specific duplicate keys and navigation, per-state caps, reader PATCH 403 with session preservation, no partial results on discovery/readiness/source failure, retry recovery, and inaccessible workspace exclusion",
         },
       },
       installation_drift: {

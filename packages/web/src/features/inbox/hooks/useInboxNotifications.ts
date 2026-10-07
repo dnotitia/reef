@@ -1,17 +1,22 @@
 "use client";
 
+import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { apiFetch, throwHttpError, type HttpError } from "@/lib/apiClient";
 import {
   NotificationRowSchema,
-  type NotificationState,
   NotificationStateSchema,
-  type Notification as ReefNotification,
+  PersonalNotificationSchema,
+  type NotificationState,
+  type PersonalNotification,
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
+const PERSONAL_NOTIFICATIONS_QUERY_KEY = ["notifications", "personal"] as const;
+const NOTIFICATION_LIMIT_PER_STATE = 100;
 
-const NOTIFICATION_LIST_LIMIT = 100;
+export function personalNotificationsQueryKey(login: string) {
+  return [...PERSONAL_NOTIFICATIONS_QUERY_KEY, login] as const;
+}
 
 function hasHttpStatus(error: unknown, status: number): error is HttpError {
   return (
@@ -21,18 +26,39 @@ function hasHttpStatus(error: unknown, status: number): error is HttpError {
   );
 }
 
-async function fetchNotifications(
-  vault: string,
-  state: NotificationState,
-): Promise<ReefNotification[]> {
-  const params = new URLSearchParams({
-    vault,
-    state,
-    limit: String(NOTIFICATION_LIST_LIMIT),
-  });
-  const response = await apiFetch(`/api/notifications?${params}`, {
-    cache: "no-store",
-  });
+function notificationIdentity(notification: PersonalNotification): string {
+  return `${notification.workspace}\0${notification.notification_key}`;
+}
+
+function compareNotifications(
+  left: PersonalNotification,
+  right: PersonalNotification,
+): number {
+  const timeOrder =
+    Date.parse(right.occurred_at) - Date.parse(left.occurred_at);
+  if (timeOrder !== 0) return timeOrder;
+  if (left.workspace !== right.workspace) {
+    return left.workspace < right.workspace ? -1 : 1;
+  }
+  return left.id > right.id ? -1 : left.id < right.id ? 1 : 0;
+}
+
+function boundedVisibleList(
+  notifications: PersonalNotification[],
+): PersonalNotification[] {
+  const unread = notifications
+    .filter((notification) => notification.state === "unread")
+    .sort(compareNotifications)
+    .slice(0, NOTIFICATION_LIMIT_PER_STATE);
+  const read = notifications
+    .filter((notification) => notification.state === "read")
+    .sort(compareNotifications)
+    .slice(0, NOTIFICATION_LIMIT_PER_STATE);
+  return [...unread, ...read].sort(compareNotifications);
+}
+
+async function fetchPersonalNotifications(): Promise<PersonalNotification[]> {
+  const response = await apiFetch("/api/notifications", { cache: "no-store" });
   if (!response.ok) {
     await throwHttpError(
       response,
@@ -40,90 +66,93 @@ async function fetchNotifications(
     );
   }
   const body = (await response.json()) as { notifications?: unknown };
-  return NotificationRowSchema.array().parse(body.notifications ?? []);
+  return PersonalNotificationSchema.array().parse(body.notifications ?? []);
 }
 
-function useNotificationListQuery(vault: string, state: NotificationState) {
-  return useQuery({
-    queryKey: [...NOTIFICATIONS_QUERY_KEY, vault, state],
-    queryFn: () => fetchNotifications(vault, state),
-    enabled: vault.length > 0,
+function usePersonalNotificationsQuery() {
+  const currentUser = useCurrentUser();
+  const login = currentUser.data?.username?.trim() || null;
+  const query = useQuery({
+    queryKey: personalNotificationsQueryKey(login ?? "anonymous"),
+    queryFn: fetchPersonalNotifications,
+    enabled: Boolean(login),
     staleTime: 15_000,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
+    retry: false,
+    meta: { persist: false },
   });
+  return { currentUser, login, query };
 }
 
-/**
- * The sidebar badge is derived from the bounded unread list, not a count
- * endpoint. The server and query both stop at 100, preserving the contract
- * that 100 means "100 or more" for accessibility.
- */
-export function useUnreadNotificationCount(vault: string): number {
-  const query = useNotificationListQuery(vault, "unread");
-  return query.data?.length ?? 0;
+/** The badge stays unknown until the full account-wide read succeeds. */
+export function useUnreadNotificationCount(): number | null {
+  const { currentUser, login, query } = usePersonalNotificationsQuery();
+  if (
+    currentUser.isPending ||
+    currentUser.isError ||
+    !login ||
+    query.isPending ||
+    query.isError ||
+    !query.data
+  ) {
+    return null;
+  }
+  return query.data.filter((notification) => notification.state === "unread")
+    .length;
 }
 
 export interface InboxNotificationsResult {
-  notifications: ReefNotification[];
-  unreadCount: number;
+  notifications: PersonalNotification[];
+  unreadCount: number | null;
   isLoading: boolean;
   isError: boolean;
   isPermissionDenied: boolean;
   refetch: () => Promise<void>;
 }
 
-export function useInboxNotifications(vault: string): InboxNotificationsResult {
-  const unreadQuery = useNotificationListQuery(vault, "unread");
-  const readQuery = useNotificationListQuery(vault, "read");
-
-  const byKey = new Map<string, ReefNotification>();
-  for (const notification of [
-    ...(unreadQuery.data ?? []),
-    ...(readQuery.data ?? []),
-  ]) {
-    byKey.set(notification.notification_key, notification);
-  }
-  const notifications = [...byKey.values()]
-    .filter((notification) => notification.state !== "archived")
-    .sort((left, right) => {
-      const occurredOrder = right.occurred_at.localeCompare(left.occurred_at);
-      return occurredOrder !== 0
-        ? occurredOrder
-        : right.id.localeCompare(left.id);
-    });
+export function useInboxNotifications(): InboxNotificationsResult {
+  const { currentUser, login, query } = usePersonalNotificationsQuery();
+  const notifications = query.data ?? [];
+  const isLoading =
+    currentUser.isPending || (Boolean(login) && query.isPending);
 
   return {
     notifications,
-    unreadCount: unreadQuery.data?.length ?? 0,
-    isLoading: unreadQuery.isPending || readQuery.isPending,
-    isError: unreadQuery.isError || readQuery.isError,
-    isPermissionDenied:
-      hasHttpStatus(unreadQuery.error, 403) ||
-      hasHttpStatus(readQuery.error, 403),
+    unreadCount:
+      query.data?.filter((notification) => notification.state === "unread")
+        .length ?? null,
+    isLoading,
+    isError: currentUser.isError || (Boolean(login) && query.isError),
+    isPermissionDenied: hasHttpStatus(query.error, 403),
     refetch: async () => {
-      await Promise.all([unreadQuery.refetch(), readQuery.refetch()]);
+      if (login) await query.refetch();
+      else await currentUser.refetch();
     },
   };
 }
 
-export function useUpdateNotificationState(vault: string) {
+export function useUpdateNotificationState() {
   const queryClient = useQueryClient();
+  const currentUser = useCurrentUser();
+  const login = currentUser.data?.username?.trim() || null;
   return useMutation({
     mutationFn: async ({
+      workspace,
       notificationKey,
       state,
     }: {
+      workspace: string;
       notificationKey: string;
       state: NotificationState;
-    }) => {
+    }): Promise<PersonalNotification> => {
       const parsedState = NotificationStateSchema.parse(state);
       const response = await apiFetch(
         `/api/notifications/${encodeURIComponent(notificationKey)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vault, state: parsedState }),
+          body: JSON.stringify({ vault: workspace, state: parsedState }),
         },
       );
       if (!response.ok) {
@@ -133,26 +162,27 @@ export function useUpdateNotificationState(vault: string) {
         );
       }
       const body = (await response.json()) as { notification?: unknown };
-      return NotificationRowSchema.parse(body.notification);
-    },
-    onSuccess: (updated) => {
-      for (const state of ["unread", "read"] as const) {
-        queryClient.setQueryData<ReefNotification[] | undefined>(
-          [...NOTIFICATIONS_QUERY_KEY, vault, state],
-          (current) => {
-            const remaining = (current ?? []).filter(
-              (notification) =>
-                notification.notification_key !== updated.notification_key,
-            );
-            return updated.state === state
-              ? [updated, ...remaining]
-              : remaining;
-          },
-        );
-      }
-      void queryClient.invalidateQueries({
-        queryKey: [...NOTIFICATIONS_QUERY_KEY, vault],
+      return PersonalNotificationSchema.parse({
+        ...NotificationRowSchema.parse(body.notification),
+        workspace,
       });
+    },
+    onSuccess: (updated, variables) => {
+      if (!login) return;
+      const queryKey = personalNotificationsQueryKey(login);
+      queryClient.setQueryData<PersonalNotification[] | undefined>(
+        queryKey,
+        (current) => {
+          if (!current) return current;
+          const identity = `${variables.workspace}\0${variables.notificationKey}`;
+          const remaining = current.filter(
+            (notification) => notificationIdentity(notification) !== identity,
+          );
+          if (updated.state !== "archived") remaining.push(updated);
+          return boundedVisibleList(remaining);
+        },
+      );
+      void queryClient.invalidateQueries({ queryKey });
     },
   });
 }

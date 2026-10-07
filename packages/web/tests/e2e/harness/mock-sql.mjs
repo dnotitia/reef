@@ -153,6 +153,120 @@ export function handleMyWorkSql(state, sql, username, allowedVaults) {
   return tableQuery(columns, page);
 }
 
+/** Handle the account-wide personal notification query across ready workspaces. */
+export function handlePersonalNotificationsSql(
+  state,
+  sql,
+  username,
+  allowedVaults,
+) {
+  if (
+    !/WITH\s+scoped_notifications\s+AS\s*\(/i.test(sql) ||
+    !/ROW_NUMBER\(\)\s+OVER\s*\(PARTITION BY state/i.test(sql)
+  ) {
+    return null;
+  }
+
+  const branches = [
+    ...sql.matchAll(
+      /SELECT\s+notification_rows\.\*,\s*'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+AS\s+notification_rows\s+WHERE\s+notification_rows\.recipient\s*=\s*'([^']+)'\s+AND\s+notification_rows\.state\s+IN\s*\('unread',\s*'read'\)\s+AND\s+notification_rows\.archived_at\s+IS\s+NULL/gi,
+    ),
+  ].map((match) => ({
+    workspace: match[1],
+    alias: match[2],
+    recipient: match[3],
+  }));
+  const requested = new Set(allowedVaults);
+  if (
+    branches.length === 0 ||
+    branches.length !== requested.size ||
+    [...requested].some(
+      (workspace) => !branches.some((branch) => branch.workspace === workspace),
+    )
+  ) {
+    return {
+      kind: "sql_error",
+      status: 400,
+      body: { error: "personal_notification_scope_mismatch" },
+    };
+  }
+
+  const rows = [];
+  for (const branch of branches) {
+    const workspace = branch.workspace;
+    const alias = workspace.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const vault = state.vaults.get(workspace);
+    if (
+      !vault ||
+      branch.alias !== alias ||
+      branch.recipient !== username ||
+      !requested.has(workspace)
+    ) {
+      return {
+        kind: "sql_error",
+        status: 400,
+        body: { error: "invalid_personal_notification_query" },
+      };
+    }
+    if (roleForVault(vault, state, username) == null) {
+      return {
+        kind: "sql_error",
+        status: 403,
+        body: { error: "permission_denied" },
+      };
+    }
+
+    const schemaMode =
+      state.notificationSchemaModes.get(workspace) ??
+      state.notificationSchemaMode;
+    if (schemaMode === "missing" || !vault.tables.has("reef_notifications")) {
+      return { error: 'relation "reef_notifications" does not exist' };
+    }
+    if (schemaMode === "incompatible") {
+      return { error: 'column "archived_at" does not exist' };
+    }
+    const dataMode =
+      state.notificationDataModes.get(workspace) ?? state.notificationDataMode;
+    if (dataMode === "forbidden") {
+      return {
+        kind: "sql_error",
+        status: 403,
+        body: { error: "permission_denied" },
+      };
+    }
+    if (dataMode === "error") {
+      return { error: "notification data source unavailable" };
+    }
+
+    rows.push(
+      ...(vault.notifications ?? [])
+        .filter(
+          (notification) =>
+            notification.recipient === branch.recipient &&
+            (notification.state === "unread" ||
+              notification.state === "read") &&
+            notification.archived_at == null,
+        )
+        .map((notification) => ({ ...notification, workspace })),
+    );
+  }
+
+  const compareNotifications = (left, right) =>
+    Date.parse(right.occurred_at) - Date.parse(left.occurred_at) ||
+    compareStrings(left.workspace, right.workspace) ||
+    compareStrings(right.id, left.id);
+  rows.sort(compareNotifications);
+  const limit = Number(sql.match(/state_rank\s*<=\s*(\d+)/i)?.[1] ?? 100);
+  const rankedCounts = new Map();
+  const visible = rows.filter((notification) => {
+    const count = rankedCounts.get(notification.state) ?? 0;
+    rankedCounts.set(notification.state, count + 1);
+    return count < limit;
+  });
+  const columns = [...new Set(visible.flatMap((row) => Object.keys(row)))];
+  return tableQuery(columns, visible);
+}
+
 function compareMyWorkIssues(a, b, asOf) {
   const urgency = (issue) => {
     if (!issue.due_date) return 2;
@@ -203,17 +317,21 @@ export function handleSql(state, vault, sql, username) {
   }
 
   if (
-    state.scenario === "notifications" &&
-    vault.name === REEF_VAULT &&
+    state.scenario === "notifications_personal" &&
     lower.includes("reef_notifications")
   ) {
-    if (state.notificationSchemaMode === "missing") {
+    const schemaMode =
+      state.notificationSchemaModes.get(vault.name) ??
+      state.notificationSchemaMode;
+    const dataMode =
+      state.notificationDataModes.get(vault.name) ?? state.notificationDataMode;
+    if (schemaMode === "missing") {
       return { error: 'relation "reef_notifications" does not exist' };
     }
-    if (state.notificationSchemaMode === "incompatible") {
+    if (schemaMode === "incompatible") {
       return { error: 'column "archived_at" does not exist' };
     }
-    if (state.notificationDataMode === "forbidden") {
+    if (dataMode === "forbidden") {
       return {
         kind: "sql_error",
         status: 403,
@@ -223,12 +341,12 @@ export function handleSql(state, vault, sql, username) {
         },
       };
     }
-    if (state.notificationDataMode === "error") {
+    if (dataMode === "error") {
       return { error: "notification data source unavailable" };
     }
     if (
       lower.startsWith("with updated as (update reef_notifications") &&
-      roleForVault(vault, state, username) === "reader"
+      ["reader", "none"].includes(roleForVault(vault, state, username))
     ) {
       return {
         kind: "sql_error",

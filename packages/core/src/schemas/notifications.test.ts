@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   EffectiveSubscriptionStateSchema,
   NotificationCreateInputSchema,
-  NotificationListInputSchema,
   NotificationStateSchema,
+  PersonalNotificationListInputSchema,
   SubscriptionSourceSchema,
   SubscriptionUpsertInputSchema,
   buildNotificationKey,
@@ -88,9 +88,9 @@ describe("notification and subscription contracts", () => {
       }).success,
     ).toBe(false);
     expect(
-      NotificationListInputSchema.safeParse({
+      PersonalNotificationListInputSchema.safeParse({
         recipient: "kim",
-        limit: 101,
+        workspaces: ["reef-acme", "Bad Name"],
       }).success,
     ).toBe(false);
   });

@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Inbox now spans every ready workspace accessible to the signed-in actor.**
+  Rows retain their source workspace, duplicate issue notifications remain
+  distinct, and the account-scoped unread badge reflects up to 100 unread rows
+  across the full scope. The selected-workspace list endpoint is removed.
+  (REEF-666)
 - **My Work now spans every ready workspace accessible to the signed-in actor.**
   Its workspace filter narrows only the queue, duplicate issue IDs retain their
   source-workspace links, and the sidebar separates Personal from Workspace

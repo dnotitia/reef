@@ -5,7 +5,7 @@ import {
   SchemaValidationError,
   akbCreateNotification,
   akbGetEffectiveSubscriptionState,
-  akbListNotifications,
+  akbListPersonalNotifications,
   akbListSubscriptions,
   akbMuteIssue,
   akbRemoveSubscription,
@@ -207,20 +207,26 @@ describe("notification adapter", () => {
     }
   });
 
-  it("scopes, bounds, and stably sorts notification lists", async () => {
+  it("ranks cross-workspace notifications by instant before applying each state cap", async () => {
     const { calls } = setupFetch([
       {
         body: makeSqlQueryResponse(
           [
             notificationRow({
               id: FIRST_ID,
-              occurred_at: "2026-07-28T00:00:00.000Z",
+              workspace: "reef-alpha",
+              occurred_at: "2026-01-01T01:00:00.000+02:00",
             }),
             notificationRow({
               id: SECOND_ID,
-              notification_key: "notification:other",
-              source_ref: "status:2",
-              occurred_at: "2026-07-29T00:00:00.000Z",
+              workspace: "reef-zeta",
+              occurred_at: "2025-12-31T23:30:00.000Z",
+            }),
+            notificationRow({
+              id: "018f47a4-8e3b-7f62-a3d2-9876543210ad",
+              workspace: "reef-alpha",
+              state: "read",
+              occurred_at: "2025-12-31T23:30:00.000Z",
             }),
           ],
           ["id"],
@@ -228,22 +234,52 @@ describe("notification adapter", () => {
       },
     ]);
 
-    const notifications = await akbListNotifications(
-      makeAdapter(),
-      "reef-sample",
-      { recipient: "kim", state: "unread", limit: 2 },
-    );
+    const notifications = await akbListPersonalNotifications(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef-zeta", "reef-alpha"],
+    });
 
-    expect(notifications.map((item) => item.id)).toEqual([SECOND_ID, FIRST_ID]);
-    const request = sqlRequestBody(calls[0]);
-    expect(request.sql).toContain("recipient = $1");
-    expect(request.sql).toContain("state = $2");
-    expect(request.sql).toContain(
-      "ORDER BY occurred_at DESC, id DESC LIMIT $3",
+    expect(
+      notifications.map((item) => [item.workspace, item.id, item.state]),
+    ).toEqual([
+      ["reef-alpha", "018f47a4-8e3b-7f62-a3d2-9876543210ad", "read"],
+      ["reef-zeta", SECOND_ID, "unread"],
+      ["reef-alpha", FIRST_ID, "unread"],
+    ]);
+    expect(notifications[0]?.notification_key).toBe(
+      notifications[2]?.notification_key,
     );
-    expect(request.params).toEqual(["kim", "unread", 2]);
+    const request = sqlRequestBody(calls[0]);
+    expect(request.sql).toContain("notification_rows.recipient = $1");
+    expect(request.sql).toContain("state IN ('unread', 'read')");
+    expect(request.sql).toContain("archived_at IS NULL");
+    expect(request.sql).toContain("state_rank <= $4");
+    expect(request.sql).toContain(
+      "ROW_NUMBER() OVER (PARTITION BY state ORDER BY occurred_at::timestamptz DESC, workspace ASC, id DESC)",
+    );
+    expect(request.sql).toContain(
+      "WHERE state_rank <= $4 ORDER BY occurred_at::timestamptz DESC, workspace ASC, id DESC",
+    );
+    expect(request.params).toEqual(["kim", "reef-alpha", "reef-zeta", 100]);
+    const body = JSON.parse(String(calls[0]?.init?.body)) as {
+      vaults?: string[];
+    };
+    expect(body.vaults).toEqual(["reef-alpha", "reef-zeta"]);
     expect(request.sql).not.toContain("kim");
-    expect(request.sql).not.toContain("unread");
+    expect(request.sql).not.toContain("reef-alpha");
+    expect(request.sql).not.toContain("reef-zeta");
+  });
+
+  it("returns an empty list without querying when no ready workspaces exist", async () => {
+    const { calls } = setupFetch([]);
+
+    await expect(
+      akbListPersonalNotifications(makeAdapter(), {
+        recipient: "kim",
+        workspaces: [],
+      }),
+    ).resolves.toEqual([]);
+    expect(calls).toHaveLength(0);
   });
 
   it("normalizes state timestamps and never mutates another recipient", async () => {
@@ -298,9 +334,9 @@ describe("notification adapter", () => {
   it("rejects invalid input before any AKB request", async () => {
     const { calls } = setupFetch([]);
     await expect(
-      akbListNotifications(makeAdapter(), "reef-sample", {
+      akbListPersonalNotifications(makeAdapter(), {
         recipient: "",
-        limit: 101,
+        workspaces: ["reef-sample"],
       }),
     ).rejects.toBeInstanceOf(SchemaValidationError);
     expect(calls).toHaveLength(0);
@@ -368,8 +404,9 @@ describe("notification adapter", () => {
       },
     ]);
 
-    const error = await akbListNotifications(makeAdapter(), "reef-sample", {
+    const error = await akbListPersonalNotifications(makeAdapter(), {
       recipient: "kim",
+      workspaces: ["reef-sample"],
     }).catch((caught: unknown) => caught);
     const descriptor = describeError(error);
     const serialized = JSON.stringify(descriptor);

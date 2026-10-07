@@ -47,7 +47,7 @@ export function useDeleteComment() {
         (current) => current?.filter((comment) => !deleted.has(comment.id)),
       );
       void queryClient.invalidateQueries({
-        queryKey: ["notifications", vault],
+        queryKey: ["notifications", "personal"],
       });
     },
   });

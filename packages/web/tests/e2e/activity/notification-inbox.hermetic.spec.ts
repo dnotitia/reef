@@ -1,20 +1,38 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   fixtureReaderLogin,
   fixtureWriterLogin,
-  openExistingWorkspace,
+  continueToWorkspace,
   readFixtureState,
   resetFixture,
   setNotificationControl,
+  setInstallationControl,
+  setVaultListControl,
+  signInAsAlice,
   signInAsUser,
 } from "../harness/fixture";
 
+const DUPLICATE_COMMENT_NOTIFICATION_KEY =
+  "notification:5:alice:7:comment:15:comment-primary";
+
+async function openNotificationWorkspace(page: Page): Promise<void> {
+  await signInAsAlice(page);
+  await page.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
+  await continueToWorkspace(page, REEF_E2E_VAULT);
+}
+
 function reefVault(state: Awaited<ReturnType<typeof readFixtureState>>) {
-  const vault = state.vaults.find(
-    (candidate) => candidate.name === REEF_E2E_VAULT,
-  );
-  if (!vault) throw new Error(`Missing fixture vault: ${REEF_E2E_VAULT}`);
+  const vault = workspaceVault(state, REEF_E2E_VAULT);
+  return vault;
+}
+
+function workspaceVault(
+  state: Awaited<ReturnType<typeof readFixtureState>>,
+  workspace: string,
+) {
+  const vault = state.vaults.find((candidate) => candidate.name === workspace);
+  if (!vault) throw new Error(`Missing fixture vault: ${workspace}`);
   return vault;
 }
 
@@ -25,6 +43,16 @@ function primaryNotification(
     (candidate) => candidate.source_ref === "comment-primary",
   );
   if (!notification) throw new Error("Missing primary notification fixture");
+  return notification;
+}
+
+function alphaCommentNotification(
+  state: Awaited<ReturnType<typeof readFixtureState>>,
+) {
+  const notification = workspaceVault(state, "reef-alpha").notifications.find(
+    (candidate) => candidate.source_ref === "comment-primary",
+  );
+  if (!notification) throw new Error("Missing duplicate comment notification");
   return notification;
 }
 
@@ -72,14 +100,51 @@ function schemaMutationSql(
 test.describe("Hermetic notification Inbox", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
-    await resetFixture(request, "notifications");
+    await resetFixture(request, "notifications_personal");
   });
 
-  test("keeps unread state actor-scoped, caps the badge, and persists read/unread/archive transitions", async ({
+  test("lists the actor's personal notifications without a selected vault", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+
+    const response = await page.request.get(
+      "/api/notifications?vault=raw-vault&state=archived&limit=1&recipient=bob",
+    );
+
+    expect(response.status()).toBe(200);
+    const body = (await response.json()) as {
+      notifications: Array<{
+        notification_key: string;
+        recipient: string;
+        state: string;
+        workspace: string;
+      }>;
+    };
+    expect(
+      body.notifications.filter((item) => item.state === "unread"),
+    ).toHaveLength(100);
+    expect(
+      body.notifications.filter((item) => item.state === "read"),
+    ).toHaveLength(3);
+    expect(new Set(body.notifications.map((item) => item.recipient))).toEqual(
+      new Set(["alice"]),
+    );
+    expect(new Set(body.notifications.map((item) => item.workspace))).toEqual(
+      new Set(["reef-e2e", "reef-alpha", "odd_workspace"]),
+    );
+    expect(
+      body.notifications.filter(
+        (item) => item.notification_key === DUPLICATE_COMMENT_NOTIFICATION_KEY,
+      ),
+    ).toHaveLength(2);
+  });
+
+  test("keeps a global cap and changes only the selected source copy", async ({
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openNotificationWorkspace(page);
 
     const initial = await readFixtureState(request);
     expect(reefVault(initial).settings.schema_version).toBe("2");
@@ -96,13 +161,21 @@ test.describe("Hermetic notification Inbox", () => {
     );
 
     const forgedRecipientResponse = await page.request.get(
-      `/api/notifications?vault=${REEF_E2E_VAULT}&state=unread&limit=100&recipient=bob`,
+      "/api/notifications?recipient=bob&vault=raw-vault&state=archived&limit=1",
     );
     expect(forgedRecipientResponse.ok()).toBe(true);
     const forgedRecipientBody = (await forgedRecipientResponse.json()) as {
-      notifications: Array<{ recipient: string }>;
+      notifications: Array<{
+        recipient: string;
+        state: string;
+        workspace: string;
+      }>;
     };
-    expect(forgedRecipientBody.notifications).toHaveLength(100);
+    expect(
+      forgedRecipientBody.notifications.filter(
+        (item) => item.state === "unread",
+      ),
+    ).toHaveLength(100);
     expect(
       new Set(forgedRecipientBody.notifications.map((item) => item.recipient)),
     ).toEqual(new Set(["alice"]));
@@ -111,16 +184,70 @@ test.describe("Hermetic notification Inbox", () => {
     await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
-    await expect(page.getByText("Comment created")).toBeVisible();
+    await expect(page.getByText(/Across ready workspaces/)).toBeVisible();
+    await expect(page.getByText("Comment created")).toHaveCount(2);
     await expect(page.getByText("bob").first()).toBeVisible();
-    const primaryRow = page
-      .getByRole("listitem")
+    const alphaRow = page
+      .locator('[data-testid="notification-item"][data-workspace="reef-alpha"]')
       .filter({ hasText: "Comment created" });
+    const primaryRow = page
+      .locator(
+        `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+      )
+      .filter({ hasText: "Comment created" });
+    await expect(alphaRow).toHaveCount(1);
     await expect(primaryRow).toHaveCount(1);
+
+    const rowsBeforeWorkspaceChange = await page
+      .getByTestId("notification-item")
+      .evaluateAll((rows) =>
+        rows.map(
+          (row) =>
+            `${row.getAttribute("data-workspace")}:${row.getAttribute("data-notification-key")}:${row.getAttribute("data-state")}`,
+        ),
+      );
+    await page.goto("/workspace/reef-alpha/inbox");
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("notification-item")
+          .evaluateAll((rows) =>
+            rows.map(
+              (row) =>
+                `${row.getAttribute("data-workspace")}:${row.getAttribute("data-notification-key")}:${row.getAttribute("data-state")}`,
+            ),
+          ),
+      )
+      .toEqual(rowsBeforeWorkspaceChange);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+
     const openNotification = primaryRow.getByRole("button", {
-      name: /Open activity for REEF-001|REEF-001 활동 열기/u,
+      name: /Open activity for REEF-001 in reef-e2e|reef-e2e의 REEF-001 활동 열기/u,
     });
     await expect(openNotification).toBeVisible();
+
+    await alphaRow
+      .getByRole("button", {
+        name: /Open activity for REEF-001 in reef-alpha|reef-alpha의 REEF-001 활동 열기/u,
+      })
+      .click();
+    await expect(page).toHaveURL(
+      "/workspace/reef-alpha/issues/REEF-001#comment-comment-primary",
+    );
+    await expect(page.locator("#comment-comment-primary")).toContainText(
+      "reef-alpha",
+    );
+    await expect
+      .poll(
+        async () =>
+          alphaCommentNotification(await readFixtureState(request)).state,
+      )
+      .toBe("read");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
 
     await openNotification.click();
     await expect(page).toHaveURL(
@@ -139,15 +266,19 @@ test.describe("Hermetic notification Inbox", () => {
     await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(
       page
-        .getByTestId("notification-item")
+        .locator(
+          `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+        )
         .filter({ hasText: "Comment created" })
-        .getByRole("button", { name: "Mark REEF-001 unread" }),
+        .getByRole("button", { name: "Mark REEF-001 in reef-e2e unread" }),
     ).toBeVisible();
     const reloadedPrimaryRow = page
-      .getByTestId("notification-item")
+      .locator(
+        `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+      )
       .filter({ hasText: "Comment created" });
     await reloadedPrimaryRow
-      .getByRole("button", { name: "Mark REEF-001 unread" })
+      .getByRole("button", { name: "Mark REEF-001 in reef-e2e unread" })
       .click();
     await expect
       .poll(
@@ -156,9 +287,13 @@ test.describe("Hermetic notification Inbox", () => {
       .toBe("unread");
 
     await page
-      .getByTestId("notification-item")
+      .locator(
+        `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+      )
       .filter({ hasText: "Comment created" })
-      .getByRole("button", { name: "Archive notification for REEF-001" })
+      .getByRole("button", {
+        name: "Archive notification for REEF-001 in reef-e2e",
+      })
       .click();
     await expect
       .poll(
@@ -167,7 +302,9 @@ test.describe("Hermetic notification Inbox", () => {
       .toBe("archived");
     await expect(
       page
-        .getByTestId("notification-item")
+        .locator(
+          `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+        )
         .filter({ hasText: "Comment created" }),
     ).toHaveCount(0);
 
@@ -175,12 +312,15 @@ test.describe("Hermetic notification Inbox", () => {
     await expect(page.getByTestId("notification-inbox")).toBeVisible();
     await expect(
       page
-        .getByTestId("notification-item")
+        .locator(
+          `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+        )
         .filter({ hasText: "Comment created" }),
     ).toHaveCount(0);
 
     const final = await readFixtureState(request);
     expect(reefVault(final).settings.schema_version).toBe("2");
+    expect(alphaCommentNotification(final).state).toBe("read");
     expect(schemaMutationSql(final)).toEqual([]);
   });
 
@@ -191,7 +331,7 @@ test.describe("Hermetic notification Inbox", () => {
     await signInAsUser(page, fixtureReaderLogin);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
-    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("3");
 
     const vaultsResponse = await page.request.get("/api/vaults");
     expect(vaultsResponse.ok()).toBe(true);
@@ -206,14 +346,18 @@ test.describe("Hermetic notification Inbox", () => {
     const readerNotification = notificationForRecipient(initial, "bob");
     expect(readerNotification.state).toBe("unread");
     const visibleToReader = await page.request.get(
-      `/api/notifications?vault=${REEF_E2E_VAULT}&state=unread&recipient=alice`,
+      "/api/notifications?vault=raw-vault&state=archived&recipient=alice",
     );
     expect(visibleToReader.status()).toBe(200);
     const visibleBody = (await visibleToReader.json()) as {
-      notifications: Array<{ recipient: string }>;
+      notifications: Array<{ recipient: string; state: string }>;
     };
-    expect(visibleBody.notifications).toHaveLength(1);
-    expect(visibleBody.notifications[0]?.recipient).toBe("bob");
+    expect(
+      visibleBody.notifications.filter((item) => item.state === "unread"),
+    ).toHaveLength(3);
+    expect(
+      new Set(visibleBody.notifications.map((item) => item.recipient)),
+    ).toEqual(new Set(["bob"]));
 
     const beforeSession = (await page.context().cookies()).find(
       (cookie) => cookie.name === "__reef_session",
@@ -286,11 +430,13 @@ test.describe("Hermetic notification Inbox", () => {
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
 
     const row = page
-      .getByTestId("notification-item")
+      .locator(
+        `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+      )
       .filter({ hasText: "Comment created" });
     await expect(row).toHaveCount(1);
     await expect(row).toHaveAttribute("data-state", "unread");
-    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("3");
     const beforeSession = (await page.context().cookies()).find(
       (cookie) => cookie.name === "__reef_session",
     );
@@ -308,17 +454,19 @@ test.describe("Hermetic notification Inbox", () => {
       "You don't have permission to change this notification",
     );
     await expect(row).toHaveAttribute("data-state", "unread");
-    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("3");
     await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/inbox`);
 
     await row
-      .getByRole("button", { name: "Archive notification for REEF-001" })
+      .getByRole("button", {
+        name: "Archive notification for REEF-001 in reef-e2e",
+      })
       .click();
     await expect(actionError).toContainText(
       "You don't have permission to change this notification",
     );
     await expect(row).toHaveAttribute("data-state", "unread");
-    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("3");
     const afterSession = (await page.context().cookies()).find(
       (cookie) => cookie.name === "__reef_session",
     );
@@ -383,25 +531,41 @@ test.describe("Hermetic notification Inbox", () => {
     expect(schemaMutationSql(final)).toEqual([]);
   });
 
-  test("surfaces notification schema and data failures instead of returning empty success", async ({
+  test("surfaces notification readiness and data failures instead of returning empty success", async ({
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openNotificationWorkspace(page);
     const initial = await readFixtureState(request);
     const initialSettings = { ...reefVault(initial).settings };
 
+    for (const schemaMode of ["missing", "incompatible"] as const) {
+      await setNotificationControl(request, {
+        vault: "reef-alpha",
+        schemaMode,
+      });
+      const response = await page.request.get("/api/notifications");
+      const body = (await response.json()) as {
+        error?: string;
+        notifications?: Array<{ workspace: string }>;
+      };
+      expect(response.status(), JSON.stringify(body)).toBe(409);
+      expect(body).toEqual(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+      expect(body).not.toHaveProperty("notifications");
+      await setNotificationControl(request, { vault: "reef-alpha" });
+    }
+
     const controls = [
-      { schemaMode: "missing" as const },
-      { schemaMode: "incompatible" as const },
-      { dataMode: "forbidden" as const },
-      { dataMode: "error" as const },
+      { vault: "reef-alpha", dataMode: "forbidden" as const },
+      { vault: "reef-alpha", dataMode: "error" as const },
     ];
     try {
       for (const control of controls) {
         await setNotificationControl(request, control);
         const response = await page.request.get(
-          `/api/notifications?vault=${REEF_E2E_VAULT}&state=unread`,
+          "/api/notifications?vault=raw-vault&state=unread&recipient=bob",
         );
         expect(response.ok()).toBe(false);
         expect(response.status()).not.toBe(200);
@@ -423,11 +587,144 @@ test.describe("Hermetic notification Inbox", () => {
     }
   });
 
+  test("fails closed and retries workspace discovery, readiness, and source errors", async ({
+    page,
+    request,
+  }) => {
+    await openNotificationWorkspace(page);
+    await page.getByRole("link", { name: /Inbox/ }).click();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    const persistedQueryKeys = await page.evaluate(() => {
+      const serialized = window.localStorage.getItem(
+        "REACT_QUERY_OFFLINE_CACHE",
+      );
+      if (!serialized) return [];
+      const cache = JSON.parse(serialized) as {
+        clientState?: {
+          queries?: Array<{ queryKey?: unknown }>;
+        };
+      };
+      return (cache.clientState?.queries ?? []).map(({ queryKey }) => queryKey);
+    });
+    expect(persistedQueryKeys).not.toContainEqual([
+      "notifications",
+      "personal",
+      "alice",
+    ]);
+
+    const error = page.getByTestId("notification-inbox-error");
+    const expectFailureThenRetry = async (
+      label: string,
+      fail: () => Promise<void>,
+      recover: () => Promise<void>,
+    ) => {
+      await fail();
+      const failedRead = await page.request.get("/api/notifications");
+      const failedBody = (await failedRead.json()) as Record<string, unknown>;
+      expect(failedRead.status(), label).not.toBe(200);
+      expect(failedBody).toEqual(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+      expect(failedBody).not.toHaveProperty("notifications");
+      const reloadResponsePromise = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/notifications" &&
+          response.request().method() === "GET" &&
+          response.status() !== 200,
+      );
+      await page.evaluate(() =>
+        window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE"),
+      );
+      await page.reload();
+      const reloadResponse = await reloadResponsePromise;
+      expect(reloadResponse.status(), `${label} on page load`).not.toBe(200);
+      await expect(error, label).toBeVisible();
+      await expect(page.getByTestId("notification-inbox-list")).toHaveCount(0);
+      await expect(page.getByTestId("inbox-unread-badge")).toHaveCount(0);
+      await recover();
+      await error.getByRole("button", { name: "Retry" }).click();
+      await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+      await expect(page.getByTestId("inbox-unread-badge")).toHaveText("9+");
+    };
+
+    await expectFailureThenRetry(
+      "workspace discovery failure",
+      () => setVaultListControl(request, { failures: 20 }),
+      () => setVaultListControl(request, {}),
+    );
+    await expectFailureThenRetry(
+      "workspace readiness failure",
+      () =>
+        setInstallationControl(request, {
+          vault: "reef-alpha",
+          detailLookup: "forbidden",
+        }),
+      () =>
+        setInstallationControl(request, {
+          vault: "reef-alpha",
+          detailLookup: "healthy",
+        }),
+    );
+    await expectFailureThenRetry(
+      "source data failure",
+      () =>
+        setNotificationControl(request, {
+          vault: "reef-alpha",
+          dataMode: "error",
+        }),
+      () => setNotificationControl(request, { vault: "reef-alpha" }),
+    );
+  });
+
+  test("excludes an inaccessible source workspace and restores it after access returns", async ({
+    page,
+    request,
+  }) => {
+    await openNotificationWorkspace(page);
+    await page.getByRole("link", { name: /Inbox/ }).click();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect(
+      page.locator(
+        '[data-testid="notification-item"][data-workspace="reef-alpha"]',
+      ),
+    ).toHaveCount(2);
+
+    await setNotificationControl(request, {
+      vault: "reef-alpha",
+      role: "none",
+    });
+    await page.reload();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect(
+      page.locator(
+        '[data-testid="notification-item"][data-workspace="reef-alpha"]',
+      ),
+    ).toHaveCount(0);
+    const vaultsResponse = await page.request.get("/api/vaults");
+    const vaultsBody = (await vaultsResponse.json()) as {
+      vaults: Array<{ name: string }>;
+    };
+    expect(vaultsBody.vaults.some(({ name }) => name === "reef-alpha")).toBe(
+      false,
+    );
+
+    await setNotificationControl(request, {
+      vault: "reef-alpha",
+      role: "owner",
+    });
+    await page.reload();
+    await expect(
+      page.locator(
+        '[data-testid="notification-item"][data-workspace="reef-alpha"]',
+      ),
+    ).toHaveCount(2);
+  });
+
   test("opens an issue-body mention at the description and persists read state", async ({
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openNotificationWorkspace(page);
     await page.getByRole("link", { name: /Inbox/ }).click();
     await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/inbox`);
 

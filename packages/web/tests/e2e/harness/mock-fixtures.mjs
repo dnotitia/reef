@@ -147,7 +147,7 @@ export const SUPPORTED_SCENARIOS = [
   "raw_only",
   "workspace_recovery",
   "workspace_recovery_current_stamp",
-  "notifications",
+  "notifications_personal",
   "skill_outdated",
   "comment_mentions",
   "activity_display_names",
@@ -185,7 +185,7 @@ const CONFIGURED_SCENARIOS = new Set([
   "my_work_multi",
   "assignee_picker",
   "backlog_bulk_partial_failure",
-  "notifications",
+  "notifications_personal",
   "skill_outdated",
   "comment_mentions",
   "activity_display_names",
@@ -231,7 +231,7 @@ export function createScenarioVaults(scenario) {
                             ? typographyVault(REEF_VAULT)
                             : configuredVault(REEF_VAULT);
     if (scenario === "reports_outliers") seedReportOutlierIssues(vault);
-    if (scenario === "notifications") seedNotifications(vault);
+    if (scenario === "notifications_personal") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     if (scenario === "comment_mentions") {
       vault.members.push({
@@ -253,6 +253,14 @@ export function createScenarioVaults(scenario) {
     }
     vaults.set(REEF_VAULT, vault);
     vaults.set("raw-vault", rawVault("raw-vault"));
+    if (scenario === "notifications_personal") {
+      const alpha = installationDriftVault("reef-alpha");
+      const oddWorkspace = installationDriftVault("odd_workspace");
+      seedPersonalWorkspaceNotifications(alpha, 7200, true);
+      seedPersonalWorkspaceNotifications(oddWorkspace, 7300, false);
+      vaults.set("reef-alpha", alpha);
+      vaults.set("odd_workspace", oddWorkspace);
+    }
     if (scenario === "configured_multi" || scenario === "my_work_multi") {
       vaults.set("reef-zeta", configuredVault("reef-zeta"));
       vaults.set("reef-alpha", configuredVault("reef-alpha"));
@@ -1969,6 +1977,66 @@ function seedNotifications(vault) {
     vault,
     "REEF-001",
     "Alpha description from fixture. Alice was mentioned in the issue body.",
+  );
+}
+
+function seedPersonalWorkspaceNotifications(vault, idOffset, includeComment) {
+  vault.settings.set("schema_version", "2");
+  vault.notifications = [
+    notificationRow({
+      id: idOffset,
+      recipient: "alice",
+      reefId: "REEF-001",
+      sourceType: includeComment ? "comment" : "activity",
+      sourceRef: includeComment ? "comment-primary" : "odd-workspace-activity",
+      eventType: includeComment ? "comment_created" : "status_change",
+      actor: "bob",
+      occurredAt: "2026-06-15T00:00:00.000Z",
+      state: "unread",
+    }),
+    notificationRow({
+      id: idOffset + 1,
+      recipient: "alice",
+      reefId: "REEF-002",
+      sourceType: "activity",
+      sourceRef: `read-${vault.name}`,
+      eventType: "priority_change",
+      actor: "bob",
+      occurredAt: "2026-06-14T00:00:00.000Z",
+      state: "read",
+    }),
+    notificationRow({
+      id: idOffset + 2,
+      recipient: "bob",
+      reefId: "REEF-001",
+      sourceType: "activity",
+      sourceRef: `bob-only-${vault.name}`,
+      eventType: "comment_created",
+      actor: "alice",
+      occurredAt: "2026-06-15T00:00:00.000Z",
+      state: "unread",
+    }),
+  ];
+  if (includeComment) {
+    vault.comments.push({
+      id: "comment-primary",
+      reef_id: "REEF-001",
+      body: "@alice this comment is the mentioned source in reef-alpha.",
+      meta: {
+        author: "bob",
+        created_at: "2026-06-15T00:00:00.000Z",
+        edited_at: null,
+        mention_recipients: ["alice"],
+      },
+      created_at: "2026-06-15T00:00:00.000Z",
+      updated_at: "2026-06-15T00:00:00.000Z",
+      created_by: "bob",
+    });
+  }
+  seedIssueDocument(
+    vault,
+    "REEF-001",
+    `${vault.name} description from fixture. Alice was mentioned in the issue body.`,
   );
 }
 

@@ -1,6 +1,6 @@
 export {
   createNotification,
-  listNotifications,
+  listPersonalNotifications,
   updateNotificationState,
   upsertSubscription,
   removeSubscription,

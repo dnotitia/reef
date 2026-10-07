@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
       source_ref: string;
       event_type: string;
       actor: string;
+      workspace: string;
       occurred_at: string;
       state: "unread" | "read" | "archived";
     }>,
@@ -55,6 +56,7 @@ function makeNotification(
     source_ref: string;
     event_type: string;
     actor: string;
+    workspace: string;
   }> = {},
 ) {
   return {
@@ -66,6 +68,7 @@ function makeNotification(
     source_ref: overrides.source_ref ?? `event-${key}`,
     event_type: overrides.event_type ?? "comment_created",
     actor: overrides.actor ?? "bob",
+    workspace: overrides.workspace ?? "reef-acme",
     occurred_at: "2026-07-28T00:00:00.000Z",
     state,
   };
@@ -103,15 +106,51 @@ describe("NotificationInboxPage", () => {
     expect(screen.getByText("Read")).toBeInTheDocument();
   });
 
-  it("marks an unread notification read before opening its issue activity", async () => {
+  it("keeps matching notification keys distinct by source workspace", async () => {
+    mocks.inboxState.notifications = [
+      makeNotification("duplicate", "unread", "REEF-001"),
+      makeNotification("duplicate", "unread", "REEF-001", {
+        workspace: "odd_workspace",
+      }),
+    ];
     renderPage();
 
+    expect(screen.getAllByTestId("notification-item")).toHaveLength(2);
+    expect(
+      screen
+        .getAllByTestId("notification-workspace")
+        .map((item) => item.textContent),
+    ).toEqual(["reef-acme", "odd_workspace"]);
     fireEvent.click(
-      screen.getByRole("button", { name: "Open activity for REEF-001" }),
+      screen.getByRole("button", {
+        name: "Open activity for REEF-001 in odd_workspace",
+      }),
     );
 
     await waitFor(() =>
       expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        workspace: "odd_workspace",
+        notificationKey: "notification:5:alice:8:activity:9:duplicate",
+        state: "read",
+      }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/workspace/odd_workspace/issues/REEF-001#issue-activity",
+    );
+  });
+
+  it("marks an unread notification read before opening its issue activity", async () => {
+    renderPage();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open activity for REEF-001 in reef-acme",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        workspace: "reef-acme",
         notificationKey: "notification:5:alice:8:activity:1:1",
         state: "read",
       }),
@@ -134,11 +173,14 @@ describe("NotificationInboxPage", () => {
       screen.getByText("You were mentioned in an issue"),
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Open activity for REEF-003" }),
+      screen.getByRole("button", {
+        name: "Open activity for REEF-003 in reef-acme",
+      }),
     );
 
     await waitFor(() =>
       expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        workspace: "reef-acme",
         notificationKey: "notification:5:alice:8:activity:7:mention",
         state: "read",
       }),
@@ -169,7 +211,9 @@ describe("NotificationInboxPage", () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Open activity for REEF-005" }),
+      screen.getByRole("button", {
+        name: "Open activity for REEF-005 in reef-acme",
+      }),
     );
 
     await waitFor(() => expect(mocks.push).not.toHaveBeenCalled());
@@ -188,7 +232,9 @@ describe("NotificationInboxPage", () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Open activity for REEF-005" }),
+      screen.getByRole("button", {
+        name: "Open activity for REEF-005 in reef-acme",
+      }),
     );
 
     await waitFor(() =>
@@ -209,7 +255,9 @@ describe("NotificationInboxPage", () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Archive notification for REEF-006" }),
+      screen.getByRole("button", {
+        name: "Archive notification for REEF-006 in reef-acme",
+      }),
     );
 
     await waitFor(() =>
@@ -234,11 +282,14 @@ describe("NotificationInboxPage", () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Open activity for REEF-003" }),
+      screen.getByRole("button", {
+        name: "Open activity for REEF-003 in reef-acme",
+      }),
     );
 
     await waitFor(() =>
       expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        workspace: "reef-acme",
         notificationKey: "notification:5:alice:8:activity:1:3",
         state: "read",
       }),
@@ -259,7 +310,9 @@ describe("NotificationInboxPage", () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Open activity for REEF-004" }),
+      screen.getByRole("button", {
+        name: "Open activity for REEF-004 in reef-acme",
+      }),
     );
 
     await waitFor(() =>
@@ -273,9 +326,9 @@ describe("NotificationInboxPage", () => {
     renderPage();
 
     for (const name of [
-      "Mark REEF-002 unread",
-      "Archive notification for REEF-001",
-      "Archive notification for REEF-002",
+      "Mark REEF-002 in reef-acme unread",
+      "Archive notification for REEF-001 in reef-acme",
+      "Archive notification for REEF-002 in reef-acme",
     ]) {
       expect(screen.getByRole("button", { name })).not.toHaveClass(
         "[@media(pointer:coarse)]:min-w-11",
@@ -283,19 +336,25 @@ describe("NotificationInboxPage", () => {
     }
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Mark REEF-002 unread" }),
+      screen.getByRole("button", {
+        name: "Mark REEF-002 in reef-acme unread",
+      }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Archive notification for REEF-001" }),
+      screen.getByRole("button", {
+        name: "Archive notification for REEF-001 in reef-acme",
+      }),
     );
 
     await waitFor(() =>
       expect(mocks.mutateAsync).toHaveBeenCalledWith({
+        workspace: "reef-acme",
         notificationKey: "notification:5:alice:8:activity:1:1",
         state: "archived",
       }),
     );
     expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      workspace: "reef-acme",
       notificationKey: "notification:5:alice:8:activity:1:2",
       state: "unread",
     });
@@ -315,10 +374,10 @@ describe("NotificationInboxPage", () => {
     const busyRow = rows[0];
     const idleRow = rows[1];
     const busyArchive = within(busyRow).getByRole("button", {
-      name: "Archive notification for REEF-001",
+      name: "Archive notification for REEF-001 in reef-acme",
     });
     const idleOpen = within(idleRow).getByRole("button", {
-      name: "Open activity for REEF-002",
+      name: "Open activity for REEF-002 in reef-acme",
     });
 
     fireEvent.click(busyArchive);
