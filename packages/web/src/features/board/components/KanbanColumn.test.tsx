@@ -381,17 +381,17 @@ describe("KanbanColumn", () => {
 
     expect(
       useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
-    ).toBeUndefined();
+    ).toMatchObject(anchor);
     expect(pendingFrames.size).toBe(1);
 
     // The card's focus effect can scroll it after the synchronous focus event.
     (scrollElement as HTMLElement).scrollTop += 22;
     cardTop = 128;
-    const saveFrame = pendingFrames.values().next().value;
-    if (!saveFrame) throw new Error("missing focused-anchor save frame");
+    const firstSaveFrame = pendingFrames.values().next().value;
+    if (!firstSaveFrame) throw new Error("missing focused-anchor save frame");
     act(() => {
       pendingFrames.clear();
-      saveFrame(0);
+      firstSaveFrame(0);
     });
     const capturedAnchor =
       useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
@@ -470,7 +470,6 @@ describe("KanbanColumn", () => {
       pendingFrames.delete(1);
       focusSaveFrame(0);
     });
-
     rerender(
       <KanbanColumn
         bucket={statusBucket("todo")}

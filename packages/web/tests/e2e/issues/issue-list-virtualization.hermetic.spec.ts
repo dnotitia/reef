@@ -2239,21 +2239,41 @@ test.describe("large Board column virtualization", () => {
       );
     });
 
-    const before = await anchorCard.evaluate((element) => {
-      const root = element.closest<HTMLElement>(
-        '[data-testid="kanban-column-scroll-container"]',
-      );
-      if (!root) throw new Error("missing Board column scroll container");
-      const rect = element.getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      return {
-        id: element.getAttribute("data-issue-id"),
-        occurrenceKey: element.getAttribute("data-occurrence-key"),
-        offset: Math.round(rect.top - rootRect.top),
-        scrollTop: root.scrollTop,
-        focused: document.activeElement === element,
-      };
-    });
+    const readStableAnchor = async () =>
+      anchorCard.evaluate(async (element) => {
+        const root = element.closest<HTMLElement>(
+          '[data-testid="kanban-column-scroll-container"]',
+        );
+        if (!root) throw new Error("missing Board column scroll container");
+        const read = () => {
+          const rect = element.getBoundingClientRect();
+          const rootRect = root.getBoundingClientRect();
+          return {
+            id: element.getAttribute("data-issue-id"),
+            occurrenceKey: element.getAttribute("data-occurrence-key"),
+            offset: Math.round(rect.top - rootRect.top),
+            scrollTop: root.scrollTop,
+            focused: document.activeElement === element,
+          };
+        };
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        let previous = read();
+        while (true) {
+          await nextFrame();
+          const current = read();
+          if (
+            current.offset === previous.offset &&
+            current.scrollTop === previous.scrollTop
+          ) {
+            return current;
+          }
+          previous = current;
+        }
+      });
+    const before = await readStableAnchor();
     expect(before).toMatchObject({
       id: "REEF-0101",
       occurrenceKey: "todo:REEF-0101",
@@ -2274,21 +2294,14 @@ test.describe("large Board column virtualization", () => {
     await expect(anchorCard).toHaveAttribute("data-keyboard-focused", "true");
     await expect(anchorCard).toBeFocused();
 
-    const after = await anchorCard.evaluate((element) => {
-      const root = element.closest<HTMLElement>(
-        '[data-testid="kanban-column-scroll-container"]',
-      );
-      if (!root) throw new Error("missing Board column scroll container");
-      const rect = element.getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      return {
-        id: element.getAttribute("data-issue-id"),
-        occurrenceKey: element.getAttribute("data-occurrence-key"),
-        offset: Math.round(rect.top - rootRect.top),
-        scrollTop: root.scrollTop,
-        focused: document.activeElement === element,
-      };
-    });
+    await expect
+      .poll(() =>
+        readStableAnchor().then((position) =>
+          Math.abs(position.offset - before.offset),
+        ),
+      )
+      .toBeLessThanOrEqual(2);
+    const after = await readStableAnchor();
     expect(after).toMatchObject({
       id: before.id,
       occurrenceKey: before.occurrenceKey,

@@ -446,6 +446,7 @@ export const KanbanColumn = memo(function KanbanColumn({
               return;
             }
             restoreInProgressRef.current = null;
+            saveFocusedAnchor();
             scheduleFocusedAnchorSave();
           }}
           onKeyDownCapture={() => {
