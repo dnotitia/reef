@@ -213,6 +213,36 @@ function renderTimeline(issue = makeIssue()) {
 }
 
 describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
+  it("scrolls to the activity section for its explicit hash", async () => {
+    const scrolled: HTMLElement[] = [];
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: function (this: HTMLElement) {
+        scrolled.push(this);
+      },
+    });
+    window.history.replaceState({}, "", "#issue-activity");
+
+    try {
+      renderTimeline();
+
+      const target = document.getElementById("issue-activity");
+      expect(target).not.toBeNull();
+      await waitFor(() => expect(scrolled).toContain(target));
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
   it("scrolls to a comment source target after comments load asynchronously", async () => {
     const scrolled: HTMLElement[] = [];
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;

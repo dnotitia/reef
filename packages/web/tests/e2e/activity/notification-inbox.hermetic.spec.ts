@@ -140,6 +140,47 @@ test.describe("Hermetic notification Inbox", () => {
     ).toHaveLength(2);
   });
 
+  test("scrolls an activity notification to the activity section on each open", async ({
+    page,
+    request,
+  }) => {
+    await openNotificationWorkspace(page);
+    await page.getByRole("link", { name: /Inbox/ }).click();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+
+    const row = page
+      .locator(
+        '[data-testid="notification-item"][data-workspace="odd_workspace"]',
+      )
+      .filter({ hasText: "REEF-001" });
+    await expect(row).toHaveCount(1);
+    await row.getByTestId("notification-open").click();
+
+    const issueUrl = "/workspace/odd_workspace/issues/REEF-001#issue-activity";
+    await expect(page).toHaveURL(issueUrl);
+    const activityHeading = page.locator("#issue-activity > h3");
+    await expect(activityHeading).toBeInViewport({ ratio: 0.5 });
+    await expect
+      .poll(async () => {
+        const notification = workspaceVault(
+          await readFixtureState(request),
+          "odd_workspace",
+        ).notifications.find(
+          (candidate) => candidate.source_ref === "odd-workspace-activity",
+        );
+        return notification?.state;
+      })
+      .toBe("read");
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect(row).toHaveAttribute("data-state", "read");
+    await row.getByTestId("notification-open").click();
+
+    await expect(page).toHaveURL(issueUrl);
+    await expect(activityHeading).toBeInViewport({ ratio: 0.5 });
+  });
+
   test("keeps a global cap and changes only the selected source copy", async ({
     page,
     request,
