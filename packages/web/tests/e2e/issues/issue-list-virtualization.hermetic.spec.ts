@@ -1080,6 +1080,151 @@ test.describe("large Board column virtualization", () => {
     await resetFixture(request, "large_vault");
   });
 
+  test("restores default Rank Board focus and pixel anchor after Reports navigation", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page, LARGE_VAULT);
+    await page.goto(`/workspace/${LARGE_VAULT}/issues?view=list&scope=active`);
+    await expect(page.getByTestId("view-switcher-list")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("scope-switcher-active")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByTestId("view-switcher-board").click();
+    await expect(page).toHaveURL(/\/issues\?view=board&scope=active$/);
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+
+    const column = page.locator(
+      '[data-group-by="status"][data-group-value="todo"]',
+    );
+    await expect(column).toHaveAttribute("aria-label", "Todo, 1205", {
+      timeout: 20_000,
+    });
+
+    let tabbedIntoCard = false;
+    for (let index = 0; index < 80; index += 1) {
+      if (
+        (await page.locator('[data-testid="kanban-card"]:focus').count()) > 0
+      ) {
+        tabbedIntoCard = true;
+        break;
+      }
+      await page.keyboard.press("Tab");
+    }
+    expect(tabbedIntoCard).toBe(true);
+
+    const focusIssueWithArrowDown = async (issueId: string) => {
+      for (let index = 0; index < 1_210; index += 1) {
+        const focusedId = await page
+          .locator('[data-testid="kanban-card"][data-keyboard-focused="true"]')
+          .getAttribute("data-issue-id")
+          .catch(() => null);
+        if (focusedId === issueId) return index;
+        await page.keyboard.press("ArrowDown");
+      }
+      throw new Error(`ArrowDown did not focus ${issueId}`);
+    };
+    await focusIssueWithArrowDown("REEF-1170");
+    const firstDetailCard = page.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-1170"]',
+    );
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(firstDetailCard).toBeFocused();
+
+    await focusIssueWithArrowDown("REEF-1168");
+    const secondDetailCard = page.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-1168"]',
+    );
+    await secondDetailCard.click();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("issue-detail")).toHaveCount(0);
+    await expect(secondDetailCard).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+
+    const anchorCard = column.locator(
+      '[data-testid="kanban-card"][data-issue-id="REEF-1167"]',
+    );
+    await expect(anchorCard).toHaveAttribute("data-keyboard-focused", "true");
+    await expect(anchorCard).toBeFocused();
+    await expect(anchorCard).toBeVisible();
+    const readStableAnchor = async () =>
+      anchorCard.evaluate(async (element) => {
+        const root = element.closest<HTMLElement>(
+          '[data-testid="kanban-column-scroll-container"]',
+        );
+        if (!root) throw new Error("missing Board column scroll container");
+        const read = () => {
+          const rect = element.getBoundingClientRect();
+          const rootRect = root.getBoundingClientRect();
+          return {
+            id: element.getAttribute("data-issue-id"),
+            occurrenceKey: element.getAttribute("data-occurrence-key"),
+            offset: rect.top - rootRect.top,
+            scrollTop: root.scrollTop,
+            focused: document.activeElement === element,
+          };
+        };
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        let previous = read();
+        while (true) {
+          await nextFrame();
+          const current = read();
+          if (
+            current.offset === previous.offset &&
+            current.scrollTop === previous.scrollTop
+          ) {
+            return current;
+          }
+          previous = current;
+        }
+      });
+    const before = await readStableAnchor();
+    expect(before.scrollTop).toBeGreaterThan(0);
+
+    await page.getByTestId("sidebar-nav-reports").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspace/${LARGE_VAULT}/reports(?:/|$)`),
+    );
+    await page.getByTestId("sidebar-nav-issues").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspace/${LARGE_VAULT}/issues(?:\\?|$)`),
+    );
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect(column).toHaveAttribute("aria-label", "Todo, 1205", {
+      timeout: 20_000,
+    });
+    await expect(anchorCard).toBeVisible();
+    await expect(anchorCard).toBeFocused();
+    await expect(anchorCard).toHaveAttribute("data-keyboard-focused", "true");
+    await expect
+      .poll(() =>
+        readStableAnchor().then((position) =>
+          Math.abs(position.offset - before.offset),
+        ),
+      )
+      .toBeLessThanOrEqual(2);
+    const after = await readStableAnchor();
+    expect(after.id).toBe("REEF-1167");
+    expect(after.occurrenceKey).toBe(before.occurrenceKey);
+    expect(after.focused).toBe(true);
+    expect(after.scrollTop).toBeGreaterThan(0);
+  });
+
   test("retries the complete Board projection without introducing cursors", async ({
     page,
     request,

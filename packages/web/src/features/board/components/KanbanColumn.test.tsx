@@ -341,6 +341,20 @@ describe("KanbanColumn", () => {
       continuityKey,
       issues,
     };
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        const id = ++nextFrameId;
+        pendingFrames.set(id, callback);
+        return id;
+      }),
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      vi.fn((id: number) => pendingFrames.delete(id)),
+    );
     useIssueKeyboardStore.setState({
       focusedIssueId: { list: null, board: anchor.issueId, backlog: null },
       focusedOccurrenceKey: {
@@ -358,21 +372,43 @@ describe("KanbanColumn", () => {
     vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
       new DOMRect(0, 100, 320, 480),
     );
-    vi.spyOn(targetCard, "getBoundingClientRect").mockReturnValue(
-      new DOMRect(0, 150, 320, 88),
+    let cardTop = 150;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
     );
     (scrollElement as HTMLElement).scrollTop = anchor.offset;
-    targetCard.focus();
+    act(() => targetCard.focus());
 
     expect(
       useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
-    ).toMatchObject(anchor);
+    ).toBeUndefined();
+    expect(pendingFrames.size).toBe(1);
+
+    // The card's focus effect can scroll it after the synchronous focus event.
+    (scrollElement as HTMLElement).scrollTop += 22;
+    cardTop = 128;
+    const saveFrame = pendingFrames.values().next().value;
+    if (!saveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.clear();
+      saveFrame(0);
+    });
+    const capturedAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedAnchor).toMatchObject({
+      ...anchor,
+      offset: anchor.offset + 22,
+      itemOffset: 28,
+    });
     virtualizerProbe.scrollToIndex.mockClear();
 
-    rerender(<KanbanColumn {...initialProps} restoreAnchor={anchor} />);
+    if (!capturedAnchor) throw new Error("missing captured focused anchor");
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={capturedAnchor} />);
 
     expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
-    expect((scrollElement as HTMLElement).scrollTop).toBe(anchor.offset);
+    expect((scrollElement as HTMLElement).scrollTop).toBe(
+      capturedAnchor.offset,
+    );
     expect(document.activeElement).toBe(targetCard);
   });
 
@@ -428,6 +464,12 @@ describe("KanbanColumn", () => {
     );
     scrollElement.scrollTop = 9278;
     targetCard.focus();
+    const focusSaveFrame = pendingFrames.get(1);
+    if (!focusSaveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.delete(1);
+      focusSaveFrame(0);
+    });
 
     rerender(
       <KanbanColumn
@@ -442,6 +484,7 @@ describe("KanbanColumn", () => {
       align: "start",
     });
     expect(pendingFrames.size).toBe(1);
+    const restoreFrameId = Math.max(...pendingFrames.keys());
 
     scrollElement.scrollTop = currentAnchor.offset;
     cardTop = 100;
@@ -454,7 +497,7 @@ describe("KanbanColumn", () => {
       />,
     );
 
-    expect(cancelFrame).toHaveBeenCalledWith(1);
+    expect(cancelFrame).toHaveBeenCalledWith(restoreFrameId);
     expect(pendingFrames.size).toBe(0);
     expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(targetCard);
