@@ -222,7 +222,10 @@ test.describe("installation drift and readiness guidance", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
     const availability = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(availability).toHaveAttribute("data-status", "blocked");
+    await expect(availability).toHaveAttribute(
+      "data-status",
+      "management_required",
+    );
     await expect(
       availability.getByText("This workspace can't be used right now."),
     ).toBeVisible();
@@ -278,6 +281,9 @@ test.describe("installation drift and readiness guidance", () => {
       page.getByRole("heading", { level: 1, name: "Settings" }),
     ).toBeVisible();
     const diagnostics = page.getByTestId("workspace-installation-section");
+    await expect(
+      diagnostics.getByTestId("workspace-installation-reef-e2e"),
+    ).toHaveAttribute("data-status", "blocked");
     await expect(diagnostics.getByRole("heading", { level: 2 })).toHaveCount(0);
     await expect(diagnostics.getByRole("heading", { level: 3 })).toHaveCount(1);
     await expect(page.getByTestId("settings-tabs")).toHaveCount(0);
@@ -559,7 +565,7 @@ test.describe("installation drift and readiness guidance", () => {
             const actions = localizedInstallationActions[locale];
             await expect(accessCard).toHaveAttribute(
               "data-status",
-              canManage ? "blocked" : "management_required",
+              "management_required",
             );
             await expect(
               accessCard.getByRole("button", { name: actions.checkStatus }),

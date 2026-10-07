@@ -218,7 +218,14 @@ test.describe("workspace root redirects (REEF-424)", () => {
       .poll(() => readIndexedDbConfig(page, "vault"))
       .toBe("reef-e2e");
     const status = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(status).toHaveAttribute("data-status", "uninstalled");
+    await expect(status).toHaveAttribute("data-status", "management_required");
+    const installationStatus = await page.request.get(
+      "/api/vaults/reef-e2e/installation",
+    );
+    expect(installationStatus.ok()).toBe(true);
+    expect((await installationStatus.json()).installation_status).toBe(
+      "uninstalled",
+    );
     await expect(page.getByTestId("greenfield-vault-name-input")).toHaveCount(
       0,
     );
