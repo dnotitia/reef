@@ -690,6 +690,32 @@ test.describe("Hermetic runtime discovery", () => {
             failures: "<count>",
           },
         },
+        vault_list_control: {
+          method: "POST",
+          path: "/__e2e/vault-list-control",
+          content_type: "application/json",
+          body: {
+            delay_ms: {
+              type: "number",
+              optional: true,
+              default: 0,
+              minimum: 0,
+            },
+            failures: {
+              type: "number",
+              optional: true,
+              default: 0,
+              minimum: 0,
+            },
+          },
+          effects: {
+            delay_ms: "delay subsequent GET /akb/api/v1/my/vaults responses",
+            failures:
+              "return HTTP 500 for the next N GET /akb/api/v1/my/vaults requests",
+            reset:
+              "send delay_ms=0 and failures=0, or reset the fixture scenario",
+          },
+        },
         markdown_link_search_control: {
           method: "POST",
           path: "/__e2e/markdown-link-search-control",
@@ -706,8 +732,54 @@ test.describe("Hermetic runtime discovery", () => {
           path: "/__e2e/notification-control",
           content_type: "application/json",
           body: {
-            schema_mode: "healthy|missing|incompatible",
-            data_mode: "healthy|forbidden|error",
+            schema_mode: {
+              type: "string",
+              values: ["healthy", "missing", "incompatible"],
+              optional: true,
+              default: "healthy",
+              null_or_unsupported: "uses_default",
+            },
+            data_mode: {
+              type: "string",
+              values: ["healthy", "forbidden", "error"],
+              optional: true,
+              default: "healthy",
+              null_or_unsupported: "uses_default",
+            },
+            vault: {
+              type: "string",
+              optional: true,
+              value_source: "current_fixture_vault_names",
+              null_or_empty: "all_vaults",
+              unknown_vault_status: 404,
+            },
+            role: {
+              type: "string",
+              values: ["owner", "admin", "writer", "reader", "none"],
+              optional: true,
+              target_username: "alice",
+              applies_to: "named_vault_only",
+              null_or_unsupported: "leave_scoped_role_override_unchanged",
+              none: "remove Alice's access to the named vault",
+            },
+          },
+          semantics: {
+            vault_scope:
+              "a non-empty vault applies to that existing vault; omitted, null, or empty vault applies to all current vaults",
+            global_scope_update:
+              "sets global schema/data modes and clears per-vault schema, data, and role overrides; role is ignored",
+            scoped_update:
+              "sets schema/data modes for the named vault; a valid role updates only Alice's role override in that vault",
+            schema_modes: {
+              healthy: "compatible notification table is present",
+              missing: "notification table is absent",
+              incompatible: "notification table is present without archived_at",
+            },
+            data_modes: {
+              healthy: "normal notification query results",
+              forbidden: "notification query returns permission_denied",
+              error: "notification query returns a source error",
+            },
           },
         },
         installation_control: {
@@ -732,6 +804,15 @@ test.describe("Hermetic runtime discovery", () => {
               bob: "owner|admin|writer|reader",
               writer: "owner|admin|writer|reader",
             },
+          },
+          semantics: {
+            vault_scope: "one existing vault with an installation",
+            omitted_or_null_vault: "reef-e2e",
+            missing_installation_status: 404,
+            lookup_scope: "per_vault",
+            omitted_or_unsupported_lookup_mode:
+              "omitted, null, or unsupported lookup mode leaves that vault's current value unchanged",
+            reset_lookup_mode: "healthy",
           },
         },
       },
@@ -902,15 +983,46 @@ test.describe("Hermetic runtime discovery", () => {
           scenario: "notifications_personal",
           workspace: "reef-e2e",
           start_path: "/workspace/reef-e2e/inbox",
+          recipient_scope: "authenticated_actor",
+          workspace_scope: "all_ready_accessible_workspaces",
+          sources: {
+            ready: ["reef-e2e", "reef-alpha", "odd_workspace"],
+            non_ready: ["raw-vault"],
+            stale_schema_version: "2",
+          },
           controls: {
-            notification_control: [
-              "ready reef-e2e, reef-alpha, and odd_workspace sources plus a non-ready raw-vault",
-              "stale schema_version=2 is ignored and remains unchanged",
-              "schema_mode=healthy|missing|incompatible and data_mode=healthy|forbidden|error, optionally scoped to a vault",
-              "role=owner|admin|writer|reader|none, optionally scoped to a vault",
-              "vault-list failure and per-workspace installation lookup failure controls",
-              "Alice owner, writer writer, and Bob reader fixture sessions",
-            ],
+            notification_control: { operation: "notification_control" },
+            vault_list_control: { operation: "vault_list_control" },
+            installation_control: {
+              operation: "installation_control",
+              per_workspace_failure_field: "member_lookup",
+            },
+          },
+          identities: {
+            alice: {
+              username: "alice",
+              password: fixtureLogin.password,
+              login_path: "/login?password=1",
+              credential_scope: "test_only",
+              role: "owner",
+              start_path: "/workspace/reef-e2e/inbox",
+            },
+            writer: {
+              username: "writer",
+              password: fixtureLogin.password,
+              login_path: "/login?password=1",
+              credential_scope: "test_only",
+              role: "writer",
+              start_path: "/workspace/reef-e2e/inbox",
+            },
+            bob: {
+              username: "bob",
+              password: fixtureLogin.password,
+              login_path: "/login?password=1",
+              credential_scope: "test_only",
+              role: "reader",
+              start_path: "/workspace/reef-e2e/inbox",
+            },
           },
           interaction: {
             type: "notification_inbox",
@@ -1149,6 +1261,186 @@ test.describe("Hermetic runtime discovery", () => {
         "reef_releases",
       ]),
     );
+  });
+
+  test("describes personal notification actors and controls for external clients", async ({
+    request,
+  }) => {
+    await resetFixture(request, "notifications_personal");
+    const response = await request.get(`${E2E_MOCK_URL}/__e2e/runtime`);
+    expect(response.ok()).toBeTruthy();
+    const contract = (await response.json()) as {
+      operations: {
+        notification_control: { method: "POST"; path: string };
+        vault_list_control: { method: "POST"; path: string };
+        installation_control: { method: "POST"; path: string };
+      };
+      fixture_login: {
+        username: string;
+        password: string;
+        login_path: string;
+      };
+      tasks: {
+        notifications_personal: {
+          recipient_scope: string;
+          workspace_scope: string;
+          sources: {
+            ready: string[];
+            non_ready: string[];
+            stale_schema_version: string;
+          };
+          controls: {
+            notification_control: { operation: string };
+            vault_list_control: { operation: string };
+            installation_control: {
+              operation: string;
+              per_workspace_failure_field: string;
+            };
+          };
+          identities: Record<
+            string,
+            {
+              username: string;
+              password: string;
+              login_path: string;
+              credential_scope: string;
+              role: string;
+              start_path: string;
+            }
+          >;
+        };
+      };
+    };
+    const task = contract.tasks.notifications_personal;
+
+    expect(contract.operations.notification_control.method).toBe("POST");
+    expect(contract.operations.vault_list_control.method).toBe("POST");
+    expect(contract.operations.installation_control.method).toBe("POST");
+    expect(task.recipient_scope).toBe("authenticated_actor");
+    expect(task.workspace_scope).toBe("all_ready_accessible_workspaces");
+    expect(task.sources).toEqual({
+      ready: ["reef-e2e", "reef-alpha", "odd_workspace"],
+      non_ready: ["raw-vault"],
+      stale_schema_version: "2",
+    });
+    expect(task.controls).toEqual({
+      notification_control: { operation: "notification_control" },
+      vault_list_control: { operation: "vault_list_control" },
+      installation_control: {
+        operation: "installation_control",
+        per_workspace_failure_field: "member_lookup",
+      },
+    });
+    expect(
+      Object.values(task.identities).map(({ username, role }) => ({
+        username,
+        role,
+      })),
+    ).toEqual([
+      { username: "alice", role: "owner" },
+      { username: "writer", role: "writer" },
+      { username: "bob", role: "reader" },
+    ]);
+
+    let aliceToken: string | undefined;
+    for (const actor of Object.values(task.identities)) {
+      expect(actor.credential_scope).toBe("test_only");
+      expect(actor.login_path).toBe(contract.fixture_login.login_path);
+      expect(actor.start_path).toBe("/workspace/reef-e2e/inbox");
+      const loginResponse = await request.post(
+        `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+        { data: { username: actor.username, password: actor.password } },
+      );
+      expect(loginResponse.status()).toBe(200);
+      const login = (await loginResponse.json()) as {
+        token: string;
+        user: { username: string };
+      };
+      expect(login.user.username).toBe(actor.username);
+      if (actor.username === contract.fixture_login.username) {
+        aliceToken = login.token;
+      }
+    }
+    if (!aliceToken) throw new Error("missing discovered Alice session");
+
+    const notificationControlUrl = new URL(
+      contract.operations.notification_control.path,
+      E2E_MOCK_URL,
+    ).toString();
+    const scopedControl = await request.post(notificationControlUrl, {
+      data: {
+        schema_mode: "incompatible",
+        data_mode: "forbidden",
+        vault: "reef-alpha",
+        role: "none",
+      },
+    });
+    expect(scopedControl.status()).toBe(200);
+    const scopedState = await readFixtureState(request);
+    expect(scopedState.notification.schema_modes).toEqual({
+      "reef-alpha": "incompatible",
+    });
+    expect(scopedState.notification.data_modes).toEqual({
+      "reef-alpha": "forbidden",
+    });
+    expect(scopedState.notification.workspace_roles).toEqual({
+      "reef-alpha:alice": "none",
+    });
+
+    const resetControl = await request.post(notificationControlUrl, {
+      data: { schema_mode: "healthy", data_mode: "healthy" },
+    });
+    expect(resetControl.status()).toBe(200);
+    const resetState = await readFixtureState(request);
+    expect(resetState.notification.schema_modes).toEqual({});
+    expect(resetState.notification.data_modes).toEqual({});
+    expect(resetState.notification.workspace_roles).toEqual({});
+
+    const vaultListControl = await request.post(
+      new URL(
+        contract.operations.vault_list_control.path,
+        E2E_MOCK_URL,
+      ).toString(),
+      { data: { failures: 1 } },
+    );
+    expect(vaultListControl.status()).toBe(200);
+    const vaultListUrl = `${E2E_MOCK_URL}/akb/api/v1/my/vaults`;
+    const vaultListHeaders = {
+      authorization: `Bearer ${aliceToken}`,
+    };
+    expect(
+      (
+        await request.get(vaultListUrl, {
+          headers: vaultListHeaders,
+        })
+      ).status(),
+    ).toBe(500);
+    expect(
+      (
+        await request.get(vaultListUrl, {
+          headers: vaultListHeaders,
+        })
+      ).status(),
+    ).toBe(200);
+
+    const installationControlUrl = new URL(
+      contract.operations.installation_control.path,
+      E2E_MOCK_URL,
+    ).toString();
+    const installationFailure = await request.post(installationControlUrl, {
+      data: { vault: "reef-alpha", member_lookup: "unavailable" },
+    });
+    expect(installationFailure.status()).toBe(200);
+    const failedInstallationState = await readFixtureState(request);
+    expect(
+      failedInstallationState.installation_drift.lookup_modes["reef-alpha"]
+        ?.member_lookup,
+    ).toBe("unavailable");
+    const installationReset = await request.post(installationControlUrl, {
+      data: { vault: "reef-alpha", member_lookup: "healthy" },
+    });
+    expect(installationReset.status()).toBe(200);
+    await resetFixture(request, "configured");
   });
 
   test("keeps representative empty-state controls visibly focused in both themes", async ({
