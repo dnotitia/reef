@@ -116,7 +116,7 @@ describe("SidebarWorkspace", () => {
     window.localStorage.clear();
   });
 
-  it("shows the active vault name and monogram when expanded, with no brand rail (REEF-168)", async () => {
+  it("shows the workspace monogram and name without a repeated workspace subtitle", async () => {
     await setActiveVault("reef-acme");
     setupVaults([{ name: "reef-acme", installation_status: "ready" }]);
 
@@ -125,9 +125,9 @@ describe("SidebarWorkspace", () => {
     const trigger = await screen.findByTestId("sidebar-workspace-trigger");
     await waitFor(() => expect(trigger).toHaveTextContent("reef-acme"));
     expect(screen.getByTestId("workspace-monogram")).toHaveTextContent("RE");
-    // The left brand rail was removed: the active-page rail is a nav
-    // signal, and dropping it keeps this footer row symmetric with the account
-    // row below it (REEF-168).
+    expect(
+      within(trigger).queryByText("Workspace", { exact: true }),
+    ).toBeNull();
     expect(
       screen.queryByTestId("sidebar-workspace-rail"),
     ).not.toBeInTheDocument();

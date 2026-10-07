@@ -167,14 +167,14 @@ export function AppShellSkeleton({
                 <div
                   data-testid="sidebar-workspace-placeholder"
                   aria-hidden="true"
-                  className={cn("px-2 py-1", sidebarCollapsed && "px-1.5")}
+                  className={cn("py-1", sidebarCollapsed && "-mx-0.5")}
                 >
                   <div
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md",
+                      "flex min-h-11 w-full items-center gap-2 rounded-md",
                       sidebarCollapsed
                         ? "justify-center px-0 py-1"
-                        : "px-2 py-1.5",
+                        : "px-3 py-1.5",
                     )}
                   >
                     <span
@@ -184,9 +184,8 @@ export function AppShellSkeleton({
                       )}
                     />
                     {!sidebarCollapsed && (
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="h-[19.5px] w-24 rounded-sm bg-surface-hover" />
-                        <span className="h-[16.5px] w-16 rounded-sm bg-surface-hover" />
+                      <span className="flex min-w-0 flex-1 items-center">
+                        <span className="h-3.5 w-24 rounded-sm bg-surface-hover" />
                       </span>
                     )}
                     {!sidebarCollapsed && (

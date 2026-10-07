@@ -39,6 +39,8 @@ describe("AppShellSkeleton", () => {
     );
     expect(workspacePlaceholder).toHaveAttribute("aria-hidden", "true");
     expect(workspacePlaceholder.querySelector("button, a")).toBeNull();
+    expect(workspacePlaceholder.querySelectorAll(".w-24")).toHaveLength(1);
+    expect(workspacePlaceholder.querySelector(".size-9")).toBeNull();
     expect(workspaceGroup.children[1]).toBe(workspacePlaceholder);
     expect(workspaceGroup.children[2]?.tagName).toBe("UL");
     for (const label of [
@@ -69,5 +71,10 @@ describe("AppShellSkeleton", () => {
     );
     expect(screen.queryByTestId("sidebar-brand-name")).toBeNull();
     expect(screen.queryByText("New issue")).toBeNull();
+    expect(
+      screen
+        .getByTestId("sidebar-workspace-placeholder")
+        .querySelector(".size-9"),
+    ).not.toBeNull();
   });
 });
