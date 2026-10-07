@@ -73,6 +73,7 @@ vi.mock("@tanstack/react-virtual", () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 // Mock @dnd-kit/core to avoid JSDOM drag issues
@@ -371,6 +372,90 @@ describe("KanbanColumn", () => {
 
     expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
     expect((scrollElement as HTMLElement).scrollTop).toBe(anchor.offset);
+    expect(document.activeElement).toBe(targetCard);
+  });
+
+  it("cancels a pending restore when the same focused occurrence gets a newer anchor", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const occurrenceKey = "todo:reef-005";
+    const staleAnchor: BoardViewportAnchor = {
+      bucketId: "todo",
+      occurrenceKey,
+      issueId: "reef-005",
+      offset: 9230,
+      itemOffset: 584,
+      focused: true,
+    };
+    const currentAnchor: BoardViewportAnchor = {
+      ...staleAnchor,
+      offset: 9814,
+      itemOffset: 0,
+    };
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = ++nextFrameId;
+      pendingFrames.set(id, callback);
+      return id;
+    });
+    const cancelFrame = vi.fn((id: number) => {
+      pendingFrames.delete(id);
+    });
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
+
+    const { rerender } = renderColumn({
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+    });
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    let cardTop = 636;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
+    );
+    scrollElement.scrollTop = 9278;
+    targetCard.focus();
+
+    rerender(
+      <KanbanColumn
+        bucket={statusBucket("todo")}
+        continuityKey={continuityKey}
+        issues={issues}
+        restoreAnchor={staleAnchor}
+      />,
+    );
+
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(4, {
+      align: "start",
+    });
+    expect(pendingFrames.size).toBe(1);
+
+    scrollElement.scrollTop = currentAnchor.offset;
+    cardTop = 100;
+    rerender(
+      <KanbanColumn
+        bucket={statusBucket("todo")}
+        continuityKey={continuityKey}
+        issues={issues}
+        restoreAnchor={currentAnchor}
+      />,
+    );
+
+    expect(cancelFrame).toHaveBeenCalledWith(1);
+    expect(pendingFrames.size).toBe(0);
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(targetCard);
   });
 

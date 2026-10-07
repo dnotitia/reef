@@ -104,7 +104,7 @@ export const KanbanColumn = memo(function KanbanColumn({
     easing: EASE_SIGNATURE,
   });
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
-  const restoredAnchorRef = useRef<string | null>(null);
+  const restoredAnchorRef = useRef<BoardViewportAnchor | null>(null);
   const restoreAnchorRef = useRef(restoreAnchor);
   restoreAnchorRef.current = restoreAnchor;
   const saveAnchorFrameRef = useRef(0);
@@ -194,12 +194,15 @@ export const KanbanColumn = memo(function KanbanColumn({
 
   useLayoutEffect(() => {
     const anchor = restoreAnchorRef.current;
+    const restoredAnchor = restoredAnchorRef.current;
     if (
       !continuityKey ||
       !anchor ||
       restoreIndex < 0 ||
       anchor.occurrenceKey !== restoreAnchor?.occurrenceKey ||
-      restoredAnchorRef.current === anchor.occurrenceKey
+      (restoredAnchor?.occurrenceKey === anchor.occurrenceKey &&
+        restoredAnchor.offset === anchor.offset &&
+        restoredAnchor.itemOffset === anchor.itemOffset)
     ) {
       return;
     }
@@ -228,11 +231,11 @@ export const KanbanColumn = memo(function KanbanColumn({
       ) {
         // Avoid an intermediate align-start jump when the focused card is
         // already at its saved pixel anchor.
-        restoredAnchorRef.current = anchor.occurrenceKey;
+        restoredAnchorRef.current = anchor;
         return;
       }
     }
-    restoredAnchorRef.current = anchor.occurrenceKey;
+    restoredAnchorRef.current = anchor;
     virtualizer.scrollToIndex(restoreIndex, { align: "start" });
     let frame = 0;
     let attempts = 0;
@@ -290,7 +293,7 @@ export const KanbanColumn = memo(function KanbanColumn({
     };
     frame = requestAnimationFrame(restore);
     return () => cancelAnimationFrame(frame);
-  }, [continuityKey, restoreAnchor?.occurrenceKey, restoreIndex, virtualizer]);
+  }, [continuityKey, restoreAnchor, restoreIndex, virtualizer]);
 
   const saveFocusedAnchor = useCallback(() => {
     if (!continuityKey) return;
