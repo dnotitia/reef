@@ -70,21 +70,33 @@ test.describe("search debounce cadence (REEF-370)", () => {
     const input = page.locator('[data-testid="global-search-input"]');
     await expect(input).toBeVisible();
     await expect(input).toBeEditable();
+    await input.focus();
+    await expect(input).toBeFocused();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await expect(input).toBeFocused();
 
-    const settled = page.waitForRequest((req) => {
-      const url = new URL(req.url());
-      return (
-        req.method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.get("q") === "Alpha"
-      );
-    });
+    const settled = page.waitForRequest(
+      (req) => {
+        const url = new URL(req.url());
+        return (
+          req.method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("q") === "Alpha"
+        );
+      },
+      { timeout: 5_000 },
+    );
     // Send individual key events without an artificial pause. The complete
     // sequence stays inside the 150ms warm window even while sibling shards
     // are competing for browser/Next.js CPU, so every prefix but the final
     // settled value is debounced away.
     await input.pressSequentially("Alpha");
+    await expect(input).toHaveValue("Alpha");
     await settled;
 
     // Only the coalesced final query reached the server (no per-keystroke prefixes).

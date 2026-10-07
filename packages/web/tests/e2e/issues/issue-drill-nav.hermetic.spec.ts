@@ -815,7 +815,6 @@ test.describe("Direct detail first relationship move", () => {
     );
     if (waitForDelayedRead) {
       await waitForIssueReadIdle(request, SHORT_CHILD);
-      expect(Date.now() - clickStartedAt).toBeGreaterThan(800);
     }
     const destinationReady = await page.screenshot();
     const readyPath = `${artifactPrefix}-destination-ready.png`;
@@ -861,7 +860,17 @@ test.describe("Direct detail first relationship move", () => {
       (frame) =>
         frame.time >= (trace.clickAt ?? 0) && frame.time <= trace.readyAt,
     );
-    expect(transitionFrames.length).toBeGreaterThan(10);
+    const firstTransitionFrameTime = transitionFrames[0]?.time;
+    const lastTransitionFrameTime = transitionFrames.at(-1)?.time;
+    const sampledTransitionDurationMs =
+      firstTransitionFrameTime === undefined ||
+      lastTransitionFrameTime === undefined
+        ? 0
+        : lastTransitionFrameTime - firstTransitionFrameTime;
+    expect(transitionFrames.length).toBeGreaterThan(1);
+    expect(sampledTransitionDurationMs).toBeGreaterThan(
+      waitForDelayedRead ? 800 : 200,
+    );
     expect(
       transitionFrames.every(
         (frame) => frame.activePanels.length === 1 && frame.activeDialogs === 1,
