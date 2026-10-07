@@ -6,7 +6,7 @@ import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
 import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
 
 /**
- * Single-screen onboarding for new projects. Ready workspaces and remembered
+ * Single-screen onboarding for new projects. Active workspaces and remembered
  * unavailable workspaces are routed before this panel renders, so this surface
  * creates a workspace.
  *

@@ -520,14 +520,17 @@ test.describe("installation drift and readiness guidance", () => {
             expect(blockedVaultsResponse.ok()).toBe(true);
             const blockedVaultsPayload =
               (await blockedVaultsResponse.json()) as {
-                vaults: Array<{ name: string; installation_status: string }>;
+                vaults: Array<{
+                  name: string;
+                  installation_active: boolean | null;
+                }>;
               };
             expect(
               blockedVaultsPayload.vaults
                 .filter((vault) =>
                   ["reef-e2e", "reef-zeta"].includes(vault.name),
                 )
-                .every((vault) => vault.installation_status !== "ready"),
+                .every((vault) => vault.installation_active !== true),
             ).toBe(true);
             await setInstallationControl(request, {
               vault: "reef-e2e",

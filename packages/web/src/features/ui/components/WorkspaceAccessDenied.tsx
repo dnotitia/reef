@@ -31,7 +31,7 @@ interface WorkspaceAccessDeniedProps {
  * `/workspace/{vault}/...` URL whose `vault` is a well-formed name the
  * signed-in user is not a member of should not silently fall back to their own
  * workspace — that would open someone else's deep link in the wrong context.
- * Instead we name the problem and offer the user's own canonically ready Reef
+ * Instead we name the problem and offer the user's own confirmed active Reef
  * workspaces as the way out, or a
  * path into onboarding when they have none.
  */
@@ -44,7 +44,7 @@ export function WorkspaceAccessDenied({
   onCheckStatus,
 }: WorkspaceAccessDeniedProps) {
   const t = useTranslations("workspace.accessDenied");
-  const reefVaults = vaults.filter((v) => v.installation_status === "ready");
+  const reefVaults = vaults.filter((v) => v.installation_active === true);
   const canManage = role === "owner" || role === "admin";
   const hasInstallationState = installationStatus !== undefined;
   const body = hasInstallationState ? null : t("body", { vault });

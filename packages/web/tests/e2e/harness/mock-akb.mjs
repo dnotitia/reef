@@ -237,7 +237,10 @@ export async function handleAkb(req, res, url, state) {
       if (!["owner", "admin", "writer", "reader"].includes(memberRole)) {
         return json(res, 403, { error: "vault membership required" });
       }
-      if (state.scenario === "installation_drift") {
+      if (
+        state.scenario === "installation_drift" ||
+        state.scenario === "configured_multi"
+      ) {
         const lookupMode = installationLookupMode(
           state,
           vault.name,
@@ -276,7 +279,10 @@ export async function handleAkb(req, res, url, state) {
     ) {
       return json(res, 403, { error: "installation management required" });
     }
-    if (state.scenario === "installation_drift") {
+    if (
+      state.scenario === "installation_drift" ||
+      state.scenario === "configured_multi"
+    ) {
       const lookupMode = installationLookupMode(
         state,
         vault.name,

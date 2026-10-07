@@ -8,7 +8,7 @@ type VaultsState = {
   isError: boolean;
   data?: Array<{
     name: string;
-    installation_status: "ready" | "blocked" | "not_installed";
+    installation_active: boolean | null;
     role?: "owner" | "admin" | "writer" | "reader" | null;
   }>;
 };
@@ -141,7 +141,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isPending: false,
       isSuccess: true,
       isError: false,
-      data: [{ name: "reef-acme", installation_status: "ready" }],
+      data: [{ name: "reef-acme", installation_active: true }],
     };
   });
 
@@ -271,7 +271,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isPending: false,
       isSuccess: true,
       isError: false,
-      data: [{ name: "reef-other", installation_status: "ready" }],
+      data: [{ name: "reef-other", installation_active: true }],
     };
     render(
       <WorkspaceGuard appVersion="1.0.0">
@@ -292,7 +292,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isPending: false,
       isSuccess: true,
       isError: false,
-      data: [{ name: "reef-acme", installation_status: "not_installed" }],
+      data: [{ name: "reef-acme", installation_active: false }],
     };
     render(
       <WorkspaceGuard appVersion="1.0.0">
@@ -315,7 +315,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
         data: [
           {
             name: "reef-acme",
-            installation_status: "blocked",
+            installation_active: false,
             role,
           },
         ],
@@ -356,7 +356,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
         data: [
           {
             name: "reef-acme",
-            installation_status: "blocked",
+            installation_active: false,
             role,
           },
         ],
@@ -397,7 +397,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
         data: [
           {
             name: "reef-acme",
-            installation_status: "blocked",
+            installation_active: false,
             role,
           },
         ],
@@ -426,7 +426,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       data: [
         {
           name: "reef-other",
-          installation_status: "ready",
+          installation_active: true,
           role: "owner",
         },
       ],
@@ -453,7 +453,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       data: [
         {
           name: "reef-acme",
-          installation_status: "blocked",
+          installation_active: false,
           role: "owner",
         },
       ],
@@ -481,7 +481,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       data: [
         {
           name: "reef-acme",
-          installation_status: "blocked",
+          installation_active: false,
           role: "owner",
         },
       ],
@@ -505,7 +505,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
     vaultsRef.current.data = [
       {
         name: "reef-acme",
-        installation_status: "ready",
+        installation_active: true,
         role: "owner",
       },
     ];

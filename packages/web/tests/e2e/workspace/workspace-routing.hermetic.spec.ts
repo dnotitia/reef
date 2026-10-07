@@ -200,11 +200,11 @@ test.describe("workspace root redirects (REEF-424)", () => {
     const unavailableResponse = await page.request.get("/api/vaults");
     expect(unavailableResponse.ok()).toBe(true);
     const unavailablePayload = (await unavailableResponse.json()) as {
-      vaults: Array<{ name: string; installation_status: string }>;
+      vaults: Array<{ name: string; installation_active: boolean | null }>;
     };
     expect(
       unavailablePayload.vaults.every(
-        (vault) => vault.installation_status !== "ready",
+        (vault) => vault.installation_active !== true,
       ),
     ).toBe(true);
 

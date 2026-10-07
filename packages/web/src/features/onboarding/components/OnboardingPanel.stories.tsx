@@ -28,7 +28,7 @@ function handlers({
     http.post("/api/vaults/:vault/installation", () =>
       HttpResponse.json(
         {
-          installation_status: "ready",
+          installation_active: true,
           command_status: "accepted",
           replayed: false,
         },
@@ -102,7 +102,7 @@ export const NoGitHubToken: Story = {
         http.post("/api/vaults/:vault/installation", () =>
           HttpResponse.json(
             {
-              installation_status: "ready",
+              installation_active: true,
               command_status: "accepted",
               replayed: false,
             },

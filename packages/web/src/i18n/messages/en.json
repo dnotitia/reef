@@ -394,7 +394,10 @@
         "heading": "Active Workspace",
         "description": "The akb workspace reef reads and writes issues in. This choice is personal — it's stored on your device and only changes your own view. It scopes the workspace settings below.",
         "newWorkspace": "New workspace…",
-        "saveError": "Couldn't save the workspace selection."
+        "saveError": "Couldn't save the workspace selection.",
+        "loadError": "Couldn't load your workspaces. Try again.",
+        "availabilityUnknown": "Couldn't confirm any active workspaces. Try again.",
+        "retry": "Retry"
       },
       "ai": {
         "notConfigured": "AI is not configured.",
@@ -1747,6 +1750,8 @@
       "searchLabel": "Search workspaces",
       "loading": "Loading workspaces…",
       "loadError": "Couldn't load your workspaces.",
+      "availabilityUnknown": "Couldn't check workspace availability.",
+      "retry": "Retry",
       "addFavorite": "Add {name} to favorites",
       "removeFavorite": "Remove {name} from favorites",
       "favoritesSaveError": "Couldn't save favorites. Your workspace is still available.",

@@ -25,7 +25,7 @@ const VAULTS: EnrichedVaultSummary[] = [
     status: "active",
     role: "owner",
     created_at: "2026-05-01T00:00:00.000Z",
-    installation_status: "ready",
+    installation_active: true,
   },
 ];
 
@@ -87,7 +87,7 @@ describe("useVaults", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
-  it("rejects payloads missing installation_status (wire contract)", async () => {
+  it("rejects payloads missing installation_active (wire contract)", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -98,7 +98,7 @@ describe("useVaults", () => {
               status: "active",
               role: "owner",
               created_at: "2026-05-01T00:00:00.000Z",
-              // installation_status intentionally omitted
+              // installation_active intentionally omitted
             },
           ],
         }),

@@ -92,24 +92,22 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
   const vaultsQuery = useVaults({ enabled: canRenderAuthenticatedTree });
-  // Render Reef only after AKB reports the canonical installation active and
-  // the server has completed preservation-safe initialization.
-  const isMember =
-    canRenderAuthenticatedTree &&
-    vaultsQuery.isSuccess &&
-    vaultsQuery.data.some(
-      (v) => v.name === vault && v.installation_status === "ready",
-    );
   const requestedVault = vaultsQuery.data?.find(
     (entry) => entry.name === vault,
   );
+  // The list grants navigation only for confirmed active installations.
+  // Product requests still run requireWorkspaceReady at their server boundary.
+  const isMember =
+    canRenderAuthenticatedTree &&
+    vaultsQuery.isSuccess &&
+    requestedVault?.installation_active === true;
   const canManageRequestedVault =
     requestedVault?.role === "owner" || requestedVault?.role === "admin";
   const showBlockedInstallationDiagnostics =
     canRenderAuthenticatedTree &&
     vaultsQuery.isSuccess &&
     canManageRequestedVault &&
-    requestedVault.installation_status !== "ready" &&
+    requestedVault.installation_active !== true &&
     pathname === withVault(vault, "/settings/workspace");
   // One-way URL→Dexie sync: remember this vault as the per-browser default
   // after auth and membership are confirmed. Passing "" while the
@@ -153,7 +151,15 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         appVersion={appVersion}
         vault={vault}
         vaults={vaultsQuery.data}
-        installationStatus={requestedVault?.installation_status}
+        installationStatus={
+          requestedVault?.installation_active === true
+            ? undefined
+            : requestedVault?.installation_active === false
+              ? "management_required"
+              : requestedVault
+                ? "unknown"
+                : undefined
+        }
         role={requestedVault?.role}
         onCheckStatus={async () => {
           const refreshed = await vaultsQuery.refetch();

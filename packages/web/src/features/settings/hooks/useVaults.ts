@@ -15,8 +15,8 @@ const VaultsResponseSchema = z.object({
 });
 
 /**
- * Lists accessible AKB vaults with the canonical installation state read by
- * the server. Readiness never comes from Reef config-table presence.
+ * Lists accessible AKB vaults with each member's minimal app-active state.
+ * Product readiness remains a separate selected-workspace server check.
  */
 export function useVaults({ enabled = true }: { enabled?: boolean } = {}) {
   const hydrated = useHydrated();

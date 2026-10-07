@@ -320,6 +320,18 @@ export function runtimeDiscovery(state) {
         secondary_workspace: "reef-zeta",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      workspace_favorites_availability: {
+        scenario: "configured_multi",
+        workspace: "reef-e2e",
+        additional_workspaces: ["reef-alpha", "reef-zeta"],
+        start_path: "/workspace/reef-e2e/issues",
+        controls: {
+          installation_control: [
+            `member installation lifecycle per workspace: ${INSTALLATION_LIFECYCLES.join("|")}`,
+            `member availability lookup outcome per workspace: ${INSTALLATION_LOOKUP_MODES.join("|")}`,
+          ],
+        },
+      },
       my_work_account_scope: {
         scenario: "my_work_multi",
         workspace: "reef-e2e",

@@ -12,7 +12,6 @@ import type {
   SprintRolloverTarget,
 } from "../../../schemas/planning/catalog";
 import type { Config } from "../../../schemas/workspace/config";
-import type { WorkspaceInstallationStatus } from "../../../schemas/controlPlane";
 import type { AkbAdapter } from "./http";
 
 export interface VaultMember {
@@ -39,7 +38,7 @@ export interface VaultSummary {
 }
 
 export interface EnrichedVaultSummary extends VaultSummary {
-  installation_status: WorkspaceInstallationStatus;
+  installation_active: boolean | null;
 }
 
 export interface ReadIssueParams {

@@ -10,7 +10,7 @@ const workspaces = vi.hoisted(() => ({
   current: [] as Array<{
     name: string;
     role: string;
-    installation_status: "ready" | "uninstalled" | "blocked" | "not_installed";
+    installation_active: boolean | null;
   }>,
 }));
 const { mockApiFetch } = vi.hoisted(() => ({ mockApiFetch: vi.fn() }));
@@ -54,17 +54,17 @@ describe("WorkspaceInstallationSection", () => {
     workspaces.resolving = false;
     workspaces.role = "owner";
     workspaces.current = [
-      { name: "reef-current", role: "owner", installation_status: "ready" },
+      { name: "reef-current", role: "owner", installation_active: true },
       {
         name: "reef-restore",
         role: "owner",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
-      { name: "reef-blocked", role: "reader", installation_status: "blocked" },
+      { name: "reef-blocked", role: "reader", installation_active: false },
       {
         name: "reef-other-ready",
         role: "owner",
-        installation_status: "ready",
+        installation_active: true,
       },
     ];
     mockApiFetch.mockReset();
@@ -180,13 +180,13 @@ describe("WorkspaceInstallationSection", () => {
   it("summarizes only the selected blocked workspace and keeps member actions limited", () => {
     workspaces.role = "reader";
     workspaces.current = [
-      { name: "reef-current", role: "reader", installation_status: "blocked" },
+      { name: "reef-current", role: "reader", installation_active: false },
       {
         name: "reef-restore",
         role: "owner",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
-      { name: "reef-other-ready", role: "owner", installation_status: "ready" },
+      { name: "reef-other-ready", role: "owner", installation_active: true },
     ];
     render(wrap(<WorkspaceInstallationSection vault="reef-current" />));
 
@@ -215,7 +215,7 @@ describe("WorkspaceInstallationSection", () => {
       {
         name: "reef-restore",
         role: "owner",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
     ];
     render(
@@ -234,24 +234,40 @@ describe("WorkspaceInstallationSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("resets installation actions when the selected workspace role changes", () => {
+  it("reads a selected inactive workspace before showing installation actions", async () => {
     workspaces.current = [
-      { name: "reef-current", role: "owner", installation_status: "blocked" },
+      { name: "reef-current", role: "owner", installation_active: false },
     ];
+    mockApiFetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ installation_status: "uninstalled" }), {
+          status: 200,
+        }),
+    );
     const view = render(
       wrap(<WorkspaceInstallationSection vault="reef-current" />),
     );
 
     expect(
       screen.getByTestId("workspace-installation-reef-current"),
-    ).toHaveAttribute("data-status", "blocked");
+    ).toHaveAttribute("data-status", "unknown");
+    expect(mockApiFetch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Check status" }));
+    expect(
+      await screen.findByRole("button", { name: "Restore installation" }),
+    ).toBeVisible();
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      "/api/vaults/reef-current/installation",
+      { cache: "no-store" },
+    );
 
     workspaces.role = "reader";
     workspaces.current = [
       {
         name: "reef-current",
         role: "reader",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
     ];
     view.rerender(wrap(<WorkspaceInstallationSection vault="reef-current" />));
@@ -267,12 +283,16 @@ describe("WorkspaceInstallationSection", () => {
       {
         name: "reef-current",
         role: "admin",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
     ];
     view.rerender(wrap(<WorkspaceInstallationSection vault="reef-current" />));
     expect(
-      screen.getByRole("button", { name: "Restore installation" }),
+      screen.queryByRole("button", { name: "Restore installation" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check status" }));
+    expect(
+      await screen.findByRole("button", { name: "Restore installation" }),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Request fresh setup" }),

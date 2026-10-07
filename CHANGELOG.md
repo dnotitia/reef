@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Workspace discovery now reads member-scoped installation activity in parallel.**
+  The workspace list preserves per-vault unknown results and no longer fetches
+  installation details or product readiness for every accessible vault.
+  Pickers and resume select only confirmed active installations; selected
+  workspace requests still enforce Reef readiness. (REEF-664)
 - **My Work now spans every ready workspace accessible to the signed-in actor.**
   Its workspace filter narrows only the queue, duplicate issue IDs retain their
   source-workspace links, and the sidebar separates Personal from Workspace
@@ -54,6 +59,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Workspace favorites survive temporary availability gaps.** The browser
+  retains the full validated preference set when a favorite is absent, inactive,
+  or has an unknown activity result, then shows it again when confirmed active.
+  (REEF-664)
 - **My Work issue detail stays bound to its source workspace.** Status edits,
   related issue links, and drill Back routes now keep using the workspace that
   owns the opened issue, including when another workspace contains the same id.

@@ -51,7 +51,7 @@ function wrap(ui: ReactNode) {
 function vaultsResponse(
   vaults: Array<{
     name: string;
-    installation_status: "ready" | "not_installed";
+    installation_active: boolean | null;
   }>,
 ) {
   return new Response(
@@ -62,7 +62,7 @@ function vaultsResponse(
         status: "active",
         role: "owner",
         created_at: null,
-        installation_status: v.installation_status,
+        installation_active: v.installation_active,
       })),
     }),
     { status: 200 },
@@ -79,7 +79,7 @@ describe("ActiveWorkspaceSection", () => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
         return vaultsResponse([
-          { name: "reef-acme", installation_status: "ready" },
+          { name: "reef-acme", installation_active: true },
         ]);
       }
       return new Response("{}", { status: 200 });
@@ -110,8 +110,8 @@ describe("ActiveWorkspaceSection", () => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
         return vaultsResponse([
-          { name: "reef-acme", installation_status: "ready" },
-          { name: "plain-vault", installation_status: "not_installed" },
+          { name: "reef-acme", installation_active: true },
+          { name: "plain-vault", installation_active: false },
         ]);
       }
       return new Response("{}", { status: 200 });
@@ -130,13 +130,47 @@ describe("ActiveWorkspaceSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers a retry when no active workspace is confirmed", async () => {
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/vaults")) {
+        return vaultsResponse([
+          { name: "reef-unknown", installation_active: null },
+          { name: "plain-vault", installation_active: false },
+        ]);
+      }
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<ActiveWorkspaceSection />));
+    const availability = await screen.findByTestId(
+      "active-workspace-availability-unknown",
+    );
+    expect(availability).toHaveAttribute("role", "alert");
+    expect(availability).toHaveTextContent(
+      "Couldn't confirm any active workspaces. Try again.",
+    );
+    const listCallsBeforeRetry = mockApiFetch.mock.calls.filter(
+      ([url]) => String(url) === "/api/vaults",
+    ).length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.filter(
+          ([url]) => String(url) === "/api/vaults",
+        ),
+      ).toHaveLength(listCallsBeforeRetry + 1),
+    );
+  });
+
   it("persists the picked workspace and routes to it under the new vault (REEF-315)", async () => {
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
         return vaultsResponse([
-          { name: "reef-acme", installation_status: "ready" },
-          { name: "reef-beta", installation_status: "ready" },
+          { name: "reef-acme", installation_active: true },
+          { name: "reef-beta", installation_active: true },
         ]);
       }
       return new Response("{}", { status: 200 });

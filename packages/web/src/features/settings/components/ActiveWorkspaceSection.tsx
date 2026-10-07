@@ -24,20 +24,25 @@ import { VaultPickerInput } from "./VaultPickerInput";
  * where it inverted the parent/child relationship and competed with the
  * group's shared-permission framing (REEF-150).
  *
- * Only workspaces with a canonical active installation and completed
- * initialization can become the per-user active workspace.
+ * The picker lists confirmed active installations. Workspace readiness is
+ * still checked when the selected workspace is used.
  */
 export function ActiveWorkspaceSection() {
   const t = useTranslations("settings.config");
   const vaultsQuery = useVaults();
-  // Exclude raw, legacy, unavailable, and incomplete installations.
+  // Exclude raw vaults and installations that are not confirmed active.
   const availableVaults = useMemo(
     () =>
-      (vaultsQuery.data ?? []).filter((v) => v.installation_status === "ready"),
+      (vaultsQuery.data ?? []).filter((v) => v.installation_active === true),
     [vaultsQuery.data],
   );
   const vaultsLoading = vaultsQuery.isPending;
   const vaultsError = vaultsQuery.isError && !vaultsQuery.data;
+  const availabilityUnconfirmed =
+    availableVaults.length === 0 &&
+    Boolean(
+      vaultsQuery.data?.some((vault) => vault.installation_active === null),
+    );
 
   const { vault: activeVault, isLoading: activeVaultLoading } =
     useActiveVault();
@@ -101,14 +106,36 @@ export function ActiveWorkspaceSection() {
           current one, so a read viewer should still reach it — akb makes the
           final call on whether the create succeeds (REEF-147). */}
       <div className="flex flex-wrap items-center gap-2">
-        <VaultPickerInput
-          vaults={availableVaults}
-          value={activeVault}
-          onChange={(next) => void handleVaultSelect(next)}
-          isLoading={vaultsLoading || activeVaultLoading}
-          isError={vaultsError}
-          allowNone
-        />
+        {vaultsError || availabilityUnconfirmed ? (
+          <div
+            className="flex flex-col items-start gap-2"
+            role="alert"
+            data-testid="active-workspace-availability-unknown"
+          >
+            <p className="text-xs text-destructive-text">
+              {availabilityUnconfirmed
+                ? t("activeWorkspace.availabilityUnknown")
+                : t("activeWorkspace.loadError")}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void vaultsQuery.refetch()}
+            >
+              {t("activeWorkspace.retry")}
+            </Button>
+          </div>
+        ) : (
+          <VaultPickerInput
+            vaults={availableVaults}
+            value={activeVault}
+            onChange={(next) => void handleVaultSelect(next)}
+            isLoading={vaultsLoading || activeVaultLoading}
+            isError={false}
+            allowNone
+          />
+        )}
         <Button
           type="button"
           variant="secondary"
