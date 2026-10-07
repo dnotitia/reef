@@ -10,9 +10,13 @@ describe("IssuesWorkspaceSkeleton", () => {
     // placeholders are all present so a hard-nav first paint reads as "loading
     // the board".
     expect(screen.getByTestId("issues-skeleton")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("sprint-rollover-pending-skeleton"),
-    ).toBeInTheDocument();
+    const rolloverSkeleton = screen.getByTestId(
+      "sprint-rollover-pending-skeleton",
+    );
+    expect(rolloverSkeleton).toBeInTheDocument();
+    expect(rolloverSkeleton.querySelector(".reef-shimmer")).toHaveClass(
+      "h-[var(--type-control-line-height)]",
+    );
     expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Issue scope" }),
@@ -43,6 +47,9 @@ describe("IssuesWorkspaceSkeleton", () => {
     // ~50–90px and shove the board down when it hydrated.
     const toolbar = screen.getByTestId("issues-skeleton-toolbar");
     expect(toolbar).toBeInTheDocument();
+    expect(screen.getByTestId("filter-bar")).toHaveClass(
+      "max-[480px]:h-[233.5px]",
+    );
 
     // SearchBar chrome: a full-width h-9 static label.
     const searchRow = toolbar.querySelector("[data-testid=search-bar] input");

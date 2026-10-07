@@ -36,7 +36,7 @@ export function SprintRolloverPendingSkeleton({
             {t("nudgeTitle", { name: sprintName })}
           </p>
         ) : (
-          <Skeleton className="h-5 w-3/4 max-w-64" />
+          <Skeleton className="h-[var(--type-control-line-height)] w-3/4 max-w-64" />
         )}
         <div className="mt-0.5 flex flex-col">
           <Skeleton className="h-4 w-full max-w-80" />
