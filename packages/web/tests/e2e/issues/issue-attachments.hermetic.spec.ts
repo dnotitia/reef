@@ -54,8 +54,8 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
     await page.locator('[data-testid="markdown-source-toggle"] button').click();
-    const source = page.locator('[data-testid="markdown-source-textarea"]');
-    await pasteFile(page, '[data-testid="markdown-source-textarea"]', {
+    const source = page.locator('[data-markdown-mode="source"] textarea');
+    await pasteFile(page, '[data-markdown-mode="source"] textarea', {
       name: "reef-inline.png",
       mimeType: "image/png",
       bytes: INLINE_PNG,
@@ -79,7 +79,8 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
 
     const bodyProof = page
       .locator('[data-testid="markdown-editor-body-frame"]')
-      .first();
+      .first()
+      .getByTestId("markdown-editor-content");
     const inlineImage = page.locator('img[alt="reef-inline.png"]');
     await expect(bodyProof.getByText(INLINE_TEXT_BEFORE)).toBeVisible();
     await expect(inlineImage).toBeVisible();
@@ -147,7 +148,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     });
 
     await page.locator('[data-testid="markdown-source-toggle"] button').click();
-    const source = page.locator('[data-testid="markdown-source-textarea"]');
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toHaveValue(
       new RegExp(`!\\[reef-toolbar\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     );
@@ -191,7 +192,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     });
 
     await page.locator('[data-testid="markdown-source-toggle"] button').click();
-    const source = page.locator('[data-testid="markdown-source-textarea"]');
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect
       .poll(() => source.inputValue())
       .toContain(SPECIAL_IMAGE_MARKDOWN);
@@ -233,7 +234,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     await page.locator('[data-testid="markdown-source-toggle"] button').click();
     const reloadedSource = page.locator(
-      '[data-testid="markdown-source-textarea"]',
+      '[data-markdown-mode="source"] textarea',
     );
     await expect
       .poll(() => reloadedSource.inputValue())

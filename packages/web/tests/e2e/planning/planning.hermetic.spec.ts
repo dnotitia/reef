@@ -280,7 +280,7 @@ async function expectNotesControlsAccessible(page: Page) {
   await page.keyboard.press("Tab");
   await expect(sourceButton).toBeFocused();
   await sourceButton.click();
-  const source = editor.getByTestId("markdown-source-textarea");
+  const source = editor.locator('[data-markdown-mode="source"] textarea');
   await expect(source).toBeVisible();
   await source.fill(
     Array.from({ length: 40 }, (_, index) => `Planning note ${index + 1}`).join(

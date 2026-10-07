@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue Markdown editing uses the shared Source surface.** Reef delegates
+  Source mode and draft synchronization to the shared editor while preserving
+  issue-body Markdown and Source attachment uploads. (REEF-630)
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)
@@ -67,6 +70,12 @@ explicitly in the entries below.
 - **Markdown link search stays opaque and readable in both themes.** Reef maps
   the shared editor's surface, muted, selected, and destructive color roles so
   the dialog, inputs, and result list remain legible. (REEF-629)
+- **Wide Markdown tables stay inside the editor's scroll area.** The editor
+  constrains the shared surface's table wrapper so table content does not widen
+  the issue detail panel. (REEF-630)
+- **Source-authored bare AKB document URIs stay as entered.** WYSIWYG continues
+  to normalize bare document links, and explicit Markdown links keep canonical
+  AKB targets. (REEF-630)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity
