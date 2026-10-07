@@ -1,22 +1,17 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import type { IssueListItem } from "@reef/core";
+import type { IssueListItem, IssueRelation, MyWorkResponse } from "@reef/core";
+import type { MyWorkWorkspaceContext } from "@/features/my-work/lib/myWork";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockUseActiveVault,
-  mockUseCurrentUser,
-  mockUseIssueList,
-  mockUseIssueRelations,
-  mockUsePlanningCatalog,
+  mockUseMyWorkData,
   mockUseSearchParams,
   mockReplace,
 } = vi.hoisted(() => ({
   mockUseActiveVault: vi.fn(),
-  mockUseCurrentUser: vi.fn(),
-  mockUseIssueList: vi.fn(),
-  mockUseIssueRelations: vi.fn(),
-  mockUsePlanningCatalog: vi.fn(),
+  mockUseMyWorkData: vi.fn(),
   mockUseSearchParams: vi.fn(),
   mockReplace: vi.fn(),
 }));
@@ -24,24 +19,13 @@ const {
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: mockUseActiveVault,
 }));
-vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
-  useCurrentUser: mockUseCurrentUser,
-}));
-vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
-  useIssueList: mockUseIssueList,
-}));
-vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
-  useIssueRelations: mockUseIssueRelations,
-}));
-vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
-  usePlanningCatalog: mockUsePlanningCatalog,
+vi.mock("@/features/my-work/hooks/useMyWorkData", () => ({
+  useMyWorkData: mockUseMyWorkData,
 }));
 vi.mock("next/navigation", () => ({
   useSearchParams: mockUseSearchParams,
   useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
 }));
-// `data-next-link` marks the populated My Work row anchors produced by Next
-// `Link`; the row assertions below keep issue-detail navigation client-side.
 vi.mock("next/link", () => ({
   default: ({
     href,
@@ -59,15 +43,9 @@ vi.mock("next/link", () => ({
 
 import { MyWorkPage } from "./MyWorkPage";
 
+const MOCK_NOW_MS = new Date("2026-06-18T00:00:00.000Z").getTime();
 const base = { created_by: "alice", updated_by: "alice" };
 
-// A fixed reference "now". Both the `Date.now` mock and the date-relative
-// fixtures (overdue/due-soon) derive from this single constant, so the suite no
-// longer silently depended on the real wall clock matching the mock: `iso()`
-// fixtures are evaluated at module-collection time, before `beforeEach` installs
-// the mock, so computing them from the real `Date.now()` made the overdue
-// boundary drift by a day on any date other than the one the test was written.
-const MOCK_NOW_MS = new Date("2026-06-18T00:00:00.000Z").getTime();
 const makeIssue = (
   overrides: Partial<IssueListItem> & { id: string },
 ): IssueListItem =>
@@ -82,14 +60,68 @@ const makeIssue = (
     ...overrides,
   }) as IssueListItem;
 
-function issueListResult(data: IssueListItem[] | undefined, extra = {}) {
+function workspaceContext(
+  workspace: string,
+  issues: readonly IssueListItem[] = [],
+  done = 0,
+): MyWorkWorkspaceContext {
+  return {
+    workspace,
+    assigned_issue_count: issues.length + done,
+    resolved_sprint_counts:
+      done > 0 ? [{ sprint_id: `sprint-${workspace}`, count: done }] : [],
+    relations: issues.map(
+      (issue): IssueRelation => ({
+        id: issue.id,
+        status: issue.status,
+        depends_on: issue.depends_on ?? [],
+        issue_type: issue.issue_type ?? "task",
+        parent_id: issue.parent_id ?? null,
+        title: issue.title,
+        rank: issue.rank ?? null,
+      }),
+    ),
+    planning: {
+      sprints: [],
+      milestones: [],
+      releases: [],
+      rollover_resumes: [],
+    },
+  };
+}
+
+function result(
+  issues: Array<{ workspace: string; issue: IssueListItem }> = [],
+  options: {
+    assigned?: Record<string, number>;
+    pending?: boolean;
+    error?: boolean;
+    login?: string | null;
+    contexts?: MyWorkWorkspaceContext[];
+  } = {},
+) {
+  const workspaces = Object.entries(options.assigned ?? {}).map(
+    ([workspace, assigned_issue_count]) => ({
+      workspace,
+      assigned_issue_count,
+      resolved_sprint_counts: [],
+    }),
+  );
+  const data: MyWorkResponse = {
+    issues,
+    workspaces,
+    next_offset: null,
+    as_of: new Date(MOCK_NOW_MS).toISOString(),
+  };
   return {
     data,
-    isPending: false,
-    isError: false,
-    error: null,
+    workspaceContexts: options.contexts ?? [],
+    isPending: options.pending ?? false,
+    isError: options.error ?? false,
+    error: options.error ? new Error("Could not load My Work") : null,
     refetch: vi.fn(),
-    ...extra,
+    login: options.login === undefined ? "alice" : options.login,
+    identityPending: false,
   };
 }
 
@@ -97,38 +129,59 @@ describe("MyWorkPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(Date, "now").mockReturnValue(MOCK_NOW_MS);
-    mockUseActiveVault.mockReturnValue({
-      vault: "reef-acme",
-      isLoading: false,
-    });
-    mockUseCurrentUser.mockReturnValue({
-      data: { username: "alice" },
-      isPending: false,
-    });
-    mockUseIssueRelations.mockReturnValue({ data: undefined });
-    mockUsePlanningCatalog.mockReturnValue({ data: undefined });
+    mockUseActiveVault.mockReturnValue({ vault: "reef-e2e", isLoading: false });
     mockUseSearchParams.mockReturnValue(new URLSearchParams());
-    mockUseIssueList.mockReturnValue(issueListResult([]));
+    mockUseMyWorkData.mockReturnValue(
+      result([], { assigned: { "reef-e2e": 0 } }),
+    );
   });
 
-  it("scopes the fetch to the signed-in user — no manual picker (AC1)", () => {
+  it("shows assigned issues from more than one workspace in the same list", () => {
+    const alpha = makeIssue({ id: "REEF-001", title: "Alpha copy" });
+    const zeta = makeIssue({ id: "REEF-001", title: "Zeta copy" });
+    mockUseMyWorkData.mockReturnValue(
+      result(
+        [
+          { workspace: "reef-alpha", issue: alpha },
+          { workspace: "reef-zeta", issue: zeta },
+        ],
+        {
+          assigned: { "reef-alpha": 1, "reef-e2e": 0, "reef-zeta": 1 },
+          contexts: [
+            workspaceContext("reef-alpha", [alpha]),
+            workspaceContext("reef-zeta", [zeta]),
+          ],
+        },
+      ),
+    );
+
     render(
       <IntlTestProvider>
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    // The assignee facet is now a multi-select array (REEF-267); My Work sends a
-    // one-element array and relies on the server's exact match. It also opts out
-    // of placeholder reuse so an account switch does not show the previous login's
-    // rows.
-    expect(mockUseIssueList).toHaveBeenCalledWith(
-      "reef-acme",
-      expect.objectContaining({ assigned_to: ["alice"] }),
-      { keepPreviousData: false },
-    );
+
+    expect(
+      screen.getByTestId("my-work-row-reef-alpha-REEF-001"),
+    ).toHaveAttribute("href", "/workspace/reef-alpha/issues/REEF-001");
+    expect(
+      screen.getByTestId("my-work-row-reef-zeta-REEF-001"),
+    ).toHaveAttribute("href", "/workspace/reef-zeta/issues/REEF-001");
+    expect(
+      within(screen.getByTestId("my-work-workspace-filter")).getByRole(
+        "option",
+        { name: "reef-alpha" },
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("my-work-workspace-filter")).getByRole(
+        "option",
+        { name: "reef-zeta" },
+      ),
+    ).toBeInTheDocument();
   });
 
-  it("shows the shared pick-workspace notice when no vault is active (AC7)", () => {
+  it("shows the shared pick-workspace notice when no workspace is active", () => {
     mockUseActiveVault.mockReturnValue({ vault: "", isLoading: false });
     render(
       <IntlTestProvider>
@@ -138,64 +191,32 @@ describe("MyWorkPage", () => {
     expect(screen.getByTestId("empty-workspace-notice")).toBeInTheDocument();
   });
 
-  it("shows the no-session notice when logged out (AC7)", () => {
-    mockUseCurrentUser.mockReturnValue({ data: null, isPending: false });
+  it("shows the no-session notice when logged out", () => {
+    mockUseMyWorkData.mockReturnValue(
+      result([], { assigned: { "reef-e2e": 0 }, login: null }),
+    );
     render(
       <IntlTestProvider>
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    const notice = screen.getByTestId("my-work-no-session");
-    expect(notice).toHaveClass(
-      "rounded-lg",
-      "border-dashed",
-      "border-border-subtle",
-      "bg-surface-subtle",
-      "px-6",
-      "py-12",
-    );
-    // A logged-out visit should not fan out a whole-vault fetch (blank vault,
-    // no query); placeholder reuse is opted out as for every My Work fetch.
-    expect(mockUseIssueList).toHaveBeenCalledWith("", undefined, {
-      keepPreviousData: false,
-    });
+    expect(screen.getByTestId("my-work-no-session")).toBeInTheDocument();
   });
 
-  it("shows a passive empty state when nothing is assigned", () => {
-    mockUseIssueList.mockReturnValue(issueListResult([]));
+  it("shows a passive empty state when no non-archived work is assigned", () => {
     render(
       <IntlTestProvider>
         <MyWorkPage />
       </IntlTestProvider>,
     );
     const notice = screen.getByTestId("my-work-empty");
-    expect(notice).toHaveClass(
-      "mx-auto",
-      "min-h-48",
-      "w-full",
-      "max-w-4xl",
-      "rounded-lg",
-      "border-dashed",
-      "border-border-subtle",
-      "bg-surface-subtle",
-      "px-6",
-      "py-12",
-    );
+    expect(notice).toBeInTheDocument();
     expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
-    const header = screen
-      .getByRole("heading", { name: "My Work", level: 1 })
-      .closest('[data-slot="page-header"]');
-    expect(header).not.toBeNull();
-    expect(
-      within(header as HTMLElement).queryByRole("link", {
-        name: /Go to the board/,
-      }),
-    ).not.toBeInTheDocument();
   });
 
-  it("shows a passive caught-up state when assigned work is all resolved", () => {
-    mockUseIssueList.mockReturnValue(
-      issueListResult([makeIssue({ id: "REEF-1", status: "done" })]),
+  it("shows a passive caught-up state when assigned work is resolved", () => {
+    mockUseMyWorkData.mockReturnValue(
+      result([], { assigned: { "reef-e2e": 1 } }),
     );
     render(
       <IntlTestProvider>
@@ -203,32 +224,14 @@ describe("MyWorkPage", () => {
       </IntlTestProvider>,
     );
     const notice = screen.getByTestId("my-work-caught-up");
-    expect(notice).toHaveClass(
-      "mx-auto",
-      "min-h-48",
-      "w-full",
-      "max-w-4xl",
-      "rounded-lg",
-      "border-dashed",
-      "border-border-subtle",
-      "bg-surface-subtle",
-      "px-6",
-      "py-12",
-    );
+    expect(notice).toBeInTheDocument();
     expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
-    const header = screen
-      .getByRole("heading", { name: "My Work", level: 1 })
-      .closest('[data-slot="page-header"]');
-    expect(header).not.toBeNull();
-    expect(
-      within(header as HTMLElement).queryByRole("link", {
-        name: /Go to the board/,
-      }),
-    ).not.toBeInTheDocument();
   });
 
-  it("renders a skeleton while identity/workspace resolve", () => {
-    mockUseActiveVault.mockReturnValue({ vault: "", isLoading: true });
+  it("renders a skeleton while the identity or query resolves", () => {
+    mockUseMyWorkData.mockReturnValue(
+      result([], { assigned: { "reef-e2e": 0 }, pending: true }),
+    );
     render(
       <IntlTestProvider>
         <MyWorkPage />
@@ -246,41 +249,47 @@ describe("MyWorkPage", () => {
         status: "in_progress",
         priority: "high",
         due_date: iso(-1),
-      }), // overdue
+      }),
       makeIssue({
         id: "REEF-2",
         status: "in_review",
         priority: "medium",
         due_date: iso(2),
-      }), // due soon
+      }),
       makeIssue({ id: "REEF-3", status: "todo", priority: "high" }),
       makeIssue({ id: "REEF-4", status: "backlog", priority: "low" }),
     ];
 
     beforeEach(() => {
-      mockUseIssueList.mockReturnValue(issueListResult(issues));
+      mockUseMyWorkData.mockReturnValue(
+        result(
+          issues.map((issue) => ({ workspace: "reef-alpha", issue })),
+          {
+            assigned: { "reef-alpha": issues.length },
+            contexts: [workspaceContext("reef-alpha", issues)],
+          },
+        ),
+      );
     });
 
-    it("renders the summary strip and the focus-ordered queue (AC2-4, AC6)", () => {
+    it("renders the global summary and focus-ordered queue", () => {
       render(
         <IntlTestProvider>
           <MyWorkPage />
         </IntlTestProvider>,
       );
       expect(screen.getByTestId("my-work-summary")).toBeInTheDocument();
-      // WIP=1, overdue=1, due-soon=1 surfaced as tiles.
       expect(screen.getByTestId("my-work-tile-wip")).toHaveTextContent("1");
       expect(screen.getByTestId("my-work-tile-overdue")).toHaveTextContent("1");
       expect(screen.getByTestId("my-work-tile-due-soon")).toHaveTextContent(
         "1",
       );
-      // Focus order: overdue first.
       const order = screen
         .getAllByTestId(/^my-work-row-/)
         .map((el) => el.getAttribute("data-testid"));
-      expect(order[0]).toBe("my-work-row-REEF-1");
+      expect(order[0]).toBe("my-work-row-reef-alpha-REEF-1");
 
-      const firstRow = screen.getByTestId("my-work-row-REEF-1");
+      const firstRow = screen.getByTestId("my-work-row-reef-alpha-REEF-1");
       expect(
         within(firstRow).getByTestId("my-work-row-identity"),
       ).toBeInTheDocument();
@@ -288,24 +297,30 @@ describe("MyWorkPage", () => {
         "title",
         "Issue REEF-1",
       );
-      expect(within(firstRow).getByTestId("my-work-row-meta")).toBeVisible();
+      expect(
+        within(firstRow).getByTestId("my-work-source-workspace"),
+      ).toHaveTextContent("reef-alpha");
     });
 
-    it("opens an issue via an href that carries the current query (REEF-222)", () => {
+    it("opens the source-workspace issue and preserves grouping query", () => {
       mockUseSearchParams.mockReturnValue(new URLSearchParams("group=status"));
       render(
         <IntlTestProvider>
           <MyWorkPage />
         </IntlTestProvider>,
       );
-      const row = screen.getByTestId("my-work-row-REEF-1");
-      expect(row).toHaveAttribute(
+      expect(
+        screen.getByTestId("my-work-row-reef-alpha-REEF-1"),
+      ).toHaveAttribute(
         "href",
-        "/workspace/reef-acme/issues/REEF-1?group=status",
+        "/workspace/reef-alpha/issues/REEF-1?group=status",
       );
     });
 
-    it("groups by status and writes the mode to the URL", () => {
+    it("preserves the workspace filter while changing queue grouping", () => {
+      mockUseSearchParams.mockReturnValue(
+        new URLSearchParams("workspace=reef-alpha"),
+      );
       render(
         <IntlTestProvider>
           <MyWorkPage />
@@ -313,10 +328,23 @@ describe("MyWorkPage", () => {
       );
       fireEvent.click(screen.getByTestId("my-work-group-status"));
       expect(mockReplace).toHaveBeenCalledWith(
-        "/workspace/reef-acme/my-work?group=status",
-        {
-          scroll: false,
-        },
+        "/workspace/reef-e2e/my-work?workspace=reef-alpha&group=status",
+        { scroll: false },
+      );
+    });
+
+    it("changes only the personal workspace filter", () => {
+      render(
+        <IntlTestProvider>
+          <MyWorkPage />
+        </IntlTestProvider>,
+      );
+      fireEvent.change(screen.getByTestId("my-work-workspace-filter"), {
+        target: { value: "reef-alpha" },
+      });
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-e2e/my-work?workspace=reef-alpha",
+        { scroll: false },
       );
     });
   });

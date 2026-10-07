@@ -14,6 +14,10 @@ describe("AppShellSkeleton", () => {
     const sidebar = screen.getByTestId("app-shell-skeleton-sidebar");
     const main = screen.getByTestId("app-shell-skeleton-main");
     const board = screen.getByTestId("board-columns-skeleton");
+    const workspaceGroup = screen.getByTestId("sidebar-workspace-group");
+    const workspacePlaceholder = screen.getByTestId(
+      "sidebar-workspace-placeholder",
+    );
 
     expect(sidebar).toHaveClass("w-14", "md:w-60", "shrink-0");
     expect(sidebar.querySelector(".reef-shimmer")).toBeNull();
@@ -27,6 +31,18 @@ describe("AppShellSkeleton", () => {
       board.querySelector('.reef-shimmer[aria-hidden="true"]'),
     ).not.toBeNull();
     expect(screen.getByText("reef")).toBeInTheDocument();
+    expect(workspaceGroup).toHaveClass(
+      "mt-2",
+      "border-t",
+      "border-border-subtle",
+      "pt-2",
+    );
+    expect(workspacePlaceholder).toHaveAttribute("aria-hidden", "true");
+    expect(workspacePlaceholder.querySelector("button, a")).toBeNull();
+    expect(workspacePlaceholder.querySelectorAll(".w-24")).toHaveLength(1);
+    expect(workspacePlaceholder.querySelector(".size-9")).toBeNull();
+    expect(workspaceGroup.children[1]).toBe(workspacePlaceholder);
+    expect(workspaceGroup.children[2]?.tagName).toBe("UL");
     for (const label of [
       "New issue",
       "Issues",
@@ -55,5 +71,10 @@ describe("AppShellSkeleton", () => {
     );
     expect(screen.queryByTestId("sidebar-brand-name")).toBeNull();
     expect(screen.queryByText("New issue")).toBeNull();
+    expect(
+      screen
+        .getByTestId("sidebar-workspace-placeholder")
+        .querySelector(".size-9"),
+    ).not.toBeNull();
   });
 });

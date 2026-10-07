@@ -1,6 +1,5 @@
 "use client";
 
-import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import { buildOpenIssueHref } from "../../lib/issueHref";
@@ -12,6 +11,8 @@ import {
 interface UseIssueSheetDismissArgs {
   /** Issue id currently shown in the sheet (the live detail route param). */
   issueId: string;
+  /** Workspace that owns the active issue route. */
+  vault: string;
   /** Route that mounted the first sheet in the current detail session. */
   entryRoute: IssueDetailEntryRoute;
   /**
@@ -38,6 +39,7 @@ interface UseIssueSheetDismissArgs {
  */
 export function useIssueSheetDismiss({
   issueId,
+  vault,
   entryRoute,
   onExit,
 }: UseIssueSheetDismissArgs) {
@@ -48,7 +50,6 @@ export function useIssueSheetDismiss({
   // static-prerender CSR bailout. The sibling `useOpenIssue` reads the query the
   // same way in this route family.
   const searchParams = useSearchParams();
-  const { vault } = useActiveVault();
   const trail = useIssueNavStack((state) => state.trail);
   const currentId = useIssueNavStack((state) => state.currentId);
   const back = useIssueNavStack((state) => state.back);

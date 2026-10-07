@@ -1,6 +1,5 @@
 "use client";
 
-import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type MouseEvent, useCallback } from "react";
 import { buildOpenIssueHref } from "../../lib/issueHref";
@@ -24,10 +23,9 @@ import { useIssueNavStack } from "../../stores/useIssueNavStack";
  * Modifier / non-primary clicks fall through to the anchor's native behavior
  * (open in a new tab/window), matching every other reef relation link.
  */
-export function useIssueDrill(fromIssueId: string) {
+export function useIssueDrill(fromIssueId: string, vault: string) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { vault } = useActiveVault();
   const drill = useIssueNavStack((state) => state.drill);
   const entryRoute = useIssueNavStack((state) => state.entryRoute);
 

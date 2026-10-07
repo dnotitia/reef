@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
+  normalizeExistingAkbDocumentMarkdownLinks,
   retargetRenderedAkbDocumentLinks,
   restoreRenderedAkbDocumentMarkdownLinks,
 } from "./markdownDocumentLinks";
@@ -11,7 +12,7 @@ const BRACKET_TITLE = "[Plan] 260811 - 전체";
 const BRACKET_TITLES = new Map([[URI, BRACKET_TITLE]]);
 
 describe("normalizeAkbDocumentMarkdownLinks", () => {
-  it("converts bare akb document URIs into markdown links", () => {
+  it("converts bare AKB document URIs into Markdown links", () => {
     expect(normalizeAkbDocumentMarkdownLinks(`See ${URI}.`)).toBe(
       `See [report](${URI}).`,
     );
@@ -25,6 +26,12 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
     );
     expect(normalizeAkbDocumentMarkdownLinks(URI, titles)).toBe(
       `[Research Report](${URI})`,
+    );
+  });
+
+  it("keeps bare AKB document URIs when normalizing only existing links", () => {
+    expect(normalizeExistingAkbDocumentMarkdownLinks(`See ${URI}.`)).toBe(
+      `See ${URI}.`,
     );
   });
 
@@ -73,7 +80,8 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
 });
 
 describe("extractAkbDocumentUris", () => {
-  it("extracts unique document URIs from bare text and markdown links", () => {
+  it("extracts unique document URIs from bare text and Markdown links", () => {
+    expect(extractAkbDocumentUris(URI)).toEqual([URI]);
     expect(
       extractAkbDocumentUris(`${URI}\n[Report](${URI})\nakb://v/file/abc`),
     ).toEqual([URI]);

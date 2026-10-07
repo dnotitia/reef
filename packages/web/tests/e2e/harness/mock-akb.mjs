@@ -17,6 +17,7 @@ import {
   sleep,
 } from "./mock-http.mjs";
 import {
+  handleMyWorkSql,
   handleSql,
   isIssueListQuery,
   matchSqlString,
@@ -687,6 +688,37 @@ export async function handleAkb(req, res, url, state) {
     const vault = vaultFor(decodeURIComponent(sqlMatch[1]));
     if (!vault) return;
     const body = await readJson(req);
+    if (body?.vaults !== undefined && !Array.isArray(body.vaults)) {
+      return json(res, 400, { error: "invalid_vault_scope" });
+    }
+    const scopedVaults = Array.isArray(body?.vaults) ? body.vaults : null;
+    if (scopedVaults) {
+      if (
+        !scopedVaults.every((name) => typeof name === "string") ||
+        new Set(scopedVaults).size !== scopedVaults.length ||
+        !scopedVaults.includes(vault.name)
+      ) {
+        return json(res, 400, { error: "invalid_vault_scope" });
+      }
+      for (const name of scopedVaults) {
+        const scopedVault = state.vaults.get(name);
+        if (!scopedVault) {
+          return json(res, 404, { error: "vault not found" });
+        }
+        if (
+          !["owner", "admin", "writer", "reader"].includes(
+            roleForVault(scopedVault, state, username),
+          )
+        ) {
+          return json(res, 403, { error: "permission_denied" });
+        }
+        if (!scopedVault.tables.has("reef_issues")) {
+          return json(res, 400, {
+            error: 'relation "reef_issues" does not exist',
+          });
+        }
+      }
+    }
     const sql = resolveSqlParams(
       String(body?.sql ?? ""),
       Array.isArray(body?.params) ? body.params : undefined,
@@ -742,7 +774,10 @@ export async function handleAkb(req, res, url, state) {
           error: 'relation "reef_comments" does not exist',
         });
       }
-      const result = handleSql(state, vault, sql, username);
+      const myWorkResult = scopedVaults
+        ? handleMyWorkSql(state, sql, username, scopedVaults)
+        : null;
+      const result = myWorkResult ?? handleSql(state, vault, sql, username);
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);
       }

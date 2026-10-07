@@ -9,16 +9,11 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
-const { mockUseActiveVault, mockBack } = vi.hoisted(() => ({
-  mockUseActiveVault: vi.fn(),
+const { mockBack } = vi.hoisted(() => ({
   mockBack: vi.fn(),
 }));
 const { mockUsePathname } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(() => "/workspace/reef-acme/issues/REEF-001"),
-}));
-
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: mockUseActiveVault,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -29,12 +24,18 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: ({
     issueId,
+    vault,
     entryRoute,
   }: {
     issueId: string;
+    vault: string;
     entryRoute: "base" | "modal";
   }) => (
-    <div data-testid="mock-issue-detail-sheet" data-entry-route={entryRoute}>
+    <div
+      data-testid="mock-issue-detail-sheet"
+      data-entry-route={entryRoute}
+      data-vault={vault}
+    >
       {issueId}
     </div>
   ),
@@ -82,6 +83,28 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
     expect(typeof mod.default).toBe("function");
   });
 
+  it("passes the route workspace to the shared detail sheet", () => {
+    mockUsePathname.mockReturnValue("/workspace/reef-e2e/issues/REEF-001");
+
+    render(
+      <IssueModalPage
+        params={
+          // The intercepted route can inherit the background workspace param;
+          // the target URL must still own the detail sheet's workspace.
+          { id: "REEF-001", vault: "reef-alpha" } as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
+      />,
+    );
+
+    expect(screen.getByTestId("mock-issue-detail-sheet")).toHaveAttribute(
+      "data-vault",
+      "reef-e2e",
+    );
+  });
+
   it("does not retain the modal child after navigating to a non-detail path", () => {
     useIssueNavStack.setState({
       trail: ["REEF-000"],
@@ -92,7 +115,12 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
 
     render(
       <IssueModalPage
-        params={{ id: "REEF-001" } as unknown as Promise<{ id: string }>}
+        params={
+          { id: "REEF-001", vault: "reef-acme" } as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
 
@@ -114,7 +142,12 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
 
     render(
       <IssueModalPage
-        params={{ id: "REEF-002" } as unknown as Promise<{ id: string }>}
+        params={
+          { id: "REEF-002", vault: "reef-acme" } as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
 

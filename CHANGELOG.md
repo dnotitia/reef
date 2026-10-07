@@ -18,6 +18,13 @@ explicitly in the entries below.
   reads as a neutral status row.** Its action and dismiss controls share one
   aligned group, with a matching pending frame across Issues and Planning.
   (REEF-663)
+- **My Work now spans every ready workspace accessible to the signed-in actor.**
+  Its workspace filter narrows only the queue, duplicate issue IDs retain their
+  source-workspace links, and the sidebar separates Personal from Workspace
+  navigation. (REEF-658)
+- **Issue Markdown editing uses the shared Source surface.** Reef delegates
+  Source mode and draft synchronization to the shared editor while preserving
+  issue-body Markdown and Source attachment uploads. (REEF-630)
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)
@@ -51,6 +58,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **My Work issue detail stays bound to its source workspace.** Status edits,
+  related issue links, and drill Back routes now keep using the workspace that
+  owns the opened issue, including when another workspace contains the same id.
+  (REEF-658)
 - **Unavailable workspace entries no longer imply an access denial.** Their
   heading now describes availability in English and Korean, while genuine
   access denials keep their existing guidance. (REEF-422)
@@ -71,6 +82,12 @@ explicitly in the entries below.
 - **Markdown link search stays opaque and readable in both themes.** Reef maps
   the shared editor's surface, muted, selected, and destructive color roles so
   the dialog, inputs, and result list remain legible. (REEF-629)
+- **Wide Markdown tables stay inside the editor's scroll area.** The editor
+  constrains the shared surface's table wrapper so table content does not widen
+  the issue detail panel. (REEF-630)
+- **Source-authored bare AKB document URIs stay as entered.** WYSIWYG continues
+  to normalize bare document links, and explicit Markdown links keep canonical
+  AKB targets. (REEF-630)
 - **Board reordering preserves status-change times for neighboring issues.**
   Rank materialization and re-spacing now stamp the transition time only on the
   issue whose status changed, keeping auto-hide, report dates, and activity

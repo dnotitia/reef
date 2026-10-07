@@ -74,6 +74,11 @@ function isAuthProbeRequest(request: import("@playwright/test").Request) {
   );
 }
 
+function isProtectedApiRequest(request: import("@playwright/test").Request) {
+  const pathname = new URL(request.url()).pathname;
+  return pathname.startsWith("/api/") && !pathname.startsWith("/api/auth/");
+}
+
 async function expectLogin(
   page: import("@playwright/test").Page,
   redirect?: string,
@@ -425,7 +430,27 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
+    const pendingProtectedRequests = new Set<
+      import("@playwright/test").Request
+    >();
+    const trackProtectedRequest = (
+      protectedRequest: import("@playwright/test").Request,
+    ) => {
+      if (isProtectedApiRequest(protectedRequest)) {
+        pendingProtectedRequests.add(protectedRequest);
+      }
+    };
+    const settleProtectedRequest = (
+      protectedRequest: import("@playwright/test").Request,
+    ) => {
+      pendingProtectedRequests.delete(protectedRequest);
+    };
+    page.on("request", trackProtectedRequest);
+    page.on("requestfinished", settleProtectedRequest);
+    page.on("requestfailed", settleProtectedRequest);
+
     await openExistingWorkspace(page);
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
     await expect
       .poll(() => readIndexedDbConfig(page, "vault"))
       .toBe("reef-e2e");
@@ -445,6 +470,26 @@ test.describe("auth soft navigation", () => {
         JSON.stringify({ account: "protected-data" }),
       );
     });
+
+    const activeProbe = page.waitForResponse(
+      (response) =>
+        isAuthProbeRequest(response.request()) && response.status() === 200,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await activeProbe;
+    await expect
+      .poll(() =>
+        [...pendingProtectedRequests].map((pendingRequest) => {
+          const route = new URL(pendingRequest.url()).pathname
+            .replace(/\/REEF-[A-Z0-9-]+/gi, "/:issue")
+            .replace(/\/reef-[a-z0-9-]+/gi, "/:workspace");
+          return `${pendingRequest.method()} ${route}`;
+        }),
+      )
+      .toEqual([]);
+    page.off("request", trackProtectedRequest);
+    page.off("requestfinished", settleProtectedRequest);
+    page.off("requestfailed", settleProtectedRequest);
 
     await setAuthControl(request, { session: "revoked" });
     const probe = page.waitForRequest(isAuthProbeRequest);
@@ -1505,8 +1550,13 @@ test.describe("auth soft navigation", () => {
     await setAkbAccountDenial(request, "membership_required");
     await page.reload();
     await expectLogin(page);
-    expect(new URL(page.url()).searchParams.get("sso_error")).toBe(
-      "membership_required",
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === "/login" &&
+        url.searchParams.get("sso_error") === "membership_required",
+    );
+    await expect(page.getByTestId("login-error-alert")).toContainText(
+      "does not have workspace access",
     );
   });
 

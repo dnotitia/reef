@@ -679,7 +679,7 @@ test.describe("Hermetic issue route surfaces", () => {
       .getByRole("button", { name: "Source" })
       .click();
     await goalEditor
-      .getByTestId("markdown-source-textarea")
+      .locator('[data-markdown-mode="source"] textarea')
       .fill(LONG_CURRENT_SPRINT_GOAL);
     await goalEditor
       .getByTestId("markdown-toolbar")
@@ -702,7 +702,7 @@ test.describe("Hermetic issue route surfaces", () => {
       .getByRole("button", { name: "Source" })
       .click();
     await expect(
-      savedGoalEditor.getByTestId("markdown-source-textarea"),
+      savedGoalEditor.locator('[data-markdown-mode="source"] textarea'),
     ).toHaveValue(
       /Current sprint goal line 1[\s\S]+Current sprint goal line 24/u,
     );
@@ -1576,6 +1576,19 @@ test.describe("Hermetic issue route surfaces", () => {
         await expect(scroll).toHaveAttribute("role", "region");
         await expect(scroll).toHaveAttribute("tabindex", "0");
         await expect(scroll).toBeVisible();
+        if (view === "list") {
+          const rowTestId =
+            scope === "backlog" ? "backlog-row" : "issue-list-row";
+          await expect(scroll.getByTestId(rowTestId).first()).toBeVisible();
+          await page.evaluate(
+            () =>
+              new Promise<void>((resolve) => {
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() => resolve()),
+                );
+              }),
+          );
+        }
         const scrollGeometry = await scroll.evaluate((element) => {
           const root = element as HTMLElement;
           return {
@@ -2307,7 +2320,7 @@ test.describe("Hermetic issue route surfaces", () => {
       .getByRole("button");
     await title.fill("Draft survives maximize");
     await sourceToggle.click();
-    const body = dialog.getByTestId("markdown-source-textarea");
+    const body = dialog.locator('[data-markdown-mode="source"] textarea');
     await expect(body).toBeVisible();
     await body.fill("Description survives maximize");
 
@@ -2497,7 +2510,7 @@ test.describe("Hermetic issue route surfaces", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    await dialog.getByTestId("markdown-source-textarea").fill(body);
+    await dialog.locator('[data-markdown-mode="source"] textarea').fill(body);
     await dialog.getByTestId("new-issue-submit").click();
 
     await page.waitForURL(/\/issues\/REEF-\d+$/, { timeout: 10_000 });
@@ -2542,9 +2555,9 @@ test.describe("Hermetic issue route surfaces", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    await expect(page.getByTestId("markdown-source-textarea")).toHaveValue(
-      body,
-    );
+    await expect(
+      page.locator('[data-markdown-mode="source"] textarea'),
+    ).toHaveValue(body);
   });
 
   test("creates a sub-issue from Sub-issues with inherited defaults and optimistic child list update", async ({

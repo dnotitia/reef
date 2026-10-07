@@ -12,8 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 const issueRelationsKey = (vault: string) =>
   ["issues", "relations", vault] as const;
 
-export function useIssueRelations(vault: string) {
-  return useQuery({
+export function issueRelationsQueryOptions(vault: string) {
+  return {
     queryKey: issueRelationsKey(vault),
     staleTime: 60_000,
     queryFn: async (): Promise<IssueRelation[]> => {
@@ -26,5 +26,9 @@ export function useIssueRelations(vault: string) {
       return IssueRelationsResponseSchema.parse(await res.json()).relations;
     },
     enabled: !!vault,
-  });
+  };
+}
+
+export function useIssueRelations(vault: string) {
+  return useQuery(issueRelationsQueryOptions(vault));
 }

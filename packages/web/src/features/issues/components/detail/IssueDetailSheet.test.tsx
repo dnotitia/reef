@@ -12,13 +12,10 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
-const { mockUseActiveVault, mockReplace } = vi.hoisted(() => ({
-  mockUseActiveVault: vi.fn(),
+const { mockUseIssue, mockUseIssueList, mockReplace } = vi.hoisted(() => ({
+  mockUseIssue: vi.fn(() => ({ data: undefined })),
+  mockUseIssueList: vi.fn(() => ({ data: undefined, isPending: false })),
   mockReplace: vi.fn(),
-}));
-
-vi.mock("@/features/settings/hooks/useActiveVault", () => ({
-  useActiveVault: mockUseActiveVault,
 }));
 
 // The sheet's drill-aware dismiss controller reads router + the live query
@@ -28,33 +25,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// `data-next-link` marks anchors routed through Next `Link`; a raw `<a>` lacks
-// it, so the no-vault CTA assertion fails if the Onboarding link regresses to a
-// full-reload anchor (REEF-262).
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...rest
-  }: {
-    href: string;
-    children: React.ReactNode;
-  }) => (
-    <a data-next-link="true" href={href} {...rest}>
-      {children}
-    </a>
-  ),
-}));
-
 // The persistent chrome bar reads these for its identity cluster (REEF-286).
 // They are query data, not what these chrome/dismiss tests exercise, so stub
 // them empty — the bar then shows the route-param id alone, which is exactly the
 // loading / id fallback state the AC2 assertions check.
 vi.mock("@/features/issues/hooks/queries/useIssue", () => ({
-  useIssue: () => ({ data: undefined }),
+  useIssue: mockUseIssue,
 }));
 vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
-  useIssueList: () => ({ data: undefined, isPending: false }),
+  useIssueList: mockUseIssueList,
 }));
 
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
@@ -103,86 +82,47 @@ describe("IssueDetailSheet", () => {
   });
 
   it("renders the skeleton path while vault is loading", () => {
-    mockUseActiveVault.mockReturnValue({
-      vault: "",
-      isLoading: true,
-      refetch: () => Promise.resolve(),
-    });
     render(
       wrap(
         <IssueDetailSheet
           entryRoute="modal"
           issueId="REEF-001"
+          vault="reef-e2e"
           onClose={() => {}}
         />,
       ),
     );
     // Skeletons render a series of <Skeleton/> elements — no error thrown is the smoke check.
     expect(screen.getByTestId("issue-detail-modal")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("issue-detail-no-vault"),
-    ).not.toBeInTheDocument();
+    expect(mockUseIssue).toHaveBeenCalledWith("REEF-001", "reef-e2e");
+    expect(mockUseIssueList).toHaveBeenCalledWith("reef-e2e");
   });
 
-  it('renders the "Choose a workspace" CTA with a client-side Onboarding link when no vault is set (REEF-262)', () => {
-    mockUseActiveVault.mockReturnValue({
-      vault: "",
-      isLoading: false,
-      refetch: () => Promise.resolve(),
-    });
+  it("mounts IssueDetail from the owning route workspace", () => {
     render(
       wrap(
         <IssueDetailSheet
           entryRoute="modal"
           issueId="REEF-001"
+          vault="reef-acme"
           onClose={() => {}}
         />,
       ),
     );
-    expect(screen.getByTestId("issue-detail-no-vault")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Onboarding" });
-    expect(link).toHaveAttribute("href", "/onboarding");
-    expect(link).toHaveAttribute("data-next-link", "true");
-  });
-
-  it("mounts IssueDetail when vault is available", () => {
-    mockUseActiveVault.mockReturnValue({
-      vault: "reef-acme",
-      isLoading: false,
-      refetch: () => Promise.resolve(),
-    });
-    render(
-      wrap(
-        <IssueDetailSheet
-          entryRoute="modal"
-          issueId="REEF-001"
-          onClose={() => {}}
-        />,
-      ),
-    );
-    expect(
-      screen.queryByTestId("issue-detail-no-vault"),
-    ).not.toBeInTheDocument();
+    expect(mockUseIssue).toHaveBeenCalledWith("REEF-001", "reef-acme");
   });
 
   // REEF-111: opting out of the shared SheetContent X should not leave a sheet
   // state without a visible close control. Every state exposes exactly one
   // close button — the in-flow replacement (data-testid="issue-close"), does not
   // the shared overlay X (which carries no test id).
-  it.each([
-    ["vault loading", { vault: "", isLoading: true }],
-    ["no vault", { vault: "", isLoading: false }],
-    ["vault available", { vault: "reef-acme", isLoading: false }],
-  ])("always exposes a single close button (%s)", (_label, vaultState) => {
-    mockUseActiveVault.mockReturnValue({
-      ...vaultState,
-      refetch: () => Promise.resolve(),
-    });
+  it("always exposes a single close button", () => {
     render(
       wrap(
         <IssueDetailSheet
           entryRoute="modal"
           issueId="REEF-001"
+          vault="reef-acme"
           onClose={() => {}}
         />,
       ),
@@ -196,20 +136,13 @@ describe("IssueDetailSheet", () => {
   // REEF-286: the identity/nav bar is persistent chrome outside the body, so the
   // route-param id fills the bar's left in every state — there is no empty
   // band, and the id does not blink while the body below skeletons (AC1 · AC2).
-  it.each([
-    ["vault loading", { vault: "", isLoading: true }],
-    ["no vault", { vault: "", isLoading: false }],
-    ["vault available", { vault: "reef-acme", isLoading: false }],
-  ])("fills the chrome bar with the issue id (%s)", (_label, vaultState) => {
-    mockUseActiveVault.mockReturnValue({
-      ...vaultState,
-      refetch: () => Promise.resolve(),
-    });
+  it("fills the chrome bar with the issue id", () => {
     render(
       wrap(
         <IssueDetailSheet
           entryRoute="modal"
           issueId="REEF-001"
+          vault="reef-acme"
           onClose={() => {}}
         />,
       ),
@@ -225,16 +158,12 @@ describe("IssueDetailSheet", () => {
   it("dismisses through the fallback close button in a header-less state (REEF-111)", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    mockUseActiveVault.mockReturnValue({
-      vault: "",
-      isLoading: false,
-      refetch: () => Promise.resolve(),
-    });
     render(
       wrap(
         <IssueDetailSheet
           entryRoute="modal"
           issueId="REEF-001"
+          vault="reef-acme"
           onClose={onClose}
         />,
       ),
@@ -257,16 +186,12 @@ describe("IssueDetailSheet", () => {
     document.addEventListener("keydown", consumeEscape, { capture: true });
 
     try {
-      mockUseActiveVault.mockReturnValue({
-        vault: "",
-        isLoading: false,
-        refetch: () => Promise.resolve(),
-      });
       render(
         wrap(
           <IssueDetailSheet
             entryRoute="modal"
             issueId="REEF-001"
+            vault="reef-acme"
             onClose={onClose}
           />,
         ),
@@ -288,16 +213,12 @@ describe("IssueDetailSheet", () => {
   // exit the whole trail in one shot.
   describe("drill navigation (REEF-270)", () => {
     function renderDrilledInto(issueId: string, onClose = vi.fn()) {
-      mockUseActiveVault.mockReturnValue({
-        vault: "reef-test",
-        isLoading: false,
-        refetch: () => Promise.resolve(),
-      });
       render(
         wrap(
           <IssueDetailSheet
             entryRoute="modal"
             issueId={issueId}
+            vault="reef-test"
             onClose={onClose}
           />,
         ),
@@ -412,16 +333,12 @@ describe("IssueDetailSheet", () => {
   // sheet viewport, and `overscroll-contain` stops chaining to the page behind it.
   it("renders a widened, overscroll-contained canvas", () => {
     setViewportWidth(1920);
-    mockUseActiveVault.mockReturnValue({
-      vault: "reef-acme",
-      isLoading: false,
-      refetch: () => Promise.resolve(),
-    });
     render(
       wrap(
         <IssueDetailSheet
           entryRoute="modal"
           issueId="REEF-001"
+          vault="reef-acme"
           onClose={() => {}}
         />,
       ),
@@ -451,16 +368,12 @@ describe("IssueDetailSheet", () => {
   describe("desktop splitter", () => {
     function renderDesktop(locale: Locale = "en") {
       setViewportWidth(1920);
-      mockUseActiveVault.mockReturnValue({
-        vault: "reef-acme",
-        isLoading: false,
-        refetch: () => Promise.resolve(),
-      });
       return render(
         wrap(
           <IssueDetailSheet
             entryRoute="modal"
             issueId="REEF-001"
+            vault="reef-acme"
             onClose={() => {}}
           />,
           locale,
@@ -573,6 +486,7 @@ describe("IssueDetailSheet", () => {
           <IssueDetailSheet
             entryRoute="modal"
             issueId="REEF-002"
+            vault="reef-acme"
             onClose={() => {}}
           />,
         ),
@@ -791,6 +705,7 @@ describe("IssueDetailSheet", () => {
           <IssueDetailSheet
             entryRoute="modal"
             issueId="REEF-002"
+            vault="reef-acme"
             onClose={() => {}}
           />,
           "ko",
@@ -824,16 +739,12 @@ describe("IssueDetailSheet", () => {
 
     it("omits the splitter below the desktop breakpoint", () => {
       setViewportWidth(1279);
-      mockUseActiveVault.mockReturnValue({
-        vault: "reef-acme",
-        isLoading: false,
-        refetch: () => Promise.resolve(),
-      });
       render(
         wrap(
           <IssueDetailSheet
             entryRoute="modal"
             issueId="REEF-001"
+            vault="reef-acme"
             onClose={() => {}}
           />,
         ),

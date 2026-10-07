@@ -125,6 +125,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   if (!canRenderAuthenticatedTree) {
     return (
       <WorkspaceAuthPendingSkeleton
+        vault={vault}
         pathname={pathname}
         searchParams={searchParams.toString()}
       />
@@ -183,6 +184,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
       {shell}
       <IssueDetailAuthPendingSkeleton
         issueId={entryIssueId}
+        vault={vault}
         searchParams={searchParams.toString()}
         showWorkspaceSkeleton={false}
         overlayOnly

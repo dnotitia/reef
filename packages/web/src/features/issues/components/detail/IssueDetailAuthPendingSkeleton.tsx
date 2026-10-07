@@ -13,11 +13,13 @@ import { IssuesWorkspaceSkeleton } from "../filters/IssuesWorkspaceSkeleton";
  */
 export function IssueDetailAuthPendingSkeleton({
   issueId,
+  vault,
   searchParams,
   showWorkspaceSkeleton = true,
   overlayOnly = false,
 }: {
   issueId: string;
+  vault: string;
   searchParams: string;
   showWorkspaceSkeleton?: boolean;
   overlayOnly?: boolean;
@@ -63,6 +65,7 @@ export function IssueDetailAuthPendingSkeleton({
         >
           <IssueChromeIdentity
             issueId={issueId}
+            vault={vault}
             status={undefined}
             issueType={undefined}
             parentId={null}

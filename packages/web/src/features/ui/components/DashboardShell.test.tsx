@@ -56,7 +56,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
     isLoading: false,
     refetch: () => Promise.resolve(),
   }),
-  // SidebarWorkspace (in the footer) switches the active vault from the same
+  // SidebarWorkspace switches the active vault from the same
   // module, so the shell now needs this export too.
   useSetActiveVault: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
 }));
@@ -352,7 +352,7 @@ describe("DashboardShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("places My Work right after Issues in the nav (REEF-204)", () => {
+  it("groups personal and workspace navigation around the workspace selector", () => {
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">
@@ -361,11 +361,38 @@ describe("DashboardShell", () => {
       ),
     );
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    const labels = within(nav)
-      .getAllByRole("link")
-      .map((link) => link.textContent);
-    expect(labels[0]).toBe("Issues");
-    expect(labels[1]).toBe("My Work");
+    const personal = within(nav).getByTestId("sidebar-personal-group");
+    const workspace = within(nav).getByTestId("sidebar-workspace-group");
+    const selector = within(workspace).getByTestId("sidebar-workspace");
+    const trigger = screen.getByTestId("new-issue-trigger");
+
+    expect(trigger).toHaveClass("w-full");
+    expect(
+      within(personal).getByRole("heading", { name: "Personal" }),
+    ).toBeVisible();
+    expect(
+      within(personal).getByRole("link", { name: "My Work" }),
+    ).toBeVisible();
+    expect(within(personal).getByRole("link", { name: "Inbox" })).toBeVisible();
+    expect(
+      within(workspace).getByRole("heading", { name: "Workspace" }),
+    ).toBeVisible();
+    expect(
+      within(workspace).getByRole("link", { name: "Issues" }),
+    ).toBeVisible();
+    expect(
+      within(workspace).getByRole("link", { name: "Planning" }),
+    ).toBeVisible();
+    expect(
+      within(workspace).getByRole("link", { name: "Reports" }),
+    ).toBeVisible();
+    expect(
+      within(workspace).getByRole("link", { name: "Settings" }),
+    ).toBeVisible();
+    expect(personal.compareDocumentPosition(workspace)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(selector.parentElement).toBe(workspace);
   });
 
   it("shows the My Work badge in destructive tone when work is overdue (REEF-204)", () => {
@@ -483,7 +510,7 @@ describe("DashboardShell", () => {
 
     const utility = screen.getByTestId("sidebar-footer-shortcuts");
     const shortcuts = within(utility).getByTestId("sidebar-shortcuts-trigger");
-    const workspace = screen.getByTestId("sidebar-workspace");
+    const workspace = screen.getByTestId("sidebar-workspace-group");
     const account = screen.getByTestId("sidebar-account");
 
     expect(utility).toHaveClass("py-1");
@@ -494,7 +521,7 @@ describe("DashboardShell", () => {
       "type-caption",
       "text-muted-foreground/80",
     );
-    expect(utility.compareDocumentPosition(workspace)).toBe(
+    expect(workspace.compareDocumentPosition(utility)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(workspace.compareDocumentPosition(account)).toBe(
@@ -693,7 +720,7 @@ describe("DashboardShell", () => {
     expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
   });
 
-  it("keeps the collapsed shortcuts utility above the identity controls (REEF-170)", () => {
+  it("keeps the collapsed shortcuts utility after workspace navigation (REEF-170)", () => {
     useViewStore.setState({ sidebarCollapsed: true });
 
     render(
@@ -706,12 +733,12 @@ describe("DashboardShell", () => {
 
     const utility = screen.getByTestId("sidebar-footer-shortcuts");
     const shortcut = within(utility).getByTestId("sidebar-shortcuts-trigger");
-    const workspace = screen.getByTestId("sidebar-workspace");
+    const workspace = screen.getByTestId("sidebar-workspace-group");
 
     expect(utility).toHaveClass("py-1");
     expect(shortcut).toHaveClass("h-8", "w-8", "justify-center");
     expect(shortcut).not.toHaveTextContent("Keyboard shortcuts");
-    expect(utility.compareDocumentPosition(workspace)).toBe(
+    expect(workspace.compareDocumentPosition(utility)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });

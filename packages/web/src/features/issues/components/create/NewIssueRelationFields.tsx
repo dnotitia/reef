@@ -26,6 +26,7 @@ type RenderFieldLabel = (
  * with the authoring surface.
  */
 export function NewIssueRelationFields({
+  vault,
   isSubmitting,
   existingIssues,
   relations,
@@ -41,6 +42,7 @@ export function NewIssueRelationFields({
   renderEnrichable,
   renderFieldLabel,
 }: {
+  vault: string;
   isSubmitting: boolean;
   existingIssues: readonly IssueListItem[];
   relations: ComponentProps<typeof IssueRelationInput>["relationGraph"];
@@ -90,6 +92,7 @@ export function NewIssueRelationFields({
               <IssueRelationInput
                 id="new-issue-parent"
                 label={fieldNames.parent}
+                vault={vault}
                 hideLabel
                 value={parentId ? [parentId] : []}
                 allIssues={existingIssues}
@@ -118,6 +121,7 @@ export function NewIssueRelationFields({
               <IssueRelationInput
                 id="new-issue-depends-on"
                 label={fieldNames.dependsOn}
+                vault={vault}
                 hideLabel
                 value={dependsOn}
                 allIssues={existingIssues}
@@ -140,6 +144,7 @@ export function NewIssueRelationFields({
               <IssueRelationInput
                 id="new-issue-blocks"
                 label={fieldNames.blocks}
+                vault={vault}
                 hideLabel
                 value={blocks}
                 allIssues={existingIssues}
@@ -162,6 +167,7 @@ export function NewIssueRelationFields({
               <IssueRelationInput
                 id="new-issue-related-to"
                 label={fieldNames.related}
+                vault={vault}
                 hideLabel
                 value={relatedTo}
                 allIssues={existingIssues}

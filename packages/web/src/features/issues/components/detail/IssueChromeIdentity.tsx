@@ -27,6 +27,7 @@ import { useMemo } from "react";
  */
 export function IssueChromeIdentity({
   issueId,
+  vault,
   status,
   issueType,
   isArchived = false,
@@ -36,6 +37,8 @@ export function IssueChromeIdentity({
 }: {
   /** Current issue id (the route param) — consistently rendered, even mid-load. */
   issueId: string;
+  /** Workspace that owns the current issue route. */
+  vault: string;
   /** Current issue status, or undefined until the issue loads. */
   status?: Status;
   /** Current issue type, or undefined until the issue loads. */
@@ -65,7 +68,7 @@ export function IssueChromeIdentity({
   // Drilling to the parent is an in-sheet content swap that records the hop on
   // the nav stack (REEF-270), so a Back from the parent returns here. Modifier
   // clicks still open the parent in a fresh tab via the link href.
-  const getDrillProps = useIssueDrill(issueId);
+  const getDrillProps = useIssueDrill(issueId, vault);
 
   return (
     // The breadcrumb trail — parent › current — on the bar's left. The current

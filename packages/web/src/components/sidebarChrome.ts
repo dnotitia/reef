@@ -28,15 +28,20 @@ export const SIDEBAR_NAV_INACTIVE_CLASS =
 
 export const SIDEBAR_NAV_COLLAPSED_CLASS = "h-9 justify-center px-0";
 
-export const SIDEBAR_NAV_ITEMS: ReadonlyArray<{
+export interface SidebarNavItem {
   href: string;
   labelKey: "issues" | "myWork" | "inbox" | "planning" | "reports" | "settings";
   testId: string;
   icon: LucideIcon;
-}> = [
-  { href: "/issues", labelKey: "issues", testId: "issues", icon: ListTodo },
+}
+
+export const SIDEBAR_PERSONAL_NAV_ITEMS: ReadonlyArray<SidebarNavItem> = [
   { href: "/my-work", labelKey: "myWork", testId: "my work", icon: CircleUser },
   { href: "/inbox", labelKey: "inbox", testId: "inbox", icon: Bell },
+];
+
+export const SIDEBAR_WORKSPACE_NAV_ITEMS: ReadonlyArray<SidebarNavItem> = [
+  { href: "/issues", labelKey: "issues", testId: "issues", icon: ListTodo },
   {
     href: "/planning",
     labelKey: "planning",
@@ -51,3 +56,8 @@ export const SIDEBAR_NAV_ITEMS: ReadonlyArray<{
     icon: Settings,
   },
 ] as const;
+
+export const SIDEBAR_NAV_ITEMS: ReadonlyArray<SidebarNavItem> = [
+  ...SIDEBAR_PERSONAL_NAV_ITEMS,
+  ...SIDEBAR_WORKSPACE_NAV_ITEMS,
+];

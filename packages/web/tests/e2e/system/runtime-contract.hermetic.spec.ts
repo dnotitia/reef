@@ -1776,8 +1776,10 @@ test.describe("Hermetic runtime discovery", () => {
 
   test("records dashboard surface roles and responsive evidence across routed pages", async ({
     page,
+    request,
   }, testInfo) => {
     test.setTimeout(300_000);
+    await resetFixture(request, "configured");
     await page.setViewportSize({ width: 1440, height: 900 });
     await openExistingWorkspace(page);
 

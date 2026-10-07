@@ -4,7 +4,6 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { MyWorkRow } from "@/features/my-work/components/MyWorkRow";
 import { type MyWorkItem, groupByStatus } from "@/features/my-work/lib/myWork";
-import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
@@ -26,6 +25,9 @@ interface MyWorkQueueProps {
   items: MyWorkItem[];
   mode: GroupMode;
   onModeChange: (mode: GroupMode) => void;
+  workspaces: string[];
+  selectedWorkspace: string | null;
+  onWorkspaceChange: (workspace: string | null) => void;
 }
 
 /**
@@ -35,13 +37,20 @@ interface MyWorkQueueProps {
  * lives in the URL (`?group=`) one level up so opening an issue and returning
  * preserves it.
  */
-export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
+export function MyWorkQueue({
+  items,
+  mode,
+  onModeChange,
+  workspaces,
+  selectedWorkspace,
+  onWorkspaceChange,
+}: MyWorkQueueProps) {
   const t = useTranslations("myWork");
   const searchParams = useSearchParams();
-  const { vault } = useActiveVault();
   const hrefFor = useCallback(
-    (id: string) => buildOpenIssueHref(vault, id, searchParams),
-    [searchParams, vault],
+    (workspace: string, id: string) =>
+      buildOpenIssueHref(workspace, id, searchParams),
+    [searchParams],
   );
   const groups = useMemo(
     () => (mode === "status" ? groupByStatus(items) : null),
@@ -50,7 +59,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
 
   return (
     <section className="flex flex-col gap-3" data-testid="my-work-queue">
-      <header className="flex items-baseline justify-between gap-3">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="type-group-title text-foreground">
             {t("queueTitle")}
@@ -59,41 +68,70 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
             {items.length}
           </span>
         </div>
-        <div
-          role="group"
-          aria-label={t("groupAriaLabel")}
-          className="inline-flex gap-0.5 rounded-lg border border-border-subtle bg-surface-subtle p-0.5"
-        >
-          {GROUP_OPTIONS.map((option) => {
-            const active = option.value === mode;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onModeChange(option.value)}
-                data-testid={`my-work-group-${option.value}`}
-                className={cn(
-                  "rounded-md px-2.5 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
-                  active
-                    ? "bg-surface-page text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t(option.labelKey)}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label className="flex items-center gap-2 type-caption text-muted-foreground">
+            <span>{t("workspaceFilter")}</span>
+            <select
+              value={selectedWorkspace ?? ""}
+              onChange={(event) =>
+                onWorkspaceChange(event.currentTarget.value || null)
+              }
+              aria-label={t("workspaceFilter")}
+              data-testid="my-work-workspace-filter"
+              className="max-w-40 rounded-md border border-border-subtle bg-surface-page px-2 py-1.5 type-control text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+            >
+              <option value="">{t("allWorkspaces")}</option>
+              {workspaces.map((workspace) => (
+                <option key={workspace} value={workspace}>
+                  {workspace}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div
+            role="group"
+            aria-label={t("groupAriaLabel")}
+            className="inline-flex gap-0.5 rounded-lg border border-border-subtle bg-surface-subtle p-0.5"
+          >
+            {GROUP_OPTIONS.map((option) => {
+              const active = option.value === mode;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onModeChange(option.value)}
+                  data-testid={`my-work-group-${option.value}`}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 type-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
+                    active
+                      ? "bg-surface-page text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t(option.labelKey)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
       <div className="min-w-0 overflow-hidden rounded-xl border border-border-subtle bg-surface-page">
-        {mode === "priority" ? (
+        {items.length === 0 ? (
+          <p
+            role="status"
+            data-testid="my-work-filter-empty"
+            className="px-4 py-8 text-center type-body text-muted-foreground"
+          >
+            {t("noWorkspaceItems")}
+          </p>
+        ) : mode === "priority" ? (
           items.map((item) => (
             <MyWorkRow
-              key={item.issue.id}
+              key={`${item.workspace}:${item.issue.id}`}
               item={item}
-              href={hrefFor(item.issue.id)}
+              href={hrefFor(item.workspace, item.issue.id)}
               showStatus
             />
           ))
@@ -104,9 +142,9 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
                 <GroupHeader status={group.status} count={group.count} />
                 {group.items.map((item) => (
                   <MyWorkRow
-                    key={item.issue.id}
+                    key={`${item.workspace}:${item.issue.id}`}
                     item={item}
-                    href={hrefFor(item.issue.id)}
+                    href={hrefFor(item.workspace, item.issue.id)}
                     showStatus={false}
                   />
                 ))}

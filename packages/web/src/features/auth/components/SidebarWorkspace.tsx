@@ -32,20 +32,24 @@ interface SidebarWorkspaceProps {
 }
 
 /**
- * Workspace identity monogram — a square `bg-surface-elevated` tile with a font-mono
- * initial. Deliberately *not* a PersonAvatar: a square neutral tile reads as a
- * place, the round tinted avatar as a person, so the workspace row and the
- * account row below it stay distinct ("place vs person", REEF-146 / REEF-093).
+ * Workspace identity in the navigation group. The square monogram
+ * distinguishes workspace context from the account avatar in the footer.
  */
-function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
+function WorkspaceMonogram({
+  name,
+  collapsed,
+}: {
+  name: string;
+  collapsed: boolean;
+}) {
   const initials = name.trim() ? computeInitials(name) : "?";
   return (
     <span
       aria-hidden="true"
       data-testid="workspace-monogram"
       className={cn(
-        "inline-flex shrink-0 select-none items-center justify-center rounded-md bg-surface-elevated font-mono font-medium leading-none text-foreground ring-1 ring-border",
-        large ? "size-9 type-caption" : "size-7 type-caption",
+        "type-caption inline-flex shrink-0 select-none items-center justify-center rounded-md bg-surface-elevated font-mono font-medium leading-none text-foreground ring-1 ring-border",
+        collapsed ? "size-9" : "size-7",
       )}
     >
       {initials}
@@ -54,15 +58,13 @@ function WorkspaceMonogram({ name, large }: { name: string; large?: boolean }) {
 }
 
 /**
- * Sidebar-footer workspace row + switcher (REEF-146). Sits directly above the
- * account (person) row and answers "which workspace am I in, and how do I
- * switch or add one" without a trip back to full-screen onboarding.
+ * Workspace-group selector (REEF-146). It answers "which workspace am I in,
+ * and how do I switch or add one" without a trip back to full-screen
+ * onboarding.
  *
- *  - Expanded: the workspace monogram + the active vault name. (No left brand
- *    rail — the active-page rail is a nav signal; the footer identity rows
- *    stay symmetric with the account row below, REEF-168.)
- *  - Collapsed (w-14): the monogram just, with the vault name in `title`.
- *  - Click: an upward popover listing the user's active Reef workspaces (with
+ *  - Expanded: the workspace name centered vertically beside its monogram.
+ *  - Collapsed (w-14): the monogram, with the vault name in `title`.
+ *  - Click: a downward popover listing the user's active Reef workspaces (with
  *    search), the current one marked with ✓ + a brand rail; picking another
  *    switches the active vault. A pinned "New workspace" entry is consistently
  *    present — even with zero reef vaults — and opens the create dialog.
@@ -224,7 +226,7 @@ export function SidebarWorkspace({
 
   return (
     <div
-      className={cn("border-t border-border-subtle p-2", collapsed && "px-1.5")}
+      className={cn("py-1", collapsed && "-mx-0.5")}
       data-testid="sidebar-workspace"
     >
       <Popover open={open} onOpenChange={setOpen} className="w-full">
@@ -238,8 +240,8 @@ export function SidebarWorkspace({
           }
           title={collapsed ? label : undefined}
           className={cn(
-            "w-full gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus",
-            collapsed ? "justify-center px-0 py-1" : "px-2 py-1.5",
+            "min-h-11 w-full gap-2 rounded-md text-left [touch-action:manipulation] hover:bg-surface-hover active:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:cursor-not-allowed disabled:opacity-50",
+            collapsed ? "justify-center px-0 py-1" : "px-3 py-1.5",
           )}
         >
           {isLoading ? (
@@ -247,22 +249,17 @@ export function SidebarWorkspace({
               className={cn("rounded-md", collapsed ? "size-9" : "size-7")}
             />
           ) : (
-            <WorkspaceMonogram name={activeVault} large={collapsed} />
+            <WorkspaceMonogram name={activeVault} collapsed={collapsed} />
           )}
 
           {!collapsed && (
-            <span className="flex min-w-0 flex-1 flex-col">
+            <span className="flex min-w-0 flex-1 items-center">
               {isLoading ? (
                 <Skeleton className="h-3.5 w-24" />
               ) : (
-                <>
-                  <span className="type-navigation truncate text-foreground">
-                    {label}
-                  </span>
-                  <span className="type-card-metadata truncate text-muted-foreground">
-                    {tw("workspace")}
-                  </span>
-                </>
+                <span className="type-navigation truncate text-foreground">
+                  {label}
+                </span>
               )}
             </span>
           )}
@@ -276,7 +273,7 @@ export function SidebarWorkspace({
         </PopoverTrigger>
 
         <PopoverContent
-          side="top"
+          side="bottom"
           align="start"
           role="dialog"
           aria-label={tw("selectWorkspaceAria")}

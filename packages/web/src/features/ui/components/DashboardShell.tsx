@@ -8,8 +8,9 @@ import {
   SIDEBAR_NAV_ACTIVE_CLASS,
   SIDEBAR_NAV_COLLAPSED_CLASS,
   SIDEBAR_NAV_INACTIVE_CLASS,
-  SIDEBAR_NAV_ITEMS,
+  SIDEBAR_PERSONAL_NAV_ITEMS,
   SIDEBAR_NAV_LINK_CLASS,
+  SIDEBAR_WORKSPACE_NAV_ITEMS,
   SIDEBAR_TOGGLE_CLASS,
 } from "@/components/sidebarChrome";
 import { AskAiFab } from "@/features/ai/components/AskAiFab";
@@ -442,9 +443,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // endpoint and no browser visit marker in this path.
   const unreadNotificationCount = useUnreadNotificationCount(vault);
 
-  // My Work "needs attention" count for its sidebar badge (REEF-204): the
-  // signed-in user's overdue + due-soon work, derived from MyWorkPage's same
-  // `useIssueList` cache (no extra fetch). Hidden while on /my-work.
+  // Account-wide overdue + due-soon work for the My Work sidebar badge. The
+  // page shares this in-memory response query; it stays hidden on /my-work.
   const { attention, overdue, dueSoon } = useMyWorkAttention();
 
   // Workspace skill (agent-playbook) drift for the sidebar Settings badge
@@ -508,6 +508,96 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       };
     }
     return null;
+  }
+
+  function renderNavItems(items: typeof SIDEBAR_PERSONAL_NAV_ITEMS) {
+    return (
+      <ul className="flex flex-col gap-0.5">
+        {items.map(({ href, labelKey, testId, icon: Icon }) => {
+          const label = t(labelKey);
+          // My Work stays in the active workspace URL for route context, while
+          // its data query is actor-wide and does not use this vault.
+          const fullHref = withVault(vault, href);
+          const isActive =
+            pathname === fullHref || pathname.startsWith(`${fullHref}/`);
+          const badge = navBadgeFor(href, isActive);
+          return (
+            <li key={href} className="relative">
+              {isActive && (
+                <span
+                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand-fill"
+                  aria-hidden="true"
+                />
+              )}
+              <Link
+                href={fullHref}
+                title={sidebarCollapsed ? label : undefined}
+                aria-label={badge ? `${label} ${badge.label}` : label}
+                data-testid={`sidebar-nav-${testId}`}
+                className={cn(
+                  SIDEBAR_NAV_LINK_CLASS,
+                  isActive
+                    ? SIDEBAR_NAV_ACTIVE_CLASS
+                    : SIDEBAR_NAV_INACTIVE_CLASS,
+                  sidebarCollapsed && SIDEBAR_NAV_COLLAPSED_CLASS,
+                )}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {sidebarCollapsed ? (
+                  <>
+                    <span className="sr-only">{label}</span>
+                    <Icon
+                      aria-hidden="true"
+                      data-testid={`sidebar-nav-icon-${testId}`}
+                      className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
+                    />
+                    {badge && (
+                      <output
+                        data-testid={badge.dotTestId}
+                        className={cn(
+                          "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
+                          NAV_BADGE_DOT[badge.tone],
+                        )}
+                        aria-live="polite"
+                        aria-label={badge.label}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1">{label}</span>
+                    {badge &&
+                      (badge.kind === "state" ? (
+                        <output
+                          data-testid={badge.badgeTestId}
+                          aria-live="polite"
+                          aria-label={badge.label}
+                          className={cn(
+                            "ml-auto inline-block h-1.5 w-1.5 rounded-full",
+                            NAV_BADGE_DOT[badge.tone],
+                          )}
+                        />
+                      ) : (
+                        <output
+                          data-testid={badge.badgeTestId}
+                          aria-live="polite"
+                          aria-label={badge.label}
+                          className={cn(
+                            "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 type-card-metadata font-semibold leading-none tabular-nums",
+                            NAV_BADGE_PILL[badge.tone],
+                          )}
+                        >
+                          {badge.display}
+                        </output>
+                      ))}
+                  </>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    );
   }
 
   const chordRef = useRef<{ prefix: string; timer: number | null } | null>(
@@ -823,114 +913,47 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-2 py-3" aria-label={t("mainNavLandmark")}>
-          <ul className="flex flex-col gap-0.5">
-            {SIDEBAR_NAV_ITEMS.map(({ href, labelKey, testId, icon: Icon }) => {
-              const label = t(labelKey);
-              // The nav targets are vault-scoped (`/workspace/{vault}/issues`)
-              // so the active workspace stays in the URL (REEF-315). Badge
-              // resolution still keys off the stable base `href`.
-              const fullHref = withVault(vault, href);
-              // A nav link owns its whole section: it stays active on an exact
-              // match or any nested route under it — /issues/[id] keeps Issues
-              // active while the detail slide-over is open, and /settings/<tab>
-              // keeps Settings active across the scope tabs (REEF-183).
-              const isActive =
-                pathname === fullHref || pathname.startsWith(`${fullHref}/`);
-              const badge = navBadgeFor(href, isActive);
-              return (
-                <li key={href} className="relative">
-                  {/* Active rail */}
-                  {isActive && (
-                    <span
-                      className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand-fill"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <Link
-                    href={fullHref}
-                    title={sidebarCollapsed ? label : undefined}
-                    aria-label={badge ? `${label} ${badge.label}` : label}
-                    data-testid={`sidebar-nav-${testId}`}
-                    className={cn(
-                      SIDEBAR_NAV_LINK_CLASS,
-                      isActive
-                        ? SIDEBAR_NAV_ACTIVE_CLASS
-                        : SIDEBAR_NAV_INACTIVE_CLASS,
-                      sidebarCollapsed && SIDEBAR_NAV_COLLAPSED_CLASS,
-                    )}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    {sidebarCollapsed ? (
-                      <>
-                        <span className="sr-only">{label}</span>
-                        <Icon
-                          aria-hidden="true"
-                          data-testid={`sidebar-nav-icon-${testId}`}
-                          className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
-                        />
-                        {badge && (
-                          <output
-                            data-testid={badge.dotTestId}
-                            className={cn(
-                              "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
-                              NAV_BADGE_DOT[badge.tone],
-                            )}
-                            aria-live="polite"
-                            aria-label={badge.label}
-                          />
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1">{label}</span>
-                        {badge &&
-                          (badge.kind === "state" ? (
-                            // A count-less state shows the same dot as the
-                            // collapsed layout, parked in the badge gutter where
-                            // the count pills sit so the right edge stays a single
-                            <output
-                              data-testid={badge.badgeTestId}
-                              aria-live="polite"
-                              aria-label={badge.label}
-                              className={cn(
-                                "ml-auto inline-block h-1.5 w-1.5 rounded-full",
-                                NAV_BADGE_DOT[badge.tone],
-                              )}
-                            />
-                          ) : (
-                            <output
-                              data-testid={badge.badgeTestId}
-                              aria-live="polite"
-                              aria-label={badge.label}
-                              className={cn(
-                                "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 type-card-metadata font-semibold leading-none tabular-nums",
-                                NAV_BADGE_PILL[badge.tone],
-                              )}
-                            >
-                              {badge.display}
-                            </output>
-                          ))}
-                      </>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav
+          className="flex-1 overflow-y-auto px-2 py-3"
+          aria-label={t("mainNavLandmark")}
+        >
+          <section data-testid="sidebar-personal-group">
+            <h2
+              className={cn(
+                "px-3 pb-1 type-card-metadata font-medium uppercase tracking-wide text-muted-foreground",
+                sidebarCollapsed && "sr-only",
+              )}
+            >
+              {t("personal")}
+            </h2>
+            {renderNavItems(SIDEBAR_PERSONAL_NAV_ITEMS)}
+          </section>
+          <section
+            data-testid="sidebar-workspace-group"
+            className="mt-2 border-t border-border-subtle pt-2"
+          >
+            <h2
+              className={cn(
+                "px-3 pb-1 type-card-metadata font-medium uppercase tracking-wide text-muted-foreground",
+                sidebarCollapsed && "sr-only",
+              )}
+            >
+              {t("workspaceSection")}
+            </h2>
+            <SidebarWorkspace
+              collapsed={sidebarCollapsed}
+              onPreload={preloadCreateWorkspaceDialog}
+            />
+            {renderNavItems(SIDEBAR_WORKSPACE_NAV_ITEMS)}
+          </section>
         </nav>
 
-        {/* Footer — one global utility row, then a two-tier identity block.
-            Keyboard shortcuts are app chrome; workspace (place, REEF-146) and
-            account (person, REEF-068) stay grouped below so their identity
-            meanings remain distinct. */}
+        {/* Footer — one global utility row, then the account identity block.
+            The workspace selector belongs to its navigation group above
+            (REEF-146 / REEF-068). */}
         <SidebarFooterShortcuts
           collapsed={sidebarCollapsed}
           onPreload={preloadKeyboardShortcutsDialog}
-        />
-        <SidebarWorkspace
-          collapsed={sidebarCollapsed}
-          onPreload={preloadCreateWorkspaceDialog}
         />
         <SidebarAccount appVersion={appVersion} collapsed={sidebarCollapsed} />
       </aside>

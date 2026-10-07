@@ -20,12 +20,14 @@ vi.mock("@/features/issues/components/filters/IssuesWorkspace", () => ({
 vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: ({
     issueId,
+    vault,
     entryRoute,
     onReady,
     onClose,
     disableOpenAnimation,
   }: {
     issueId: string;
+    vault: string;
     entryRoute: "base" | "modal";
     onReady?: () => void;
     onClose: () => void;
@@ -36,6 +38,7 @@ vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
       <div
         data-testid="issue-detail-sheet"
         data-issue-id={issueId}
+        data-vault={vault}
         data-entry-route={entryRoute}
         data-disable-open-animation={disableOpenAnimation ? "true" : "false"}
       >
@@ -111,6 +114,10 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
     expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
       "data-entry-route",
       "base",
+    );
+    expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
+      "data-vault",
+      "reef-acme",
     );
     expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
       "data-disable-open-animation",

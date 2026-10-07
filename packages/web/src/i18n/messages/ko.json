@@ -8,6 +8,8 @@
     "open": "링크 열기"
   },
   "nav": {
+    "personal": "개인",
+    "workspaceSection": "워크스페이스",
     "issues": "이슈",
     "myWork": "내 작업",
     "inbox": "받은 알림",
@@ -1867,6 +1869,9 @@
     "loadError": "작업을 불러오지 못했습니다.",
     "openSummary": " · 미해결 {count}개",
     "queueTitle": "다음에 할 일",
+    "workspaceFilter": "워크스페이스",
+    "allWorkspaces": "모든 워크스페이스",
+    "noWorkspaceItems": "이 워크스페이스에 열린 작업이 없습니다.",
     "groupAriaLabel": "큐 그룹화",
     "byPriority": "우선순위별",
     "byStatus": "상태별",
@@ -1876,6 +1881,7 @@
     "hintWithin7Days": "7일 이내",
     "hintPastDue": "기한 지남",
     "sprintLabel": "스프린트 · {name}",
+    "workspaceSprintName": "{workspace} · {name}",
     "sprintLeft": "<value>{count}</value><label>남음</label>",
     "sprintDone": "{done}/{total} 완료"
   },

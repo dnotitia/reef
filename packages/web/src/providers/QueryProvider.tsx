@@ -8,7 +8,10 @@ import {
   subscribeCrossTabAuthChange,
 } from "@/lib/storage/clientCache";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { QueryClient } from "@tanstack/react-query";
+import {
+  defaultShouldDehydrateQuery,
+  QueryClient,
+} from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useEffect, useState } from "react";
 
@@ -152,7 +155,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, buster: PERSIST_BUSTER }}
+      persistOptions={{
+        persister,
+        buster: PERSIST_BUSTER,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) =>
+            query.meta?.persist !== false && defaultShouldDehydrateQuery(query),
+        },
+      }}
     >
       {children}
     </PersistQueryClientProvider>

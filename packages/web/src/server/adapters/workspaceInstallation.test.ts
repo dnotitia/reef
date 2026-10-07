@@ -31,10 +31,12 @@ import {
   AuthError,
   ControlPlaneError,
   SchemaValidationError,
+  WorkspaceReadinessError,
 } from "@reef/core";
 import { DEFAULT_ISSUE_TEMPLATES } from "../../features/settings/lib/defaultIssueTemplates";
 import {
   readWorkspaceInstallationState,
+  readWorkspaceInstallationStatus,
   requireWorkspaceReady,
 } from "./workspaceInstallation";
 
@@ -312,4 +314,112 @@ describe("readWorkspaceInstallationState", () => {
       });
     },
   );
+});
+
+describe("readWorkspaceInstallationStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockReadInstallationTarget.mockReturnValue(target);
+  });
+
+  it("reports an incomplete owner workspace without initializing it", async () => {
+    const installation = {
+      installationId: "44444444-4444-4444-8444-444444444444",
+      appId: target.appId,
+      vaultId: vault.id,
+      lifecycle: "active",
+    };
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({
+      state: "active",
+      initialization_complete: false,
+      installation,
+    });
+
+    const status = await readWorkspaceInstallationStatus({
+      adapter: { request: vi.fn() } as never,
+      vault: { ...vault, role: "owner" },
+    });
+
+    expect(status).toEqual({
+      installation_status: "management_required",
+      installation,
+    });
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("keeps a member's ready status without returning installation details", async () => {
+    const installation = {
+      installationId: "44444444-4444-4444-8444-444444444444",
+      appId: target.appId,
+      vaultId: vault.id,
+      lifecycle: "active",
+      desiredRelease: { version: "private-version" },
+    };
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({
+      ...active,
+      installation,
+    });
+
+    const status = await readWorkspaceInstallationStatus({
+      adapter: { request: vi.fn() } as never,
+      vault,
+    });
+
+    expect(status).toEqual({ installation_status: "ready" });
+    expect(JSON.stringify(status)).not.toContain("private-version");
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("does not expose non-ready installation details to a member", async () => {
+    mockAkbCheckWorkspaceReadiness.mockResolvedValueOnce({
+      state: "blocked",
+      installation: {
+        lifecycle: "blocked",
+        blockedReason: "worker_timeout",
+      },
+    });
+
+    const status = await readWorkspaceInstallationStatus({
+      adapter: { request: vi.fn() } as never,
+      vault,
+    });
+
+    expect(status).toEqual({ installation_status: "management_required" });
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("propagates ACL and readiness read errors", async () => {
+    const denial = new AuthError({ origin: "akb", status: 403 });
+    mockAkbCheckWorkspaceReadiness.mockRejectedValueOnce(denial);
+
+    await expect(
+      readWorkspaceInstallationStatus({
+        adapter: { request: vi.fn() } as never,
+        vault,
+      }),
+    ).rejects.toBe(denial);
+  });
+
+  it("maps unavailable readiness reads instead of returning an empty status", async () => {
+    mockAkbCheckWorkspaceReadiness.mockRejectedValueOnce(
+      new ControlPlaneError({
+        category: "unavailable",
+        operation: "installation.get",
+        upstreamStatus: 503,
+        httpStatus: 503,
+        retryable: true,
+      }),
+    );
+
+    const status = readWorkspaceInstallationStatus({
+      adapter: { request: vi.fn() } as never,
+      vault,
+    });
+
+    await expect(status).rejects.toBeInstanceOf(WorkspaceReadinessError);
+    await expect(status).rejects.toMatchObject({
+      machineCode: "installation_status_unavailable",
+      status: 503,
+    });
+  });
 });

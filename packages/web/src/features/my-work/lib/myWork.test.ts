@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import type { IssueListItem, Sprint } from "@reef/core";
+import type { IssueListItem, IssueRelation, Sprint } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   buildMyWork,
@@ -39,6 +39,41 @@ const SPRINT: Sprint = {
   goal: "",
   capacity_points: null,
 };
+
+function workspaceContext(
+  issues: readonly IssueListItem[] = [],
+  done = 0,
+  sprint: Sprint | null = SPRINT,
+) {
+  return {
+    workspace: "reef-acme",
+    assigned_issue_count: issues.length,
+    resolved_sprint_counts:
+      done > 0 ? [{ sprint_id: "spr-1", count: done }] : [],
+    relations: issues.map(
+      (issue): IssueRelation => ({
+        id: issue.id,
+        status: issue.status,
+        depends_on: issue.depends_on ?? [],
+        issue_type: issue.issue_type ?? "task",
+        parent_id: issue.parent_id ?? null,
+        title: issue.title,
+        rank: issue.rank ?? null,
+      }),
+    ),
+    planning: {
+      sprints: sprint ? [sprint] : [],
+      milestones: [],
+      releases: [],
+      rollover_resumes: [],
+    },
+  };
+}
+
+const inWorkspace = (
+  items: readonly IssueListItem[],
+  workspace = "reef-acme",
+) => items.map((issue) => ({ workspace, issue }));
 
 describe("classifyDue", () => {
   it("flags a past deadline overdue and a near one due_soon", () => {
@@ -91,10 +126,13 @@ describe("buildMyWork", () => {
     }), // archived → excluded
   ];
 
-  const { items, summary } = buildMyWork(issues, issues, {
-    now: NOW,
-    currentSprint: SPRINT,
-  });
+  const { items, summary } = buildMyWork(
+    inWorkspace(issues),
+    [workspaceContext(issues, 1)],
+    {
+      now: NOW,
+    },
+  );
 
   it("breaks open work down by status, excluding resolved and archived (AC2)", () => {
     expect(summary.byStatus).toEqual([
@@ -119,13 +157,16 @@ describe("buildMyWork", () => {
   it("tallies the current sprint's remaining and done (AC5)", () => {
     // REEF-7 (done) and REEF-1..3 are not all in the sprint; add coverage via
     // a sprint-scoped set below. Here REEF-7 carries sprint_id.
-    expect(summary.sprint).toEqual({
-      sprintId: "spr-1",
-      name: "Sprint 24",
-      remaining: 0,
-      done: 1,
-      total: 1,
-    });
+    expect(summary.sprints).toEqual([
+      {
+        workspace: "reef-acme",
+        sprintId: "spr-1",
+        name: "Sprint 24",
+        remaining: 0,
+        done: 1,
+        total: 1,
+      },
+    ]);
   });
 
   it("orders the queue by urgency, then priority, then proximity (AC6)", () => {
@@ -145,7 +186,11 @@ describe("buildMyWork", () => {
       depends_on: ["REEF-B"],
     });
     const graph = [blocker, blocked];
-    const result = buildMyWork([blocked], graph, { now: NOW });
+    const result = buildMyWork(
+      inWorkspace([blocked]),
+      [workspaceContext(graph)],
+      { now: NOW },
+    );
     expect(result.items[0]?.blocked).toBe(true);
     expect(result.items[0]?.blockerCount).toBe(1);
   });
@@ -159,21 +204,18 @@ describe("buildMyWork", () => {
       status: "todo",
       depends_on: ["REEF-B"],
     });
-    const result = buildMyWork([blocked], [], { now: NOW });
+    const result = buildMyWork(inWorkspace([blocked]), [], { now: NOW });
     expect(result.items[0]?.blocked).toBe(false);
     expect(result.items[0]?.blockerCount).toBe(0);
   });
 
   it("has no sprint block when the active sprint holds none of my work", () => {
     const result = buildMyWork(
-      [makeIssue({ id: "REEF-X", status: "todo" })],
-      [],
-      {
-        now: NOW,
-        currentSprint: SPRINT,
-      },
+      inWorkspace([makeIssue({ id: "REEF-X", status: "todo" })]),
+      [workspaceContext([], 0)],
+      { now: NOW },
     );
-    expect(result.summary.sprint).toBeNull();
+    expect(result.summary.sprints).toEqual([]);
   });
 });
 
@@ -185,11 +227,18 @@ describe("buildMyWork sprint remaining", () => {
       makeIssue({ id: "REEF-3", status: "done", sprint_id: "spr-1" }),
       makeIssue({ id: "REEF-4", status: "todo", sprint_id: "spr-other" }),
     ];
-    const { summary } = buildMyWork(issues, issues, {
-      now: NOW,
-      currentSprint: SPRINT,
+    const { summary } = buildMyWork(
+      inWorkspace(issues),
+      [workspaceContext(issues, 1)],
+      {
+        now: NOW,
+      },
+    );
+    expect(summary.sprints[0]).toMatchObject({
+      remaining: 2,
+      done: 1,
+      total: 3,
     });
-    expect(summary.sprint).toMatchObject({ remaining: 2, done: 1, total: 3 });
   });
 });
 
@@ -222,12 +271,14 @@ describe("selectCurrentSprint", () => {
 describe("compareFocus", () => {
   it("keeps a far-future low-priority item below an undated critical one", () => {
     const dated = {
+      workspace: "reef-acme",
       issue: makeIssue({ id: "A", priority: "low", due_date: iso(30 * DAY) }),
       dueState: "none" as const,
       blocked: false,
       blockerCount: 0,
     };
     const undatedCritical = {
+      workspace: "reef-acme",
       issue: makeIssue({ id: "B", priority: "critical" }),
       dueState: "none" as const,
       blocked: false,
@@ -245,7 +296,11 @@ describe("groupByStatus", () => {
       makeIssue({ id: "REEF-3", status: "todo", priority: "high" }),
       makeIssue({ id: "REEF-4", status: "todo", priority: "low" }),
     ];
-    const { items } = buildMyWork(issues, issues, { now: NOW });
+    const { items } = buildMyWork(
+      inWorkspace(issues),
+      [workspaceContext(issues)],
+      { now: NOW },
+    );
     const groups = groupByStatus(items);
     expect(groups.map((g) => g.status)).toEqual([
       "in_progress",
