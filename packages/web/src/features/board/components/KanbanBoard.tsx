@@ -407,10 +407,7 @@ export function KanbanBoard({
     visibleIssues.length === 0 &&
     hasActiveFilters;
   const resultsUpdating =
-    searchInputPending ||
-    searchTransitionPending ||
-    isPlaceholderData ||
-    (isFetching && !isPending);
+    searchInputPending || searchTransitionPending || isPlaceholderData;
   const renderedOccurrences = useMemo(
     () =>
       issueGroups.flatMap(({ bucket, issues }) =>

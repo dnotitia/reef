@@ -76,6 +76,10 @@ explicitly in the entries below.
   Cached issue rows keep the notice and its board frame in place while the
   existing board error and retry action handle recovery. The hermetic fixture
   can exercise conflict, service-error, and network failures. (REEF-668)
+- **Board move revalidation no longer shows result-loading progress for the
+  whole Board.** The existing Board and Backlog Board card keep their own save
+  feedback during the background list refresh, while a user-driven search or
+  filter query still shows progress. (REEF-667)
 - **Workspace favorites survive temporary availability gaps.** The browser
   retains the full validated preference set when a favorite is absent, inactive,
   or has an unknown activity result, then shows it again when confirmed active.
