@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue-body `@` suggestions now include documents and confirmed files
+  alongside people and issues.** Resource selections insert canonical AKB links
+  and remain editable in the description. (REEF-635)
 - **Workspace discovery now reads member-scoped installation activity in parallel.**
   The workspace list preserves per-vault unknown results and no longer fetches
   installation details or product readiness for every accessible vault.

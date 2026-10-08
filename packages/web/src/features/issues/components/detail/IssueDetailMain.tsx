@@ -7,11 +7,9 @@ import { Input } from "@/components/ui/input";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { preloadNewIssueDialog } from "@/features/ui/lib/lazyDialogPreload";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
-import { fetchVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
-import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import type {
-  DocumentSearchHit,
   ExternalRef,
   ImplementationRef,
   IssueListItem,
@@ -92,16 +90,11 @@ export function IssueDetailMain({
     () => ({
       members: vaultMembers,
       issues: allIssues,
-      searchDocuments: (query: string, signal: AbortSignal) =>
-        fetchVaultDocumentSearch(query, vault, signal),
+      searchAdapter: markdownResourceSearchAdapter,
       mentionOptionLabel: (username: string) =>
         markdownEditor("mentionOption", { username: `@${username}` }),
-      documentOptionLabel: (hit: DocumentSearchHit) =>
-        markdownEditor("documentOption", {
-          title: hit.title ?? akbDocumentSlugTitle(hit.uri),
-        }),
     }),
-    [allIssues, markdownEditor, vault, vaultMembers],
+    [allIssues, markdownEditor, vaultMembers],
   );
 
   function handleAddSubIssue() {

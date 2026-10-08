@@ -750,15 +750,30 @@ describe("MarkdownEditor product adapter", () => {
     ).toBeInTheDocument();
   });
 
-  it("builds reference suggestions in people, issue, and document order", async () => {
+  it("maps shared resource search results to canonical document and file references", async () => {
     const member = {
       username: "auth",
       display_name: "Auth Specialist",
     } as VaultMember;
     const authIssue = issue("REEF-001", "Auth flow");
-    const searchDocuments = vi.fn(async () => [
-      { uri: "akb://reef-test/coll/docs/doc/auth.md", title: "Auth guide" },
-    ]);
+    const signal = new AbortController().signal;
+    const searchAdapter = {
+      search: vi.fn(async () => [
+        {
+          id: "akb://reef-test/coll/docs/doc/auth.md",
+          title: "Auth guide",
+          target: "akb://reef-test/coll/docs/doc/auth.md",
+          kind: "document" as const,
+          snippet: "Auth setup",
+        },
+        {
+          id: "akb://reef-test/issues/file/incident-log",
+          title: "incident.log",
+          target: "akb://reef-test/issues/file/incident-log",
+          kind: "file" as const,
+        },
+      ]),
+    };
     renderEditor({
       value: "",
       onChange: vi.fn(),
@@ -766,9 +781,8 @@ describe("MarkdownEditor product adapter", () => {
       mentionConfig: {
         members: [member],
         issues: [authIssue],
-        searchDocuments,
+        searchAdapter,
         mentionOptionLabel: (username) => `@${username}`,
-        documentOptionLabel: (hit) => hit.title ?? hit.uri,
       },
     });
     const options = markdownMocks.editorOptions as {
@@ -779,7 +793,7 @@ describe("MarkdownEditor product adapter", () => {
     };
     const candidates = await options.reference.adapter.search("auth", {
       vault: "reef-test",
-      signal: new AbortController().signal,
+      signal,
     });
 
     expect(options.reference.context).toEqual({ vault: "reef-test" });
@@ -787,15 +801,85 @@ describe("MarkdownEditor product adapter", () => {
       "person",
       "issue",
       "document",
+      "file",
     ]);
     expect(candidates[0]).toMatchObject({ value: "@auth", title: "@auth" });
     expect(candidates[2]).toMatchObject({
+      kind: "document",
+      title: "Auth guide",
       target: "akb://reef-test/coll/docs/doc/auth.md",
+      snippet: "Auth setup",
     });
-    expect(searchDocuments).toHaveBeenCalledWith(
-      "auth",
-      expect.any(AbortSignal),
-    );
+    expect(candidates[3]).toMatchObject({
+      kind: "file",
+      title: "incident.log",
+      target: "akb://reef-test/issues/file/incident-log",
+    });
+    expect(searchAdapter.search).toHaveBeenCalledWith("auth", {
+      vault: "reef-test",
+      signal,
+    });
+  });
+
+  it("keeps valid people and issues selectable when resource search rejects", async () => {
+    const onChange = vi.fn();
+    const searchAdapter = {
+      search: vi.fn().mockRejectedValue(new Error("search unavailable")),
+    };
+    renderEditor({
+      value: "Existing draft",
+      onChange,
+      vault: "reef-test",
+      mentionConfig: {
+        members: [{ username: "alice", display_name: "Alice" } as VaultMember],
+        issues: [issue("REEF-001", "Auth flow")],
+        searchAdapter,
+        mentionOptionLabel: (username) => `@${username}`,
+      },
+    });
+    const options = markdownMocks.editorOptions as {
+      reference: { adapter: MarkdownReferenceAdapter };
+    };
+
+    const candidates = await options.reference.adapter.search("a", {
+      vault: "reef-test",
+      signal: new AbortController().signal,
+    });
+
+    expect(candidates.map((candidate) => candidate.kind)).toEqual([
+      "person",
+      "issue",
+    ]);
+    expect(candidates[0]).toMatchObject({ value: "@alice" });
+    expect(candidates[1]).toMatchObject({ value: "REEF-001" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("lets the shared reference menu represent a resource-search error when no local candidates match", async () => {
+    const searchAdapter = {
+      search: vi.fn().mockRejectedValue(new Error("search unavailable")),
+    };
+    renderEditor({
+      value: "Existing draft",
+      onChange: vi.fn(),
+      vault: "reef-test",
+      mentionConfig: {
+        members: [],
+        issues: [],
+        searchAdapter,
+        mentionOptionLabel: (username) => `@${username}`,
+      },
+    });
+    const options = markdownMocks.editorOptions as {
+      reference: { adapter: MarkdownReferenceAdapter };
+    };
+
+    await expect(
+      options.reference.adapter.search("missing", {
+        vault: "reef-test",
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow("search unavailable");
   });
 
   it("resolves known issue references to a workspace route", async () => {
@@ -808,7 +892,6 @@ describe("MarkdownEditor product adapter", () => {
         members: [],
         issues: [authIssue],
         mentionOptionLabel: (username) => `@${username}`,
-        documentOptionLabel: (hit) => hit.title ?? hit.uri,
       },
     });
     const options = markdownMocks.editorOptions as {

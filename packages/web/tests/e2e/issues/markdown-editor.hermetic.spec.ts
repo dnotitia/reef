@@ -2570,7 +2570,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await dialog.getByTestId("new-issue-cancel").click();
   });
 
-  test("uses one categorized @ menu for people, issues, and documents", async ({
+  test("uses the categorized @ menu for all four reference kinds and saves canonical links", async ({
     page,
     request,
   }) => {
@@ -2613,25 +2613,104 @@ test.describe("Hermetic Markdown editor fixture", () => {
         .filter({ hasText: "Alpha reference" }),
     ).toBeVisible();
 
+    const chooseWithKeyboard = async (option: Locator) => {
+      const optionId = await option.getAttribute("id");
+      expect(optionId).toBeTruthy();
+      const optionCount = await listbox.getByRole("option").count();
+      for (let index = 0; index < optionCount; index += 1) {
+        if ((await editor.getAttribute("aria-activedescendant")) === optionId) {
+          break;
+        }
+        await editor.press("ArrowDown");
+      }
+      await expect(editor).toHaveAttribute(
+        "aria-activedescendant",
+        optionId as string,
+      );
+      await editor.press("Enter");
+      await expect(listbox).toHaveCount(0);
+      await expect(editor).toBeFocused();
+    };
+
+    const personOption = listbox
+      .getByRole("region", { name: "People" })
+      .getByRole("option")
+      .filter({ hasText: "alice" });
+    await chooseWithKeyboard(personOption);
+    await page.keyboard.type(" continued");
+
+    await page.keyboard.type("@a");
+    await expect(listbox).toBeVisible();
+    await listbox
+      .getByRole("region", { name: "Issues" })
+      .getByRole("option")
+      .filter({ hasText: "REEF-002" })
+      .click();
+    await expect(editor).toBeFocused();
+
+    await page.keyboard.type("@alpha");
+    await expect(listbox).toBeVisible();
     await listbox
       .getByRole("region", { name: "Documents" })
       .getByRole("option")
       .filter({ hasText: "Alpha reference" })
       .click();
-    await expect(editor).toHaveAttribute("aria-expanded", "false");
+    await expect(listbox).toHaveCount(0);
     await expect(editor).toBeFocused();
+
+    await page.keyboard.type("@incident");
+    await expect(listbox).toBeVisible();
+    const fileOption = listbox
+      .getByRole("region", { name: "Files" })
+      .getByRole("option")
+      .filter({ hasText: "incident.log" });
+    await expect(fileOption).toBeVisible();
+    await chooseWithKeyboard(fileOption);
+
     await page
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
     const source = page.locator('[data-markdown-mode="source"] textarea');
-    await expect(source).toHaveValue(
-      /\[Alpha reference\]\(akb:\/\/reef-e2e\/coll\/docs\/doc\/alpha-reference\.md\) /u,
+    const finalMarkdown = await source.inputValue();
+    expect(finalMarkdown).toContain("@alice");
+    expect(finalMarkdown).toContain("REEF-002");
+    expect(finalMarkdown).toContain(
+      "[Alpha reference](akb://reef-e2e/coll/docs/doc/alpha-reference.md)",
     );
+    expect(finalMarkdown).toContain(
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(finalMarkdown).not.toContain("/api/files?");
+    expect(finalMarkdown).not.toContain("https://akb.e2e.test/vault/");
+
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === finalMarkdown;
+    });
+    await page.getByTestId("issue-title-input").click();
+    const saved = await saveResponse;
+    expect(saved.ok(), `save failed with ${saved.status()}`).toBeTruthy();
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
     await page
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
+    await expect(reopenedSource).toHaveValue(finalMarkdown);
 
     const state = await readFixtureState(request);
     const calls = state.calls ?? [];
@@ -2641,6 +2720,224 @@ test.describe("Hermetic Markdown editor fixture", () => {
           call.method === "POST" && call.path.includes("/api/v1/relations"),
       ),
     ).toBe(false);
+  });
+
+  test("creates and reopens a file reference from New Issue Description", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page.getByTestId("issue-close").click();
+
+    await page.getByTestId("new-issue-trigger").click();
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(dialog).toBeVisible();
+    const title = "New issue reference round trip";
+    await dialog.getByTestId("new-issue-title-input").fill(title);
+
+    const editor = dialog.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("@incident");
+
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    const fileOption = listbox
+      .getByRole("region", { name: "Files" })
+      .getByRole("option")
+      .filter({ hasText: "incident.log" });
+    await expect(fileOption).toBeVisible();
+    await fileOption.click();
+    await expect(editor).toBeFocused();
+    await page.keyboard.type(" and continued writing");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("new-issue-title-input")).toHaveValue(
+      title,
+    );
+
+    await dialog
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = dialog.locator('[data-markdown-mode="source"] textarea');
+    const createdMarkdown = await source.inputValue();
+    expect(createdMarkdown).toContain(
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(createdMarkdown).toContain("and continued writing");
+    expect(createdMarkdown).not.toContain("/api/files?");
+
+    await dialog.getByTestId("new-issue-submit").click();
+    await page.waitForURL(/\/issues\/REEF-\d+$/u, { timeout: 10_000 });
+    const issueId = new URL(page.url()).pathname.split("/").at(-1);
+    if (!issueId || !/^REEF-\d+$/u.test(issueId)) {
+      throw new Error(`Unexpected created issue URL: ${page.url()}`);
+    }
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(title);
+
+    const state = await readFixtureState(request);
+    const createdDocument = state.vaults
+      .find((vault) => vault.name === REEF_E2E_VAULT)
+      ?.documents.find(
+        (document) => document.path === `issues/${issueId.toLowerCase()}.md`,
+      );
+    expect(createdDocument?.content).toContain(
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
+    await expect(reopenedSource).toHaveValue(
+      new RegExp(
+        `\\[incident\\.log\\]\\(${MARKDOWN_FIXTURE_FILE_URI.replaceAll("/", "\\/")}\\)`,
+      ),
+    );
+    expect(await reopenedSource.inputValue()).not.toContain("/api/files?");
+  });
+
+  test("keeps local candidates on resource failures and distinguishes empty from error", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const listbox = page.getByRole("listbox");
+    const issueTitle = await page.getByTestId("issue-title-input").inputValue();
+    const personSearchResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/documents/search" &&
+        url.searchParams.get("q") === "a"
+      );
+    });
+    await setMarkdownLinkSearchControl(request, {
+      query: "a",
+      failureStatus: 503,
+    });
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("@a");
+    expect((await personSearchResponse).status()).toBe(502);
+    await expect(listbox.getByRole("region", { name: "People" })).toBeVisible();
+    await expect(listbox.getByRole("region", { name: "Issues" })).toBeVisible();
+    await listbox
+      .getByRole("region", { name: "People" })
+      .getByRole("option")
+      .filter({ hasText: "alice" })
+      .click();
+    await expect(editor).toBeFocused();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(issueTitle);
+
+    await page.keyboard.type("@zzzz");
+    await expect(listbox.getByTestId("markdown-reference-empty")).toBeVisible();
+    await expect(editor).toContainText("@zzzz");
+    await editor.press("Escape");
+    await expect(listbox).toHaveCount(0);
+
+    const referenceCountBeforeError = await editor
+      .locator("[data-markdown-reference-runtime-url]")
+      .count();
+    const failingSearchResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/documents/search" &&
+        url.searchParams.get("q") === "missing"
+      );
+    });
+    await setMarkdownLinkSearchControl(request, {
+      query: "missing",
+      failureStatus: 503,
+    });
+    await page.keyboard.type("@missing");
+    expect((await failingSearchResponse).status()).toBe(502);
+    await expect(listbox.getByTestId("markdown-reference-error")).toBeVisible();
+    await expect(editor).toContainText("@missing");
+    await expect(
+      editor.locator("[data-markdown-reference-runtime-url]"),
+    ).toHaveCount(referenceCountBeforeError);
+    await editor.press("Escape");
+    await expect(listbox).toHaveCount(0);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(issueTitle);
+  });
+
+  test("discards stale and late resource results after query change or Escape", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const listbox = page.getByRole("listbox");
+    await setMarkdownLinkSearchControl(request, {
+      query: "alpha",
+      delayMs: 700,
+    });
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("@alpha");
+    await waitForMarkdownLinkSearchPending(request, "alpha");
+    await expect(
+      listbox.getByTestId("markdown-reference-loading"),
+    ).toBeVisible();
+
+    await page.keyboard.press("Control+Backspace");
+    await page.keyboard.type("incident");
+    await expect(
+      listbox
+        .getByRole("region", { name: "Files" })
+        .getByRole("option")
+        .filter({ hasText: "incident.log" }),
+    ).toBeVisible();
+    await waitForMarkdownLinkSearchIdle(request, "alpha");
+    await expect(
+      listbox
+        .getByRole("region", { name: "Documents" })
+        .getByRole("option")
+        .filter({ hasText: "Alpha reference" }),
+    ).toHaveCount(0);
+
+    await setMarkdownLinkSearchControl(request, {
+      query: "alpha",
+      delayMs: 700,
+      failureStatus: 503,
+    });
+    const lateFailureResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/documents/search" &&
+        url.searchParams.get("q") === "alpha"
+      );
+    });
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("@alpha");
+    await waitForMarkdownLinkSearchPending(request, "alpha");
+    const bodyBeforeEscape = await editor.innerText();
+    await editor.press("Escape");
+    await expect(listbox).toHaveCount(0);
+    expect((await lateFailureResponse).status()).toBe(502);
+    await waitForMarkdownLinkSearchIdle(request, "alpha");
+    await expect(listbox).toHaveCount(0);
+    await expect(editor).toHaveText(bodyBeforeEscape);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
   });
 
   test("keeps the issue detail open when Escape dismisses the @ menu", async ({

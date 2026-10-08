@@ -1827,8 +1827,7 @@
     "uploadError": "Couldn't upload that file.",
     "resizeHandle": "Resize issue description editor",
     "resizeHandleDescription": "Diagonal handle controls the issue description editor height. Current {current}px; minimum {min}px; maximum {max}px.",
-    "mentionOption": "Mention {username}",
-    "documentOption": "Document: {title}"
+    "mentionOption": "Mention {username}"
   },
   "misc": {
     "offlineBanner": "You're offline — viewing cached data. Changes will sync when you reconnect.",
