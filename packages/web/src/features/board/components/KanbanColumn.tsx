@@ -148,6 +148,8 @@ export const KanbanColumn = memo(function KanbanColumn({
     getItemKey: (index) => `${bucket.id}:${issues[index]?.id ?? index}`,
     initialRect: INITIAL_CARD_SCROLL_RECT,
     overscan: CARD_OVERSCAN,
+    initialOffset: restoreAnchor?.offset,
+    initialMeasurementsCache: restoreAnchor?.measurements,
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
       return activeIndex < 0 || indexes.includes(activeIndex)
@@ -333,12 +335,13 @@ export const KanbanColumn = memo(function KanbanColumn({
       offset: scrollElement.scrollTop,
       itemOffset: cardRect.top - scrollRect.top,
       focused: true,
+      measurements: virtualizer.takeSnapshot(),
     };
     // This column already reflects a live capture; don't restore it while the
     // browser finishes the focus-triggered nearest scroll.
     restoredAnchorRef.current = anchor;
     state.setBoardViewportAnchor(continuityKey, anchor);
-  }, [bucket.id, continuityKey]);
+  }, [bucket.id, continuityKey, virtualizer]);
 
   const scheduleFocusedAnchorSave = useCallback(() => {
     if (restoreInProgressRef.current || saveAnchorFrameRef.current) return;

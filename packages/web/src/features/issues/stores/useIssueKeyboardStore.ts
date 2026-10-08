@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import type { VirtualItem } from "@tanstack/react-virtual";
 
 export type IssueKeyboardScope = "list" | "board" | "backlog";
 export type IssueQuickEditField = "status" | "assignee" | "priority" | "labels";
@@ -36,6 +37,7 @@ export interface BoardViewportAnchor {
   offset: number;
   itemOffset: number;
   focused: boolean;
+  measurements: VirtualItem[];
 }
 type OccurrencesByScope = Record<IssueKeyboardScope, IssueKeyboardOccurrence[]>;
 type OccurrenceKeyByScope = Record<IssueKeyboardScope, string | null>;

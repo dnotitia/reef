@@ -1,5 +1,6 @@
 import type { IssueListItem } from "@reef/core";
 import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
+import type { VirtualItem } from "@tanstack/react-virtual";
 import {
   act,
   cleanup,
@@ -17,6 +18,9 @@ const virtualizerProbe = vi.hoisted(() => ({
   }),
   sortableItems: [] as (string | number)[],
   scrollIndex: 0,
+  takeSnapshot: vi.fn((): VirtualItem[] => []),
+  initialMeasurementsCache: undefined as VirtualItem[] | undefined,
+  initialOffset: undefined as number | (() => number) | undefined,
 }));
 
 vi.mock("@tanstack/react-virtual", () => ({
@@ -46,7 +50,12 @@ vi.mock("@tanstack/react-virtual", () => ({
       overscan: number;
       count: number;
     }) => number[];
+    initialMeasurementsCache?: VirtualItem[];
+    initialOffset?: number | (() => number);
   }) => {
+    virtualizerProbe.initialMeasurementsCache =
+      options.initialMeasurementsCache;
+    virtualizerProbe.initialOffset = options.initialOffset;
     const startIndex = Math.max(0, virtualizerProbe.scrollIndex - 2);
     const endIndex = Math.min(options.count - 1, startIndex + 5);
     const indexes = options.rangeExtractor({
@@ -66,6 +75,7 @@ vi.mock("@tanstack/react-virtual", () => ({
       getTotalSize: () => options.count * 180,
       measureElement: vi.fn(),
       scrollToIndex: virtualizerProbe.scrollToIndex,
+      takeSnapshot: virtualizerProbe.takeSnapshot,
     };
   },
 }));
@@ -208,6 +218,9 @@ describe("KanbanColumn", () => {
     virtualizerProbe.scrollIndex = 0;
     virtualizerProbe.scrollToIndex.mockClear();
     virtualizerProbe.sortableItems = [];
+    virtualizerProbe.takeSnapshot.mockReset().mockReturnValue([]);
+    virtualizerProbe.initialMeasurementsCache = undefined;
+    virtualizerProbe.initialOffset = undefined;
     useIssueKeyboardStore.setState({
       focusRequest: null,
       quickEditRequest: null,
@@ -334,6 +347,7 @@ describe("KanbanColumn", () => {
       offset: 670,
       itemOffset: 50,
       focused: true,
+      measurements: [],
     };
     const continuityKey = "alice:reef-e2e";
     const initialProps: KanbanColumnProps = {
@@ -410,6 +424,79 @@ describe("KanbanColumn", () => {
       capturedAnchor.offset,
     );
     expect(document.activeElement).toBe(targetCard);
+  });
+
+  it("reuses native virtual measurements and offset after a Board remount", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const occurrenceKey = "todo:reef-005";
+    const measurements: VirtualItem[] = [
+      {
+        key: occurrenceKey,
+        index: 4,
+        start: 752,
+        end: 846,
+        size: 94,
+        lane: 0,
+      },
+    ];
+    virtualizerProbe.takeSnapshot.mockReturnValue(measurements);
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: "reef-005", backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: occurrenceKey,
+        backlog: null,
+      },
+    });
+
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+      restoreAnchor: null,
+    };
+    const { unmount } = renderColumn(initialProps);
+    expect(virtualizerProbe.initialMeasurementsCache).toBeUndefined();
+    expect(virtualizerProbe.initialOffset).toBeUndefined();
+
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    vi.spyOn(targetCard, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 224, 320, 94),
+    );
+    scrollElement.scrollTop = 821;
+    act(() => targetCard.focus());
+
+    const capturedAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedAnchor).toMatchObject({
+      occurrenceKey,
+      offset: 821,
+      itemOffset: 124,
+      measurements,
+    });
+    expect(virtualizerProbe.takeSnapshot).toHaveBeenCalledTimes(1);
+    if (!capturedAnchor) throw new Error("missing captured viewport anchor");
+
+    unmount();
+    virtualizerProbe.scrollToIndex.mockClear();
+    renderColumn({ ...initialProps, restoreAnchor: capturedAnchor });
+
+    expect(virtualizerProbe.initialMeasurementsCache).toEqual(measurements);
+    expect(virtualizerProbe.initialOffset).toBe(capturedAnchor.offset);
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(4, {
+      align: "start",
+    });
   });
 
   it("does not restore a live focus capture before the nearest scroll settles", () => {
@@ -527,6 +614,7 @@ describe("KanbanColumn", () => {
       offset: 9230,
       itemOffset: 584,
       focused: true,
+      measurements: [],
     };
     const currentAnchor: BoardViewportAnchor = {
       ...staleAnchor,
@@ -616,6 +704,7 @@ describe("KanbanColumn", () => {
       offset: 9230,
       itemOffset: 522,
       focused: true,
+      measurements: [],
     };
     const pendingFrames = new Map<number, FrameRequestCallback>();
     let nextFrameId = 0;

@@ -89,6 +89,7 @@ describe("useIssueKeyboardStore", () => {
       offset: 42,
       itemOffset: 18,
       focused: true,
+      measurements: [],
     };
     const second = {
       bucketId: "status:todo",
@@ -97,6 +98,7 @@ describe("useIssueKeyboardStore", () => {
       offset: 0,
       itemOffset: 0,
       focused: false,
+      measurements: [],
     };
 
     useIssueKeyboardStore
