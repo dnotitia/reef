@@ -326,14 +326,18 @@ export const KanbanColumn = memo(function KanbanColumn({
     if (!card || !occurrenceKey.startsWith(`${bucket.id}:`)) return;
     const cardRect = card.getBoundingClientRect();
     const scrollRect = scrollElement.getBoundingClientRect();
-    state.setBoardViewportAnchor(continuityKey, {
+    const anchor = {
       bucketId: bucket.id,
       occurrenceKey,
       issueId,
       offset: scrollElement.scrollTop,
       itemOffset: cardRect.top - scrollRect.top,
       focused: true,
-    });
+    };
+    // This column already reflects a live capture; don't restore it while the
+    // browser finishes the focus-triggered nearest scroll.
+    restoredAnchorRef.current = anchor;
+    state.setBoardViewportAnchor(continuityKey, anchor);
   }, [bucket.id, continuityKey]);
 
   const scheduleFocusedAnchorSave = useCallback(() => {

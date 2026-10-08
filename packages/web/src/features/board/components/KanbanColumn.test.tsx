@@ -412,6 +412,108 @@ describe("KanbanColumn", () => {
     expect(document.activeElement).toBe(targetCard);
   });
 
+  it("does not restore a live focus capture before the nearest scroll settles", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const occurrenceKey = "todo:reef-005";
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        const id = ++nextFrameId;
+        pendingFrames.set(id, callback);
+        return id;
+      }),
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      vi.fn((id: number) => pendingFrames.delete(id)),
+    );
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: "reef-005", backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: occurrenceKey,
+        backlog: null,
+      },
+    });
+
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+      restoreAnchor: null,
+    };
+    const { rerender, unmount } = renderColumn(initialProps);
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    let cardTop = 664;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
+    );
+    scrollElement.scrollTop = 3120;
+
+    act(() => targetCard.focus());
+    const capturedBeforeNearestScroll =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedBeforeNearestScroll).toMatchObject({
+      occurrenceKey,
+      offset: 3120,
+      itemOffset: 564,
+      focused: true,
+    });
+
+    // KanbanCard calls scrollIntoView({ block: "nearest" }) after focus bubbles.
+    scrollElement.scrollTop = 3142;
+    cardTop = 642;
+    rerender(
+      <KanbanColumn
+        {...initialProps}
+        restoreAnchor={capturedBeforeNearestScroll}
+      />,
+    );
+
+    expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
+    expect(pendingFrames.size).toBe(1);
+    const saveFrame = pendingFrames.get(1);
+    if (!saveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.delete(1);
+      saveFrame(0);
+    });
+
+    const settledAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(settledAnchor).toMatchObject({
+      ...capturedBeforeNearestScroll,
+      offset: 3142,
+      itemOffset: 542,
+    });
+    if (!settledAnchor) throw new Error("missing settled focused anchor");
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={settledAnchor} />);
+
+    expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
+    expect(scrollElement.scrollTop).toBe(3142);
+    expect(document.activeElement).toBe(targetCard);
+
+    unmount();
+    virtualizerProbe.scrollToIndex.mockClear();
+    renderColumn({ ...initialProps, restoreAnchor: settledAnchor });
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(4, {
+      align: "start",
+    });
+  });
+
   it("cancels a pending restore when the same focused occurrence gets a newer anchor", () => {
     const issues = Array.from({ length: 10 }, (_, index) =>
       makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
