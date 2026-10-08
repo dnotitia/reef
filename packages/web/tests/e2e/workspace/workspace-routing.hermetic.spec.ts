@@ -200,11 +200,11 @@ test.describe("workspace root redirects (REEF-424)", () => {
     const unavailableResponse = await page.request.get("/api/vaults");
     expect(unavailableResponse.ok()).toBe(true);
     const unavailablePayload = (await unavailableResponse.json()) as {
-      vaults: Array<{ name: string; installation_status: string }>;
+      vaults: Array<{ name: string; installation_active: boolean | null }>;
     };
     expect(
       unavailablePayload.vaults.every(
-        (vault) => vault.installation_status !== "ready",
+        (vault) => vault.installation_active !== true,
       ),
     ).toBe(true);
 
@@ -218,7 +218,14 @@ test.describe("workspace root redirects (REEF-424)", () => {
       .poll(() => readIndexedDbConfig(page, "vault"))
       .toBe("reef-e2e");
     const status = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(status).toHaveAttribute("data-status", "uninstalled");
+    await expect(status).toHaveAttribute("data-status", "management_required");
+    const installationStatus = await page.request.get(
+      "/api/vaults/reef-e2e/installation",
+    );
+    expect(installationStatus.ok()).toBe(true);
+    expect((await installationStatus.json()).installation_status).toBe(
+      "uninstalled",
+    );
     await expect(page.getByTestId("greenfield-vault-name-input")).toHaveCount(
       0,
     );

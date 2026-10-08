@@ -13,18 +13,21 @@ import {
   AuthError as AkbAuthError,
   CreateVaultRequestSchema,
   EnrichedVaultSummarySchema,
+  akbReadMemberInstallationActive as readMemberInstallationActive,
   akbCreateVault as createVault,
   akbReadConfig as readConfig,
   akbListVaults as listVaults,
   isAkbAccountErrorCode,
 } from "@reef/core";
 import { z } from "zod";
-import { readWorkspaceInstallationState } from "@/server/adapters/workspaceInstallation";
+import { readInstallationTarget } from "@/server/adapters/installationTarget";
 
 /**
  * GET /api/vaults → { vaults: EnrichedVaultSummary[] }
  *
- * Lists accessible AKB vaults with their canonical Reef installation state.
+ * Lists accessible AKB vaults with the minimal member-scoped installation
+ * availability projection. Workspace readiness stays on selected-workspace
+ * routes.
  */
 
 const VaultsResponseSchema = z.object({
@@ -52,24 +55,43 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const { vaults } = await listVaults({ adapter });
 
+    const target = readInstallationTarget();
     const installationChecks = await Promise.allSettled(
-      vaults.map((vault) => readWorkspaceInstallationState({ adapter, vault })),
+      vaults.map((vault) =>
+        target && vault.id
+          ? readMemberInstallationActive({
+              adapter,
+              appId: target.appId,
+              vaultId: vault.id,
+            })
+          : Promise.resolve(null),
+      ),
     );
+    const unknownCount = installationChecks.filter(
+      (check) =>
+        check.status === "rejected" && !isSessionOrAccountDenial(check.reason),
+    ).length;
+    if (unknownCount > 0) {
+      logger.error(
+        {
+          route: "/api/vaults",
+          vault_count: vaults.length,
+          unknown_count: unknownCount,
+        },
+        "installation active reads failed during /api/vaults fan-out",
+      );
+    }
 
     const enriched: EnrichedVaultSummary[] = vaults.map((vault, idx) => {
       const check = installationChecks[idx];
       if (check.status === "fulfilled") {
         return {
           ...vault,
-          installation_status: check.value.installation_status,
+          installation_active: check.value,
         };
       }
       if (isSessionOrAccountDenial(check.reason)) throw check.reason;
-      logger.error(
-        { err: check.reason, vault: vault.name },
-        "installation status read failed during /api/vaults fan-out",
-      );
-      return { ...vault, installation_status: "unknown" };
+      return { ...vault, installation_active: null };
     });
 
     return Response.json(VaultsResponseSchema.parse({ vaults: enriched }), {

@@ -394,7 +394,10 @@
         "heading": "활성 워크스페이스",
         "description": "reef가 이슈를 읽고 쓰는 akb 워크스페이스입니다. 이 선택은 개인적인 설정으로, 사용자의 기기에 저장되며 본인의 보기에만 적용됩니다. 아래의 워크스페이스 설정 범위를 지정합니다.",
         "newWorkspace": "새 워크스페이스…",
-        "saveError": "워크스페이스 선택을 저장하지 못했습니다."
+        "saveError": "워크스페이스 선택을 저장하지 못했습니다.",
+        "loadError": "워크스페이스를 불러오지 못했습니다. 다시 시도해 주세요.",
+        "availabilityUnknown": "활성 워크스페이스를 확인하지 못했습니다. 다시 시도해 주세요.",
+        "retry": "다시 시도"
       },
       "ai": {
         "notConfigured": "AI가 구성되지 않았습니다.",
@@ -1962,6 +1965,8 @@
       "searchLabel": "워크스페이스 검색",
       "loading": "워크스페이스 불러오는 중…",
       "loadError": "워크스페이스를 불러오지 못했습니다.",
+      "availabilityUnknown": "워크스페이스 사용 가능 여부를 확인하지 못했습니다.",
+      "retry": "다시 시도",
       "addFavorite": "{name}을(를) 즐겨찾기에 추가",
       "removeFavorite": "{name}을(를) 즐겨찾기에서 제거",
       "favoritesSaveError": "즐겨찾기를 저장하지 못했습니다. 워크스페이스는 계속 사용할 수 있습니다.",

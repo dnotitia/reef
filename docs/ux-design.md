@@ -1011,32 +1011,39 @@ reconciled away. There is no GitHub-OAuth sign-in, popup, or
 management-repository selection.
 
 After session validation, reef checks the user's accessible workspaces before
-showing onboarding. If a ready workspace exists, the app restores a valid
-last-viewed workspace or deterministically chooses the first ready workspace in
-ASCII order, saves that browser fallback, and replaces the current history entry
-with its Issues URL. The app waits for both the workspace list and the remembered
-Dexie value before choosing a destination. If no workspace is ready but the
-remembered workspace is still accessible, it opens that workspace's entry
-guidance so the user can recheck access. A failed list request shows an explicit
-retry state.
+showing onboarding. The workspace list reports only whether Reef's app
+installation is confirmed active for that member; it does not load installation
+details or product readiness for every vault. If an active workspace exists,
+the app restores a valid last-viewed workspace or deterministically chooses the
+first active workspace in ASCII order, saves that browser fallback, and
+replaces the current history entry with its Issues URL. The app waits for both
+the workspace list and the remembered Dexie value before choosing a
+destination. Product readiness is still checked at the selected workspace's
+server request boundary. If no workspace is active but the remembered workspace
+is confirmed inactive, it opens that workspace's entry guidance so the user can
+recheck access. An unknown availability result with no confirmed active
+workspace keeps onboarding paused behind an explicit retry state rather than
+claiming the account is empty.
 
-Users with no ready workspace and no remembered accessible workspace enter
-`/onboarding`. Its only workspace task is **Create a project workspace**: name
+Users with no active workspace and no remembered inactive workspace enter
+`/onboarding` only after every accessible workspace's activity state is known.
+Its only workspace task is **Create a project workspace**: name
 a new akb vault (lowercase/digits/hyphens), choose an issue **prefix**
 (uppercase, e.g. `REEF`), optionally add a description and monitored
 repositories, and create. Reef then asks the owner or admin to approve its
 registered AKB app release before initializing tables, templates, configuration,
 and managed instructions. Existing workspace installation states and commands
 do not appear on onboarding for any role. An existing member can enter an
-active workspace after Reef initialization is complete. Ready-workspace
-selection preserves remembered-workspace-first and deterministic ASCII
-auto-resume without adding a workspace chooser or confirmation step.
+active workspace, while product requests continue to enforce Reef
+initialization. Active-workspace selection preserves remembered-workspace-first
+and deterministic ASCII auto-resume without adding a workspace chooser or
+confirmation step.
 
-Settings concerns only the selected workspace. A ready workspace shows no
+Settings concerns only the selected workspace. An active workspace shows no
 installation task to readers or writers. Its owner or admin may expand a
 collapsed installation observation; the detailed request starts only after
-the disclosure opens. For an unavailable selected workspace, the first view
-states the impact, next action, and responsible person. Controls show only
+the disclosure opens. For an inactive or unconfirmed selected workspace, the
+first view states the impact, next action, and responsible person. Controls show only
 permitted actions, and no other workspace setup cards appear in this section.
 An active installation with drift remains usable when the existing readiness
 checks pass. Unknown observations stay unknown rather than being presented as

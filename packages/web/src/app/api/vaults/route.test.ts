@@ -9,14 +9,16 @@ const {
   mockAkbCreateVault,
   mockAkbListVaults,
   mockAkbReadConfig,
+  mockAkbReadMemberInstallationActive,
   mockCreateAkbAdapter,
-  mockReadWorkspaceInstallationState,
+  mockReadInstallationTarget,
 } = vi.hoisted(() => ({
   mockAkbCreateVault: vi.fn(),
   mockAkbListVaults: vi.fn(),
   mockAkbReadConfig: vi.fn(),
+  mockAkbReadMemberInstallationActive: vi.fn(),
   mockCreateAkbAdapter: vi.fn(),
-  mockReadWorkspaceInstallationState: vi.fn(),
+  mockReadInstallationTarget: vi.fn(),
 }));
 
 vi.mock("@reef/core", async () => {
@@ -27,12 +29,13 @@ vi.mock("@reef/core", async () => {
     akbCreateVault: mockAkbCreateVault,
     akbListVaults: mockAkbListVaults,
     akbReadConfig: mockAkbReadConfig,
+    akbReadMemberInstallationActive: mockAkbReadMemberInstallationActive,
     createAkbAdapter: mockCreateAkbAdapter,
   };
 });
 
-vi.mock("@/server/adapters/workspaceInstallation", () => ({
-  readWorkspaceInstallationState: mockReadWorkspaceInstallationState,
+vi.mock("@/server/adapters/installationTarget", () => ({
+  readInstallationTarget: mockReadInstallationTarget,
 }));
 
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
@@ -98,6 +101,9 @@ describe("GET /api/vaults", () => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
     mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+    mockReadInstallationTarget.mockReturnValue({
+      appId: "33333333-3333-4333-8333-333333333333",
+    });
   });
 
   afterEach(() => {
@@ -105,43 +111,68 @@ describe("GET /api/vaults", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns canonical installation states for accessible vaults", async () => {
+  it("returns member-scoped active states for accessible vaults", async () => {
     mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
-    mockReadWorkspaceInstallationState
-      .mockResolvedValueOnce({ installation_status: "ready" })
-      .mockResolvedValueOnce({ installation_status: "not_installed" });
+    mockAkbReadMemberInstallationActive
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
 
     const response = await GET(request("/api/vaults"));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       vaults: [
-        { name: "reef-acme", installation_status: "ready" },
-        { name: "reef-zen", installation_status: "not_installed" },
+        { name: "reef-acme", installation_active: true },
+        { name: "reef-zen", installation_active: false },
       ],
     });
-    expect(mockReadWorkspaceInstallationState).toHaveBeenNthCalledWith(1, {
+    expect(mockAkbReadMemberInstallationActive).toHaveBeenNthCalledWith(1, {
       adapter: expect.any(Object),
-      vault: SAMPLE_VAULTS[0],
+      appId: "33333333-3333-4333-8333-333333333333",
+      vaultId: SAMPLE_VAULTS[0]?.id,
     });
+    expect(mockAkbReadMemberInstallationActive).toHaveBeenCalledTimes(2);
     expect(mockAkbReadConfig).not.toHaveBeenCalled();
   });
 
-  it("keeps the list available and marks one failed state lookup unknown", async () => {
+  it("keeps confirmed active vaults and marks a failed active lookup unknown", async () => {
     mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
-    mockReadWorkspaceInstallationState
-      .mockResolvedValueOnce({ installation_status: "ready" })
+    mockAkbReadMemberInstallationActive
+      .mockResolvedValueOnce(true)
       .mockRejectedValueOnce(new Error("network blip"));
 
     const response = await GET(request("/api/vaults"));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      vaults: [
-        { installation_status: "ready" },
-        { installation_status: "unknown" },
-      ],
+      vaults: [{ installation_active: true }, { installation_active: null }],
     });
+  });
+
+  it("returns unknown without active lookups when the deployment target is absent", async () => {
+    mockReadInstallationTarget.mockReturnValueOnce(null);
+    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
+
+    const response = await GET(request("/api/vaults"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      vaults: [{ installation_active: null }, { installation_active: null }],
+    });
+    expect(mockAkbReadMemberInstallationActive).not.toHaveBeenCalled();
+  });
+
+  it("preserves the account session-denial behavior from a member-active lookup", async () => {
+    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
+    mockAkbReadMemberInstallationActive
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new AuthError({ origin: "akb", status: 401 }));
+
+    const response = await GET(request("/api/vaults"));
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
+    expect(response.headers.get("set-cookie")).toContain("__reef_session=");
   });
 
   it("returns 401 when the session cookie is missing or expired", async () => {

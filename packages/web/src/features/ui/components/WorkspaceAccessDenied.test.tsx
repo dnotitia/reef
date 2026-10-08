@@ -1,5 +1,8 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import type { EnrichedVaultSummary } from "@reef/core";
+import type {
+  EnrichedVaultSummary,
+  WorkspaceInstallationStatus,
+} from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -32,7 +35,7 @@ function vault(
 ): EnrichedVaultSummary {
   return {
     name,
-    installation_status: ready ? "ready" : "not_installed",
+    installation_active: ready,
     role,
   } as EnrichedVaultSummary;
 }
@@ -42,7 +45,7 @@ function renderDenied(
   denied = "reef-other",
   options: {
     role?: string;
-    installationStatus?: EnrichedVaultSummary["installation_status"];
+    installationStatus?: WorkspaceInstallationStatus;
     onCheckStatus?: () => Promise<void>;
     locale?: "en" | "ko";
   } = {},

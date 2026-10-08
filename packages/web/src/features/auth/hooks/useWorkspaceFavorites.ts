@@ -20,8 +20,8 @@ export interface WorkspaceFavoritesState {
 }
 
 /**
- * Owns the browser-local favorite preference while deriving the visible set
- * from the complete configured useVaults candidate list.
+ * Owns the complete browser-local favorite preference while deriving a
+ * separate visible set from the current useVaults candidates.
  */
 export function useWorkspaceFavorites(
   names: readonly string[],
@@ -44,15 +44,8 @@ export function useWorkspaceFavorites(
       .then((favorites) => {
         if (loadGenerationRef.current !== generation) return;
         setHasStorageError(false);
-        const next = enabled
-          ? filterWorkspaceFavorites(favorites, availableNames)
-          : favorites;
-        storedFavoritesRef.current = next;
-        setStoredFavorites(next);
-
-        if (enabled && next.length !== favorites.length) {
-          void setWorkspaceFavorites(next).catch(() => undefined);
-        }
+        storedFavoritesRef.current = favorites;
+        setStoredFavorites(favorites);
       })
       .catch(() => {
         if (loadGenerationRef.current !== generation) return;
@@ -64,7 +57,7 @@ export function useWorkspaceFavorites(
     return () => {
       loadGenerationRef.current += 1;
     };
-  }, [availableNames, enabled]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

@@ -88,8 +88,8 @@ test.describe("Hermetic onboarding flow", () => {
     expect(
       (await ownerVaults.json()).vaults.find(
         (vault: { name: string }) => vault.name === "reef-e2e",
-      )?.installation_status,
-    ).toBe("ready");
+      )?.installation_active,
+    ).toBe(true);
 
     await context.clearCookies();
     await signInAsUser(page, fixtureReaderLogin);

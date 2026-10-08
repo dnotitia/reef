@@ -46,21 +46,20 @@ function WorkspaceInstallationSectionContent({
   const workspaces = vaultsQuery.data ?? [];
   const workspace = workspaces.find((entry) => entry.name === vault);
   const canManage = role === "owner" || role === "admin";
+  const installationActive = workspace?.installation_active === true;
 
   const actions = useWorkspaceInstallationActions({
     vault,
-    initialStatus: workspace?.installation_status ?? "unknown",
+    initialStatus: "unknown",
     canManage: canManage && !readOnly,
     enabled:
-      !isResolving &&
-      Boolean(workspace) &&
-      workspace?.installation_status !== "ready",
+      !isResolving && Boolean(workspace) && (canManage || !installationActive),
   });
 
   if (!vault) return null;
   if (isResolving) return <WorkspaceInstallationLoading />;
   if (!workspace) return null;
-  if (workspace.installation_status === "ready" && !canManage) return null;
+  if (installationActive && !canManage) return null;
 
   const visibleStatus =
     !canManage && actions.status !== "ready"
@@ -79,7 +78,7 @@ function WorkspaceInstallationSectionContent({
       >
         {routesT("general.installation")}
       </h3>
-      {workspace.installation_status === "ready" ? (
+      {actions.status === "ready" ? (
         <WorkspaceInstallationDetails key={vault} vault={vault} />
       ) : (
         <article
