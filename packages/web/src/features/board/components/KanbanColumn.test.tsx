@@ -1,5 +1,6 @@
 import type { IssueListItem } from "@reef/core";
 import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
+import type { VirtualItem } from "@tanstack/react-virtual";
 import {
   act,
   cleanup,
@@ -17,6 +18,9 @@ const virtualizerProbe = vi.hoisted(() => ({
   }),
   sortableItems: [] as (string | number)[],
   scrollIndex: 0,
+  takeSnapshot: vi.fn((): VirtualItem[] => []),
+  initialMeasurementsCache: undefined as VirtualItem[] | undefined,
+  initialOffset: undefined as number | (() => number) | undefined,
 }));
 
 vi.mock("@tanstack/react-virtual", () => ({
@@ -46,7 +50,12 @@ vi.mock("@tanstack/react-virtual", () => ({
       overscan: number;
       count: number;
     }) => number[];
+    initialMeasurementsCache?: VirtualItem[];
+    initialOffset?: number | (() => number);
   }) => {
+    virtualizerProbe.initialMeasurementsCache =
+      options.initialMeasurementsCache;
+    virtualizerProbe.initialOffset = options.initialOffset;
     const startIndex = Math.max(0, virtualizerProbe.scrollIndex - 2);
     const endIndex = Math.min(options.count - 1, startIndex + 5);
     const indexes = options.rangeExtractor({
@@ -66,6 +75,7 @@ vi.mock("@tanstack/react-virtual", () => ({
       getTotalSize: () => options.count * 180,
       measureElement: vi.fn(),
       scrollToIndex: virtualizerProbe.scrollToIndex,
+      takeSnapshot: virtualizerProbe.takeSnapshot,
     };
   },
 }));
@@ -73,6 +83,7 @@ vi.mock("@tanstack/react-virtual", () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 // Mock @dnd-kit/core to avoid JSDOM drag issues
@@ -207,6 +218,9 @@ describe("KanbanColumn", () => {
     virtualizerProbe.scrollIndex = 0;
     virtualizerProbe.scrollToIndex.mockClear();
     virtualizerProbe.sortableItems = [];
+    virtualizerProbe.takeSnapshot.mockReset().mockReturnValue([]);
+    virtualizerProbe.initialMeasurementsCache = undefined;
+    virtualizerProbe.initialOffset = undefined;
     useIssueKeyboardStore.setState({
       focusRequest: null,
       quickEditRequest: null,
@@ -216,6 +230,7 @@ describe("KanbanColumn", () => {
       tabStopOccurrenceKey: { list: null, board: null, backlog: null },
       visibleIssueIds: { list: [], board: [], backlog: [] },
       visibleOccurrences: { list: [], board: [], backlog: [] },
+      boardViewportAnchors: {},
     });
   });
 
@@ -332,6 +347,7 @@ describe("KanbanColumn", () => {
       offset: 670,
       itemOffset: 50,
       focused: true,
+      measurements: [],
     };
     const continuityKey = "alice:reef-e2e";
     const initialProps: KanbanColumnProps = {
@@ -339,6 +355,20 @@ describe("KanbanColumn", () => {
       continuityKey,
       issues,
     };
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        const id = ++nextFrameId;
+        pendingFrames.set(id, callback);
+        return id;
+      }),
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      vi.fn((id: number) => pendingFrames.delete(id)),
+    );
     useIssueKeyboardStore.setState({
       focusedIssueId: { list: null, board: anchor.issueId, backlog: null },
       focusedOccurrenceKey: {
@@ -356,22 +386,417 @@ describe("KanbanColumn", () => {
     vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
       new DOMRect(0, 100, 320, 480),
     );
-    vi.spyOn(targetCard, "getBoundingClientRect").mockReturnValue(
-      new DOMRect(0, 150, 320, 88),
+    let cardTop = 150;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
     );
     (scrollElement as HTMLElement).scrollTop = anchor.offset;
-    targetCard.focus();
+    act(() => targetCard.focus());
 
     expect(
       useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
     ).toMatchObject(anchor);
+    expect(pendingFrames.size).toBe(1);
+
+    // The card's focus effect can scroll it after the synchronous focus event.
+    (scrollElement as HTMLElement).scrollTop += 22;
+    cardTop = 128;
+    const firstSaveFrame = pendingFrames.values().next().value;
+    if (!firstSaveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.clear();
+      firstSaveFrame(0);
+    });
+    const capturedAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedAnchor).toMatchObject({
+      ...anchor,
+      offset: anchor.offset + 22,
+      itemOffset: 28,
+    });
     virtualizerProbe.scrollToIndex.mockClear();
 
-    rerender(<KanbanColumn {...initialProps} restoreAnchor={anchor} />);
+    if (!capturedAnchor) throw new Error("missing captured focused anchor");
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={capturedAnchor} />);
 
     expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
-    expect((scrollElement as HTMLElement).scrollTop).toBe(anchor.offset);
+    expect((scrollElement as HTMLElement).scrollTop).toBe(
+      capturedAnchor.offset,
+    );
     expect(document.activeElement).toBe(targetCard);
+  });
+
+  it("reuses native virtual measurements and offset after a Board remount", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const occurrenceKey = "todo:reef-005";
+    const measurements: VirtualItem[] = [
+      {
+        key: occurrenceKey,
+        index: 4,
+        start: 752,
+        end: 846,
+        size: 94,
+        lane: 0,
+      },
+    ];
+    virtualizerProbe.takeSnapshot.mockReturnValue(measurements);
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: "reef-005", backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: occurrenceKey,
+        backlog: null,
+      },
+    });
+
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+      restoreAnchor: null,
+    };
+    const { unmount } = renderColumn(initialProps);
+    expect(virtualizerProbe.initialMeasurementsCache).toBeUndefined();
+    expect(virtualizerProbe.initialOffset).toBeUndefined();
+
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    vi.spyOn(targetCard, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 224, 320, 94),
+    );
+    scrollElement.scrollTop = 821;
+    act(() => targetCard.focus());
+
+    const capturedAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedAnchor).toMatchObject({
+      occurrenceKey,
+      offset: 821,
+      itemOffset: 124,
+      measurements,
+    });
+    expect(virtualizerProbe.takeSnapshot).toHaveBeenCalledTimes(1);
+    if (!capturedAnchor) throw new Error("missing captured viewport anchor");
+
+    unmount();
+    virtualizerProbe.scrollToIndex.mockClear();
+    renderColumn({ ...initialProps, restoreAnchor: capturedAnchor });
+
+    expect(virtualizerProbe.initialMeasurementsCache).toEqual(measurements);
+    expect(virtualizerProbe.initialOffset).toBe(capturedAnchor.offset);
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(4, {
+      align: "start",
+    });
+  });
+
+  it("does not restore a live focus capture before the nearest scroll settles", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const occurrenceKey = "todo:reef-005";
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        const id = ++nextFrameId;
+        pendingFrames.set(id, callback);
+        return id;
+      }),
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      vi.fn((id: number) => pendingFrames.delete(id)),
+    );
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: "reef-005", backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: occurrenceKey,
+        backlog: null,
+      },
+    });
+
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+      restoreAnchor: null,
+    };
+    const { rerender, unmount } = renderColumn(initialProps);
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    let cardTop = 664;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
+    );
+    scrollElement.scrollTop = 3120;
+
+    act(() => targetCard.focus());
+    const capturedBeforeNearestScroll =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedBeforeNearestScroll).toMatchObject({
+      occurrenceKey,
+      offset: 3120,
+      itemOffset: 564,
+      focused: true,
+    });
+
+    // KanbanCard calls scrollIntoView({ block: "nearest" }) after focus bubbles.
+    scrollElement.scrollTop = 3142;
+    cardTop = 642;
+    rerender(
+      <KanbanColumn
+        {...initialProps}
+        restoreAnchor={capturedBeforeNearestScroll}
+      />,
+    );
+
+    expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
+    expect(pendingFrames.size).toBe(1);
+    const saveFrame = pendingFrames.get(1);
+    if (!saveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.delete(1);
+      saveFrame(0);
+    });
+
+    const settledAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(settledAnchor).toMatchObject({
+      ...capturedBeforeNearestScroll,
+      offset: 3142,
+      itemOffset: 542,
+    });
+    if (!settledAnchor) throw new Error("missing settled focused anchor");
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={settledAnchor} />);
+
+    expect(virtualizerProbe.scrollToIndex).not.toHaveBeenCalled();
+    expect(scrollElement.scrollTop).toBe(3142);
+    expect(document.activeElement).toBe(targetCard);
+
+    unmount();
+    virtualizerProbe.scrollToIndex.mockClear();
+    renderColumn({ ...initialProps, restoreAnchor: settledAnchor });
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(4, {
+      align: "start",
+    });
+  });
+
+  it("cancels a pending restore when the same focused occurrence gets a newer anchor", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const occurrenceKey = "todo:reef-005";
+    const staleAnchor: BoardViewportAnchor = {
+      bucketId: "todo",
+      occurrenceKey,
+      issueId: "reef-005",
+      offset: 9230,
+      itemOffset: 584,
+      focused: true,
+      measurements: [],
+    };
+    const currentAnchor: BoardViewportAnchor = {
+      ...staleAnchor,
+      offset: 9814,
+      itemOffset: 0,
+    };
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = ++nextFrameId;
+      pendingFrames.set(id, callback);
+      return id;
+    });
+    const cancelFrame = vi.fn((id: number) => {
+      pendingFrames.delete(id);
+    });
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
+
+    const { rerender } = renderColumn({
+      bucket: statusBucket("todo"),
+      continuityKey,
+      issues,
+    });
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    let cardTop = 636;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
+    );
+    scrollElement.scrollTop = 9278;
+    targetCard.focus();
+    const focusSaveFrame = pendingFrames.get(1);
+    if (!focusSaveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.delete(1);
+      focusSaveFrame(0);
+    });
+    rerender(
+      <KanbanColumn
+        bucket={statusBucket("todo")}
+        continuityKey={continuityKey}
+        issues={issues}
+        restoreAnchor={staleAnchor}
+      />,
+    );
+
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledWith(4, {
+      align: "start",
+    });
+    expect(pendingFrames.size).toBe(1);
+    const restoreFrameId = Math.max(...pendingFrames.keys());
+
+    scrollElement.scrollTop = currentAnchor.offset;
+    cardTop = 100;
+    rerender(
+      <KanbanColumn
+        bucket={statusBucket("todo")}
+        continuityKey={continuityKey}
+        issues={issues}
+        restoreAnchor={currentAnchor}
+      />,
+    );
+
+    expect(cancelFrame).toHaveBeenCalledWith(restoreFrameId);
+    expect(pendingFrames.size).toBe(0);
+    expect(virtualizerProbe.scrollToIndex).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(targetCard);
+  });
+
+  it("does not save an intermediate restore focus and yields to user scrolling", () => {
+    const issues = Array.from({ length: 10 }, (_, index) =>
+      makeTestIssue(`reef-${String(index + 1).padStart(3, "0")}`),
+    );
+    const continuityKey = "alice:reef-e2e";
+    const anchor: BoardViewportAnchor = {
+      bucketId: "todo",
+      occurrenceKey: "todo:reef-005",
+      issueId: "reef-005",
+      offset: 9230,
+      itemOffset: 522,
+      focused: true,
+      measurements: [],
+    };
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const id = ++nextFrameId;
+      pendingFrames.set(id, callback);
+      return id;
+    });
+    const cancelFrame = vi.fn((id: number) => {
+      pendingFrames.delete(id);
+    });
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
+    useIssueKeyboardStore.setState({
+      boardViewportAnchors: { [continuityKey]: anchor },
+      focusedIssueId: { list: null, board: anchor.issueId, backlog: null },
+      focusedOccurrenceKey: {
+        list: null,
+        board: anchor.occurrenceKey,
+        backlog: null,
+      },
+      tabStopIssueId: { list: null, board: anchor.issueId, backlog: null },
+      tabStopOccurrenceKey: {
+        list: null,
+        board: anchor.occurrenceKey,
+        backlog: null,
+      },
+    });
+
+    const initialProps: KanbanColumnProps = {
+      bucket: statusBucket("todo"),
+      continuityKey,
+      focusRequestBaselineSerial: 1,
+      issues,
+    };
+    const { rerender } = renderColumn(initialProps);
+    const scrollElement = screen.getByTestId(
+      "kanban-column-scroll-container",
+    ) as HTMLElement;
+    const targetCard = screen.getByRole("button", {
+      name: "Issue reef-005",
+    });
+    vi.spyOn(scrollElement, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 100, 320, 480),
+    );
+    let cardTop = 100;
+    vi.spyOn(targetCard, "getBoundingClientRect").mockImplementation(
+      () => new DOMRect(0, cardTop, 320, 88),
+    );
+
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={anchor} />);
+    expect(pendingFrames.size).toBe(1);
+
+    // Simulate the align-start position before the restore callback requests DOM focus.
+    scrollElement.scrollTop = 16522;
+    const restoreFrame = pendingFrames.get(1);
+    if (!restoreFrame) throw new Error("missing initial restore frame");
+    act(() => {
+      pendingFrames.delete(1);
+      restoreFrame(0);
+      targetCard.focus();
+    });
+
+    expect(
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey],
+    ).toEqual(anchor);
+    expect(pendingFrames.size).toBe(1);
+
+    const userAnchor = {
+      ...anchor,
+      offset: 9814,
+      itemOffset: 0,
+    };
+    scrollElement.scrollTop = userAnchor.offset;
+    cardTop = 100;
+    fireEvent.wheel(scrollElement);
+    fireEvent.scroll(scrollElement);
+
+    const saveFrameId = Math.max(...pendingFrames.keys());
+    const saveFrame = pendingFrames.get(saveFrameId);
+    if (!saveFrame) throw new Error("missing focused-anchor save frame");
+    act(() => {
+      pendingFrames.delete(saveFrameId);
+      saveFrame(0);
+    });
+    const capturedAnchor =
+      useIssueKeyboardStore.getState().boardViewportAnchors[continuityKey];
+    expect(capturedAnchor).toMatchObject(userAnchor);
+
+    rerender(<KanbanColumn {...initialProps} restoreAnchor={capturedAnchor} />);
+    expect(cancelFrame).toHaveBeenCalledWith(2);
+    expect(pendingFrames.size).toBe(0);
   });
 
   it("uses an independent serial baseline for quick-edit requests", () => {
