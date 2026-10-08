@@ -15,6 +15,7 @@ import {
   type MarkdownLocale,
   type MarkdownEditingSurfaceProps,
   type MarkdownEditorMode,
+  type MarkdownImageMenuOptions,
   type MarkdownReferenceAdapter,
   type MarkdownReferenceCandidate,
   type MarkdownReferenceResolution,
@@ -125,6 +126,23 @@ function legacyImageResolutions(
   }
   return resolutions;
 }
+
+const ISSUE_IMAGE_MENU_OPTIONS: MarkdownImageMenuOptions = {
+  classNames: {
+    host: "border-border-subtle bg-surface-elevated shadow-md",
+    action:
+      "text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:ring-brand-focus focus-visible:ring-offset-surface-elevated",
+    destructiveAction:
+      "text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-brand-focus focus-visible:ring-offset-surface-elevated",
+    dialog: "border-border-subtle bg-surface-elevated text-foreground",
+    field:
+      "border-border bg-surface text-foreground placeholder:text-muted-foreground focus-visible:ring-brand-focus focus-visible:ring-offset-surface-elevated",
+    error: "text-destructive",
+  },
+  isEditableTarget: (target) =>
+    isAkbFileUri(target) ||
+    (target.startsWith("/") && !target.startsWith("//")),
+};
 
 function MarkdownEditorContent({
   value,
@@ -758,6 +776,7 @@ function MarkdownEditorContent({
           onMarkdownApplied={handleMarkdownApplied}
           readOnly={readOnly}
           modeSwitchDisabled={readOnly}
+          imageMenu={ISSUE_IMAGE_MENU_OPTIONS}
           renderHeader={renderHeader}
           toolbar={
             <MarkdownToolbar

@@ -424,6 +424,15 @@ and selection restoration stay in the shared editor, while Reef supplies the
 authenticated current-Vault search adapter. The issue reference picker remains
 document-only.
 
+Editable Issue Markdown images with same-origin or AKB file targets expose the
+shared image actions at each image occurrence. Description edits and removal
+update only that Markdown occurrence, use the editor's undo history, and leave
+the referenced AKB resource available to other links or images. A description
+must contain non-whitespace text. The localized dialog returns focus to the
+editor after save, cancel, or Escape; read-only issue bodies have no image
+actions. Reef supplies the shared editor's theme tokens for the image controls
+and dialog.
+
 The contract is checked in Light, Dark, and both System outcomes at 1440×900
 and 1024×800. At the 720px CSS viewport (the 200% equivalent), the document
 must not widen: long URLs wrap, fenced code owns its horizontal scrollport,

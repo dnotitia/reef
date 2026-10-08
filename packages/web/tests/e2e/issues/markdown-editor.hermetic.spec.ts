@@ -2733,6 +2733,235 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByRole("listbox")).toHaveCount(0);
   });
 
+  test("edits one image occurrence and keeps targets through undo and save", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const toolbar = page.getByRole("toolbar", { name: "Text formatting" });
+    const toolbarUndo = toolbar.getByRole("button", { name: "Undo" });
+    const toolbarRedo = toolbar.getByRole("button", { name: "Redo" });
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await sourceToggle.click();
+    const source = page.locator('[data-markdown-mode="source"] textarea');
+    const authoredMarkdown = [
+      "Dialog focus target.",
+      `![First duplicate](${MARKDOWN_FIXTURE_IMAGE_PATH})`,
+      `![Second duplicate](${MARKDOWN_FIXTURE_IMAGE_PATH})`,
+      `![Independent image](${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH})`,
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    ].join("\n\n");
+    await source.fill(authoredMarkdown);
+    await sourceToggle.click();
+
+    const firstDuplicateAction = page.getByRole("button", {
+      name: "Edit image description: First duplicate",
+    });
+    const secondDuplicateAction = page.getByRole("button", {
+      name: "Edit image description: Second duplicate",
+    });
+    const independentImageAction = page.getByRole("button", {
+      name: "Edit image description: Independent image",
+    });
+    await expect(firstDuplicateAction).toBeVisible();
+    await expect(secondDuplicateAction).toBeVisible();
+    await expect(independentImageAction).toBeVisible();
+    await expect(
+      page
+        .locator("[data-markdown-image-controls]")
+        .filter({
+          has: page.getByRole("button", {
+            name: "Edit image description: Second duplicate",
+          }),
+        })
+        .first(),
+    ).toHaveClass(/bg-surface-elevated/u);
+
+    await editor.focus();
+    await page.keyboard.press("Control+End");
+    await page
+      .getByRole("button", { name: "Edit image description: Second duplicate" })
+      .click();
+    const editDialog = page.getByRole("dialog", {
+      name: "Image description",
+    });
+    await editDialog
+      .getByRole("textbox", { name: "Description" })
+      .fill("Second updated");
+    await editDialog.getByRole("button", { name: "Save description" }).click();
+    await expect(editDialog).toHaveCount(0);
+    await expect(editor).toBeFocused();
+    await expect(
+      page.getByRole("button", {
+        name: "Edit image description: Second updated",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Edit image description: Second duplicate",
+      }),
+    ).toHaveCount(0);
+    await expect(firstDuplicateAction).toBeVisible();
+    await expect(independentImageAction).toBeVisible();
+
+    await expect(toolbarUndo).toBeEnabled();
+    await toolbarUndo.click();
+    await expect(
+      page.getByRole("button", {
+        name: "Edit image description: Second duplicate",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Edit image description: Second updated",
+      }),
+    ).toHaveCount(0);
+    await expect(toolbarRedo).toBeEnabled();
+    await toolbarRedo.click();
+    await expect(
+      page.getByRole("button", {
+        name: "Edit image description: Second updated",
+      }),
+    ).toBeVisible();
+    await expect(firstDuplicateAction).toBeVisible();
+
+    await editor.getByText("Dialog focus target.", { exact: true }).click();
+    await page.keyboard.press("End");
+    await page
+      .getByRole("button", { name: "Edit image description: First duplicate" })
+      .click();
+    const validationDialog = page.getByRole("dialog", {
+      name: "Image description",
+    });
+    const description = validationDialog.getByRole("textbox", {
+      name: "Description",
+    });
+    await description.fill("   ");
+    await validationDialog
+      .getByRole("button", { name: "Save description" })
+      .click();
+    await expect(validationDialog.getByRole("alert")).toHaveText(
+      "Describe the image so it remains understandable without sight.",
+    );
+
+    await description.fill("Cancelled description");
+    await page.keyboard.press("Escape");
+    await expect(validationDialog).toHaveCount(0);
+    await expect(editor).toBeFocused();
+    await page.keyboard.type(" Continued after dialog.");
+    await expect(editor).toContainText(
+      "Dialog focus target. Continued after dialog.",
+    );
+    await expect(firstDuplicateAction).toBeVisible();
+
+    await page
+      .getByRole("button", { name: "Remove image: First duplicate" })
+      .click();
+    await expect(firstDuplicateAction).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: "Edit image description: Second updated",
+      }),
+    ).toBeVisible();
+    await expect(independentImageAction).toBeVisible();
+    await expect(
+      editor.getByRole("link", { name: "incident.log" }),
+    ).toHaveAttribute("data-markdown-target", MARKDOWN_FIXTURE_FILE_URI);
+
+    await expect(toolbarUndo).toBeEnabled();
+    await toolbarUndo.click();
+    await expect(firstDuplicateAction).toBeVisible();
+    await expect(toolbarRedo).toBeEnabled();
+    await toolbarRedo.click();
+    await expect(firstDuplicateAction).toHaveCount(0);
+
+    await sourceToggle.click();
+    const finalMarkdown = await source.inputValue();
+    expect(finalMarkdown).toContain(
+      `![Second updated](${MARKDOWN_FIXTURE_IMAGE_PATH})`,
+    );
+    expect(finalMarkdown).not.toContain(
+      `![First duplicate](${MARKDOWN_FIXTURE_IMAGE_PATH})`,
+    );
+    expect(finalMarkdown).toContain(
+      `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+    );
+    expect(finalMarkdown).toContain(
+      `![Independent image](${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH})`,
+    );
+    expect(finalMarkdown).toContain(
+      "Dialog focus target. Continued after dialog.",
+    );
+
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === finalMarkdown;
+    });
+    await page.getByTestId("issue-title-input").click();
+    const persistedResponse = await saveResponse;
+    expect(persistedResponse.ok()).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path.startsWith("issues/"))
+          ?.content;
+      })
+      .toBe(finalMarkdown);
+
+    const calls = (await readFixtureState(request)).calls ?? [];
+    expect(
+      calls.filter(
+        (call) =>
+          call.method === "DELETE" &&
+          /\/api\/v1\/(?:assets|files)\//u.test(call.path),
+      ),
+    ).toEqual([]);
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await sourceToggle.click();
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
+    await expect(reopenedSource).toHaveValue(
+      new RegExp(
+        `!\\[Second updated\\]\\(${MARKDOWN_FIXTURE_IMAGE_PATH.replaceAll("/", "\\/")}\\)`,
+        "u",
+      ),
+    );
+    await expect(reopenedSource).not.toHaveValue(/First duplicate/u);
+    await expect(reopenedSource).toHaveValue(
+      new RegExp(
+        `\\[incident\\.log\\]\\(${MARKDOWN_FIXTURE_FILE_URI.replaceAll("/", "\\/")}\\)`,
+        "u",
+      ),
+    );
+    await expect(reopenedSource).toHaveValue(
+      new RegExp(
+        `!\\[Independent image\\]\\(${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH.replaceAll("/", "\\/")}\\)`,
+        "u",
+      ),
+    );
+  });
+
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
     page,
     request,

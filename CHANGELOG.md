@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue Markdown images now have shared description and removal controls.**
+  Edits apply to one image occurrence and remain part of Markdown undo history;
+  removing an image from the body preserves the referenced AKB resource.
+  Dialogs return focus to the editor after closing. (REEF-632)
 - **Workspace discovery now reads member-scoped installation activity in parallel.**
   The workspace list preserves per-vault unknown results and no longer fetches
   installation details or product readiness for every accessible vault.
