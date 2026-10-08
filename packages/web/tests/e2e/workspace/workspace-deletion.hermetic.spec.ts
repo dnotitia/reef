@@ -100,7 +100,10 @@ test.describe("Hermetic workspace lifecycle danger zone", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
     const accessGuidance = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(accessGuidance).toHaveAttribute("data-status", "uninstalled");
+    await expect(accessGuidance).toHaveAttribute(
+      "data-status",
+      "management_required",
+    );
     await expect(
       page.getByTestId("installation-diagnostics-link-reef-e2e"),
     ).toBeVisible();
@@ -111,6 +114,25 @@ test.describe("Hermetic workspace lifecycle danger zone", () => {
     ]) {
       await expect(
         accessGuidance.getByRole("button", { name: action }),
+      ).toHaveCount(0);
+    }
+
+    await page.getByTestId("installation-diagnostics-link-reef-e2e").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/settings\/workspace$/);
+    const installationDetails = page.getByTestId(
+      "workspace-installation-reef-e2e",
+    );
+    await expect(installationDetails).toHaveAttribute(
+      "data-status",
+      "uninstalled",
+    );
+    for (const action of [
+      "Set up Reef",
+      "Restore installation",
+      "Request fresh setup",
+    ]) {
+      await expect(
+        installationDetails.getByRole("button", { name: action }),
       ).toHaveCount(0);
     }
 

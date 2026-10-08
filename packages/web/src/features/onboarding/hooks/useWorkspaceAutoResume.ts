@@ -44,6 +44,12 @@ export function useWorkspaceAutoResume({
   const pendingResumeRef = useRef<PendingResume | null>(null);
   const committedNavigationRef = useRef<string | null>(null);
   const emptyRedirectCommittedRef = useRef(false);
+  const availabilityUnconfirmed =
+    Boolean(vaultsQuery.data) &&
+    !vaultsQuery.data?.some((vault) => vault.installation_active === true) &&
+    Boolean(
+      vaultsQuery.data?.some((vault) => vault.installation_active === null),
+    );
 
   const target = useMemo(() => {
     if (!vaultsQuery.data) return null;
@@ -57,7 +63,7 @@ export function useWorkspaceAutoResume({
     pendingResumeRef.current = null;
     setPersistFailed(false);
     setRetryVersion((version) => version + 1);
-    if (vaultsQuery.isError) void vaultsQuery.refetch();
+    void vaultsQuery.refetch();
   }, [vaultsQuery]);
 
   useEffect(() => {
@@ -75,6 +81,7 @@ export function useWorkspaceAutoResume({
     }
 
     if (!target) {
+      if (availabilityUnconfirmed) return;
       if (redirectWhenEmpty && !emptyRedirectCommittedRef.current) {
         emptyRedirectCommittedRef.current = true;
         router.replace("/onboarding");
@@ -114,6 +121,7 @@ export function useWorkspaceAutoResume({
     };
   }, [
     enabled,
+    availabilityUnconfirmed,
     persistActiveVault,
     redirectWhenEmpty,
     rememberedVaultLoading,
@@ -135,6 +143,7 @@ export function useWorkspaceAutoResume({
   ) {
     status = "pending";
   } else if (target) status = "redirecting";
+  else if (availabilityUnconfirmed) status = "error";
   else status = "empty";
 
   return { status, retry };

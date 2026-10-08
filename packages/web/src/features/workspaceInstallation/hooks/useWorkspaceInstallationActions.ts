@@ -1,7 +1,6 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
-import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -43,7 +42,6 @@ export function useWorkspaceInstallationActions({
   onReady,
 }: UseWorkspaceInstallationActionsOptions) {
   const t = useTranslations("workspaceInstallation");
-  const vaultsQuery = useVaults({ enabled });
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(initialStatus);
   const [activity, setActivity] = useState<Activity>(null);
@@ -73,16 +71,19 @@ export function useWorkspaceInstallationActions({
 
   const readStatus =
     useCallback(async (): Promise<WorkspaceInstallationStatus> => {
-      const refreshed = await vaultsQuery.refetch();
-      const next = refreshed.data?.find(
-        (entry) => entry.name === vault,
-      )?.installation_status;
-      if (refreshed.isError || !next) {
-        throw new Error(t("statusFailed"));
+      const response = await apiFetch(endpoint, { cache: "no-store" });
+      if (!response.ok) {
+        await throwHttpError(
+          response,
+          `GET installation returned ${response.status}`,
+        );
       }
+      const next = StatusResponseSchema.parse(
+        await response.json(),
+      ).installation_status;
       setStatus(next);
       return next;
-    }, [t, vault, vaultsQuery.refetch]);
+    }, [endpoint]);
 
   const pollUntilSettled = useCallback(async () => {
     setActivity("checking");
@@ -97,21 +98,6 @@ export function useWorkspaceInstallationActions({
     }
     setError(t("stillRunning"));
   }, [finishWorkspace, readStatus, t]);
-
-  useEffect(() => {
-    if (
-      !enabled ||
-      !canManage ||
-      (initialStatus !== "installing" && initialStatus !== "upgrading")
-    ) {
-      return;
-    }
-    void pollUntilSettled()
-      .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : t("statusFailed"));
-      })
-      .finally(() => setActivity(null));
-  }, [canManage, enabled, initialStatus, pollUntilSettled, t]);
 
   const runCommand = useCallback(
     async (mode: InstallationCommand) => {
@@ -171,6 +157,25 @@ export function useWorkspaceInstallationActions({
       setActivity(null);
     }
   }, [finishWorkspace, pollUntilSettled, readStatus, t]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (initialStatus === "unknown") {
+      void checkStatus();
+      return;
+    }
+    if (
+      !canManage ||
+      (initialStatus !== "installing" && initialStatus !== "upgrading")
+    ) {
+      return;
+    }
+    void pollUntilSettled()
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : t("statusFailed"));
+      })
+      .finally(() => setActivity(null));
+  }, [canManage, checkStatus, enabled, initialStatus, pollUntilSettled, t]);
 
   return {
     status,

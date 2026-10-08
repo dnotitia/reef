@@ -88,8 +88,8 @@ test.describe("Hermetic onboarding flow", () => {
     expect(
       (await ownerVaults.json()).vaults.find(
         (vault: { name: string }) => vault.name === "reef-e2e",
-      )?.installation_status,
-    ).toBe("ready");
+      )?.installation_active,
+    ).toBe(true);
 
     await context.clearCookies();
     await signInAsUser(page, fixtureReaderLogin);
@@ -107,12 +107,12 @@ test.describe("Hermetic onboarding flow", () => {
     const readerVaults = await page.request.get("/api/vaults");
     expect(readerVaults.ok()).toBe(true);
     const readerVaultList = (await readerVaults.json()) as {
-      vaults: Array<{ name: string; installation_status: string }>;
+      vaults: Array<{ name: string; installation_active: boolean | null }>;
     };
     expect(
       readerVaultList.vaults.some(
         (vault) =>
-          vault.name === readerLanding && vault.installation_status === "ready",
+          vault.name === readerLanding && vault.installation_active === true,
       ),
     ).toBe(true);
 

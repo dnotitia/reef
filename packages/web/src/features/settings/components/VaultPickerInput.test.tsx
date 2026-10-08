@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { VaultPickerInput } from "./VaultPickerInput";
 
 const vaults: EnrichedVaultSummary[] = [
-  { name: "reef-acme", installation_status: "ready" },
+  { name: "reef-acme", installation_active: true },
 ];
 
 function renderPicker(value = "") {

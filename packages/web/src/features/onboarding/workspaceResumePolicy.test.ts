@@ -7,19 +7,22 @@ import {
   selectRememberedUnavailableWorkspace,
 } from "./workspaceResumePolicy";
 
-function vault(name: string, ready: boolean): EnrichedVaultSummary {
+function vault(
+  name: string,
+  installationActive: boolean | null,
+): EnrichedVaultSummary {
   return {
     name,
     description: null,
     status: "active",
     role: "owner",
     created_at: null,
-    installation_status: ready ? "ready" : "not_installed",
+    installation_active: installationActive,
   };
 }
 
 describe("selectConfiguredWorkspace", () => {
-  it("prefers a remembered configured workspace", () => {
+  it("prefers a remembered active workspace", () => {
     expect(
       selectConfiguredWorkspace(
         [vault("reef-alpha", true), vault("reef-zeta", true)],
@@ -28,11 +31,12 @@ describe("selectConfiguredWorkspace", () => {
     ).toBe("reef-zeta");
   });
 
-  it("ignores raw vaults and chooses the first configured ASCII name", () => {
+  it("ignores inactive or unknown vaults and chooses the first active ASCII name", () => {
     expect(
       selectConfiguredWorkspace(
         [
           vault("raw-alpha", false),
+          vault("reef-unknown", null),
           vault("reef-zeta", true),
           vault("reef-alpha", true),
         ],
@@ -41,7 +45,7 @@ describe("selectConfiguredWorkspace", () => {
     ).toBe("reef-alpha");
   });
 
-  it("returns null when no configured workspace is accessible", () => {
+  it("returns null when no active workspace is accessible", () => {
     expect(
       selectConfiguredWorkspace([vault("raw-alpha", false)], ""),
     ).toBeNull();
@@ -49,7 +53,7 @@ describe("selectConfiguredWorkspace", () => {
 });
 
 describe("selectRememberedUnavailableWorkspace", () => {
-  it("keeps the remembered accessible workspace as the entry target", () => {
+  it("keeps a remembered inactive workspace as the entry target", () => {
     expect(
       selectRememberedUnavailableWorkspace(
         [vault("reef-zeta", false), vault("raw-vault", false)],
@@ -58,7 +62,7 @@ describe("selectRememberedUnavailableWorkspace", () => {
     ).toBe("reef-zeta");
   });
 
-  it("does not choose an unremembered or ready workspace", () => {
+  it("does not choose an unremembered or active workspace", () => {
     expect(
       selectRememberedUnavailableWorkspace(
         [vault("reef-alpha", false), vault("reef-zeta", true)],
@@ -68,6 +72,12 @@ describe("selectRememberedUnavailableWorkspace", () => {
     expect(
       selectRememberedUnavailableWorkspace(
         [vault("reef-zeta", true)],
+        "reef-zeta",
+      ),
+    ).toBeNull();
+    expect(
+      selectRememberedUnavailableWorkspace(
+        [vault("reef-zeta", null)],
         "reef-zeta",
       ),
     ).toBeNull();

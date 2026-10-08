@@ -49,15 +49,41 @@ describe("useWorkspaceFavorites", () => {
     expect(result.current.favorites).toEqual([]);
   });
 
-  it("removes favorites that are no longer accessible or configured", async () => {
-    await setWorkspaceFavorites(["reef-alpha", "reef-missing", "raw-vault"]);
-    const { result } = renderHook(() => useWorkspaceFavorites(CANDIDATES));
+  it("keeps hidden favorites in storage while candidates disappear and return", async () => {
+    await setWorkspaceFavorites(["reef-alpha", "reef-missing"]);
+    const { result, rerender } = renderHook(
+      ({ names }: { names: readonly string[] }) => useWorkspaceFavorites(names),
+      { initialProps: { names: ["reef-alpha"] } },
+    );
 
     await waitFor(() =>
       expect(result.current.favorites).toEqual(["reef-alpha"]),
     );
-    await waitFor(async () =>
-      expect(await getWorkspaceFavorites()).toEqual(["reef-alpha"]),
+    expect(await getWorkspaceFavorites()).toEqual([
+      "reef-alpha",
+      "reef-missing",
+    ]);
+
+    rerender({ names: [...CANDIDATES] });
+    expect(result.current.favorites).toEqual(["reef-alpha"]);
+
+    await act(async () => {
+      await result.current.toggleFavorite("reef-zeta");
+    });
+    expect(await getWorkspaceFavorites()).toEqual([
+      "reef-alpha",
+      "reef-missing",
+      "reef-zeta",
+    ]);
+
+    rerender({ names: ["reef-alpha"] });
+    await waitFor(() =>
+      expect(result.current.favorites).toEqual(["reef-alpha"]),
     );
+    expect(await getWorkspaceFavorites()).toEqual([
+      "reef-alpha",
+      "reef-missing",
+      "reef-zeta",
+    ]);
   });
 });

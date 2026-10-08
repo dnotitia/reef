@@ -245,6 +245,7 @@ export async function handleAkb(req, res, url, state) {
       }
       if (
         state.scenario === "installation_drift" ||
+        state.scenario === "configured_multi" ||
         state.scenario === "notifications_personal"
       ) {
         const lookupMode = installationLookupMode(
@@ -287,6 +288,7 @@ export async function handleAkb(req, res, url, state) {
     }
     if (
       state.scenario === "installation_drift" ||
+      state.scenario === "configured_multi" ||
       state.scenario === "notifications_personal"
     ) {
       const lookupMode = installationLookupMode(

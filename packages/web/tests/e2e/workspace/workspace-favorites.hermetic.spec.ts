@@ -4,6 +4,7 @@ import {
   readIndexedDbConfig,
   resetFixture,
   signInAsAlice,
+  setInstallationControl,
 } from "../harness/fixture";
 
 const FAVORITES_KEY = "workspace_favorites";
@@ -24,6 +25,7 @@ test.describe("Hermetic workspace favorites", () => {
 
   test("groups, searches, navigates, restores, and cleans up browser-local favorites", async ({
     page,
+    request,
   }) => {
     await openMultiVaultWorkspace(page, "reef-e2e");
 
@@ -96,8 +98,59 @@ test.describe("Hermetic workspace favorites", () => {
     await expect(
       page.getByTestId("workspace-switcher-option-raw-vault"),
     ).toHaveCount(0);
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+
+    // A favorite remains stored while one installation is confirmed inactive
+    // and another member-active lookup is temporarily unavailable.
+    await setInstallationControl(request, {
+      vault: "reef-alpha",
+      lifecycle: "uninstalled",
+    });
+    await setInstallationControl(request, {
+      vault: "reef-zeta",
+      memberLookup: "unavailable",
+    });
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await expect(
+      page.getByTestId("workspace-switcher-favorite-reef-alpha"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId("workspace-switcher-favorite-reef-zeta"),
+    ).toHaveCount(0);
+    await expect
+      .poll(() => readIndexedDbConfig(page, FAVORITES_KEY))
+      .toBe(
+        JSON.stringify({
+          version: 1,
+          favorites: ["reef-alpha", "reef-zeta"],
+        }),
+      );
+
+    await setInstallationControl(request, {
+      vault: "reef-alpha",
+      lifecycle: "active",
+    });
+    await setInstallationControl(request, {
+      vault: "reef-zeta",
+      memberLookup: "healthy",
+    });
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await expect(
+      page.getByTestId("workspace-switcher-favorite-reef-alpha"),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByTestId("workspace-switcher-favorite-reef-zeta"),
+    ).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("workspace-switcher-option-reef-alpha").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/);
 
     // Space activates the independent toggle and does not change the URL.
+    await page.getByTestId("sidebar-workspace-trigger").click();
     await restoredAlphaFavorite.focus();
     await page.keyboard.press("Space");
     await expect(restoredAlphaFavorite).toHaveAttribute(

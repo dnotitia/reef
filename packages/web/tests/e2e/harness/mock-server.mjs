@@ -197,9 +197,24 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       if (
         state.scenario !== "installation_drift" &&
+        state.scenario !== "configured_multi" &&
         state.scenario !== "notifications_personal"
       ) {
         return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      if (
+        state.scenario === "configured_multi" &&
+        [
+          "drift",
+          "observation",
+          "blocked_reason",
+          "detail_lookup",
+          "roles",
+        ].some((field) => body?.[field] !== undefined)
+      ) {
+        return json(res, 400, {
+          error: "unsupported configured_multi installation control",
+        });
       }
       const vaultName = String(body?.vault ?? REEF_VAULT);
       const vault = state.vaults.get(vaultName);
@@ -350,11 +365,15 @@ const server = createServer(async (req, res) => {
         member_lookup: memberLookup,
         detail_lookup: detailLookup,
         observation: installation.observationMode,
-        drift: {
-          release: installation.drift.release.status,
-          schema: installation.drift.schema.status,
-          grant: installation.drift.grant.status,
-        },
+        ...(installation.drift
+          ? {
+              drift: {
+                release: installation.drift.release.status,
+                schema: installation.drift.schema.status,
+                grant: installation.drift.grant.status,
+              },
+            }
+          : {}),
         roles: Object.fromEntries(state.installationRoles),
       });
     }

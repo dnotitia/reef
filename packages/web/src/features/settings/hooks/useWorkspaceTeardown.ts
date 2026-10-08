@@ -38,7 +38,7 @@ export function useWorkspaceTeardown(vault: string) {
   // remaining reef workspace (or fall back to onboarding when none is left).
   const onWorkspaceGone = useCallback(async () => {
     const next = (vaultsQuery.data ?? []).find(
-      (v) => v.name !== vault && v.installation_status === "ready",
+      (v) => v.name !== vault && v.installation_active === true,
     );
     await queryClient.invalidateQueries({ queryKey: ["vaults"] });
     await setActiveVault.mutateAsync(next?.name ?? "");

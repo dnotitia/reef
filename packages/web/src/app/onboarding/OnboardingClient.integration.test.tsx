@@ -79,7 +79,7 @@ function emptyVaultsResponse() {
 function vaultsResponse(
   entries: ReadonlyArray<{
     name: string;
-    installation_status: "ready" | "not_installed" | "uninstalled";
+    installation_active: boolean | null;
   }>,
 ) {
   return new Response(
@@ -90,7 +90,7 @@ function vaultsResponse(
         status: "active",
         role: "owner",
         created_at: null,
-        installation_status: entry.installation_status,
+        installation_active: entry.installation_active,
       })),
     }),
     { status: 200 },
@@ -100,7 +100,7 @@ function vaultsResponse(
 function setupVaultApi(
   entries: ReadonlyArray<{
     name: string;
-    installation_status: "ready" | "not_installed" | "uninstalled";
+    installation_active: boolean | null;
   }>,
 ) {
   mockApiFetch.mockImplementation(async (url) => {
@@ -168,9 +168,7 @@ describe("OnboardingClient and OnboardingPanel resume ownership", () => {
   });
 
   it("shows the create form after a raw-only list with no remembered target", async () => {
-    setupVaultApi([
-      { name: "raw-vault", installation_status: "not_installed" },
-    ]);
+    setupVaultApi([{ name: "raw-vault", installation_active: false }]);
 
     render(
       wrap(<OnboardingClient appVersion="0.10.0" pageSubtitle="Welcome" />),
@@ -200,8 +198,8 @@ describe("OnboardingClient and OnboardingPanel resume ownership", () => {
   it("routes a remembered unavailable workspace through the parent owner", async () => {
     await setActiveVault("reef-zeta");
     setupVaultApi([
-      { name: "reef-zeta", installation_status: "uninstalled" },
-      { name: "raw-vault", installation_status: "not_installed" },
+      { name: "reef-zeta", installation_active: false },
+      { name: "raw-vault", installation_active: false },
     ]);
 
     render(
@@ -215,11 +213,29 @@ describe("OnboardingClient and OnboardingPanel resume ownership", () => {
     expect(mockReplace).toHaveBeenCalledOnce();
   });
 
-  it("resumes the remembered ready workspace before ASCII fallback", async () => {
+  it("routes a remembered inactive workspace while another availability is unknown", async () => {
     await setActiveVault("reef-zeta");
     setupVaultApi([
-      { name: "reef-alpha", installation_status: "ready" },
-      { name: "reef-zeta", installation_status: "ready" },
+      { name: "reef-alpha", installation_active: null },
+      { name: "reef-zeta", installation_active: false },
+    ]);
+
+    render(
+      wrap(<OnboardingClient appVersion="0.10.0" pageSubtitle="Welcome" />),
+    );
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-zeta/issues"),
+    );
+    expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
+    expect(mockReplace).toHaveBeenCalledOnce();
+  });
+
+  it("resumes the remembered active workspace before ASCII fallback", async () => {
+    await setActiveVault("reef-zeta");
+    setupVaultApi([
+      { name: "reef-alpha", installation_active: true },
+      { name: "reef-zeta", installation_active: true },
     ]);
 
     render(
@@ -235,8 +251,8 @@ describe("OnboardingClient and OnboardingPanel resume ownership", () => {
   it("uses ASCII fallback when the remembered workspace is absent", async () => {
     await setActiveVault("missing");
     setupVaultApi([
-      { name: "reef-zeta", installation_status: "ready" },
-      { name: "reef-alpha", installation_status: "ready" },
+      { name: "reef-zeta", installation_active: true },
+      { name: "reef-alpha", installation_active: true },
     ]);
 
     render(
@@ -247,6 +263,41 @@ describe("OnboardingClient and OnboardingPanel resume ownership", () => {
       expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-alpha/issues"),
     );
     expect(await activeVaultStorage.getActiveVault()).toBe("reef-alpha");
+  });
+
+  it("keeps onboarding pending while availability is unknown and retries before resuming", async () => {
+    let vaultListAttempts = 0;
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url) === "/api/vaults") {
+        vaultListAttempts += 1;
+        return vaultsResponse([
+          {
+            name: "reef-alpha",
+            installation_active: vaultListAttempts === 1 ? null : true,
+          },
+        ]);
+      }
+      if (String(url).startsWith("/api/repos")) {
+        return new Response(JSON.stringify({ repos: [] }), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    });
+    const user = userEvent.setup();
+
+    render(
+      wrap(<OnboardingClient appVersion="0.10.0" pageSubtitle="Welcome" />),
+    );
+
+    expect(await screen.findByTestId("workspace-resume-error")).toBeVisible();
+    expect(screen.queryByTestId("greenfield-vault-name-input")).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /retry/i }));
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/workspace/reef-alpha/issues"),
+    );
+    expect(vaultListAttempts).toBe(2);
   });
 
   it("keeps creation available after retrying a failed empty vault list", async () => {

@@ -91,7 +91,7 @@ export function SidebarWorkspace({
     return (vaultsQuery.data ?? [])
       .filter(
         (vault) =>
-          vault.installation_status === "ready" &&
+          vault.installation_active === true &&
           isValidWorkspaceFavoriteName(vault.name),
       )
       .filter((vault) => {
@@ -106,6 +106,9 @@ export function SidebarWorkspace({
     () => reefVaults.map((vault) => vault.name),
     [reefVaults],
   );
+  const hasUnknownAvailability =
+    vaultsQuery.data?.some((vault) => vault.installation_active === null) ??
+    false;
   const workspaceFavorites = useWorkspaceFavorites(reefVaultNames, {
     enabled: !vaultsQuery.isPending && !vaultsQuery.isError,
   });
@@ -306,10 +309,18 @@ export function SidebarWorkspace({
             {vaultsQuery.isError ? (
               <li
                 role="alert"
-                className="px-2 py-1.5 type-control text-destructive-text"
+                className="flex flex-col items-start gap-2 px-2 py-1.5 type-control text-destructive-text"
                 data-testid="workspace-switcher-error"
               >
                 {tw("loadError")}
+                <button
+                  type="button"
+                  data-testid="workspace-switcher-retry"
+                  className="text-foreground underline underline-offset-2"
+                  onClick={() => void vaultsQuery.refetch()}
+                >
+                  {tw("retry")}
+                </button>
               </li>
             ) : vaultsQuery.isPending ? (
               // Don't claim "no workspaces" before the list has loaded — a cold
@@ -319,6 +330,22 @@ export function SidebarWorkspace({
                 data-testid="workspace-switcher-loading"
               >
                 {tw("loading")}
+              </li>
+            ) : reefVaults.length === 0 && hasUnknownAvailability ? (
+              <li
+                role="alert"
+                className="flex flex-col items-start gap-2 px-2 py-1.5 type-control text-muted-foreground"
+                data-testid="workspace-switcher-availability-unknown"
+              >
+                {tw("availabilityUnknown")}
+                <button
+                  type="button"
+                  data-testid="workspace-switcher-retry"
+                  className="text-foreground underline underline-offset-2"
+                  onClick={() => void vaultsQuery.refetch()}
+                >
+                  {tw("retry")}
+                </button>
               </li>
             ) : filtered.length === 0 ? (
               <li

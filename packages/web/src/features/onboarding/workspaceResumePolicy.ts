@@ -11,7 +11,7 @@ export function selectConfiguredWorkspace(
   rememberedVault: string,
 ): string | null {
   const configuredNames = vaults
-    .filter((vault) => vault.installation_status === "ready")
+    .filter((vault) => vault.installation_active === true)
     .map((vault) => vault.name)
     .toSorted(compareAscii);
 
@@ -24,7 +24,7 @@ export function selectRememberedUnavailableWorkspace(
   rememberedVault: string,
 ): string | null {
   const remembered = vaults.find((vault) => vault.name === rememberedVault);
-  return remembered && remembered.installation_status !== "ready"
+  return remembered && remembered.installation_active === false
     ? remembered.name
     : null;
 }

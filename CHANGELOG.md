@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Workspace discovery now reads member-scoped installation activity in parallel.**
+  The workspace list preserves per-vault unknown results and no longer fetches
+  installation details or product readiness for every accessible vault.
+  Pickers and resume select only confirmed active installations; selected
+  workspace requests still enforce Reef readiness. (REEF-664)
 - **Inbox now spans every ready workspace accessible to the signed-in actor.**
   Rows retain their source workspace, duplicate issue notifications remain
   distinct, and the account-scoped unread badge reflects up to 100 unread rows
@@ -63,6 +68,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Workspace favorites survive temporary availability gaps.** The browser
+  retains the full validated preference set when a favorite is absent, inactive,
+  or has an unknown activity result, then shows it again when confirmed active.
+  (REEF-664)
 - **Auth-pending Issues chrome now holds the loaded board position at narrow
   widths.** The filter row and rollover title placeholder match their resolved
   frame heights during first render. (REEF-663)

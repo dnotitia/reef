@@ -1,6 +1,12 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +16,7 @@ const workspaces = vi.hoisted(() => ({
   current: [] as Array<{
     name: string;
     role: string;
-    installation_status: "ready" | "uninstalled" | "blocked" | "not_installed";
+    installation_active: boolean | null;
   }>,
 }));
 const { mockApiFetch } = vi.hoisted(() => ({ mockApiFetch: vi.fn() }));
@@ -54,17 +60,17 @@ describe("WorkspaceInstallationSection", () => {
     workspaces.resolving = false;
     workspaces.role = "owner";
     workspaces.current = [
-      { name: "reef-current", role: "owner", installation_status: "ready" },
+      { name: "reef-current", role: "owner", installation_active: true },
       {
         name: "reef-restore",
         role: "owner",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
-      { name: "reef-blocked", role: "reader", installation_status: "blocked" },
+      { name: "reef-blocked", role: "reader", installation_active: false },
       {
         name: "reef-other-ready",
         role: "owner",
-        installation_status: "ready",
+        installation_active: true,
       },
     ];
     mockApiFetch.mockReset();
@@ -90,70 +96,88 @@ describe("WorkspaceInstallationSection", () => {
     expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
-  it("shows selected-workspace diagnostics only as a lazy owner disclosure", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          installation_status: "ready",
-          installation: {
-            installationId: "33333333-3333-4333-8333-333333333333",
-            appId: "11111111-1111-4111-8111-111111111111",
-            vaultId: "22222222-2222-4222-8222-222222222222",
-            lifecycle: "active",
-            blockedReason: null,
-            desiredRelease: {
-              id: "44444444-4444-4444-8444-444444444444",
-              version: "2.0.0",
-            },
-            currentRelease: {
-              id: "55555555-5555-4555-8555-555555555555",
-              version: "1.0.0",
-            },
-            observed: {
-              generation: 4,
-              observedAt: "2026-10-02T02:00:00.000Z",
-              release: {
+  it("loads selected-workspace status before the lazy owner details disclosure", async () => {
+    mockApiFetch.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            installation_status: "ready",
+            installation: {
+              installationId: "33333333-3333-4333-8333-333333333333",
+              appId: "11111111-1111-4111-8111-111111111111",
+              vaultId: "22222222-2222-4222-8222-222222222222",
+              lifecycle: "active",
+              blockedReason: null,
+              desiredRelease: {
+                id: "44444444-4444-4444-8444-444444444444",
+                version: "2.0.0",
+              },
+              currentRelease: {
                 id: "55555555-5555-4555-8555-555555555555",
                 version: "1.0.0",
               },
-              schemaFingerprint: "observed-fingerprint",
-              grantGeneration: 3,
-            },
-            desiredGrantGeneration: 4,
-            latestGrant: { generation: 4, status: "active", capabilities: [] },
-            activeGrant: { generation: 3, status: "active", capabilities: [] },
-            drift: {
-              release: {
-                status: "mismatch",
-                desired: {
-                  id: "44444444-4444-4444-8444-444444444444",
-                  version: "2.0.0",
-                },
-                observed: {
+              observed: {
+                generation: 4,
+                observedAt: "2026-10-02T02:00:00.000Z",
+                release: {
                   id: "55555555-5555-4555-8555-555555555555",
                   version: "1.0.0",
                 },
+                schemaFingerprint: "observed-fingerprint",
+                grantGeneration: 3,
               },
-              schema: {
-                status: "unknown",
-                expected: "target-fingerprint",
-                observed: null,
+              desiredGrantGeneration: 4,
+              latestGrant: {
+                generation: 4,
+                status: "active",
+                capabilities: [],
               },
-              grant: {
-                status: "mismatch",
-                desiredGeneration: 4,
-                observedGeneration: 3,
+              activeGrant: {
+                generation: 3,
+                status: "active",
+                capabilities: [],
               },
-              overall: "drifted",
-              reasons: ["release_mismatch", "grant_mismatch"],
-              unknownDimensions: ["schema"],
+              drift: {
+                release: {
+                  status: "mismatch",
+                  desired: {
+                    id: "44444444-4444-4444-8444-444444444444",
+                    version: "2.0.0",
+                  },
+                  observed: {
+                    id: "55555555-5555-4555-8555-555555555555",
+                    version: "1.0.0",
+                  },
+                },
+                schema: {
+                  status: "unknown",
+                  expected: "target-fingerprint",
+                  observed: null,
+                },
+                grant: {
+                  status: "mismatch",
+                  desiredGeneration: 4,
+                  observedGeneration: 3,
+                },
+                overall: "drifted",
+                reasons: ["release_mismatch", "grant_mismatch"],
+                unknownDimensions: ["schema"],
+              },
             },
-          },
-        }),
-        { status: 200 },
-      ),
+          }),
+          { status: 200 },
+        ),
     );
     render(wrap(<WorkspaceInstallationSection vault="reef-current" />));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("workspace-installation-reef-current"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("installation-details-disclosure"),
+      ).toBeInTheDocument();
+    });
 
     const section = screen.getByTestId("workspace-installation-section");
     const disclosure = screen.getByTestId("installation-details-disclosure");
@@ -166,11 +190,12 @@ describe("WorkspaceInstallationSection", () => {
     expect(
       screen.queryByTestId("workspace-installation-reef-blocked"),
     ).not.toBeInTheDocument();
-    expect(mockApiFetch).not.toHaveBeenCalled();
+    expect(mockApiFetch).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByText("Technical details"));
     fireEvent(disclosure, new Event("toggle"));
     expect(await screen.findByTestId("installation-details")).toBeVisible();
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
     expect(mockApiFetch).toHaveBeenCalledWith(
       "/api/vaults/reef-current/installation",
       { cache: "no-store" },
@@ -180,14 +205,21 @@ describe("WorkspaceInstallationSection", () => {
   it("summarizes only the selected blocked workspace and keeps member actions limited", () => {
     workspaces.role = "reader";
     workspaces.current = [
-      { name: "reef-current", role: "reader", installation_status: "blocked" },
+      { name: "reef-current", role: "reader", installation_active: false },
       {
         name: "reef-restore",
         role: "owner",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
-      { name: "reef-other-ready", role: "owner", installation_status: "ready" },
+      { name: "reef-other-ready", role: "owner", installation_active: true },
     ];
+    mockApiFetch.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ installation_status: "management_required" }),
+          { status: 200 },
+        ),
+    );
     render(wrap(<WorkspaceInstallationSection vault="reef-current" />));
 
     const current = screen.getByTestId("workspace-installation-reef-current");
@@ -210,18 +242,29 @@ describe("WorkspaceInstallationSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps diagnostics read-only while preserving owner status checks", () => {
+  it("loads selected read-only diagnostics without exposing owner actions", async () => {
     workspaces.current = [
       {
         name: "reef-restore",
         role: "owner",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
     ];
+    mockApiFetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ installation_status: "blocked" }), {
+          status: 200,
+        }),
+    );
     render(
       wrap(<WorkspaceInstallationSection vault="reef-restore" readOnly />),
     );
 
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("workspace-installation-reef-restore"),
+      ).toHaveAttribute("data-status", "blocked");
+    });
     expect(screen.getByRole("button", { name: "Check status" })).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Restore installation" }),
@@ -234,27 +277,58 @@ describe("WorkspaceInstallationSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("resets installation actions when the selected workspace role changes", () => {
+  it("reads selected installation status before exposing role-appropriate actions", async () => {
     workspaces.current = [
-      { name: "reef-current", role: "owner", installation_status: "blocked" },
+      { name: "reef-current", role: "owner", installation_active: false },
     ];
+    let resolveInitialRead!: (response: Response) => void;
+    mockApiFetch
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveInitialRead = resolve;
+          }),
+      )
+      .mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ installation_status: "uninstalled" }), {
+            status: 200,
+          }),
+      );
     const view = render(
       wrap(<WorkspaceInstallationSection vault="reef-current" />),
     );
 
     expect(
       screen.getByTestId("workspace-installation-reef-current"),
-    ).toHaveAttribute("data-status", "blocked");
+    ).toHaveAttribute("data-status", "unknown");
+    expect(mockApiFetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveInitialRead(
+        new Response(JSON.stringify({ installation_status: "uninstalled" }), {
+          status: 200,
+        }),
+      );
+    });
+    expect(
+      await screen.findByRole("button", { name: "Restore installation" }),
+    ).toBeVisible();
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      "/api/vaults/reef-current/installation",
+      { cache: "no-store" },
+    );
 
     workspaces.role = "reader";
     workspaces.current = [
       {
         name: "reef-current",
         role: "reader",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
     ];
     view.rerender(wrap(<WorkspaceInstallationSection vault="reef-current" />));
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledTimes(2));
     expect(
       screen.getByTestId("workspace-installation-reef-current"),
     ).toHaveAttribute("data-status", "management_required");
@@ -267,15 +341,16 @@ describe("WorkspaceInstallationSection", () => {
       {
         name: "reef-current",
         role: "admin",
-        installation_status: "uninstalled",
+        installation_active: false,
       },
     ];
     view.rerender(wrap(<WorkspaceInstallationSection vault="reef-current" />));
     expect(
-      screen.getByRole("button", { name: "Restore installation" }),
+      await screen.findByRole("button", { name: "Restore installation" }),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Request fresh setup" }),
     ).toBeVisible();
+    expect(mockApiFetch).toHaveBeenCalledTimes(3);
   });
 });
