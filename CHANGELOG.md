@@ -68,6 +68,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Board move revalidation no longer shows result-loading progress for the
+  whole Board.** The existing Board and Backlog Board card keep their own save
+  feedback during the background list refresh, while a user-driven search or
+  filter query still shows progress. (REEF-667)
 - **Workspace favorites survive temporary availability gaps.** The browser
   retains the full validated preference set when a favorite is absent, inactive,
   or has an unknown activity result, then shows it again when confirmed active.
