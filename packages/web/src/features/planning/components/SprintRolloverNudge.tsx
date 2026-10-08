@@ -39,7 +39,7 @@ export function SprintRolloverNudge({
   if (
     dismissed ||
     !sprint ||
-    issueState !== "available" ||
+    issueState === "loading" ||
     !issues ||
     now === null ||
     !shouldShowSprintRolloverNudge({ sprint, issues, now })

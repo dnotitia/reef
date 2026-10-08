@@ -12,6 +12,9 @@ import {
   type AuthV2SessionRecord,
 } from "./sessionStore";
 
+const REFRESH_CONTENTION_WAIT_MS = 5_500;
+const REFRESH_CONTENTION_POLL_MS = 250;
+
 export type AuthV2RouteFailureCode =
   | "auth_v2_session_expired"
   | "auth_v2_refresh_busy"
@@ -104,10 +107,7 @@ export async function refreshIfNeeded(
 
   const owner = await runtime.refreshLock.acquire(handle);
   if (!owner) {
-    const current = await runtime.store.resolve(handle);
-    if (current && current.access_token_expires_at > runtime.now())
-      return current;
-    throw new AuthV2RouteSessionError("auth_v2_refresh_busy", 409);
+    return waitForCompetingRefresh(runtime, handle);
   }
 
   let refreshFailed = false;
@@ -135,6 +135,28 @@ export async function refreshIfNeeded(
   if (refreshFailed) throw refreshFailure;
   if (!result) throw new AuthV2RouteSessionError("auth_v2_session_expired");
   return result;
+}
+
+async function waitForCompetingRefresh(
+  runtime: AuthV2RouteRuntime,
+  handle: string,
+): Promise<AuthV2SessionRecord> {
+  const deadline = Date.now() + REFRESH_CONTENTION_WAIT_MS;
+  while (true) {
+    const current = await runtime.store.resolve(handle);
+    if (!current) {
+      throw new AuthV2RouteSessionError("auth_v2_session_expired");
+    }
+    if (current.access_token_expires_at > runtime.now()) return current;
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw new AuthV2RouteSessionError("auth_v2_refresh_busy", 409);
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(REFRESH_CONTENTION_POLL_MS, remaining)),
+    );
+  }
 }
 
 async function rotateAuthV2Session(

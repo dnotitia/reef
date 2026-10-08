@@ -119,6 +119,11 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/__e2e/issue-list-failure" && req.method === "POST") {
       const body = await readJson(req);
       state.issueListFailure = body?.enabled === true;
+      const failureStatus = body?.failure_status;
+      state.issueListFailureStatus =
+        failureStatus === "network" || [409, 500, 503].includes(failureStatus)
+          ? failureStatus
+          : null;
       state.issueListNextPageFailures = Math.max(
         0,
         Number(body?.next_page_failures ?? 0),
@@ -130,6 +135,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, {
         ok: true,
         issue_list_failure: state.issueListFailure,
+        issue_list_failure_status: state.issueListFailureStatus,
         issue_list_next_page_failures: state.issueListNextPageFailures,
         issue_list_delay_ms: state.issueListDelayMs,
       });

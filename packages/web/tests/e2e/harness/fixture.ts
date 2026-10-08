@@ -13,6 +13,7 @@ export const fixtureWriterLogin = {
   username: "writer",
   password: fixtureLogin.password,
 };
+export type IssueListFailureMode = 409 | 500 | 503 | "network";
 
 export type FixtureScenario =
   | "empty"
@@ -281,6 +282,7 @@ export async function setIssueListFailure(
   enabled: boolean,
   nextPageFailures = 0,
   delayMs = 0,
+  failureMode?: IssueListFailureMode,
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
@@ -289,6 +291,7 @@ export async function setIssueListFailure(
         enabled,
         next_page_failures: nextPageFailures,
         delay_ms: delayMs,
+        failure_status: failureMode ?? null,
       },
     },
   );

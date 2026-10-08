@@ -798,6 +798,10 @@ export async function handleAkb(req, res, url, state) {
         myWorkResult ??
         notificationResult ??
         handleSql(state, vault, sql, username);
+      if (result.kind === "transport_error") {
+        res.destroy();
+        return;
+      }
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);
       }

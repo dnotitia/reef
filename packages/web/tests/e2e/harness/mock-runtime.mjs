@@ -78,7 +78,12 @@ export function runtimeDiscovery(state) {
         method: "POST",
         path: "/__e2e/issue-list-failure",
         content_type: "application/json",
-        body: { enabled: "<boolean>", next_page_failures: "<count>" },
+        body: {
+          enabled: "<boolean>",
+          next_page_failures: "<count>",
+          delay_ms: "<milliseconds>",
+          failure_status: "null|409|500|503|network",
+        },
       },
       vault_list_control: {
         method: "POST",

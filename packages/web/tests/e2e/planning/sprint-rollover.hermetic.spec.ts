@@ -5,6 +5,7 @@ import {
   readFixtureState,
   resetFixture,
   setAuthControl,
+  setIssueListFailure,
   setIssueUpdateControl,
 } from "../harness/fixture";
 import { PERSISTED_QUERY_CACHE_KEY } from "../../../src/lib/storage/clientCache";
@@ -348,6 +349,52 @@ test.describe("Hermetic sprint rollover workflow", () => {
     await expect(nudge).toBeHidden();
     await page.reload();
     await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
+  });
+
+  test("keeps the overdue nudge visible through background issue-list errors", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    const nudge = page.getByTestId("sprint-rollover-nudge");
+    await expect(nudge).toBeVisible();
+    await expect(nudge).toContainText("Sprint 14 - Rollover fixture");
+    await expect(nudge).toContainText("2 unfinished issues");
+    const initialBounds = await nudge.boundingBox();
+    if (!initialBounds) throw new Error("rollover notice has no layout box");
+
+    await page.clock.install({ time: new Date() });
+    const backgroundPage = await context.newPage();
+    await backgroundPage.goto("about:blank");
+
+    for (const failureMode of [409, 503, "network"] as const) {
+      await page.clock.fastForward(60_001);
+      await setIssueListFailure(request, true, 0, 0, failureMode);
+      await backgroundPage.bringToFront();
+      await page.bringToFront();
+
+      const boardError = page.getByRole("alert");
+      await expect(boardError).toBeVisible({ timeout: 10_000 });
+      await expect(nudge).toBeVisible();
+      await expect(nudge).toContainText("Sprint 14 - Rollover fixture");
+      await expect(nudge).toContainText("2 unfinished issues");
+      const errorBounds = await nudge.boundingBox();
+      if (!errorBounds)
+        throw new Error("rollover notice lost its layout box during refetch");
+      expect(errorBounds.x).toBeCloseTo(initialBounds.x, 0);
+      expect(errorBounds.y).toBeCloseTo(initialBounds.y, 0);
+      expect(errorBounds.width).toBeCloseTo(initialBounds.width, 0);
+      expect(errorBounds.height).toBeCloseTo(initialBounds.height, 0);
+
+      await setIssueListFailure(request, false);
+      await boardError.getByRole("button", { name: "Retry" }).click();
+      await expect(boardError).toHaveCount(0);
+      await expect(nudge).toBeVisible();
+      await expect(nudge).toContainText("2 unfinished issues");
+    }
+
+    await backgroundPage.close();
   });
 
   test("rejects a direct close request when the workspace is reader-only", async ({

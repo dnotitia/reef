@@ -10,11 +10,14 @@ import type { AuthV2SessionRecord, AuthV2SessionStore } from "./sessionStore";
 
 const runtimeRef = vi.hoisted(() => ({
   current: undefined as AuthV2RouteRuntime | undefined,
+  factory: undefined as (() => AuthV2RouteRuntime) | undefined,
 }));
 
 vi.mock("./runtime", () => ({
   AuthV2RouteRuntimeError: class AuthV2RouteRuntimeError extends Error {},
-  getAuthV2RouteRuntime: vi.fn(async () => runtimeRef.current),
+  getAuthV2RouteRuntime: vi.fn(async () =>
+    runtimeRef.factory ? runtimeRef.factory() : runtimeRef.current,
+  ),
 }));
 
 const HANDLE = "H".repeat(43);
@@ -53,6 +56,14 @@ function makeProtocol(
       },
     },
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
 }
 
 function installRuntime(options: {
@@ -96,6 +107,7 @@ function installRuntime(options: {
     protocolFor: () => options.protocol,
     close: async () => undefined,
   } as unknown as AuthV2RouteRuntime;
+  runtimeRef.factory = undefined;
 
   return {
     getRecord: () => current,
@@ -106,6 +118,8 @@ function installRuntime(options: {
 
 afterEach(() => {
   runtimeRef.current = undefined;
+  runtimeRef.factory = undefined;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -136,6 +150,131 @@ describe("auth-v2 credential resolution", () => {
       absolute_expires_at: 1_000,
     });
     expect(runtime.replace).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for a competing request and uses the rotated credential from the shared session", async () => {
+    vi.useFakeTimers();
+    let current: AuthV2SessionRecord | undefined = makeRecord();
+    let lockOwner: string | null = null;
+    let ownerCount = 0;
+    const store = {
+      issue: async () => ({ handle: HANDLE, expiresAt: 1_000 }),
+      resolve: vi.fn(async () => current ?? null),
+      replace: vi.fn<AuthV2SessionStore["replace"]>(
+        async (_handle, expected, replacement) => {
+          if (current !== expected) return false;
+          current = replacement;
+          return true;
+        },
+      ),
+      revoke: vi.fn<AuthV2SessionStore["revoke"]>(async () => {
+        current = undefined;
+      }),
+      revokeBySessionId: async () => undefined,
+    } as AuthV2SessionStore;
+    const refreshStarted = deferred<void>();
+    const refreshResult =
+      deferred<Awaited<ReturnType<AuthV2OidcProtocol["refresh"]>>>();
+    const refresh = vi.fn(async () => {
+      refreshStarted.resolve();
+      return refreshResult.promise;
+    });
+    const waiterContended = deferred<void>();
+    const refreshLock = {
+      acquire: vi.fn(async () => {
+        if (lockOwner) {
+          waiterContended.resolve();
+          return null;
+        }
+        lockOwner = `owner-${++ownerCount}`;
+        return lockOwner;
+      }),
+      release: vi.fn(async (_handle: string, owner: string) => {
+        if (lockOwner === owner) lockOwner = null;
+      }),
+    };
+    const runtimes: AuthV2RouteRuntime[] = [];
+    runtimeRef.factory = () => {
+      const runtime = {
+        store,
+        refreshLock,
+        now: () => 111,
+        protocolFor: () => makeProtocol(refresh),
+        close: vi.fn(async () => undefined),
+      } as unknown as AuthV2RouteRuntime;
+      runtimes.push(runtime);
+      return runtime;
+    };
+
+    const ownerResult = resolveAuthV2Credential(HANDLE);
+    await refreshStarted.promise;
+    const waiterResult = resolveAuthV2Credential(HANDLE).then(
+      (credential) => ({ credential }),
+      (error: unknown) => ({ error }),
+    );
+    await waiterContended.promise;
+    await vi.advanceTimersByTimeAsync(50);
+
+    refreshResult.resolve({
+      accessToken: "access-2",
+      refreshToken: "refresh-2",
+      idToken: "id-2",
+      accessTokenExpiresAt: 200,
+      refreshTokenExpiresAt: 300,
+    });
+    await expect(ownerResult).resolves.toBe("access-2");
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(waiterResult).resolves.toEqual({ credential: "access-2" });
+    expect(runtimes).toHaveLength(2);
+    expect(runtimes[0]).not.toBe(runtimes[1]);
+    expect(runtimes[0]?.store).toBe(store);
+    expect(runtimes[1]?.store).toBe(store);
+    expect(runtimes[0]?.refreshLock).toBe(refreshLock);
+    expect(runtimes[1]?.refreshLock).toBe(refreshLock);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(store.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a retryable conflict after the bounded refresh contention wait", async () => {
+    vi.useFakeTimers();
+    const stale = makeRecord();
+    const resolve = vi.fn(async () => stale);
+    installRuntime({
+      protocol: makeProtocol(async () => {
+        throw new Error("a waiter must not start its own refresh");
+      }),
+      acquire: async () => null,
+      resolve,
+    });
+
+    const result = resolveAuthV2Credential(HANDLE).then(
+      () => ({ credential: "unexpected" }),
+      (error: unknown) => ({ error }),
+    );
+    await vi.advanceTimersByTimeAsync(5_500);
+
+    await expect(result).resolves.toMatchObject({
+      error: { name: "AkbApiError", status: 409 },
+    });
+    expect(resolve).toHaveBeenCalledTimes(24);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("treats a session revoked during refresh contention as expired", async () => {
+    let calls = 0;
+    installRuntime({
+      protocol: makeProtocol(async () => {
+        throw new Error("a waiter must not start its own refresh");
+      }),
+      acquire: async () => null,
+      resolve: async () => (calls++ === 0 ? makeRecord() : null),
+    });
+
+    await expect(resolveAuthV2Credential(HANDLE)).rejects.toMatchObject({
+      name: "AuthError",
+      context: { origin: "akb", status: 401 },
+    });
   });
 
   it("turns a definitive refresh rejection into expiry and revokes the handle", async () => {
