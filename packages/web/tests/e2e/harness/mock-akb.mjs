@@ -18,6 +18,7 @@ import {
 } from "./mock-http.mjs";
 import {
   handleMyWorkSql,
+  handlePersonalNotificationsSql,
   handleSql,
   isIssueListQuery,
   matchSqlString,
@@ -215,8 +216,13 @@ export async function handleAkb(req, res, url, state) {
       state.vaultListFailures -= 1;
       return json(res, 500, { error: "e2e forced vault list failure" });
     }
+    const accessibleVaults = [...state.vaults.values()].filter(
+      (vault) =>
+        state.scenario !== "notifications_personal" ||
+        roleForVault(vault, state, username) !== null,
+    );
     return json(res, 200, {
-      vaults: [...state.vaults.values()].map((vault) =>
+      vaults: accessibleVaults.map((vault) =>
         vaultSummary(vault, state, username),
       ),
     });
@@ -239,7 +245,8 @@ export async function handleAkb(req, res, url, state) {
       }
       if (
         state.scenario === "installation_drift" ||
-        state.scenario === "configured_multi"
+        state.scenario === "configured_multi" ||
+        state.scenario === "notifications_personal"
       ) {
         const lookupMode = installationLookupMode(
           state,
@@ -281,7 +288,8 @@ export async function handleAkb(req, res, url, state) {
     }
     if (
       state.scenario === "installation_drift" ||
-      state.scenario === "configured_multi"
+      state.scenario === "configured_multi" ||
+      state.scenario === "notifications_personal"
     ) {
       const lookupMode = installationLookupMode(
         state,
@@ -647,9 +655,9 @@ export async function handleAkb(req, res, url, state) {
           indexes: [],
         };
         if (
-          state.scenario === "notifications" &&
-          vault.name === REEF_VAULT &&
-          state.notificationSchemaMode === "incompatible" &&
+          state.scenario === "notifications_personal" &&
+          (state.notificationSchemaModes.get(vault.name) ??
+            state.notificationSchemaMode) === "incompatible" &&
           name === "reef_notifications"
         ) {
           return {
@@ -783,7 +791,13 @@ export async function handleAkb(req, res, url, state) {
       const myWorkResult = scopedVaults
         ? handleMyWorkSql(state, sql, username, scopedVaults)
         : null;
-      const result = myWorkResult ?? handleSql(state, vault, sql, username);
+      const notificationResult = scopedVaults
+        ? handlePersonalNotificationsSql(state, sql, username, scopedVaults)
+        : null;
+      const result =
+        myWorkResult ??
+        notificationResult ??
+        handleSql(state, vault, sql, username);
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);
       }

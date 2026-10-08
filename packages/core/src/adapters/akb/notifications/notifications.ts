@@ -9,9 +9,11 @@ import {
   type Notification,
   type NotificationCreateInput,
   NotificationCreateInputSchema,
-  type NotificationListInput,
-  NotificationListInputSchema,
   NotificationRowSchema,
+  type PersonalNotification,
+  type PersonalNotificationListInput,
+  PersonalNotificationListInputSchema,
+  PersonalNotificationSchema,
   type NotificationStateUpdateInput,
   NotificationStateUpdateInputSchema,
   type Subscription,
@@ -31,6 +33,7 @@ import {
   REEF_NOTIFICATIONS_TABLE,
   REEF_SUBSCRIPTIONS_TABLE,
   SqlParameterBuilder,
+  crossVaultTableRef,
   decodeSettingsValue,
   runSql,
   tableRef,
@@ -60,6 +63,16 @@ function parseInput<S extends z.ZodType>(
 
 function notificationFromRow(row: Record<string, unknown>): Notification {
   return parseInput(NotificationRowSchema, {
+    ...row,
+    payload: decodeSettingsValue(row.payload),
+    meta: decodeSettingsValue(row.meta),
+  });
+}
+
+function personalNotificationFromRow(
+  row: Record<string, unknown>,
+): PersonalNotification {
+  return parseInput(PersonalNotificationSchema, {
     ...row,
     payload: decodeSettingsValue(row.payload),
     meta: decodeSettingsValue(row.meta),
@@ -156,36 +169,78 @@ export async function createNotification(
   );
 }
 
-export async function listNotifications(
+export async function listPersonalNotifications(
   adapter: AkbAdapter,
-  vault: string,
-  input: NotificationListInput,
-): Promise<Notification[]> {
-  const parsed = parseInput(NotificationListInputSchema, input);
+  input: PersonalNotificationListInput,
+): Promise<PersonalNotification[]> {
+  const parsed = parseInput(PersonalNotificationListInputSchema, input);
+  const workspaces = [...new Set(parsed.workspaces)].sort();
+  if (workspaces.length !== parsed.workspaces.length) {
+    throw new SchemaValidationError({
+      issues: ["notification workspaces must be unique"],
+    });
+  }
+  const aliases = new Set<string>();
+  for (const workspace of workspaces) {
+    const alias = workspace.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    if (aliases.has(alias)) {
+      throw new SchemaValidationError({
+        issues: [
+          "notification workspaces collide in the cross-vault SQL alias",
+        ],
+      });
+    }
+    aliases.add(alias);
+  }
   return withSpan(
-    "akb.notifications.list",
-    { vault, state: parsed.state },
+    "akb.notifications.list_personal",
+    { workspace_count: workspaces.length },
     async (span) => {
+      if (workspaces.length === 0) {
+        span.setAttribute("notification_count", 0);
+        return [];
+      }
+
+      const primaryVault = workspaces[0];
+      if (!primaryVault) {
+        throw new SchemaValidationError({
+          issues: ["notification workspaces are required"],
+        });
+      }
       const params = new SqlParameterBuilder();
       const recipient = params.add(parsed.recipient, "notification recipient");
-      const stateClause = parsed.state
-        ? ` AND state = ${params.add(parsed.state, "notification state")}`
-        : "";
-      const limit = params.add(parsed.limit, "notification list limit");
+      const branches = workspaces.map((workspace) => {
+        const workspaceParameter = params.add(
+          workspace,
+          "notification workspace",
+        );
+        const table = crossVaultTableRef(workspace, REEF_NOTIFICATIONS_TABLE);
+        return `SELECT notification_rows.*, ${workspaceParameter} AS workspace FROM ${table} AS notification_rows WHERE notification_rows.recipient = ${recipient} AND notification_rows.state IN ('unread', 'read') AND notification_rows.archived_at IS NULL`;
+      });
+      const limit = params.add(100, "notification list limit");
       const response = await runSql(
         adapter,
-        vault,
-        `SELECT * FROM ${tableRef(
-          REEF_NOTIFICATIONS_TABLE,
-        )} WHERE recipient = ${recipient}${stateClause} ORDER BY occurred_at DESC, id DESC LIMIT ${limit}`,
+        primaryVault,
+        `WITH scoped_notifications AS (${branches.join(" UNION ALL ")}), ranked_notifications AS (SELECT scoped_notifications.*, ROW_NUMBER() OVER (PARTITION BY state ORDER BY occurred_at::timestamptz DESC, workspace ASC, id DESC) AS state_rank FROM scoped_notifications) SELECT id, notification_key, recipient, reef_id, source_type, source_ref, event_type, actor, occurred_at, state, read_at, archived_at, payload, meta, workspace FROM ranked_notifications WHERE state_rank <= ${limit} ORDER BY occurred_at::timestamptz DESC, workspace ASC, id DESC`,
         params.params,
+        workspaces,
       );
-      const rows = response.kind === "table_query" ? response.items : [];
+      if (response.kind !== "table_query") {
+        throw new SchemaValidationError({
+          issues: ["notification query returned an invalid response"],
+        });
+      }
+      const rows = response.items;
       const notifications = rows
-        .map(notificationFromRow)
+        .map(personalNotificationFromRow)
         .sort((left, right) => {
-          const timeOrder = right.occurred_at.localeCompare(left.occurred_at);
-          return timeOrder !== 0 ? timeOrder : right.id.localeCompare(left.id);
+          const timeOrder =
+            Date.parse(right.occurred_at) - Date.parse(left.occurred_at);
+          if (timeOrder !== 0) return timeOrder;
+          if (left.workspace !== right.workspace) {
+            return left.workspace < right.workspace ? -1 : 1;
+          }
+          return left.id > right.id ? -1 : left.id < right.id ? 1 : 0;
         });
       span.setAttribute("notification_count", notifications.length);
       return notifications;

@@ -5,9 +5,10 @@ import { GET } from "./route";
 
 const mocks = vi.hoisted(() => ({
   adapter: { kind: "test-adapter" },
+  getAkbAdapter: vi.fn(),
   getWorkspaceAkbAdapter: vi.fn(),
   getAkbCurrentActor: vi.fn(),
-  akbListNotifications: vi.fn(),
+  listPersonalNotifications: vi.fn(),
   akbUpdateNotificationState: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock("@/lib/api/requestHelpers", async () => {
   >("@/lib/api/requestHelpers");
   return {
     ...actual,
+    getAkbAdapter: mocks.getAkbAdapter,
     getWorkspaceAkbAdapter: mocks.getWorkspaceAkbAdapter,
     getAkbCurrentActor: mocks.getAkbCurrentActor,
   };
@@ -30,12 +32,15 @@ vi.mock("@/lib/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn() },
 }));
 
+vi.mock("@/server/application/notifications/listPersonalNotifications", () => ({
+  listPersonalNotifications: mocks.listPersonalNotifications,
+}));
+
 vi.mock("@reef/core", async () => {
   const actual =
     await vi.importActual<typeof import("@reef/core")>("@reef/core");
   return {
     ...actual,
-    akbListNotifications: mocks.akbListNotifications,
     akbUpdateNotificationState: mocks.akbUpdateNotificationState,
   };
 });
@@ -51,37 +56,37 @@ const notification = {
   occurred_at: "2026-07-28T00:00:00.000Z",
   state: "unread",
 };
+const personalNotification = { ...notification, workspace: "reef-acme" };
 
 describe("notification Route Handlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getAkbAdapter.mockReturnValue({ adapter: mocks.adapter });
     mocks.getWorkspaceAkbAdapter.mockReturnValue({ adapter: mocks.adapter });
     mocks.getAkbCurrentActor.mockResolvedValue({ actor: "alice" });
-    mocks.akbListNotifications.mockResolvedValue([notification]);
+    mocks.listPersonalNotifications.mockResolvedValue([personalNotification]);
     mocks.akbUpdateNotificationState.mockResolvedValue({
       ...notification,
       state: "read",
     });
   });
 
-  it("binds list visibility to the session actor even when recipient is forged", async () => {
+  it("lists the account-wide scope without accepting a selected workspace or recipient", async () => {
     const response = await GET(
       new Request(
-        "http://reef.test/api/notifications?vault=reef-acme&state=unread&limit=100&recipient=bob",
+        "http://reef.test/api/notifications?vault=reef-other&recipient=bob&state=archived&limit=1",
       ),
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ notifications: [notification] });
-    expect(mocks.akbListNotifications).toHaveBeenCalledWith(
-      mocks.adapter,
-      "reef-acme",
-      { recipient: "alice", state: "unread", limit: 100 },
-    );
-    expect(mocks.akbListNotifications.mock.calls[0]?.[2]).not.toHaveProperty(
-      "recipient",
-      "bob",
-    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      notifications: [personalNotification],
+    });
+    expect(mocks.listPersonalNotifications).toHaveBeenCalledWith({
+      adapter: mocks.adapter,
+      actor: "alice",
+    });
   });
 
   it("injects the session actor into state updates and ignores a forged recipient field", async () => {
@@ -124,7 +129,7 @@ describe("notification Route Handlers", () => {
   });
 
   it("returns a resource permission denial without clearing the session", async () => {
-    mocks.akbListNotifications.mockRejectedValueOnce(
+    mocks.listPersonalNotifications.mockRejectedValueOnce(
       new AuthError({
         origin: "akb",
         code: "permission_denied",

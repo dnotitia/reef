@@ -3,10 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { commentTargetId } from "@/features/issues/lib/commentTarget";
-import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
-import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
+import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import type { HttpError } from "@/lib/apiClient";
@@ -14,7 +12,7 @@ import { formatAbsoluteTime } from "@/lib/relativeTime";
 import {
   ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   type NotificationState,
-  type Notification as ReefNotification,
+  type PersonalNotification as ReefNotification,
 } from "@reef/core";
 import { Archive, Bell, MailOpen } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -66,36 +64,28 @@ function notificationEventLabel(
   return translate("notification");
 }
 
-function notificationIssueHref(
-  vault: string,
-  notification: Pick<
-    ReefNotification,
-    "reef_id" | "source_type" | "source_ref" | "event_type"
-  >,
-): string {
+function notificationIssueHref(notification: ReefNotification): string {
   const targetId =
     notification.source_type === "comment"
       ? commentTargetId(notification.source_ref)
       : notification.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE
         ? "issue-description"
         : null;
-  return `${buildOpenIssueHref(vault, notification.reef_id, new URLSearchParams())}#${targetId ?? "issue-activity"}`;
+  return `${buildOpenIssueHref(notification.workspace, notification.reef_id, new URLSearchParams())}#${targetId ?? "issue-activity"}`;
 }
 
 function NotificationItem({
   notification,
-  vault,
   onActionError,
 }: {
   notification: ReefNotification;
-  vault: string;
   onActionError: (message: string | null) => void;
 }) {
   const locale = useLocale();
   const t = useTranslations("inbox");
   const translateInbox = t as unknown as (key: string) => string;
   const router = useRouter();
-  const updateState = useUpdateNotificationState(vault);
+  const updateState = useUpdateNotificationState();
   const [busy, setBusy] = useState(false);
   const stateLabels: Record<NotificationState, string> = {
     unread: t("state.unread"),
@@ -106,18 +96,24 @@ function NotificationItem({
     notification.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE
       ? t("issueBodyMention")
       : notificationEventLabel(notification.event_type, translateInbox);
-  const issueHref = notificationIssueHref(vault, notification);
+  const issueHref = notificationIssueHref(notification);
 
   async function updateStateAndRefresh(state: NotificationState) {
     setBusy(true);
     onActionError(null);
     try {
       await updateState.mutateAsync({
+        workspace: notification.workspace,
         notificationKey: notification.notification_key,
         state,
       });
       if (state === "archived") {
-        toast.success(t("archiveSuccess", { issue: notification.reef_id }));
+        toast.success(
+          t("archiveSuccess", {
+            issue: notification.reef_id,
+            workspace: notification.workspace,
+          }),
+        );
       }
     } catch (error) {
       onActionError(
@@ -136,6 +132,7 @@ function NotificationItem({
       onActionError(null);
       try {
         await updateState.mutateAsync({
+          workspace: notification.workspace,
           notificationKey: notification.notification_key,
           state: "read",
         });
@@ -157,6 +154,7 @@ function NotificationItem({
     <li
       data-testid="notification-item"
       data-notification-key={notification.notification_key}
+      data-workspace={notification.workspace}
       data-state={notification.state}
       className="[content-visibility:auto] [contain-intrinsic-size:0_68px] border-b border-border-subtle last:border-b-0"
     >
@@ -182,7 +180,10 @@ function NotificationItem({
           disabled={busy}
           aria-busy={busy}
           className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
-          aria-label={t("openNotification", { issue: notification.reef_id })}
+          aria-label={t("openNotification", {
+            issue: notification.reef_id,
+            workspace: notification.workspace,
+          })}
         >
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="type-body font-semibold text-foreground">
@@ -196,6 +197,13 @@ function NotificationItem({
               translate="no"
             >
               {notification.reef_id}
+            </span>
+            <span
+              data-testid="notification-workspace"
+              className="rounded bg-surface-muted px-1.5 py-0.5 type-compact-mono text-muted-foreground"
+              translate="no"
+            >
+              {notification.workspace}
             </span>
           </span>
           <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 type-caption text-muted-foreground">
@@ -222,7 +230,10 @@ function NotificationItem({
               disabled={busy}
               busy={busy}
               onClick={() => void updateStateAndRefresh("unread")}
-              aria-label={t("markUnreadFor", { issue: notification.reef_id })}
+              aria-label={t("markUnreadFor", {
+                issue: notification.reef_id,
+                workspace: notification.workspace,
+              })}
               title={t("markUnread")}
             >
               <MailOpen className="h-3.5 w-3.5" aria-hidden="true" />
@@ -237,7 +248,10 @@ function NotificationItem({
             disabled={busy}
             busy={busy}
             onClick={() => void updateStateAndRefresh("archived")}
-            aria-label={t("archiveFor", { issue: notification.reef_id })}
+            aria-label={t("archiveFor", {
+              issue: notification.reef_id,
+              workspace: notification.workspace,
+            })}
             title={t("archive")}
           >
             <Archive className="h-3.5 w-3.5" aria-hidden="true" />
@@ -277,10 +291,10 @@ export function NotificationInboxSkeleton() {
   );
 }
 
-function NotificationInboxContent({ vault }: { vault: string }) {
+function NotificationInboxContent() {
   const t = useTranslations("inbox");
   const { notifications, isLoading, isError, isPermissionDenied, refetch } =
-    useInboxNotifications(vault);
+    useInboxNotifications();
   const [actionError, setActionError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -354,9 +368,8 @@ function NotificationInboxContent({ vault }: { vault: string }) {
         >
           {notifications.map((notification) => (
             <NotificationItem
-              key={notification.notification_key}
+              key={`${notification.workspace}:${notification.notification_key}`}
               notification={notification}
-              vault={vault}
               onActionError={setActionError}
             />
           ))}
@@ -367,19 +380,15 @@ function NotificationInboxContent({ vault }: { vault: string }) {
 }
 
 export function NotificationInboxPage() {
-  const { vault, isLoading: vaultLoading } = useActiveVault();
   const nav = useTranslations("nav");
+  const t = useTranslations("inbox");
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={nav("inbox")} description={vault || undefined} />
-      {!vault && !vaultLoading ? (
-        <EmptyWorkspaceNotice />
-      ) : (
-        <PageBody width="full">
-          <NotificationInboxContent vault={vault} />
-        </PageBody>
-      )}
+      <PageHeader title={nav("inbox")} description={t("scopeDescription")} />
+      <PageBody width="full">
+        <NotificationInboxContent />
+      </PageBody>
     </div>
   );
 }

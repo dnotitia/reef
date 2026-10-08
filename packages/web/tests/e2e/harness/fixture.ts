@@ -30,7 +30,7 @@ export type FixtureScenario =
   | "raw_only"
   | "workspace_recovery"
   | "workspace_recovery_current_stamp"
-  | "notifications"
+  | "notifications_personal"
   | "skill_outdated"
   | "comment_mentions"
   | "activity_display_names"
@@ -161,8 +161,11 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   sql_calls: Array<{ vault: string; username: string; sql: string }>;
   notification: {
     roles: Record<string, string>;
+    workspace_roles: Record<string, string>;
     schema_mode: string;
     data_mode: string;
+    schema_modes: Record<string, string>;
+    data_modes: Record<string, string>;
   };
   installation_drift: {
     lookup_modes: Record<
@@ -372,8 +375,10 @@ export async function waitForMarkdownLinkSearchIdle(
 export async function setNotificationControl(
   request: APIRequestContext,
   control: {
+    vault?: string;
     schemaMode?: "healthy" | "missing" | "incompatible";
     dataMode?: "healthy" | "forbidden" | "error";
+    role?: "owner" | "admin" | "writer" | "reader" | "none";
   },
 ): Promise<void> {
   const response = await request.post(
@@ -382,6 +387,8 @@ export async function setNotificationControl(
       data: {
         schema_mode: control.schemaMode ?? "healthy",
         data_mode: control.dataMode ?? "healthy",
+        vault: control.vault,
+        role: control.role,
       },
     },
   );

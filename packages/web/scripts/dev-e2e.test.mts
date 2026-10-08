@@ -94,8 +94,8 @@ describe("dev:e2e runtime contract", () => {
               scenario: "configured",
               start_path: "/workspace/reef-e2e/issues",
             },
-            notifications: {
-              scenario: "notifications",
+            notifications_personal: {
+              scenario: "notifications_personal",
               start_path: "/workspace/reef-e2e/inbox",
             },
           },
@@ -122,13 +122,13 @@ describe("dev:e2e runtime contract", () => {
               scenario: "configured",
               start_path: "/workspace/reef-e2e/issues",
             },
-            notifications: {
-              scenario: "notifications",
+            notifications_personal: {
+              scenario: "notifications_personal",
               start_path: "/workspace/reef-e2e/inbox",
             },
           },
         },
-        "notifications",
+        "notifications_personal",
       ),
     ).toMatchObject({ startPath: "/workspace/reef-e2e/inbox" });
     expect(() =>

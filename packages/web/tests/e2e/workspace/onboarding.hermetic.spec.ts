@@ -80,7 +80,7 @@ test.describe("Hermetic onboarding flow", () => {
     page,
     request,
   }) => {
-    await resetFixture(request, "notifications");
+    await resetFixture(request, "notifications_personal");
     await signInAsAlice(page);
 
     const ownerVaults = await page.request.get("/api/vaults");
@@ -93,9 +93,31 @@ test.describe("Hermetic onboarding flow", () => {
 
     await context.clearCookies();
     await signInAsUser(page, fixtureReaderLogin);
-    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+    await page.waitForURL(/\/workspace\/[^/]+\/issues\/?$/, {
       timeout: 15_000,
     });
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+
+    const readerLanding = new URL(page.url()).pathname.match(
+      /^\/workspace\/([^/]+)\/issues\/?$/u,
+    )?.[1];
+    if (!readerLanding) {
+      throw new Error("reader did not enter a workspace");
+    }
+    const readerVaults = await page.request.get("/api/vaults");
+    expect(readerVaults.ok()).toBe(true);
+    const readerVaultList = (await readerVaults.json()) as {
+      vaults: Array<{ name: string; installation_active: boolean | null }>;
+    };
+    expect(
+      readerVaultList.vaults.some(
+        (vault) =>
+          vault.name === readerLanding && vault.installation_active === true,
+      ),
+    ).toBe(true);
+
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/);
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
 
     const statusResponse = await page.request.get(

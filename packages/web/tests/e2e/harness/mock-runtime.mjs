@@ -80,6 +80,22 @@ export function runtimeDiscovery(state) {
         content_type: "application/json",
         body: { enabled: "<boolean>", next_page_failures: "<count>" },
       },
+      vault_list_control: {
+        method: "POST",
+        path: "/__e2e/vault-list-control",
+        content_type: "application/json",
+        body: {
+          delay_ms: { type: "number", optional: true, default: 0, minimum: 0 },
+          failures: { type: "number", optional: true, default: 0, minimum: 0 },
+        },
+        effects: {
+          delay_ms: "delay subsequent GET /akb/api/v1/my/vaults responses",
+          failures:
+            "return HTTP 500 for the next N GET /akb/api/v1/my/vaults requests",
+          reset:
+            "send delay_ms=0 and failures=0, or reset the fixture scenario",
+        },
+      },
       workspace_initialization_control: {
         method: "POST",
         path: "/__e2e/workspace-initialization-control",
@@ -112,6 +128,15 @@ export function runtimeDiscovery(state) {
             writer: INSTALLATION_ROLES.join("|"),
           },
         },
+        semantics: {
+          vault_scope: "one existing vault with an installation",
+          omitted_or_null_vault: REEF_VAULT,
+          missing_installation_status: 404,
+          lookup_scope: "per_vault",
+          omitted_or_unsupported_lookup_mode:
+            "omitted, null, or unsupported lookup mode leaves that vault's current value unchanged",
+          reset_lookup_mode: "healthy",
+        },
       },
       planning_catalog_control: {
         method: "POST",
@@ -134,8 +159,54 @@ export function runtimeDiscovery(state) {
         path: "/__e2e/notification-control",
         content_type: "application/json",
         body: {
-          schema_mode: NOTIFICATION_SCHEMA_MODES.join("|"),
-          data_mode: NOTIFICATION_DATA_MODES.join("|"),
+          schema_mode: {
+            type: "string",
+            values: NOTIFICATION_SCHEMA_MODES,
+            optional: true,
+            default: "healthy",
+            null_or_unsupported: "uses_default",
+          },
+          data_mode: {
+            type: "string",
+            values: NOTIFICATION_DATA_MODES,
+            optional: true,
+            default: "healthy",
+            null_or_unsupported: "uses_default",
+          },
+          vault: {
+            type: "string",
+            optional: true,
+            value_source: "current_fixture_vault_names",
+            null_or_empty: "all_vaults",
+            unknown_vault_status: 404,
+          },
+          role: {
+            type: "string",
+            values: ["owner", "admin", "writer", "reader", "none"],
+            optional: true,
+            target_username: fixtureLogin.username,
+            applies_to: "named_vault_only",
+            null_or_unsupported: "leave_scoped_role_override_unchanged",
+            none: "remove Alice's access to the named vault",
+          },
+        },
+        semantics: {
+          vault_scope:
+            "a non-empty vault applies to that existing vault; omitted, null, or empty vault applies to all current vaults",
+          global_scope_update:
+            "sets global schema/data modes and clears per-vault schema, data, and role overrides; role is ignored",
+          scoped_update:
+            "sets schema/data modes for the named vault; a valid role updates only Alice's role override in that vault",
+          schema_modes: {
+            healthy: "compatible notification table is present",
+            missing: "notification table is absent",
+            incompatible: "notification table is present without archived_at",
+          },
+          data_modes: {
+            healthy: "normal notification query results",
+            forbidden: "notification query returns permission_denied",
+            error: "notification query returns a source error",
+          },
         },
       },
       auth_control: {
@@ -382,22 +453,55 @@ export function runtimeDiscovery(state) {
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
-      notifications: {
-        scenario: "notifications",
+      notifications_personal: {
+        scenario: "notifications_personal",
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/inbox",
+        recipient_scope: "authenticated_actor",
+        workspace_scope: "all_ready_accessible_workspaces",
+        sources: {
+          ready: ["reef-e2e", "reef-alpha", "odd_workspace"],
+          non_ready: ["raw-vault"],
+          stale_schema_version: "2",
+        },
         controls: {
-          notification_control: [
-            "stale schema_version=2 is ignored and remains unchanged",
-            "schema_mode=healthy|missing|incompatible",
-            "data_mode=healthy|forbidden|error",
-            "Alice owner, writer writer, and Bob reader fixture sessions",
-          ],
+          notification_control: { operation: "notification_control" },
+          vault_list_control: { operation: "vault_list_control" },
+          installation_control: {
+            operation: "installation_control",
+            per_workspace_failure_field: "member_lookup",
+          },
+        },
+        identities: {
+          alice: {
+            username: fixtureLogin.username,
+            password: fixtureLogin.password,
+            login_path: fixtureLogin.login_path,
+            credential_scope: "test_only",
+            role: "owner",
+            start_path: "/workspace/reef-e2e/inbox",
+          },
+          writer: {
+            username: "writer",
+            password: fixtureLogin.password,
+            login_path: fixtureLogin.login_path,
+            credential_scope: "test_only",
+            role: "writer",
+            start_path: "/workspace/reef-e2e/inbox",
+          },
+          bob: {
+            username: "bob",
+            password: fixtureLogin.password,
+            login_path: fixtureLogin.login_path,
+            credential_scope: "test_only",
+            role: "reader",
+            start_path: "/workspace/reef-e2e/inbox",
+          },
         },
         interaction: {
           type: "notification_inbox",
           operation:
-            "verify reader listing and unread badge, writer state transitions, recipient/key isolation, reader PATCH 403 with session preservation, and explicit schema/data failures",
+            "verify account-wide scope, workspace-specific duplicate keys and navigation, per-state caps, reader PATCH 403 with session preservation, no partial results on discovery/readiness/source failure, retry recovery, and inaccessible workspace exclusion",
         },
       },
       installation_drift: {

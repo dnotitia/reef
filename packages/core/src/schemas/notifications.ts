@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VaultNameSchema } from "./workspace/config";
 
 const NonEmptyIdentitySchema = z.string().trim().min(1);
 const IsoDateTimeSchema = z.iso.datetime({ offset: true });
@@ -33,10 +34,9 @@ export const NotificationCreateInputSchema = NotificationIdentitySchema.extend({
   meta: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
-export const NotificationListInputSchema = z.strictObject({
+export const PersonalNotificationListInputSchema = z.strictObject({
   recipient: NonEmptyIdentitySchema,
-  state: NotificationStateSchema.optional(),
-  limit: z.number().int().min(1).max(100).default(50),
+  workspaces: z.array(VaultNameSchema),
 });
 
 export const NotificationStateUpdateInputSchema = z.strictObject({
@@ -61,6 +61,10 @@ export const NotificationRowSchema = z.looseObject({
   archived_at: IsoDateTimeSchema.nullable().optional(),
   payload: z.unknown().nullable().optional(),
   meta: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+export const PersonalNotificationSchema = NotificationRowSchema.extend({
+  workspace: VaultNameSchema,
 });
 
 export const SubscriptionIdentitySchema = z.strictObject({
@@ -98,11 +102,14 @@ export type NotificationIdentity = z.infer<typeof NotificationIdentitySchema>;
 export type NotificationCreateInput = z.infer<
   typeof NotificationCreateInputSchema
 >;
-export type NotificationListInput = z.input<typeof NotificationListInputSchema>;
+export type PersonalNotificationListInput = z.infer<
+  typeof PersonalNotificationListInputSchema
+>;
 export type NotificationStateUpdateInput = z.infer<
   typeof NotificationStateUpdateInputSchema
 >;
 export type Notification = z.infer<typeof NotificationRowSchema>;
+export type PersonalNotification = z.infer<typeof PersonalNotificationSchema>;
 export type SubscriptionSource = z.infer<typeof SubscriptionSourceSchema>;
 export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
 export type EffectiveSubscriptionState = z.infer<

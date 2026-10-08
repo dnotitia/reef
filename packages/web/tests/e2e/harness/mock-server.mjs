@@ -197,7 +197,8 @@ const server = createServer(async (req, res) => {
       const body = await readJson(req);
       if (
         state.scenario !== "installation_drift" &&
-        state.scenario !== "configured_multi"
+        state.scenario !== "configured_multi" &&
+        state.scenario !== "notifications_personal"
       ) {
         return json(res, 409, { error: "unsupported fixture scenario" });
       }
@@ -546,10 +547,45 @@ const server = createServer(async (req, res) => {
       const dataMode = NOTIFICATION_DATA_MODES.includes(body?.data_mode)
         ? body.data_mode
         : "healthy";
+      const vaultName =
+        typeof body?.vault === "string" ? body.vault : undefined;
+      const role = ["owner", "admin", "writer", "reader", "none"].includes(
+        body?.role,
+      )
+        ? body.role
+        : undefined;
+      if (vaultName) {
+        const vault = state.vaults.get(vaultName);
+        if (!vault) return json(res, 404, { error: "vault not found" });
+        state.notificationSchemaModes.set(vaultName, schemaMode);
+        state.notificationDataModes.set(vaultName, dataMode);
+        if (role) {
+          state.notificationWorkspaceRoles.set(
+            `${vaultName}:${fixtureLogin.username}`,
+            role,
+          );
+        }
+        if (schemaMode === "missing") {
+          vault.tables.delete("reef_notifications");
+        } else {
+          vault.tables.add("reef_notifications");
+        }
+        return json(res, 200, {
+          ok: true,
+          vault: vaultName,
+          schema_mode: schemaMode,
+          data_mode: dataMode,
+          role: role ?? null,
+        });
+      }
+
       state.notificationSchemaMode = schemaMode;
       state.notificationDataMode = dataMode;
-      const vault = state.vaults.get(REEF_VAULT);
-      if (vault) {
+      state.notificationSchemaModes.clear();
+      state.notificationDataModes.clear();
+      state.notificationWorkspaceRoles.clear();
+      const vaults = [...state.vaults.values()];
+      for (const vault of vaults) {
         if (schemaMode === "missing") {
           vault.tables.delete("reef_notifications");
         } else {

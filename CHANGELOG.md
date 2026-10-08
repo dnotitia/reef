@@ -19,6 +19,11 @@ explicitly in the entries below.
   installation details or product readiness for every accessible vault.
   Pickers and resume select only confirmed active installations; selected
   workspace requests still enforce Reef readiness. (REEF-664)
+- **Inbox now spans every ready workspace accessible to the signed-in actor.**
+  Rows retain their source workspace, duplicate issue notifications remain
+  distinct, and the account-scoped unread badge reflects up to 100 unread rows
+  across the full scope. The selected-workspace list endpoint is removed.
+  (REEF-666)
 - **The overdue sprint rollover notice now follows the Issues content alignment and
   reads as a neutral status row.** Its action and dismiss controls share one
   aligned group, with a matching pending frame across Issues and Planning.

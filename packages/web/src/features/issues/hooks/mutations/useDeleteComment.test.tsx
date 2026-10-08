@@ -92,7 +92,7 @@ describe("useDeleteComment", () => {
       queryClient.getQueryData(commentsKey("reef-acme", "REEF-001")),
     ).toEqual([COMMENTS[2]]);
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ["notifications", "reef-acme"],
+      queryKey: ["notifications", "personal"],
     });
   });
 

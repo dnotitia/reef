@@ -95,6 +95,14 @@ export function ActivityTimeline({
   );
 
   useEffect(() => {
+    if (!issueId || window.location.hash !== "#issue-activity") return;
+
+    document
+      .getElementById("issue-activity")
+      ?.scrollIntoView({ block: "start" });
+  }, [issueId]);
+
+  useEffect(() => {
     if (!issueId) return;
     const hash = window.location.hash;
     if (!hash.startsWith("#comment-")) return;

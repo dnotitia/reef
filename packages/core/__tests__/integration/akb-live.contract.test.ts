@@ -64,7 +64,7 @@ import {
   akbCreateComment,
   akbCreateNotification,
   akbGetEffectiveSubscriptionState,
-  akbListNotifications,
+  akbListPersonalNotifications,
   akbListSubscriptions,
   akbMuteIssue,
   akbRemoveSubscription,
@@ -76,6 +76,25 @@ import {
   IssueListQuerySchema,
   notificationWakeupForChange,
 } from "../../src/index";
+
+async function listPersonalNotificationsForTest(
+  adapter: Parameters<typeof akbListPersonalNotifications>[0],
+  workspace: string,
+  input: {
+    recipient: string;
+    state?: "unread" | "read" | "archived";
+    limit?: number;
+  },
+) {
+  const notifications = await akbListPersonalNotifications(adapter, {
+    recipient: input.recipient,
+    workspaces: [workspace],
+  });
+  const matching = input.state
+    ? notifications.filter((notification) => notification.state === input.state)
+    : notifications;
+  return matching.slice(0, input.limit ?? 100);
+}
 
 /**
  * Live AKB contract smoke through an externally prepared endpoint.
@@ -2765,11 +2784,15 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       ...notificationInput,
       recipient: `${USERNAME}-other`,
     });
-    const notifications = await akbListNotifications(adapter, vault, {
-      recipient: USERNAME,
-      state: "unread",
-      limit: 10,
-    });
+    const notifications = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: USERNAME,
+        state: "unread",
+        limit: 10,
+      },
+    );
     const notificationIdentityRows = notifications.filter(
       (notification) => notification.source_ref === notificationInput.sourceRef,
     ).length;
@@ -2875,7 +2898,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
             output: readinessEvidence ?? { status: "not_run" },
           },
           {
-            api: "akbCreateNotification + akbListNotifications",
+            api: "akbCreateNotification + akbListPersonalNotifications",
             input: {
               recipient: "<actor>",
               source_type: "issue_activity",
@@ -3034,10 +3057,14 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     expect(activityCursor).toEqual(expect.any(String));
     expect(commentCursor).toEqual(expect.any(String));
 
-    const firstNotifications = await akbListNotifications(adapter, vault, {
-      recipient,
-      limit: 100,
-    });
+    const firstNotifications = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient,
+        limit: 100,
+      },
+    );
     const firstActivityNotifications = firstNotifications.filter(
       (notification) => notification.source_type === "activity",
     );
@@ -3088,17 +3115,20 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     }
     expect(replayedComment).toBe(true);
 
-    const afterReconnect = await akbListNotifications(adapter, vault, {
-      recipient,
-      limit: 100,
-    });
+    const afterReconnect = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient,
+        limit: 100,
+      },
+    );
     const archivedActivity = afterReconnect.filter(
       (notification) =>
         notification.source_type === "activity" &&
         notification.source_ref === activityNotification.source_ref,
     );
-    expect(archivedActivity).toHaveLength(1);
-    expect(archivedActivity[0]?.state).toBe("archived");
+    expect(archivedActivity).toHaveLength(0);
 
     // Exercise the same source ordering documented for generic AKB MCP writes:
     // update the issue projection, synchronize only automatic source rows,
@@ -3300,18 +3330,30 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       ),
     ).toBe(true);
 
-    const requesterNotifications = await akbListNotifications(adapter, vault, {
-      recipient: genericRequester,
-      limit: 100,
-    });
-    const assigneeNotifications = await akbListNotifications(adapter, vault, {
-      recipient: genericAssignee,
-      limit: 100,
-    });
-    const commenterNotifications = await akbListNotifications(adapter, vault, {
-      recipient: genericCommenter,
-      limit: 100,
-    });
+    const requesterNotifications = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: genericRequester,
+        limit: 100,
+      },
+    );
+    const assigneeNotifications = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: genericAssignee,
+        limit: 100,
+      },
+    );
+    const commenterNotifications = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: genericCommenter,
+        limit: 100,
+      },
+    );
     const requesterEvent = requesterNotifications.filter(
       (notification) =>
         notification.source_type === "activity" &&
@@ -3372,17 +3414,20 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       if (!genericReplayController.signal.aborted) throw error;
     }
     expect(replayedGenericActivity).toBe(true);
-    const requesterAfterReplay = await akbListNotifications(adapter, vault, {
-      recipient: genericRequester,
-      limit: 100,
-    });
+    const requesterAfterReplay = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: genericRequester,
+        limit: 100,
+      },
+    );
     const preservedGenericNotification = requesterAfterReplay.filter(
       (notification) =>
         notification.notification_key ===
         genericRequesterNotification.notification_key,
     );
-    expect(preservedGenericNotification).toHaveLength(1);
-    expect(preservedGenericNotification[0]?.state).toBe("archived");
+    expect(preservedGenericNotification).toHaveLength(0);
 
     // Force a partial fan-out failure after a new activity event. The first
     // recipient may be written, but the source checkpoint must remain behind;
@@ -3428,10 +3473,14 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     const retriedFanout = await akbProjectNotifications({ adapter, vault });
     expect(retriedFanout.activity.failed).toBe(false);
 
-    const fanoutNotifications = await akbListNotifications(adapter, vault, {
-      recipient: fanoutRecipientA,
-      limit: 100,
-    });
+    const fanoutNotifications = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: fanoutRecipientA,
+        limit: 100,
+      },
+    );
     const secondActivityForA = fanoutNotifications.filter(
       (notification) =>
         notification.source_type === "activity" &&
@@ -3449,17 +3498,20 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       changedAt: new Date(Date.now() + 3_000).toISOString(),
     });
     await akbProjectNotifications({ adapter, vault });
-    const afterFanoutRetry = await akbListNotifications(adapter, vault, {
-      recipient: fanoutRecipientA,
-      limit: 100,
-    });
+    const afterFanoutRetry = await listPersonalNotificationsForTest(
+      adapter,
+      vault,
+      {
+        recipient: fanoutRecipientA,
+        limit: 100,
+      },
+    );
     const preservedRetryNotification = afterFanoutRetry.filter(
       (notification) =>
         notification.notification_key ===
         secondActivityNotification.notification_key,
     );
-    expect(preservedRetryNotification).toHaveLength(1);
-    expect(preservedRetryNotification[0]?.state).toBe("archived");
+    expect(preservedRetryNotification).toHaveLength(0);
   });
 
   it("change event tail — quiet vault receives heartbeat while another vault stays busy", async () => {
