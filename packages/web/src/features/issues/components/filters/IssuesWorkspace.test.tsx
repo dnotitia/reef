@@ -315,6 +315,60 @@ describe("IssuesWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the cached rollover notice and its frame through a refetch error", () => {
+    mockUsePlanningCatalog.mockReturnValue({
+      data: {
+        sprints: [OVERDUE_SPRINT],
+        milestones: [],
+        releases: [],
+        rollover_resumes: [],
+      },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+    });
+    const refetch = vi.fn(() => Promise.resolve());
+    mockUseIssueList.mockReturnValue({
+      data: ROLLOVER_ISSUES,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      isRefetchError: true,
+      refetch,
+    });
+
+    const { rerender } = render(wrap(<IssuesWorkspace />));
+    const nudge = screen.getByTestId("sprint-rollover-nudge");
+    expect(nudge).toBeVisible();
+    expect(nudge).toHaveTextContent("Sprint 14");
+    expect(nudge).toHaveTextContent("1 unfinished issue");
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
+
+    mockUseIssueList.mockReturnValue({
+      data: ROLLOVER_ISSUES,
+      isPending: false,
+      isError: true,
+      isFetching: true,
+      isRefetchError: true,
+      refetch,
+    });
+    rerender(wrap(<IssuesWorkspace />));
+    expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
+
+    mockUseIssueList.mockReturnValue({
+      data: ROLLOVER_ISSUES,
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      isRefetchError: false,
+      refetch,
+    });
+    rerender(wrap(<IssuesWorkspace />));
+    expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible();
+    expect(screen.queryByTestId("sprint-rollover-pending-skeleton")).toBeNull();
+  });
+
   it("does not reserve the frame for an active sprint that has not ended", () => {
     mockUsePlanningCatalog.mockReturnValue({
       data: {

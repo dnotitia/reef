@@ -5,6 +5,7 @@ import {
   readFixtureState,
   resetFixture,
   setAuthControl,
+  setIssueListFailure,
   setIssueUpdateControl,
 } from "../harness/fixture";
 import { PERSISTED_QUERY_CACHE_KEY } from "../../../src/lib/storage/clientCache";
@@ -349,6 +350,93 @@ test.describe("Hermetic sprint rollover workflow", () => {
     await page.reload();
     await expect(page.getByTestId("sprint-rollover-nudge")).toBeVisible();
   });
+
+  for (const failureMode of [409, 503, "network"] as const) {
+    test(`keeps the overdue nudge visible through background issue-list ${failureMode} errors`, async ({
+      page,
+      request,
+    }) => {
+      await openExistingWorkspace(page);
+      const issueListResponseStatuses: number[] = [];
+      page.on("response", (response) => {
+        if (new URL(response.url()).pathname === "/api/issues") {
+          issueListResponseStatuses.push(response.status());
+        }
+      });
+
+      const nudge = page.getByTestId("sprint-rollover-nudge");
+      await expect(nudge).toBeVisible();
+      await expect(nudge).toContainText("Sprint 14 - Rollover fixture");
+      await expect(nudge).toContainText("2 unfinished issues");
+      const initialBounds = await nudge.boundingBox();
+      if (!initialBounds) throw new Error("rollover notice has no layout box");
+
+      await page.clock.install({ time: new Date() });
+      await page.clock.fastForward(60_001);
+      await setIssueListFailure(request, true, 0, 0, failureMode);
+      // Switching views remounts the stale issue-list observer while preserving
+      // the workspace's warm QueryClient cache. This triggers the real Route
+      // Handler refetch without relying on a headless browser focus transition.
+      const failureResponsePromise = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/issues" &&
+          response.status() !== 200,
+      );
+      await page.getByTestId("view-switcher-list").click();
+      const failureResponse = await failureResponsePromise;
+      expect(failureResponse.status()).toBe(failureMode === 409 ? 409 : 502);
+      await expect(page.getByTestId("view-switcher-list")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+
+      await page.getByTestId("view-switcher-board").click();
+      const board = page.getByTestId("kanban-board");
+      const boardError = board.getByRole("alert");
+      await expect(board).toBeVisible();
+      await expect(boardError).toBeVisible({ timeout: 10_000 });
+      await expect(boardError).toContainText(
+        "Failed to load some issues. Displaying cached data if available.",
+      );
+      const retryButton = boardError.getByRole("button", {
+        name: "Retry",
+        exact: true,
+      });
+      await expect(retryButton).toBeVisible();
+      await expect(retryButton).toBeEnabled();
+      await expect(nudge).toBeVisible();
+      await expect(nudge).toContainText("Sprint 14 - Rollover fixture");
+      await expect(nudge).toContainText("2 unfinished issues");
+      const errorBounds = await nudge.boundingBox();
+      if (!errorBounds)
+        throw new Error("rollover notice lost its layout box during refetch");
+      expect(errorBounds.x).toBeCloseTo(initialBounds.x, 0);
+      expect(errorBounds.y).toBeCloseTo(initialBounds.y, 0);
+      expect(errorBounds.width).toBeCloseTo(initialBounds.width, 0);
+      expect(errorBounds.height).toBeCloseTo(initialBounds.height, 0);
+
+      await setIssueListFailure(request, false);
+      const responseCountBeforeRetry = issueListResponseStatuses.length;
+      await retryButton.click();
+      await expect(boardError).toHaveCount(0);
+      await expect
+        .poll(() =>
+          issueListResponseStatuses
+            .slice(responseCountBeforeRetry)
+            .includes(200),
+        )
+        .toBe(true);
+      await expect(nudge).toBeVisible();
+      await expect(nudge).toContainText("2 unfinished issues");
+      const recoveredBounds = await nudge.boundingBox();
+      if (!recoveredBounds)
+        throw new Error("rollover notice lost its layout box after retry");
+      expect(recoveredBounds.x).toBeCloseTo(initialBounds.x, 0);
+      expect(recoveredBounds.y).toBeCloseTo(initialBounds.y, 0);
+      expect(recoveredBounds.width).toBeCloseTo(initialBounds.width, 0);
+      expect(recoveredBounds.height).toBeCloseTo(initialBounds.height, 0);
+    });
+  }
 
   test("rejects a direct close request when the workspace is reader-only", async ({
     page,

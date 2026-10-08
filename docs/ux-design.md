@@ -427,6 +427,15 @@ while people and issue suggestions remain available from the loaded workspace
 data. Search loading, empty and error states, cancellation, and selection
 restoration stay in the shared editor.
 
+Editable Issue Markdown images with same-origin or AKB file targets expose the
+shared image actions at each image occurrence. Description edits and removal
+update only that Markdown occurrence, use the editor's undo history, and leave
+the referenced AKB resource available to other links or images. A description
+must contain non-whitespace text. The localized dialog returns focus to the
+editor after save, cancel, or Escape; read-only issue bodies have no image
+actions. Reef supplies the shared editor's theme tokens for the image controls
+and dialog.
+
 The contract is checked in Light, Dark, and both System outcomes at 1440×900
 and 1024×800. At the 720px CSS viewport (the 200% equivalent), the document
 must not widen: long URLs wrap, fenced code owns its horizontal scrollport,
@@ -445,12 +454,14 @@ disappear. Coarse-pointer surfaces omit the focusable handle altogether so it
 does not compete with touch scrolling. The pointer-captured handle and its
 horizontal separator keyboard control share a 200px minimum, a 320px initial
 frame, and a maximum of `max(200px, min(960px, viewport height - 160px))`;
-WYSIWYG and Source use the same body frame and scroll owner. A finite user
-height is restored only for the current tab through the shared
-`sessionStorage` key, while missing or malformed values use the 320px default
-(or the current clamp boundary). A containing layout may provide a transient
-preferred height for a maximized New Issue dialog; it is never persisted, and
-pointer/keyboard input takes precedence and becomes the shared user height.
+WYSIWYG content and Source text share one scroll viewport around the editing
+surface, so image controls move with their images. The resize handle stays
+pinned outside that viewport. A finite user height is restored only for the
+current tab through the shared `sessionStorage` key, while missing or malformed
+values use the 320px default (or the current clamp boundary). A containing
+layout may provide a transient preferred height for a maximized New Issue
+dialog; it is never persisted, and pointer/keyboard input takes precedence and
+becomes the shared user height.
 Narrow or coarse-pointer layouts keep the automatic responsive editor behavior;
 Source mode retains its native vertical resize fallback when the dedicated
 handle is unavailable. Planning, template, and other MarkdownEditor consumers
@@ -783,6 +794,12 @@ the dependency graph projected over the whole vault, so badges stay correct even
 when the board view is filtered.
 Kanban columns use the subtle surface for their group frame, while repeated issue
 cards use the card surface; cards do not use the brighter elevated surface.
+While a same-vault search or filter query is resolving, the Board keeps the
+previous cards visible and shows the shared teal progress hairline with a polite
+"Updating results…" status. Background list revalidation after a card move stays
+scoped to that card's reorder feedback; it does not show the result-progress
+hairline across the Board. A new user-driven query still shows result progress
+while its replacement data loads.
 
 When grouped by Epic, each root Epic is one flat column with read-only group
 dragging. Its header shows the Epic id, full title, own status, visible

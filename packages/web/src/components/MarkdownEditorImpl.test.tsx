@@ -24,10 +24,13 @@ import {
   EDITOR_BODY_KEYBOARD_STEP,
   EDITOR_BODY_MIN_HEIGHT,
   EDITOR_BODY_RESIZE_MIN_WIDTH,
+  EDITOR_BODY_SIZING,
   EDITOR_BODY_SESSION_STORAGE_KEY,
   EDITOR_CONTENT_CLASS,
   EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
+  EDITOR_MANUAL_SOURCE_CLASS,
   EDITOR_RESIZABLE_BODY_ID,
+  EDITOR_SOURCE_CONTENT_CLASS,
   MARKDOWN_SURFACE_CLASS,
 } from "./markdown-editor/heightResize";
 
@@ -946,13 +949,18 @@ describe("MarkdownEditor product adapter", () => {
       expect(frame).toHaveStyle({ height: "480px" });
       expect(frame).toHaveClass("overflow-hidden");
       expect(frame).toHaveStyle({ marginBottom: "4px", marginRight: "4px" });
-      const scrollSurface = screen.getByTestId("markdown-editor-content")
-        .parentElement?.parentElement;
-      expect(scrollSurface).toHaveClass(EDITOR_MANUAL_SCROLL_SURFACE_CLASS);
+      const scrollViewport = screen.getByTestId(
+        "markdown-editor-scroll-viewport",
+      );
+      expect(scrollViewport).toHaveClass(EDITOR_MANUAL_SCROLL_SURFACE_CLASS);
+      expect(scrollViewport.parentElement).toBe(frame);
+      expect(handle.parentElement).toBe(frame);
       fireEvent.click(screen.getByTitle("Toggle source mode"));
-      expect(
-        screen.getByRole("textbox", { name: "Markdown source" }),
-      ).toHaveClass("resize-none");
+      const source = screen.getByRole("textbox", {
+        name: "Markdown source",
+      });
+      expect(source).toHaveClass("resize-none", EDITOR_MANUAL_SOURCE_CLASS);
+      expect(source).not.toHaveClass("overflow-auto");
       expect(frame).toHaveStyle({ height: "480px" });
 
       setViewport(EDITOR_BODY_RESIZE_MIN_WIDTH - 1, 900);
@@ -960,6 +968,20 @@ describe("MarkdownEditor product adapter", () => {
       expect(
         screen.getByRole("textbox", { name: "Markdown source" }),
       ).toHaveClass("resize-y");
+    });
+
+    it("shares the automatic viewport between WYSIWYG and Source", () => {
+      setPointerCapability(false);
+      renderEditor({ value: "", onChange: vi.fn(), enableHeightResize: true });
+
+      const viewport = screen.getByTestId("markdown-editor-scroll-viewport");
+      expect(viewport).toHaveClass(EDITOR_BODY_SIZING);
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+      const source = screen.getByRole("textbox", {
+        name: "Markdown source",
+      });
+      expect(source).toHaveClass(EDITOR_SOURCE_CONTENT_CLASS);
+      expect(source).not.toHaveClass("overflow-auto");
     });
 
     it("omits the resize handle for coarse pointers", () => {

@@ -15,6 +15,7 @@ import {
   type MarkdownLocale,
   type MarkdownEditingSurfaceProps,
   type MarkdownEditorMode,
+  type MarkdownImageMenuOptions,
   type MarkdownReferenceAdapter,
   type MarkdownReferenceCandidate,
   type MarkdownReferenceResolution,
@@ -64,6 +65,7 @@ import {
   EDITOR_CONTENT_CLASS,
   EDITOR_MANUAL_SCROLL_SURFACE_CLASS,
   EDITOR_MANUAL_SOURCE_CLASS,
+  EDITOR_SOURCE_CONTENT_CLASS,
   EDITOR_RESIZABLE_BODY_ID,
   MARKDOWN_SURFACE_CLASS,
   useMarkdownEditorHeightResize,
@@ -126,6 +128,23 @@ function legacyImageResolutions(
   return resolutions;
 }
 
+const ISSUE_IMAGE_MENU_OPTIONS: MarkdownImageMenuOptions = {
+  classNames: {
+    host: "border-border-subtle bg-surface-elevated shadow-md",
+    action:
+      "text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:ring-brand-focus focus-visible:ring-offset-surface-elevated",
+    destructiveAction:
+      "text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:ring-brand-focus focus-visible:ring-offset-surface-elevated",
+    dialog: "border-border-subtle bg-surface-elevated text-foreground",
+    field:
+      "border-border bg-surface text-foreground placeholder:text-muted-foreground focus-visible:ring-brand-focus focus-visible:ring-offset-surface-elevated",
+    error: "text-destructive",
+  },
+  isEditableTarget: (target) =>
+    isAkbFileUri(target) ||
+    (target.startsWith("/") && !target.startsWith("//")),
+};
+
 function MarkdownEditorContent({
   value,
   onChange,
@@ -155,6 +174,16 @@ function MarkdownEditorContent({
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modeRef = useRef<MarkdownEditorMode>("wysiwyg");
+  // Keep the package's mode authoritative while gating its image action target.
+  const imageMenuOptions = useMemo<MarkdownImageMenuOptions>(
+    () => ({
+      ...ISSUE_IMAGE_MENU_OPTIONS,
+      isEditableTarget: (target) =>
+        modeRef.current === "wysiwyg" &&
+        (ISSUE_IMAGE_MENU_OPTIONS.isEditableTarget?.(target) ?? false),
+    }),
+    [],
+  );
   const modeChangeRef = useRef<((mode: MarkdownEditorMode) => void) | null>(
     null,
   );
@@ -756,87 +785,93 @@ function MarkdownEditorContent({
         )}
         style={bodyFrameLayoutStyle}
       >
-        <MarkdownEditingSurface
-          editor={editor}
-          markdown={value}
-          profile="preserve"
-          onSourceChange={handleSourceChange}
-          onMarkdownApplied={handleMarkdownApplied}
-          readOnly={readOnly}
-          modeSwitchDisabled={readOnly}
-          renderHeader={renderHeader}
-          toolbar={
-            <MarkdownToolbar
-              editor={editor}
-              className="reef-markdown-toolbar min-w-0 flex-1 bg-transparent px-0 py-0"
-              link={{
-                normalizeUrl,
-                searchAdapter: vault
-                  ? markdownResourceSearchAdapter
-                  : undefined,
-                searchContext: vault ? { vault } : undefined,
-                searchLabels: {
-                  inputLabel: toolbarLabels.linkSearchInputLabel,
-                  inputPlaceholder: toolbarLabels.linkSearchInputPlaceholder,
-                },
-              }}
-            />
-          }
-          sourcePlaceholder={sourcePlaceholder ?? placeholder}
-          sourceAriaLabel={ariaLabel}
-          sourceClassName={cn(
-            "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
-            isResizeAvailable ? "resize-none" : "resize-y",
-            isManual ? EDITOR_MANUAL_SOURCE_CLASS : EDITOR_BODY_SIZING,
-          )}
+        <div
+          data-testid="markdown-editor-scroll-viewport"
           className={cn(
-            isManual &&
-              "h-full min-h-0 [&>[data-markdown-mode-panel=wysiwyg]]:h-full [&>[data-markdown-mode-panel=source]]:h-full",
+            "min-w-0",
+            isManual ? EDITOR_MANUAL_SCROLL_SURFACE_CLASS : EDITOR_BODY_SIZING,
           )}
-          onPasteCapture={handleSurfacePaste}
-          onDropCapture={handleSurfaceDrop}
-          onDragOverCapture={handleSurfaceDragOver}
         >
-          <div
-            ref={surfaceRef}
-            className={cn(
-              "relative min-w-0",
+          <MarkdownEditingSurface
+            editor={editor}
+            markdown={value}
+            profile="preserve"
+            onSourceChange={handleSourceChange}
+            onMarkdownApplied={handleMarkdownApplied}
+            readOnly={readOnly}
+            modeSwitchDisabled={readOnly}
+            imageMenu={imageMenuOptions}
+            renderHeader={renderHeader}
+            toolbar={
+              <MarkdownToolbar
+                editor={editor}
+                className="reef-markdown-toolbar min-w-0 flex-1 bg-transparent px-0 py-0"
+                link={{
+                  normalizeUrl,
+                  searchAdapter: vault
+                    ? markdownResourceSearchAdapter
+                    : undefined,
+                  searchContext: vault ? { vault } : undefined,
+                  searchLabels: {
+                    inputLabel: toolbarLabels.linkSearchInputLabel,
+                    inputPlaceholder: toolbarLabels.linkSearchInputPlaceholder,
+                  },
+                }}
+              />
+            }
+            sourcePlaceholder={sourcePlaceholder ?? placeholder}
+            sourceAriaLabel={ariaLabel}
+            sourceClassName={cn(
+              "w-full field-sizing-content rounded-sm bg-transparent px-3 py-2 text-sm font-mono focus:outline-none",
+              isResizeAvailable ? "resize-none" : "resize-y",
               isManual
-                ? EDITOR_MANUAL_SCROLL_SURFACE_CLASS
-                : EDITOR_BODY_SIZING,
+                ? EDITOR_MANUAL_SOURCE_CLASS
+                : EDITOR_SOURCE_CONTENT_CLASS,
             )}
-            onClickCapture={handleSurfaceClickCapture}
-            onMouseDownCapture={handleSurfaceMouseDownCapture}
-            onMouseUpCapture={handleSurfaceMouseUpCapture}
+            className={cn(
+              isManual &&
+                "h-full min-h-0 [&>[data-markdown-mode-panel=wysiwyg]]:h-full [&>[data-markdown-mode-panel=source]]:h-full",
+            )}
+            onPasteCapture={handleSurfacePaste}
+            onDropCapture={handleSurfaceDrop}
+            onDragOverCapture={handleSurfaceDragOver}
           >
-            <MarkdownSurface
-              editor={editor}
-              editable={!readOnly}
+            <div
+              ref={surfaceRef}
               className="relative min-w-0"
-              contentClassName={editorBodyClassName}
-              contentAttributes={{
-                "data-testid": "markdown-editor-content",
-                ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
-                ...(mentionConfig
-                  ? { "aria-autocomplete": "list", "aria-expanded": false }
-                  : {}),
-              }}
-              resolutions={resolutions}
-              resolvingTargets={Boolean(targetResolver)}
-              referenceResolutions={referenceResolutions}
-              resolvingReferences={Boolean(mentionReferenceAdapter?.resolve)}
-            />
-            {!readOnly && state?.isEmpty ? (
-              <div
-                aria-hidden="true"
-                data-testid="markdown-editor-placeholder"
-                className="pointer-events-none absolute left-3 top-2 text-sm text-muted-foreground"
-              >
-                {placeholder}
-              </div>
-            ) : null}
-          </div>
-        </MarkdownEditingSurface>
+              onClickCapture={handleSurfaceClickCapture}
+              onMouseDownCapture={handleSurfaceMouseDownCapture}
+              onMouseUpCapture={handleSurfaceMouseUpCapture}
+            >
+              <MarkdownSurface
+                editor={editor}
+                editable={!readOnly}
+                className="relative min-w-0"
+                contentClassName={editorBodyClassName}
+                contentAttributes={{
+                  "data-testid": "markdown-editor-content",
+                  ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+                  ...(mentionConfig
+                    ? { "aria-autocomplete": "list", "aria-expanded": false }
+                    : {}),
+                }}
+                resolutions={resolutions}
+                resolvingTargets={Boolean(targetResolver)}
+                referenceResolutions={referenceResolutions}
+                resolvingReferences={Boolean(mentionReferenceAdapter?.resolve)}
+              />
+              {!readOnly && state?.isEmpty ? (
+                <div
+                  aria-hidden="true"
+                  data-testid="markdown-editor-placeholder"
+                  className="pointer-events-none absolute left-3 top-2 text-sm text-muted-foreground"
+                >
+                  {placeholder}
+                </div>
+              ) : null}
+            </div>
+          </MarkdownEditingSurface>
+        </div>
 
         {enableHeightResize && isResizeAvailable ? (
           <MarkdownEditorResizeHandle

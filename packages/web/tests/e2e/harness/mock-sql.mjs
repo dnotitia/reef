@@ -6,6 +6,20 @@ import {
 } from "./mock-state.mjs";
 import { uuidFor } from "./mock-utils.mjs";
 
+function issueListFailure(state, message) {
+  if (state.issueListFailureStatus === "network") {
+    return { kind: "transport_error" };
+  }
+  if ([409, 500, 503].includes(state.issueListFailureStatus)) {
+    return {
+      kind: "sql_error",
+      status: state.issueListFailureStatus,
+      body: { error: message },
+    };
+  }
+  return { error: message };
+}
+
 let activitySeq = 5000;
 
 const MY_WORK_STATUSES = new Set([
@@ -698,7 +712,7 @@ export function handleSql(state, vault, sql, username) {
   if (lower.startsWith("select * from reef_issues")) {
     const issueListQuery = isIssueListQuery(normalized);
     if (issueListQuery && state.issueListFailure) {
-      return { error: "e2e forced issue list failure" };
+      return issueListFailure(state, "e2e forced issue list failure");
     }
     if (
       issueListQuery &&

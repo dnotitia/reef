@@ -17,6 +17,11 @@ explicitly in the entries below.
 - **Issue-body `@` suggestions now include documents and confirmed files
   alongside people and issues.** Resource selections insert canonical AKB links
   and remain editable in the description. (REEF-635)
+- **Issue Markdown images now have shared description and removal controls.**
+  Edits apply to one image occurrence and remain part of Markdown undo history;
+  removing an image from the body preserves the referenced AKB resource.
+  Controls follow images while scrolling and are hidden in Source mode. Dialogs
+  return focus to the editor after closing. (REEF-632)
 - **Workspace discovery now reads member-scoped installation activity in parallel.**
   The workspace list preserves per-vault unknown results and no longer fetches
   installation details or product readiness for every accessible vault.
@@ -71,6 +76,18 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Concurrent SSO requests wait briefly for the active refresh to finish.**
+  Requests sharing a session now reuse the credential committed by the refresh
+  owner, and report a retryable conflict only when no fresh credential appears
+  within the bounded wait. (REEF-668)
+- **The sprint rollover notice stays visible during a failed issue refetch.**
+  Cached issue rows keep the notice and its board frame in place while the
+  existing board error and retry action handle recovery. The hermetic fixture
+  can exercise conflict, service-error, and network failures. (REEF-668)
+- **Board move revalidation no longer shows result-loading progress for the
+  whole Board.** The existing Board and Backlog Board card keep their own save
+  feedback during the background list refresh, while a user-driven search or
+  filter query still shows progress. (REEF-667)
 - **Workspace favorites survive temporary availability gaps.** The browser
   retains the full validated preference set when a favorite is absent, inactive,
   or has an unknown activity result, then shows it again when confirmed active.

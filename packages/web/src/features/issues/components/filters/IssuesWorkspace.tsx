@@ -323,20 +323,12 @@ export function IssuesWorkspace({
   const rolloverIssuesAreLoading =
     !rolloverIssueQuery.data &&
     (rolloverIssueQuery.isPending || rolloverIssueQuery.isFetching);
-  const rolloverIssueReadCanResolve =
-    !rolloverIssueQuery.isError || rolloverIssueQuery.isFetching;
-  const rolloverIssueReadIsRetrying =
-    rolloverIssueQuery.isError && rolloverIssueQuery.isFetching;
   const shouldShowRolloverPendingFrame =
     !fixedSprintId &&
     scope === "active" &&
     layout === "board" &&
-    rolloverIssueReadCanResolve &&
     (planningCatalogIsLoading ||
-      (mayShowRolloverNudge &&
-        (rolloverIssuesAreLoading ||
-          now === null ||
-          rolloverIssueReadIsRetrying)));
+      (mayShowRolloverNudge && (rolloverIssuesAreLoading || now === null)));
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);

@@ -63,17 +63,18 @@ const EDITOR_BODY_SESSION_STORAGE_EVENT =
   "reef:issue-description-height-change";
 
 /**
- * Manual height uses a scrollable content surface inside a non-scrolling frame.
- * Keeping the scroll owner below the frame lets the resize chrome stay pinned
- * to the frame's bottom-right edge instead of becoming part of the scrollable
- * content and moving out of view.
+ * Manual height uses one scroll viewport around the public editing surface.
+ * The image menu and editor content move together while the resize handle
+ * remains pinned as a sibling in the non-scrolling frame.
  */
 export const EDITOR_MANUAL_BODY_CLASS =
   "h-full min-h-0 max-h-none overflow-visible [scrollbar-gutter:stable]";
 export const EDITOR_MANUAL_SCROLL_SURFACE_CLASS =
   "h-full min-h-0 overflow-auto [scrollbar-gutter:stable]";
 export const EDITOR_MANUAL_SOURCE_CLASS =
-  "h-full min-h-0 max-h-none overflow-auto [scrollbar-gutter:stable]";
+  "min-h-full max-h-none overflow-hidden";
+export const EDITOR_SOURCE_CONTENT_CLASS =
+  "min-h-[200px] max-h-none overflow-hidden";
 
 function subscribeToEditorViewport(
   enabled: boolean,
