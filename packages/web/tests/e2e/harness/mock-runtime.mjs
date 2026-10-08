@@ -571,7 +571,7 @@ export function runtimeDiscovery(state) {
         interaction: {
           type: "markdown_editor",
           operation:
-            "open the fixture issue, search for the confirmed incident.log file and Alpha reference document from the link toolbar, select and apply a link, inspect the saved canonical target in Source, then switch back to WYSIWYG",
+            "open the fixture issue and use the @ menu to search for and insert the confirmed Alpha reference document and incident.log file while keeping the issue description available for further editing",
         },
       },
       large_issue_list: {

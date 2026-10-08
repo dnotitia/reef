@@ -419,10 +419,13 @@ the denser 13px/20px projection.
 The shared Markdown link popup searches documents and confirmed files that the
 current AKB Vault permits the user to read. Selecting a result fills the
 existing link fields with its title and canonical `akb://` URI; Apply stores
-that URI in Markdown. Search controls, loading and error states, cancellation,
-and selection restoration stay in the shared editor, while Reef supplies the
-authenticated current-Vault search adapter. The issue reference picker remains
-document-only.
+that URI in Markdown. The issue-body `@` menu groups people, issues, documents,
+and confirmed files. People and issue selections keep their existing mention
+and issue-ID syntax; document and file selections insert canonical AKB links.
+Both pickers use the authenticated current-Vault search adapter for resources,
+while people and issue suggestions remain available from the loaded workspace
+data. Search loading, empty and error states, cancellation, and selection
+restoration stay in the shared editor.
 
 Editable Issue Markdown images with same-origin or AKB file targets expose the
 shared image actions at each image occurrence. Description edits and removal

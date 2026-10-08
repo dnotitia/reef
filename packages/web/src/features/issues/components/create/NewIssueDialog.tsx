@@ -21,7 +21,6 @@ import { EnrichmentReviewBar } from "@/features/ai/components/EnrichmentReviewBa
 import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
-import { fetchVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import {
@@ -33,11 +32,10 @@ import {
   useViewStore,
 } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
-import { akbDocumentSlugTitle } from "@/lib/akb/documentUri";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
 import type {
-  DocumentSearchHit,
   EnrichmentRepoContext,
   IssueListItem,
   IssueType,
@@ -272,17 +270,12 @@ export function NewIssueDialog({
         ? {
             members: vaultMembers,
             issues: existingIssues ?? [],
-            searchDocuments: (query: string, signal: AbortSignal) =>
-              fetchVaultDocumentSearch(query, vault, signal),
+            searchAdapter: markdownResourceSearchAdapter,
             mentionOptionLabel: (username: string) =>
               markdownEditor("mentionOption", { username: `@${username}` }),
-            documentOptionLabel: (hit: DocumentSearchHit) =>
-              markdownEditor("documentOption", {
-                title: hit.title ?? akbDocumentSlugTitle(hit.uri),
-              }),
           }
         : undefined,
-    [existingIssues, markdownEditor, queryVault, vault, vaultMembers],
+    [existingIssues, markdownEditor, queryVault, vaultMembers],
   );
 
   function resetForm() {

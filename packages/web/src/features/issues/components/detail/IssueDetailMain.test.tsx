@@ -1,5 +1,6 @@
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -161,7 +162,7 @@ describe("IssueDetailMain autosave boundaries", () => {
 });
 
 describe("IssueDetailMain reference picker", () => {
-  it("passes the current issue list and document search to the body editor", () => {
+  it("passes the current issue list and shared resource search to the body editor", () => {
     const allIssues = [
       { id: "REEF-009", title: "Alpha issue", status: "todo" },
     ] as unknown as Parameters<typeof IssueDetailMain>[0]["allIssues"];
@@ -169,13 +170,10 @@ describe("IssueDetailMain reference picker", () => {
 
     const config = mockMarkdownMentionConfig.current as {
       issues: readonly { id: string }[];
-      searchDocuments?: (
-        query: string,
-        signal: AbortSignal,
-      ) => Promise<unknown>;
+      searchAdapter?: unknown;
     } | null;
     expect(config?.issues).toEqual(allIssues);
-    expect(typeof config?.searchDocuments).toBe("function");
+    expect(config?.searchAdapter).toBe(markdownResourceSearchAdapter);
   });
 });
 

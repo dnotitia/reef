@@ -1,15 +1,11 @@
 import type {
   MarkdownAdapters,
+  MarkdownSearchAdapter,
   MarkdownTargetResolverContext,
   MarkdownUploadBatchResult,
 } from "@akb/markdown-editor";
-import type { DocumentSearchHit, IssueListItem, VaultMember } from "@reef/core";
+import type { IssueListItem, VaultMember } from "@reef/core";
 import type { Ref } from "react";
-
-export type IssueBodyDocumentSearch = (
-  query: string,
-  signal: AbortSignal,
-) => Promise<readonly DocumentSearchHit[]>;
 
 export interface MarkdownEditorProps {
   value: string;
@@ -67,7 +63,6 @@ export interface MarkdownEditorProps {
 export interface MarkdownEditorMentionConfig {
   members: readonly VaultMember[];
   issues: readonly IssueListItem[];
-  searchDocuments?: IssueBodyDocumentSearch;
+  searchAdapter?: MarkdownSearchAdapter;
   mentionOptionLabel: (username: string) => string;
-  documentOptionLabel: (hit: DocumentSearchHit) => string;
 }

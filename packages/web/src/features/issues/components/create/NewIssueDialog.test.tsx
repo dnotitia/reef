@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -559,14 +560,11 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     const config = mockMarkdownMentionConfig.current as {
       issues: readonly unknown[];
-      searchDocuments?: (
-        query: string,
-        signal: AbortSignal,
-      ) => Promise<unknown>;
+      searchAdapter?: unknown;
       mentionOptionLabel: (username: string) => string;
     } | null;
     expect(config?.issues).toEqual([]);
-    expect(typeof config?.searchDocuments).toBe("function");
+    expect(config?.searchAdapter).toBe(markdownResourceSearchAdapter);
     expect(config?.mentionOptionLabel("alice")).toBe("Mention @alice");
   });
 

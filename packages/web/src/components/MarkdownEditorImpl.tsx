@@ -258,20 +258,26 @@ function MarkdownEditorContent({
             };
           },
         );
-        const searchDocuments = config.searchDocuments;
-        if (searchDocuments) {
-          const documents = await searchDocuments(
-            query,
-            context?.signal ?? new AbortController().signal,
-          );
-          for (const hit of documents) {
-            candidates.push({
-              id: hit.uri,
-              kind: "document",
-              title: hit.title ?? config.documentOptionLabel(hit),
-              subtitle: config.documentOptionLabel(hit),
-              target: hit.uri,
+        if (config.searchAdapter) {
+          try {
+            const resources = await config.searchAdapter.search(query, {
+              vault: context?.vault ?? vault,
+              signal: context?.signal,
             });
+            for (const resource of resources) {
+              if (resource.kind !== "document" && resource.kind !== "file") {
+                continue;
+              }
+              candidates.push({
+                id: resource.id,
+                kind: resource.kind,
+                title: resource.title,
+                ...(resource.snippet ? { snippet: resource.snippet } : {}),
+                target: resource.target,
+              });
+            }
+          } catch (error) {
+            if (candidates.length === 0) throw error;
           }
         }
         return candidates;

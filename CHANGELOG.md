@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue-body `@` suggestions now include documents and confirmed files
+  alongside people and issues.** Resource selections insert canonical AKB links
+  and remain editable in the description. (REEF-635)
 - **Issue Markdown images now have shared description and removal controls.**
   Edits apply to one image occurrence and remain part of Markdown undo history;
   removing an image from the body preserves the referenced AKB resource.
