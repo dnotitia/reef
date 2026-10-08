@@ -780,6 +780,12 @@ the dependency graph projected over the whole vault, so badges stay correct even
 when the board view is filtered.
 Kanban columns use the subtle surface for their group frame, while repeated issue
 cards use the card surface; cards do not use the brighter elevated surface.
+While a same-vault search or filter query is resolving, the Board keeps the
+previous cards visible and shows the shared teal progress hairline with a polite
+"Updating results…" status. Background list revalidation after a card move stays
+scoped to that card's reorder feedback; it does not show the result-progress
+hairline across the Board. A new user-driven query still shows result progress
+while its replacement data loads.
 
 When grouped by Epic, each root Epic is one flat column with read-only group
 dragging. Its header shows the Epic id, full title, own status, visible
