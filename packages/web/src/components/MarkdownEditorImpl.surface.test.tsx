@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { parseMarkdown, type MarkdownNode } from "@akb/markdown-editor";
 import {
   MarkdownEditingSurface,
   MarkdownLocaleProvider,
@@ -28,6 +29,28 @@ beforeAll(() => {
     value: () => undefined,
   });
 });
+
+const repeatedImageTarget = "/api/assets/00000000-0000-4000-8000-000000000001";
+const independentImageTarget = "akb://reef-e2e/issues/file/incident-log";
+
+function imageSemantics(markdown: string) {
+  const images: Array<{ target: string; alt: string }> = [];
+  const visit = (node: MarkdownNode) => {
+    if (node.type === "image") {
+      const target = node.attrs?.target;
+      const alt = node.attrs?.alt;
+      if (typeof target === "string" && typeof alt === "string") {
+        images.push({ target, alt });
+      }
+    }
+    for (const child of node.content ?? []) visit(child);
+  };
+  for (const node of parseMarkdown(markdown, { profile: "preserve" }).content ??
+    []) {
+    visit(node);
+  }
+  return images;
+}
 
 let surfaceCommands: ReturnType<typeof useMarkdownCommands> | null = null;
 
@@ -82,6 +105,197 @@ function PublicSurfaceHarness({
 }
 
 describe("MarkdownEditor shared Source surface", () => {
+  it.each([
+    {
+      locale: "en" as const,
+      editLabel: "Edit image description: Second alt",
+      dialogTitle: "Image description",
+      fieldLabel: "Description",
+      saveLabel: "Save description",
+      removePrefix: "Remove image",
+      undoLabel: /undo/iu,
+    },
+    {
+      locale: "ko" as const,
+      editLabel: "이미지 설명 수정: Second alt",
+      dialogTitle: "이미지 설명",
+      fieldLabel: "설명",
+      saveLabel: "설명 저장",
+      removePrefix: "이미지 삭제",
+      undoLabel: /실행 취소/iu,
+    },
+  ])(
+    "edits and removes one repeated image occurrence with $locale labels and undo",
+    async ({
+      locale,
+      editLabel,
+      dialogTitle,
+      fieldLabel,
+      saveLabel,
+      removePrefix,
+      undoLabel,
+    }) => {
+      const onChange = vi.fn();
+      const onBlur = vi.fn();
+      const original = [
+        `![First alt](${repeatedImageTarget})`,
+        `![Second alt](${repeatedImageTarget})`,
+        `![Independent alt](${independentImageTarget})`,
+      ].join("\n\n");
+      render(
+        <IntlTestProvider locale={locale}>
+          <MarkdownEditor
+            value={original}
+            onChange={onChange}
+            onBlur={onBlur}
+            vault="reef-e2e"
+            ariaLabel="Issue description"
+          />
+        </IntlTestProvider>,
+      );
+
+      const editor = await screen.findByTestId("markdown-editor-content");
+      await waitFor(() =>
+        expect(
+          editor.querySelectorAll("img[data-markdown-target]"),
+        ).toHaveLength(3),
+      );
+      act(() => editor.focus());
+      fireEvent.click(await screen.findByRole("button", { name: editLabel }));
+
+      const dialog = await screen.findByRole("dialog", { name: dialogTitle });
+      const description = within(dialog).getByRole("textbox", {
+        name: fieldLabel,
+      });
+      fireEvent.change(description, { target: { value: "Second changed" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: saveLabel }));
+
+      await waitFor(() =>
+        expect(
+          editor.querySelector('img[alt="Second changed"]'),
+        ).not.toBeNull(),
+      );
+      expect(editor.querySelector('img[alt="First alt"]')).not.toBeNull();
+      expect(editor.querySelector('img[alt="Independent alt"]')).not.toBeNull();
+      expect(imageSemantics(onChange.mock.lastCall?.[0] ?? "")).toEqual([
+        { target: repeatedImageTarget, alt: "First alt" },
+        { target: repeatedImageTarget, alt: "Second changed" },
+        { target: independentImageTarget, alt: "Independent alt" },
+      ]);
+      await waitFor(() => expect(editor).toHaveFocus());
+
+      fireEvent.click(
+        screen.getByRole("button", { name: `${removePrefix}: First alt` }),
+      );
+      await waitFor(() =>
+        expect(editor.querySelector('img[alt="First alt"]')).toBeNull(),
+      );
+      expect(editor.querySelectorAll("img[data-markdown-target]")).toHaveLength(
+        2,
+      );
+      expect(editor.querySelector('img[alt="Second changed"]')).not.toBeNull();
+      expect(editor.querySelector('img[alt="Independent alt"]')).not.toBeNull();
+      expect(imageSemantics(onChange.mock.lastCall?.[0] ?? "")).toEqual([
+        { target: repeatedImageTarget, alt: "Second changed" },
+        { target: independentImageTarget, alt: "Independent alt" },
+      ]);
+
+      fireEvent.click(screen.getByRole("button", { name: undoLabel }));
+      await waitFor(() =>
+        expect(editor.querySelector('img[alt="First alt"]')).not.toBeNull(),
+      );
+      expect(editor.querySelectorAll("img[data-markdown-target]")).toHaveLength(
+        3,
+      );
+      expect(imageSemantics(onChange.mock.lastCall?.[0] ?? "")).toEqual([
+        { target: repeatedImageTarget, alt: "First alt" },
+        { target: repeatedImageTarget, alt: "Second changed" },
+        { target: independentImageTarget, alt: "Independent alt" },
+      ]);
+      expect(onBlur).toHaveBeenCalled();
+    },
+  );
+
+  it("keeps invalid and cancelled image descriptions unchanged and restores focus", async () => {
+    const onChange = vi.fn();
+    const original = `![First alt](${repeatedImageTarget})`;
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={original}
+          onChange={onChange}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const editor = await screen.findByTestId("markdown-editor-content");
+    act(() => editor.focus());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Edit image description: First alt",
+      }),
+    );
+    let dialog = await screen.findByRole("dialog", {
+      name: "Image description",
+    });
+    let description = within(dialog).getByRole("textbox", {
+      name: "Description",
+    });
+    fireEvent.change(description, { target: { value: "   " } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save description" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Describe the image so it remains understandable without sight.",
+    );
+    expect(editor.querySelector('img[alt="First alt"]')).not.toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(editor).toHaveFocus());
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit image description: First alt",
+      }),
+    );
+    dialog = await screen.findByRole("dialog", { name: "Image description" });
+    description = within(dialog).getByRole("textbox", {
+      name: "Description",
+    });
+    fireEvent.change(description, {
+      target: { value: "Cancelled description" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(editor.querySelector('img[alt="First alt"]')).not.toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+    await waitFor(() => expect(editor).toHaveFocus());
+  });
+
+  it("does not offer image actions on a read-only Markdown surface", async () => {
+    render(
+      <IntlTestProvider locale="ko">
+        <MarkdownEditor
+          value={`![First alt](${repeatedImageTarget})`}
+          onChange={vi.fn()}
+          readOnly
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    await screen.findByTestId("markdown-editor-content");
+    expect(
+      screen.queryByRole("button", { name: "이미지 설명 수정: First alt" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "이미지 삭제: First alt" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("delegates mode changes and the same draft to MarkdownEditingSurface", async () => {
     const onChange = vi.fn();
     const onBlur = vi.fn();

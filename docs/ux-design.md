@@ -424,6 +424,15 @@ and selection restoration stay in the shared editor, while Reef supplies the
 authenticated current-Vault search adapter. The issue reference picker remains
 document-only.
 
+Editable Issue Markdown images with same-origin or AKB file targets expose the
+shared image actions at each image occurrence. Description edits and removal
+update only that Markdown occurrence, use the editor's undo history, and leave
+the referenced AKB resource available to other links or images. A description
+must contain non-whitespace text. The localized dialog returns focus to the
+editor after save, cancel, or Escape; read-only issue bodies have no image
+actions. Reef supplies the shared editor's theme tokens for the image controls
+and dialog.
+
 The contract is checked in Light, Dark, and both System outcomes at 1440×900
 and 1024×800. At the 720px CSS viewport (the 200% equivalent), the document
 must not widen: long URLs wrap, fenced code owns its horizontal scrollport,
@@ -442,12 +451,14 @@ disappear. Coarse-pointer surfaces omit the focusable handle altogether so it
 does not compete with touch scrolling. The pointer-captured handle and its
 horizontal separator keyboard control share a 200px minimum, a 320px initial
 frame, and a maximum of `max(200px, min(960px, viewport height - 160px))`;
-WYSIWYG and Source use the same body frame and scroll owner. A finite user
-height is restored only for the current tab through the shared
-`sessionStorage` key, while missing or malformed values use the 320px default
-(or the current clamp boundary). A containing layout may provide a transient
-preferred height for a maximized New Issue dialog; it is never persisted, and
-pointer/keyboard input takes precedence and becomes the shared user height.
+WYSIWYG content and Source text share one scroll viewport around the editing
+surface, so image controls move with their images. The resize handle stays
+pinned outside that viewport. A finite user height is restored only for the
+current tab through the shared `sessionStorage` key, while missing or malformed
+values use the 320px default (or the current clamp boundary). A containing
+layout may provide a transient preferred height for a maximized New Issue
+dialog; it is never persisted, and pointer/keyboard input takes precedence and
+becomes the shared user height.
 Narrow or coarse-pointer layouts keep the automatic responsive editor behavior;
 Source mode retains its native vertical resize fallback when the dedicated
 handle is unavailable. Planning, template, and other MarkdownEditor consumers
