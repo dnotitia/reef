@@ -195,6 +195,7 @@ export function createState(scenario) {
     loginToken: token,
     vaults: createScenarioVaults(scenario),
     issueListFailure: false,
+    issueListFailureStatus: null,
     issueListNextPageFailures: 0,
     issueListDelayMs: 0,
     issueReadControls: new Map(),

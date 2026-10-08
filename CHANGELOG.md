@@ -68,6 +68,14 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Concurrent SSO requests wait briefly for the active refresh to finish.**
+  Requests sharing a session now reuse the credential committed by the refresh
+  owner, and report a retryable conflict only when no fresh credential appears
+  within the bounded wait. (REEF-668)
+- **The sprint rollover notice stays visible during a failed issue refetch.**
+  Cached issue rows keep the notice and its board frame in place while the
+  existing board error and retry action handle recovery. The hermetic fixture
+  can exercise conflict, service-error, and network failures. (REEF-668)
 - **Board move revalidation no longer shows result-loading progress for the
   whole Board.** The existing Board and Backlog Board card keep their own save
   feedback during the background list refresh, while a user-driven search or

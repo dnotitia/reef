@@ -1,7 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { SprintRolloverNudge } from "@/features/planning/components/SprintRolloverNudge";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -13,7 +21,8 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import { apiFetch } from "@/lib/apiClient";
-import type { IssueMetadata } from "@reef/core";
+import type { IssueListItem, IssueMetadata, Sprint } from "@reef/core";
+import { issueListKey } from "../../lib/issueListCache";
 import { useIssueList } from "./useIssueList";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -30,15 +39,55 @@ const ISSUES: IssueMetadata[] = [
   },
 ];
 
-function createWrapper() {
-  const queryClient = new QueryClient({
+function createWrapper(
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  });
+  }),
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
   };
+}
+
+const ROLLOVER_SPRINT: Sprint = {
+  id: "11111111-1111-4111-8111-111111111111",
+  name: "Sprint 14",
+  status: "active",
+  start_date: "2026-06-01",
+  end_date: "2026-06-14",
+  goal: "",
+  capacity_points: null,
+};
+const ROLLOVER_ISSUES = [
+  {
+    ...ISSUES[0],
+    sprint_id: ROLLOVER_SPRINT.id,
+    archived_at: null,
+  },
+] as unknown as IssueListItem[];
+
+function IssueListBackedRolloverNudge({ vault }: { vault: string }) {
+  const issueQuery = useIssueList(vault);
+  const issueState = issueQuery.isError
+    ? "error"
+    : issueQuery.isPending || !issueQuery.data
+      ? "loading"
+      : "available";
+
+  return (
+    <IntlTestProvider>
+      <SprintRolloverNudge
+        sprint={ROLLOVER_SPRINT}
+        issues={issueQuery.data}
+        issueState={issueState}
+        now={Date.parse("2026-06-30T00:00:00.000Z")}
+        canEdit
+        onOpen={vi.fn()}
+      />
+    </IntlTestProvider>
+  );
 }
 
 describe("useIssueList", () => {
@@ -115,6 +164,62 @@ describe("useIssueList", () => {
     await result.current.refetch();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual([]);
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a cached rollover notice through a failed refetch and same-data recovery", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "temporary failure" }), {
+          status: 409,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ issues: ROLLOVER_ISSUES }), {
+          status: 200,
+        }),
+      );
+    queryClient.setQueryData(issueListKey("reef-acme"), ROLLOVER_ISSUES);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <IssueListBackedRolloverNudge vault="reef-acme" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible(),
+    );
+    expect(screen.getByTestId("sprint-rollover-nudge")).toHaveTextContent(
+      "Sprint 14",
+    );
+    expect(screen.getByTestId("sprint-rollover-nudge")).toHaveTextContent(
+      "1 unfinished issue",
+    );
+
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: issueListKey("reef-acme"),
+      });
+    });
+    const noticeDuringFailure = screen.queryByTestId("sprint-rollover-nudge");
+    expect(noticeDuringFailure).toBeVisible();
+    expect(queryClient.getQueryState(issueListKey("reef-acme"))?.status).toBe(
+      "error",
+    );
+    expect(queryClient.getQueryData(issueListKey("reef-acme"))).toEqual(
+      ROLLOVER_ISSUES,
+    );
+
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: issueListKey("reef-acme"),
+      });
+    });
+    expect(noticeDuringFailure).not.toBeNull();
+    expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible();
     expect(mockApiFetch).toHaveBeenCalledTimes(2);
   });
 

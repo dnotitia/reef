@@ -38,6 +38,7 @@ describe("GET /api/auth/akb/me", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     runtimeRef.current = undefined;
@@ -169,7 +170,8 @@ describe("GET /api/auth/akb/me", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 
-  it("returns an SSO refresh-lock conflict without invalidating the session", async () => {
+  it("waits a bounded time for SSO refresh contention without invalidating the session", async () => {
+    vi.useFakeTimers();
     vi.stubEnv("REEF_AUTH_MODE", "sso");
     vi.stubEnv("REEF_KEYCLOAK_ISSUER", "https://idp.test/realms/reef");
     vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
@@ -202,7 +204,9 @@ describe("GET /api/auth/akb/me", () => {
       close: async () => undefined,
     };
 
-    const res = await GET(makeRequest(`__reef_auth_v2=${handle}`));
+    const response = GET(makeRequest(`__reef_auth_v2=${handle}`));
+    await vi.advanceTimersByTimeAsync(5_500);
+    const res = await response;
 
     expect(res.status).toBe(409);
     expect(res.headers.get("cache-control")).toBe("no-store");
