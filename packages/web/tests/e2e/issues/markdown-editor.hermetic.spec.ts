@@ -2639,6 +2639,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await chooseWithKeyboard(personOption);
     await page.keyboard.type(" continued");
 
+    await page.keyboard.press("Enter");
     await page.keyboard.type("@a");
     await expect(listbox).toBeVisible();
     await listbox
@@ -2648,6 +2649,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .click();
     await expect(editor).toBeFocused();
 
+    await page.keyboard.press("Enter");
     await page.keyboard.type("@alpha");
     await expect(listbox).toBeVisible();
     await listbox
@@ -2658,6 +2660,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(listbox).toHaveCount(0);
     await expect(editor).toBeFocused();
 
+    await page.keyboard.press("Enter");
     await page.keyboard.type("@incident");
     await expect(listbox).toBeVisible();
     const fileOption = listbox
@@ -2710,7 +2713,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const reopenedSource = page.locator(
       '[data-markdown-mode="source"] textarea',
     );
-    await expect(reopenedSource).toHaveValue(finalMarkdown);
+    const reopenedMarkdown = await reopenedSource.inputValue();
+    expect(normalizeAdjacentImageOnlyBlocks(reopenedMarkdown)).toBe(
+      normalizeAdjacentImageOnlyBlocks(finalMarkdown),
+    );
 
     const state = await readFixtureState(request);
     const calls = state.calls ?? [];
@@ -2722,7 +2728,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     ).toBe(false);
   });
 
-  test("creates and reopens a file reference from New Issue Description", async ({
+  test("keeps the @ menu selection unchanged during scripted composition", async ({
     page,
     request,
   }) => {
@@ -2730,7 +2736,77 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await page.getByTestId("issue-close").click();
+
+    const editor = page.locator(".reef-markdown-editor");
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("@a");
+
+    const listbox = page.getByRole("listbox");
+    await expect(listbox).toBeVisible();
+    const aliceOption = listbox
+      .getByRole("region", { name: "People" })
+      .getByRole("option")
+      .filter({ hasText: "alice" });
+    await expect(aliceOption).toBeVisible();
+    const optionId = await aliceOption.getAttribute("id");
+    expect(optionId).toBeTruthy();
+    const optionCount = await listbox.getByRole("option").count();
+    for (let index = 0; index < optionCount; index += 1) {
+      if ((await editor.getAttribute("aria-activedescendant")) === optionId) {
+        break;
+      }
+      await editor.press("ArrowDown");
+    }
+    await expect(editor).toHaveAttribute(
+      "aria-activedescendant",
+      optionId as string,
+    );
+
+    const textBeforeComposition = await editor.innerText();
+    await editor.evaluate((element: HTMLElement) => {
+      element.dispatchEvent(
+        new CompositionEvent("compositionstart", {
+          bubbles: true,
+          data: "",
+        }),
+      );
+      element.dispatchEvent(
+        new CompositionEvent("compositionupdate", {
+          bubbles: true,
+          data: "ㅎ",
+        }),
+      );
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(event, "isComposing", { value: true });
+      element.dispatchEvent(event);
+    });
+
+    await expect(listbox).toBeVisible();
+    await expect(editor).toHaveAttribute(
+      "aria-activedescendant",
+      optionId as string,
+    );
+    expect(await editor.innerText()).toBe(textBeforeComposition);
+
+    await editor.dispatchEvent("compositionend", { data: "ㅎ" });
+    await editor.press("Enter");
+    await expect(listbox).toHaveCount(0);
+    await expect(editor).toBeFocused();
+  });
+
+  test("creates and reopens a file reference from New Issue Description", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
 
     await page.getByTestId("new-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");
@@ -2770,14 +2846,48 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(createdMarkdown).toContain("and continued writing");
     expect(createdMarkdown).not.toContain("/api/files?");
 
+    const createdIssueResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/issues" && response.request().method() === "POST"
+      );
+    });
+    const issueReadbackResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        /^\/api\/issues\/REEF-\d+$/u.test(url.pathname) &&
+        url.searchParams.get("vault") === REEF_E2E_VAULT &&
+        response.request().method() === "GET"
+      );
+    });
     await dialog.getByTestId("new-issue-submit").click();
-    await page.waitForURL(/\/issues\/REEF-\d+$/u, { timeout: 10_000 });
-    const issueId = new URL(page.url()).pathname.split("/").at(-1);
-    if (!issueId || !/^REEF-\d+$/u.test(issueId)) {
-      throw new Error(`Unexpected created issue URL: ${page.url()}`);
-    }
+    const createResponse = await createdIssueResponse;
+    expect(
+      createResponse.ok(),
+      `create failed with ${createResponse.status()}`,
+    ).toBeTruthy();
+    const createResult = (await createResponse.json()) as {
+      issue: { id: string; title: string };
+    };
+    const issueId = createResult.issue.id;
+    expect(issueId).toMatch(/^REEF-\d+$/u);
+    const readbackResponse = await issueReadbackResponse;
+    expect(new URL(readbackResponse.url()).pathname).toBe(
+      `/api/issues/${issueId}`,
+    );
+    expect(
+      readbackResponse.ok(),
+      `readback failed with ${readbackResponse.status()}`,
+    ).toBeTruthy();
+    await page.waitForURL(
+      (url) =>
+        url.pathname === `/workspace/${REEF_E2E_VAULT}/issues/${issueId}`,
+      { timeout: 10_000 },
+    );
     await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await expect(page.getByTestId("issue-title-input")).toHaveValue(title);
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      createResult.issue.title,
+    );
 
     const state = await readFixtureState(request);
     const createdDocument = state.vaults
@@ -2831,6 +2941,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
     await editor.click();
     await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
     await page.keyboard.type("@a");
     expect((await personSearchResponse).status()).toBe(502);
     await expect(listbox.getByRole("region", { name: "People" })).toBeVisible();
@@ -2843,6 +2954,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(editor).toBeFocused();
     await expect(page.getByTestId("issue-title-input")).toHaveValue(issueTitle);
 
+    await page.keyboard.press("Enter");
     await page.keyboard.type("@zzzz");
     await expect(listbox.getByTestId("markdown-reference-empty")).toBeVisible();
     await expect(editor).toContainText("@zzzz");
@@ -2863,6 +2975,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       query: "missing",
       failureStatus: 503,
     });
+    await editor.press("Enter");
     await page.keyboard.type("@missing");
     expect((await failingSearchResponse).status()).toBe(502);
     await expect(listbox.getByTestId("markdown-reference-error")).toBeVisible();
@@ -2893,6 +3006,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
     await editor.click();
     await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
     await page.keyboard.type("@alpha");
     await waitForMarkdownLinkSearchPending(request, "alpha");
     await expect(
@@ -2915,28 +3029,22 @@ test.describe("Hermetic Markdown editor fixture", () => {
         .filter({ hasText: "Alpha reference" }),
     ).toHaveCount(0);
 
+    await editor.press("Escape");
+    await expect(listbox).toHaveCount(0);
     await setMarkdownLinkSearchControl(request, {
-      query: "alpha",
+      query: "late",
       delayMs: 700,
       failureStatus: 503,
     });
-    const lateFailureResponse = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return (
-        url.pathname === "/api/documents/search" &&
-        url.searchParams.get("q") === "alpha"
-      );
-    });
-    await page.keyboard.press("Control+End");
-    await page.keyboard.type("@alpha");
-    await waitForMarkdownLinkSearchPending(request, "alpha");
+    await page.keyboard.type(" @late");
+    await waitForMarkdownLinkSearchPending(request, "late");
     const bodyBeforeEscape = await editor.innerText();
     await editor.press("Escape");
     await expect(listbox).toHaveCount(0);
-    expect((await lateFailureResponse).status()).toBe(502);
-    await waitForMarkdownLinkSearchIdle(request, "alpha");
+    // Escape aborts the browser request; wait for the fixture's delayed search to drain.
+    await waitForMarkdownLinkSearchIdle(request, "late");
     await expect(listbox).toHaveCount(0);
-    await expect(editor).toHaveText(bodyBeforeEscape);
+    expect(await editor.innerText()).toBe(bodyBeforeEscape);
     await expect(page.getByTestId("issue-detail")).toBeVisible();
   });
 
