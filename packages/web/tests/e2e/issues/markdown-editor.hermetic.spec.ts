@@ -69,6 +69,116 @@ async function setTheme(
   });
 }
 
+type ElementBox = NonNullable<Awaited<ReturnType<Locator["boundingBox"]>>>;
+
+interface ScrollOwnerState {
+  testId: string | null;
+  scrollTop: number;
+}
+
+async function readNearestScrollOwner(
+  locator: Locator,
+): Promise<ScrollOwnerState | null> {
+  return locator.evaluate((element) => {
+    let ancestor = element.parentElement;
+    while (ancestor) {
+      const styles = getComputedStyle(ancestor);
+      if (
+        (styles.overflowY === "auto" || styles.overflowY === "scroll") &&
+        ancestor.scrollHeight > ancestor.clientHeight
+      ) {
+        return {
+          testId: ancestor.getAttribute("data-testid"),
+          scrollTop: ancestor.scrollTop,
+        };
+      }
+      ancestor = ancestor.parentElement;
+    }
+    return null;
+  });
+}
+
+async function waitForLayout(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
+async function wheelWithin(
+  page: Page,
+  target: Locator,
+  viewport: Locator,
+  deltaY: number,
+): Promise<boolean> {
+  const [targetBox, viewportBox] = await Promise.all([
+    target.boundingBox(),
+    viewport.boundingBox(),
+  ]);
+  if (!targetBox || !viewportBox) return false;
+
+  const left = Math.max(targetBox.x, viewportBox.x);
+  const right = Math.min(
+    targetBox.x + targetBox.width,
+    viewportBox.x + viewportBox.width,
+  );
+  const top = Math.max(targetBox.y, viewportBox.y);
+  const bottom = Math.min(
+    targetBox.y + targetBox.height,
+    viewportBox.y + viewportBox.height,
+  );
+  if (right <= left || bottom <= top) return false;
+
+  await page.mouse.move((left + right) / 2, (top + bottom) / 2);
+  await page.mouse.wheel(0, deltaY);
+  await waitForLayout(page);
+  return true;
+}
+
+async function measureImageMenu(image: Locator, action: Locator) {
+  const [imageBox, actionBox, scrollOwner] = await Promise.all([
+    image.boundingBox(),
+    action.boundingBox(),
+    readNearestScrollOwner(image),
+  ]);
+  return {
+    imageVisible: await image.isVisible(),
+    actionVisible: await action.isVisible(),
+    scrollOwnerTestId: scrollOwner?.testId ?? null,
+    scrollTop: scrollOwner?.scrollTop ?? null,
+    imageBox,
+    actionBox,
+    horizontalGap:
+      imageBox && actionBox
+        ? Math.max(
+            imageBox.x - (actionBox.x + actionBox.width),
+            actionBox.x - (imageBox.x + imageBox.width),
+            0,
+          )
+        : null,
+    verticalDistance:
+      imageBox && actionBox
+        ? Math.abs(actionBox.y + actionBox.height / 2 - imageBox.y)
+        : null,
+  };
+}
+
+async function countVisible(locator: Locator): Promise<number> {
+  return locator.evaluateAll(
+    (elements) =>
+      elements.filter((element) => {
+        const styles = getComputedStyle(element);
+        return (
+          element.getClientRects().length > 0 &&
+          styles.display !== "none" &&
+          styles.visibility !== "hidden"
+        );
+      }).length,
+  );
+}
+
 async function readMarkdownSurface(editor: Locator) {
   return editor.evaluate((root: HTMLElement) => {
     const resolveColor = (property: string) => {
@@ -2740,6 +2850,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const task = await readMarkdownFixtureTask(request);
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
+    await page.setViewportSize({ width: 1280, height: 720 });
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
     const editor = page.locator(".reef-markdown-editor");
@@ -2755,34 +2866,139 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "Dialog focus target.",
       `![First duplicate](${MARKDOWN_FIXTURE_IMAGE_PATH})`,
       `![Second duplicate](${MARKDOWN_FIXTURE_IMAGE_PATH})`,
-      `![Independent image](${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH})`,
+      `![Independent image](${MARKDOWN_FIXTURE_LARGE_IMAGE_PATH})`,
       `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
+      Array.from(
+        { length: 24 },
+        (_, index) => `Source viewport line ${index + 1} stays in flow.`,
+      ).join("\n\n"),
     ].join("\n\n");
     await source.fill(authoredMarkdown);
+
+    const imageActionsInSource = page.getByRole("button", {
+      name: /^(Edit image description:|Remove image:)/u,
+    });
+    const sourceMenuCleared = await expect
+      .poll(() => countVisible(imageActionsInSource), { timeout: 1000 })
+      .toBe(0)
+      .then(
+        () => true,
+        () => false,
+      );
+    const sourceActionCount = await imageActionsInSource.count();
+    const scrollViewport = page.getByTestId("markdown-editor-scroll-viewport");
+    const sourceScrollBefore = await readNearestScrollOwner(source);
+    const sourceWheelSent = await wheelWithin(
+      page,
+      source,
+      scrollViewport,
+      120,
+    );
+    const sourceScrollAfter = await readNearestScrollOwner(source);
+    const sourceScrollFollowsViewport =
+      sourceWheelSent &&
+      sourceScrollBefore?.testId === "markdown-editor-scroll-viewport" &&
+      sourceScrollAfter?.testId === "markdown-editor-scroll-viewport" &&
+      sourceScrollAfter.scrollTop > sourceScrollBefore.scrollTop;
     await sourceToggle.click();
 
     const firstDuplicateAction = page.getByRole("button", {
       name: "Edit image description: First duplicate",
     });
-    const secondDuplicateAction = page.getByRole("button", {
-      name: "Edit image description: Second duplicate",
+    const imageSamples: Awaited<ReturnType<typeof measureImageMenu>>[] = [];
+    for (const alt of [
+      "First duplicate",
+      "Second duplicate",
+      "Independent image",
+    ]) {
+      const image = editor.getByRole("img", { name: alt, exact: true });
+      const action = page.getByRole("button", {
+        name: `Edit image description: ${alt}`,
+        exact: true,
+      });
+      await expect
+        .poll(() =>
+          image.evaluate((element) => {
+            const imageElement = element as HTMLImageElement;
+            return imageElement.complete && imageElement.naturalWidth > 0;
+          }),
+        )
+        .toBe(true);
+      await image.evaluate(async (element) => {
+        await (element as HTMLImageElement).decode();
+      });
+      await image.scrollIntoViewIfNeeded();
+      await waitForLayout(page);
+      imageSamples.push(await measureImageMenu(image, action));
+    }
+
+    const independentImage = editor.getByRole("img", {
+      name: "Independent image",
+      exact: true,
     });
     const independentImageAction = page.getByRole("button", {
       name: "Edit image description: Independent image",
+      exact: true,
     });
-    await expect(firstDuplicateAction).toBeVisible();
-    await expect(secondDuplicateAction).toBeVisible();
-    await expect(independentImageAction).toBeVisible();
-    await expect(
-      page
-        .locator("[data-markdown-image-controls]")
-        .filter({
-          has: page.getByRole("button", {
-            name: "Edit image description: Second duplicate",
-          }),
-        })
-        .first(),
-    ).toHaveClass(/bg-surface-elevated/u);
+    const beforeWheel = await measureImageMenu(
+      independentImage,
+      independentImageAction,
+    );
+    const imageWheelSent = await wheelWithin(
+      page,
+      independentImage,
+      scrollViewport,
+      120,
+    );
+    const afterWheel = await measureImageMenu(
+      independentImage,
+      independentImageAction,
+    );
+    const menusFollowImages = imageSamples.every(
+      (sample) =>
+        sample.imageVisible &&
+        sample.actionVisible &&
+        sample.scrollOwnerTestId === "markdown-editor-scroll-viewport" &&
+        sample.horizontalGap !== null &&
+        sample.horizontalGap <= 24 &&
+        sample.verticalDistance !== null &&
+        sample.verticalDistance <= 64,
+    );
+    const wheelMenuFollowsImage =
+      imageWheelSent &&
+      beforeWheel.scrollOwnerTestId === "markdown-editor-scroll-viewport" &&
+      afterWheel.scrollOwnerTestId === "markdown-editor-scroll-viewport" &&
+      beforeWheel.scrollTop !== null &&
+      afterWheel.scrollTop !== null &&
+      afterWheel.scrollTop > beforeWheel.scrollTop &&
+      afterWheel.verticalDistance !== null &&
+      afterWheel.verticalDistance <= 64;
+
+    expect(
+      sourceMenuCleared &&
+        sourceActionCount === 0 &&
+        sourceScrollFollowsViewport &&
+        menusFollowImages &&
+        wheelMenuFollowsImage,
+      JSON.stringify(
+        {
+          sourceMenuCleared,
+          sourceActionCount,
+          sourceScrollBefore,
+          sourceScrollAfter,
+          sourceScrollFollowsViewport,
+          geometry: imageSamples,
+          wheel: {
+            imageWheelSent,
+            before: beforeWheel,
+            after: afterWheel,
+            menuFollowsImage: wheelMenuFollowsImage,
+          },
+        },
+        null,
+        2,
+      ),
+    ).toBe(true);
 
     await editor.focus();
     await page.keyboard.press("Control+End");
@@ -2894,7 +3110,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       `[incident.log](${MARKDOWN_FIXTURE_FILE_URI})`,
     );
     expect(finalMarkdown).toContain(
-      `![Independent image](${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH})`,
+      `![Independent image](${MARKDOWN_FIXTURE_LARGE_IMAGE_PATH})`,
     );
     expect(finalMarkdown).toContain(
       "Dialog focus target. Continued after dialog.",
@@ -2956,7 +3172,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     await expect(reopenedSource).toHaveValue(
       new RegExp(
-        `!\\[Independent image\\]\\(${MARKDOWN_FIXTURE_TRANSPARENT_IMAGE_PATH.replaceAll("/", "\\/")}\\)`,
+        `!\\[Independent image\\]\\(${MARKDOWN_FIXTURE_LARGE_IMAGE_PATH.replaceAll("/", "\\/")}\\)`,
         "u",
       ),
     );
