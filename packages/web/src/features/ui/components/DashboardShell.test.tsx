@@ -121,6 +121,12 @@ vi.mock("next/navigation", () => ({
 import { useViewStore } from "../stores/useViewStore";
 import { DashboardShell } from "./DashboardShell";
 
+// Keep real lazy dialog implementations; resolve their modules during test
+// collection so cold transforms do not consume keyboard/focus wait deadlines.
+import "@/features/issues/components/create/NewIssueDialog";
+import "@/features/search/components/GlobalSearchDialog";
+import "@/features/shortcuts/components/KeyboardShortcutsDialog";
+
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },

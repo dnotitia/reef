@@ -5,8 +5,10 @@ import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { discoverWorkspacePackages } from "./maintenance/workspaces.mjs";
+import { assertCurrentProductionBuild } from "../packages/web/scripts/production-build.mjs";
 
 const root = process.cwd();
+await assertCurrentProductionBuild();
 const artifactPath = path.join(
   root,
   "ci-artifacts",
@@ -67,6 +69,8 @@ while (changed) {
 }
 
 const archivePaths = [
+  path.join(webPackage.relativeDir, ".next", "reef-build.json"),
+  path.join(webPackage.relativeDir, ".next", "BUILD_ID"),
   path.join(webPackage.relativeDir, ".next", "standalone"),
   path.join(webPackage.relativeDir, ".next", "static"),
   path.join(webPackage.relativeDir, "public"),

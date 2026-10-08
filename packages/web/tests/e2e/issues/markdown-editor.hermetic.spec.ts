@@ -1,3 +1,4 @@
+import { waitForIssueContentSave } from "../harness/issue-content";
 import {
   type APIRequestContext,
   type Locator,
@@ -1050,6 +1051,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await sourceToggle.click();
     const source = page.locator('[data-markdown-mode="source"] textarea');
+    await expect.poll(() => source.inputValue()).toContain(documentUri);
     const appliedMarkdown = await source.inputValue();
     expect(appliedMarkdown).toContain(
       `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
@@ -1064,31 +1066,24 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(toolbarUndo).toBeEnabled();
     await toolbarUndo.click();
     await sourceToggle.click();
-    expect(await source.inputValue()).not.toContain(documentUri);
+    await expect.poll(() => source.inputValue()).not.toContain(documentUri);
     expect(await source.inputValue()).toContain(previousDocumentUri);
     await sourceToggle.click();
     await expect(toolbarRedo).toBeEnabled();
     await toolbarRedo.click();
     await sourceToggle.click();
+    await expect.poll(() => source.inputValue()).toContain(documentUri);
     const finalMarkdown = await source.inputValue();
     expect(finalMarkdown).toContain(
       `[${fileLinkText}](${MARKDOWN_FIXTURE_FILE_URI})`,
     );
     expect(finalMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
 
-    const saveResponse = page.waitForResponse((response) => {
-      const request = response.request();
-      if (
-        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
-        request.method() !== "PATCH"
-      ) {
-        return false;
-      }
-      const body = request.postDataJSON() as {
-        update?: { content?: unknown };
-      };
-      return body.update?.content === finalMarkdown;
-    });
+    const saveResponse = waitForIssueContentSave(
+      page,
+      "REEF-001",
+      finalMarkdown,
+    );
     await page.getByTestId("issue-title-input").click();
     const saved = await saveResponse;
     expect(saved.ok(), `save failed with ${saved.status()}`).toBeTruthy();
@@ -1794,19 +1789,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "\n\nreef-517 save round-trip marker\n\nResolved reference after reload: REEF-002";
     const sourceBeforeSave = await saveSource.inputValue();
     const persistedSource = `${sourceBeforeSave}${persistedMarker}`;
-    const saveResponse = page.waitForResponse((response) => {
-      const request = response.request();
-      if (
-        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
-        request.method() !== "PATCH"
-      ) {
-        return false;
-      }
-      const body = request.postDataJSON() as {
-        update?: { content?: unknown };
-      };
-      return body.update?.content === persistedSource;
-    });
+    const saveResponse = waitForIssueContentSave(
+      page,
+      "REEF-001",
+      persistedSource,
+    );
     await saveSource.fill(persistedSource);
     await page.getByTestId("issue-title-input").click();
     const persistedResponse = await saveResponse;
@@ -1976,19 +1963,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const marker = "\n\nserialization boundary marker";
     const persistedSource = `${await source.inputValue()}${marker}`;
-    const saveResponse = page.waitForResponse((response) => {
-      const request = response.request();
-      if (
-        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
-        request.method() !== "PATCH"
-      ) {
-        return false;
-      }
-      const body = request.postDataJSON() as {
-        update?: { content?: unknown };
-      };
-      return body.update?.content === persistedSource;
-    });
+    const saveResponse = waitForIssueContentSave(
+      page,
+      "REEF-001",
+      persistedSource,
+    );
     await source.fill(persistedSource);
     await page.getByTestId("issue-title-input").click();
     const persistedResponse = await saveResponse;

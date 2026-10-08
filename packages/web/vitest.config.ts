@@ -1,4 +1,5 @@
 import path from "node:path";
+import { availableParallelism } from "node:os";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -14,6 +15,9 @@ export default defineConfig({
     // forked processes and share memory, which is the dominant cost in this
     // DOM-heavy suite. The suite is verified green under threads.
     pool: "threads",
+    // Bound each suite's memory/CPU footprint when contributor checks overlap.
+    // Vitest's VITEST_MAX_WORKERS override remains available to the caller.
+    maxWorkers: Math.min(4, availableParallelism()),
     projects: [
       {
         extends: true,

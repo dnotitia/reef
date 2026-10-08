@@ -517,6 +517,38 @@ async function main() {
     turboConfig.globalPassThroughEnv.includes("REEF_*"),
     "deployment secrets must be pass-through-only",
   );
+  const workerOverride = runTurboDry(
+    ["//#check:root", "test"],
+    { filter: "@reef/web" },
+    { VITEST_MAX_WORKERS: "1" },
+  );
+  assert(
+    workerOverride.globalCacheInputs.environmentVariables.passthrough?.includes(
+      `VITEST_MAX_WORKERS=${createHash("sha256").update("1").digest("hex")}`,
+    ),
+    "Turbo strict mode must forward VITEST_MAX_WORKERS through contributor checks",
+  );
+  taskById(workerOverride, "//#check:root");
+  taskById(workerOverride, "@reef/web#test");
+  const testGraph = runTurboDry(["test", "test:behavior", "test:eval"], {
+    filter: "./packages/**",
+  });
+  assert(
+    !testGraph.tasks.some((task) => task.taskId === "@reef/web#build"),
+    "non-E2E tests must not build Next through a nonexistent behavior task",
+  );
+  for (const packageInfo of workspacePackages) {
+    if (!packageInfo.manifest.scripts?.["test:behavior"]) continue;
+    const behavior = taskById(testGraph, `${packageInfo.name}#test:behavior`);
+    assert(
+      behavior.resolvedTaskDefinition.cache === false,
+      `${behavior.taskId} must execute instead of restoring verification from cache`,
+    );
+    assert(
+      behavior.dependencies.includes(`${packageInfo.name}#build`),
+      `${behavior.taskId} must build its CLI before behavior verification`,
+    );
+  }
   verifyRepositoryHandoffs();
 
   const allPackageNames = workspacePackages.map(

@@ -273,10 +273,9 @@ export {
   mockReadAuthoringLanguage,
 };
 
-export async function POST(request: Request) {
-  const route = await import("./route");
-  return route.POST(request);
-}
+// Load the real route during collection, outside the first request's deadline.
+// The awaited import also lets Vitest register the mocks above first.
+export const { POST } = await import("./route");
 
 export function resetAgentRunsRouteMocks() {
   vi.clearAllMocks();
