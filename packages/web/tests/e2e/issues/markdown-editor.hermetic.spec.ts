@@ -34,6 +34,8 @@ interface RuntimeDiscovery {
   tasks?: Record<string, MarkdownFixtureTask>;
 }
 
+const AKB_WEB_BASE = "https://akb.e2e.test";
+
 async function readMarkdownFixtureTask(
   request: APIRequestContext,
 ): Promise<MarkdownFixtureTask> {
@@ -3721,11 +3723,19 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const documentHref = await akbLink.getAttribute("href");
     if (!documentHref) throw new Error("Resolved AKB document link has no URL");
+    await page.context().route(`${AKB_WEB_BASE}/**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>AKB document</title>",
+      });
+    });
     const openedDocumentPage = page.context().waitForEvent("page");
     await akbLink.focus();
     await page.keyboard.press("Enter");
     const openedDocument = await openedDocumentPage;
     await expect.poll(() => openedDocument.url()).toBe(documentHref);
+    await expect(openedDocument).toHaveTitle("AKB document");
     await openedDocument.close();
 
     await expect(fileLink).toHaveAttribute(
