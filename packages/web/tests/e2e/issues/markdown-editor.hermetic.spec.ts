@@ -3600,7 +3600,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "available",
     );
     const issueReference = editor.locator(
-      '[data-markdown-reference="true"][data-markdown-reference-kind="issue"][data-markdown-reference-id="REEF-002"]',
+      '[data-markdown-reference="true"][data-markdown-reference-kind="issue"][data-markdown-reference-id="REEF-002"][data-markdown-reference-escaped="false"]',
     );
     await expect(issueReference).toHaveAttribute(
       "data-markdown-reference-resolution",
