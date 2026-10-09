@@ -174,6 +174,42 @@ describe("issue Markdown adapters", () => {
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("binds asset metadata and runtime URLs to the source document revision", async () => {
+    const resolver = createMarkdownTargetResolver({ vault: "reef-test" });
+    const controller = new AbortController();
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          kind: "attachment",
+          target: `/api/assets/${ASSET_ID}`,
+          status: "claimed",
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      resolver.resolve(`/api/assets/${ASSET_ID}`, {
+        vault: "reef-test",
+        document: "akb://reef-test/coll/issues/doc/reef-001.md",
+        commit: "commit-1",
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual({
+      target: `/api/assets/${ASSET_ID}`,
+      kind: "attachment",
+      status: "available",
+      runtimeUrl:
+        `/api/assets/${ASSET_ID}?vault=reef-test&document=` +
+        "akb%3A%2F%2Freef-test%2Fcoll%2Fissues%2Fdoc%2Freef-001.md&commit=commit-1",
+    });
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      `/api/assets/${ASSET_ID}/metadata?vault=reef-test&document=` +
+        "akb%3A%2F%2Freef-test%2Fcoll%2Fissues%2Fdoc%2Freef-001.md&commit=commit-1",
+      { signal: controller.signal },
+    );
+  });
+
   it("does not resolve a cross-vault file through the active vault", async () => {
     const resolver = createMarkdownTargetResolver({ vault: "reef-test" });
 

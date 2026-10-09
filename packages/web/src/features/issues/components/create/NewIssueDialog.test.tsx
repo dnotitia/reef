@@ -39,6 +39,10 @@ const { mockMarkdownEditorResize } = vi.hoisted(() => ({
     preferredHeight: undefined as number | undefined,
   },
 }));
+const { mockMarkdownTargetContext, mockMarkdownAdapters } = vi.hoisted(() => ({
+  mockMarkdownTargetContext: { current: null as unknown },
+  mockMarkdownAdapters: { current: null as unknown },
+}));
 
 vi.mock("@/components/MarkdownEditor", () => ({
   MarkdownEditor: ({
@@ -49,6 +53,8 @@ vi.mock("@/components/MarkdownEditor", () => ({
     sourcePlaceholder,
     enableHeightResize,
     preferredHeight,
+    adapters,
+    resolverContext,
   }: {
     value: string;
     onChange: (value: string) => void;
@@ -57,10 +63,14 @@ vi.mock("@/components/MarkdownEditor", () => ({
     sourcePlaceholder?: string;
     enableHeightResize?: boolean;
     preferredHeight?: number;
+    adapters?: unknown;
+    resolverContext?: unknown;
   }) => {
     mockMarkdownMentionConfig.current = mentionConfig;
     mockMarkdownEditorResize.enabled = enableHeightResize ?? false;
     mockMarkdownEditorResize.preferredHeight = preferredHeight;
+    mockMarkdownTargetContext.current = resolverContext;
+    mockMarkdownAdapters.current = adapters;
     return (
       <>
         <span data-testid="markdown-wysiwyg-placeholder">{placeholder}</span>
@@ -296,6 +306,8 @@ describe("NewIssueDialog", () => {
     mockMarkdownMentionConfig.current = null;
     mockMarkdownEditorResize.enabled = false;
     mockMarkdownEditorResize.preferredHeight = undefined;
+    mockMarkdownTargetContext.current = null;
+    mockMarkdownAdapters.current = null;
     mockViewStore.state.newIssueDialogOpen = false;
     mockViewStore.state.newIssueDialogContext = null;
     mockEnrichmentState.exposeParentOverride = false;
@@ -394,6 +406,25 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New Issue");
     expect(mockMarkdownEditorResize.enabled).toBe(true);
     expect(mockMarkdownEditorResize.preferredHeight).toBe(640);
+  });
+
+  it("provides the active vault to the shared target resolver", async () => {
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    await waitFor(() => {
+      expect(mockMarkdownTargetContext.current).toEqual({
+        vault: "reef-acme",
+      });
+    });
+    expect(mockMarkdownAdapters.current).toEqual(
+      expect.objectContaining({
+        targetResolver: expect.objectContaining({
+          resolve: expect.any(Function),
+        }),
+      }),
+    );
   });
 
   it("maximizes the two-dimensional create canvas and restores it without remounting the draft", {

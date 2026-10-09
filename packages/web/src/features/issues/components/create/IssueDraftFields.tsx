@@ -149,6 +149,10 @@ export function IssueDraftFields({
         : undefined,
     [akbWebBase, vault],
   );
+  const resolverContext = useMemo(
+    () => (vault ? { vault } : undefined),
+    [vault],
+  );
   // Fall back to the catalog defaults when a caller doesn't supply its own
   // placeholder.
   const resolvedTitlePlaceholder = titlePlaceholder ?? t("titlePlaceholder");
@@ -267,6 +271,7 @@ export function IssueDraftFields({
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}
             adapters={markdownAdapters}
+            resolverContext={resolverContext}
             mentionConfig={mentionConfig}
             enableHeightResize={enableHeightResize}
             preferredHeight={preferredDescriptionHeight}
