@@ -47,6 +47,7 @@ const markdownMocks = vi.hoisted(() => ({
   },
   state: { isEmpty: true },
   targetResolutions: new Map<string, unknown>(),
+  targetResolutionContext: null as unknown,
   referenceResolutions: new Map<string, unknown>(),
   latestMarkdown: null as string | null,
   surfaceProps: null as Record<string, unknown> | null,
@@ -236,7 +237,12 @@ vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
     }),
     useMarkdownCommands: vi.fn(() => markdownMocks.commands),
     useMarkdownState: vi.fn(() => markdownMocks.state),
-    useMarkdownTargetResolutions: vi.fn(() => markdownMocks.targetResolutions),
+    useMarkdownTargetResolutions: vi.fn(
+      (_markdown: string, _resolver: unknown, context: unknown) => {
+        markdownMocks.targetResolutionContext = context;
+        return markdownMocks.targetResolutions;
+      },
+    ),
     useMarkdownReferenceResolutions: vi.fn(
       () => markdownMocks.referenceResolutions,
     ),
@@ -345,6 +351,7 @@ describe("MarkdownEditor product adapter", () => {
     markdownMocks.toolbarLink = null;
     markdownMocks.surfaceLink = null;
     markdownMocks.targetResolutions = new Map();
+    markdownMocks.targetResolutionContext = null;
     markdownMocks.referenceResolutions = new Map();
     markdownMocks.latestMarkdown = null;
     markdownMocks.state.isEmpty = true;
@@ -379,6 +386,25 @@ describe("MarkdownEditor product adapter", () => {
         inputLabel: "볼트 자료 검색",
         inputPlaceholder: "문서 또는 파일 찾기",
       },
+    });
+  });
+
+  it("passes the issue document snapshot to the common target resolver", () => {
+    renderEditor({
+      value: "[Guide](akb://reef-test/coll/docs/doc/guide.md)",
+      onChange: vi.fn(),
+      vault: "reef-test",
+      resolverContext: {
+        vault: "reef-test",
+        document: "issues/reef-001.md",
+        commit: "commit-1",
+      },
+    });
+
+    expect(markdownMocks.targetResolutionContext).toEqual({
+      vault: "reef-test",
+      document: "issues/reef-001.md",
+      commit: "commit-1",
     });
   });
 
@@ -649,6 +675,64 @@ describe("MarkdownEditor product adapter", () => {
       profile: "preserve",
     });
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps authored AKB link labels and canonical URIs through Source save and reopen", () => {
+    const target = "akb://reef-test/coll/docs/doc/spec.md";
+    const authoredMarkdown = `[Team-authored label](${target})`;
+    const savedMarkdown = `${authoredMarkdown}\n\nFollow-up note`;
+    const onChange = vi.fn();
+    markdownMocks.targetResolutions = new Map([
+      [
+        target,
+        {
+          target,
+          kind: "document",
+          status: "available",
+          runtimeUrl: "https://akb.example/vault/reef-test/doc/docs%2Fspec.md",
+        },
+      ],
+    ]);
+    const view = renderEditor({
+      value: authoredMarkdown,
+      onChange,
+      vault: "reef-test",
+    });
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = screen.getByRole("textbox", { name: "Markdown source" });
+    expect(source).toHaveValue(authoredMarkdown);
+    fireEvent.change(source, { target: { value: savedMarkdown } });
+    expect(onChange).toHaveBeenLastCalledWith(savedMarkdown);
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+
+    expect(markdownMocks.commands.setMarkdown).toHaveBeenLastCalledWith(
+      savedMarkdown,
+    );
+    const resolutions = markdownMocks.surfaceProps?.resolutions as
+      | ReadonlyMap<string, { runtimeUrl?: string; status?: string }>
+      | undefined;
+    expect(resolutions?.get(target)).toMatchObject({
+      status: "available",
+      runtimeUrl: "https://akb.example/vault/reef-test/doc/docs%2Fspec.md",
+    });
+    expect(onChange.mock.calls.flat().join("\n")).not.toContain(
+      "https://akb.example",
+    );
+
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={savedMarkdown}
+          onChange={onChange}
+          vault="reef-test"
+        />
+      </IntlTestProvider>,
+    );
+    expect(markdownMocks.editorOptions).toMatchObject({
+      initialMarkdown: savedMarkdown,
+      profile: "preserve",
+    });
   });
 
   it("still normalizes bare AKB document URIs entered in WYSIWYG", () => {

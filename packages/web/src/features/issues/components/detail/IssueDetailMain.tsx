@@ -1,6 +1,9 @@
 "use client";
 
-import type { MarkdownAdapters } from "@akb/markdown-editor";
+import type {
+  MarkdownAdapters,
+  MarkdownTargetResolverContext,
+} from "@akb/markdown-editor";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +53,7 @@ export function IssueDetailMain({
   setImplementationRefs,
   onUploadBodyFiles,
   markdownAdapters,
+  resolverContext,
   resolveBodyImageSrc,
   commitTitle,
   commitBody,
@@ -73,6 +77,7 @@ export function IssueDetailMain({
   setImplementationRefs: ValueSetter<ImplementationRef[]>;
   onUploadBodyFiles?: ComponentProps<typeof MarkdownEditor>["onUploadFiles"];
   markdownAdapters?: Pick<MarkdownAdapters, "targetResolver">;
+  resolverContext?: MarkdownTargetResolverContext;
   resolveBodyImageSrc?: ComponentProps<
     typeof MarkdownEditor
   >["resolveImageSrc"];
@@ -174,6 +179,7 @@ export function IssueDetailMain({
           onBlur={commitBody}
           onUploadFiles={onUploadBodyFiles}
           adapters={markdownAdapters}
+          resolverContext={resolverContext}
           resolveImageSrc={resolveBodyImageSrc}
           placeholder={t("descriptionWysiwygPlaceholder")}
           sourcePlaceholder={t("descriptionPlaceholder")}

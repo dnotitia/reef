@@ -56,6 +56,7 @@ export {
   type AkbStreamRequestInit,
   type AkbSearchHit,
 } from "./core/shared";
+export { resolveAkbMarkdownTarget } from "./core/markdownTargets";
 export {
   hydrateIssuesByDocumentUri,
   rowToIssue,

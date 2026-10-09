@@ -73,6 +73,7 @@ import {
 import {
   openClickedEditorLink,
   openEditorLinkOnMouseUp,
+  preventUnavailableEditorLinkBehavior,
   preventEditorSelectionOnLinkMouseDown,
 } from "./markdown-editor/links";
 import { MarkdownEditorResizeHandle } from "./markdown-editor/ResizeHandle";
@@ -655,6 +656,14 @@ function MarkdownEditorContent({
     },
     [],
   );
+  const handleUnavailableLinkAuxClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const surface = surfaceRef.current;
+      if (surface)
+        preventUnavailableEditorLinkBehavior(surface, event.nativeEvent);
+    },
+    [],
+  );
 
   const editorBodyClassName = cn(
     EDITOR_CONTENT_CLASS,
@@ -840,6 +849,8 @@ function MarkdownEditorContent({
               ref={surfaceRef}
               className="relative min-w-0"
               onClickCapture={handleSurfaceClickCapture}
+              onAuxClickCapture={handleUnavailableLinkAuxClickCapture}
+              onContextMenuCapture={handleUnavailableLinkAuxClickCapture}
               onMouseDownCapture={handleSurfaceMouseDownCapture}
               onMouseUpCapture={handleSurfaceMouseUpCapture}
             >

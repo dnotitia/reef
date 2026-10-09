@@ -1,6 +1,7 @@
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
+import type { MarkdownTargetResolverContext } from "@akb/markdown-editor";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -17,6 +18,7 @@ const { markdownEditorProps, mockMarkdownMentionConfig } = vi.hoisted(() => ({
     mentionConfig?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
+    resolverContext?: MarkdownTargetResolverContext;
   }>,
   mockMarkdownMentionConfig: { current: null as unknown },
 }));
@@ -26,6 +28,7 @@ vi.mock("@/components/MarkdownEditor", () => ({
     mentionConfig?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
+    resolverContext?: MarkdownTargetResolverContext;
   }) => {
     markdownEditorProps.push(props);
     const { mentionConfig, placeholder, sourcePlaceholder } = props;
@@ -199,6 +202,20 @@ describe("IssueDetailMain markdown placeholders", () => {
       expect(editor).toHaveAttribute("data-source-placeholder", source);
     },
   );
+});
+
+describe("IssueDetailMain Markdown resolver context", () => {
+  it("passes the source document snapshot to the shared editor", () => {
+    const resolverContext = {
+      vault: "reef-test",
+      document: "issues/reef-001.md",
+      commit: "commit-1",
+    };
+
+    renderMain({ resolverContext });
+
+    expect(markdownEditorProps[0]?.resolverContext).toEqual(resolverContext);
+  });
 });
 
 describe("IssueDetailMain sub-issue creation entry point", () => {

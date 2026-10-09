@@ -15,6 +15,7 @@ import {
   type DocumentResponse,
   DocumentResponseSchema,
 } from "./http";
+import { withSpan } from "./tracing";
 
 const AKB_DOCUMENT_URI_PARTS_RE =
   /^akb:\/\/([^/]+)\/(?:(?:coll\/(.+)\/doc\/(.+))|(?:doc\/(.+)))$/;
@@ -136,11 +137,7 @@ export async function resolveDocumentTitles({
       const path = documentPathFromUri(vault, uri);
       if (!path) return { uri, title: null, resource_type: "doc" };
       try {
-        const payload = await adapter.request(
-          `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
-          { resource: `document ${path}` },
-        );
-        const document = ensureDocumentResponse(payload);
+        const document = await getAkbDocument({ adapter, vault, uri });
         return { uri, title: document.title, resource_type: "doc" };
       } catch {
         return { uri, title: null, resource_type: "doc" };
@@ -148,6 +145,31 @@ export async function resolveDocumentTitles({
     }),
   );
   return documents;
+}
+
+/** Read the AKB document record addressed by a canonical URI. */
+export async function getAkbDocument({
+  adapter,
+  vault,
+  uri,
+}: {
+  adapter: AkbAdapter;
+  vault: string;
+  uri: string;
+}): Promise<DocumentResponse> {
+  const path = documentPathFromUri(vault, uri);
+  if (!path) {
+    throw new SchemaValidationError({
+      issues: ["uri must be a canonical AKB document URI in the current vault"],
+    });
+  }
+  return withSpan("akb.documents.get", { vault }, async () => {
+    const payload = await adapter.request(
+      `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
+      { resource: `document ${path}` },
+    );
+    return ensureDocumentResponse(payload);
+  });
 }
 
 /**

@@ -14,6 +14,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue Markdown links now check current-workspace access before opening.**
+  Unavailable documents and files stay disabled; available file links open
+  through Reef's fresh-download proxy. (REEF-636)
 - **Issue-body `@` suggestions now include documents and confirmed files
   alongside people and issues.** Resource selections insert canonical AKB links
   and remain editable in the description. (REEF-635)

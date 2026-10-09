@@ -15,6 +15,24 @@ function findClickedEditorLink(
   return anchor;
 }
 
+function isUnavailableMarkdownTarget(anchor: HTMLAnchorElement): boolean {
+  return (
+    anchor.getAttribute("aria-disabled") === "true" ||
+    anchor.dataset.markdownResolution === "pending" ||
+    anchor.dataset.markdownResolution === "unavailable"
+  );
+}
+
+export function preventUnavailableEditorLinkBehavior(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  const anchor = findClickedEditorLink(root, event);
+  if (!anchor || !isUnavailableMarkdownTarget(anchor)) return false;
+  event.preventDefault();
+  return true;
+}
+
 export function openLinkWindow(href: string, target = "_blank"): boolean {
   if (!href) return false;
 
@@ -72,9 +90,13 @@ export function openClickedEditorLink(
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
   requestExternalConfirmation: (href: string) => void,
 ): boolean {
-  if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
+  if (preventUnavailableEditorLinkBehavior(root, event)) {
+    window.getSelection()?.removeAllRanges();
+    return true;
+  }
+  if (event.button !== 0) return false;
 
   const openedAt = linksOpenedFromMouseUp.get(anchor);
   if (
@@ -109,9 +131,10 @@ export function openEditorLinkOnMouseUp(
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
   requestExternalConfirmation: (href: string) => void,
 ): boolean {
-  if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
+  if (preventUnavailableEditorLinkBehavior(root, event)) return true;
+  if (event.button !== 0) return false;
   if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());

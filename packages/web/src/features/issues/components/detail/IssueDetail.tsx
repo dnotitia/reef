@@ -19,11 +19,17 @@ import {
   createMarkdownTargetResolver,
   uploadIssueMarkdownFiles,
 } from "@/features/issues/lib/markdownEditor.actions";
-import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
+import {
+  akbIssueDocumentUri,
+  type ClosedReason,
+  type IssueUpdatePatch,
+} from "@reef/core";
+import type { MarkdownTargetResolverContext } from "@akb/markdown-editor";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { buildOpenIssueHref } from "../../lib/issueHref";
+import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 import { buildStatusPatch } from "../../lib/statusPatch";
 import { CloseIssueDialog } from "./CloseIssueDialog";
 import { DeleteIssueDialog } from "./DeleteIssueDialog";
@@ -185,6 +191,17 @@ function IssueDetailLoaded({
     }),
     [akbWebBase, vault],
   );
+  const resolverContext = useMemo<MarkdownTargetResolverContext>(() => {
+    const source = parseAkbDocumentUri(akbIssueDocumentUri(vault, issueId));
+    const document = source
+      ? [source.collection, source.slug].filter(Boolean).join("/")
+      : undefined;
+    return {
+      vault,
+      ...(document ? { document } : {}),
+      ...(data.commit_hash ? { commit: data.commit_hash } : {}),
+    };
+  }, [data.commit_hash, issueId, vault]);
   const resolveBodyImageSrc = useMemo(
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
     [issueId, vault],
@@ -422,6 +439,7 @@ function IssueDetailLoaded({
           }
           onUploadBodyFiles={handleBodyUploadFiles}
           markdownAdapters={markdownAdapters}
+          resolverContext={resolverContext}
           resolveBodyImageSrc={resolveBodyImageSrc}
           commitTitle={commitTitle}
           commitBody={commitBody}

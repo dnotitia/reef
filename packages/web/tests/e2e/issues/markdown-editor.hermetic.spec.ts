@@ -3665,6 +3665,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const surface = await readMarkdownSurface(editor);
     const normalLink = editor.getByRole("link", { name: "reef link" });
     const akbLink = editor.getByRole("link", { name: "AKB report" });
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
     const issueReference = editor.locator(
       'a[data-markdown-reference-runtime-url="/workspace/reef-e2e/issues/REEF-002"][role="link"]',
     );
@@ -3686,6 +3687,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await page.keyboard.press("Tab");
     await expect(akbLink).toBeFocused();
+    await expect(akbLink).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
     await expect(akbLink).toHaveCSS("outline-width", "2px");
     await expect(akbLink).toHaveCSS("outline-color", surface.colors.brandFocus);
 
@@ -3705,5 +3710,29 @@ test.describe("Hermetic Markdown editor fixture", () => {
       surface.colors.brandFocus,
     );
     await expect(mention).not.toBeFocused();
+
+    const documentHref = await akbLink.getAttribute("href");
+    if (!documentHref) throw new Error("Resolved AKB document link has no URL");
+    const documentPopup = page.waitForEvent("popup");
+    await akbLink.focus();
+    await page.keyboard.press("Enter");
+    const openedDocument = await documentPopup;
+    await expect.poll(() => openedDocument.url()).toBe(documentHref);
+    await openedDocument.close();
+
+    await expect(fileLink).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
+    await expect(fileLink).toHaveAttribute("href", /^\/api\/files\?/u);
+    const fileRequest = page.context().waitForEvent("request", (request) => {
+      const url = new URL(request.url());
+      return (
+        url.pathname === "/api/files" &&
+        url.searchParams.get("uri") === MARKDOWN_FIXTURE_FILE_URI
+      );
+    });
+    await fileLink.click();
+    expect((await fileRequest).method()).toBe("GET");
   });
 });

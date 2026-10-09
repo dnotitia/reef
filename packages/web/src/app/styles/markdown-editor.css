@@ -494,6 +494,21 @@
   line-height: 1;
 }
 
+.reef-markdown-editor
+  a[data-markdown-target][data-markdown-resolution="pending"] {
+  cursor: progress;
+  border-style: dotted;
+  color: var(--muted-foreground);
+}
+
+.reef-markdown-editor
+  a[data-markdown-target][data-markdown-resolution="unavailable"] {
+  cursor: not-allowed;
+  border-style: dashed;
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+
 /* Tiptap's Placeholder extension owns the marker and localized text. During a
  * non-empty -> empty transaction, 3.29 can omit `is-editor-empty` while keeping
  * the empty-node decoration. The sole top-level empty block is the stable empty
