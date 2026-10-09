@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   openClickedEditorLink,
   openEditorLinkOnMouseUp,
+  openFocusedEditorLink,
   preventUnavailableEditorLinkBehavior,
 } from "./links";
 
@@ -20,7 +21,10 @@ function renderedLink(attributes: {
   return { root, anchor };
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  document.body.replaceChildren();
+  vi.restoreAllMocks();
+});
 
 describe("shared Markdown target link interactions", () => {
   it.each(["pending", "unavailable"] as const)(
@@ -101,6 +105,65 @@ describe("shared Markdown target link interactions", () => {
     );
     expect(anchor.dataset.markdownTarget).toBe(TARGET);
   });
+
+  it("opens a focused resolved link when activated with Enter", () => {
+    const runtimeUrl =
+      "https://akb.example/vault/reef-test/doc/docs%2Fguide.md";
+    const { root, anchor } = renderedLink({
+      href: runtimeUrl,
+      resolution: "available",
+    });
+    document.body.append(root);
+    anchor.focus();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const keyDown = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    let keyDownHandled = false;
+    anchor.addEventListener("keydown", (event) => {
+      keyDownHandled = openFocusedEditorLink(root, event, vi.fn());
+    });
+    anchor.dispatchEvent(keyDown);
+
+    expect(document.activeElement).toBe(anchor);
+    expect(keyDownHandled).toBe(true);
+    expect(keyDown.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      runtimeUrl,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it.each(["pending", "unavailable"] as const)(
+    "blocks Enter on a %s target",
+    (resolution) => {
+      const { root, anchor } = renderedLink({
+        href: "#",
+        resolution,
+        disabled: true,
+      });
+      document.body.append(root);
+      anchor.focus();
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
+      const keyDown = new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      });
+      let keyDownHandled = false;
+      anchor.addEventListener("keydown", (event) => {
+        keyDownHandled = openFocusedEditorLink(root, event, vi.fn());
+      });
+      anchor.dispatchEvent(keyDown);
+
+      expect(keyDownHandled).toBe(true);
+      expect(keyDown.defaultPrevented).toBe(true);
+      expect(open).not.toHaveBeenCalled();
+    },
+  );
 
   it("blocks auxiliary clicks and the native context menu on disabled targets", () => {
     const { root, anchor } = renderedLink({
