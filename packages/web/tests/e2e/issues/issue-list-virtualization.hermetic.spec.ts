@@ -1393,7 +1393,8 @@ test.describe("large Board column virtualization", () => {
         safeDropMarginPx;
       const centerY = (candidate.top + candidate.bottom) / 2;
       return (
-        initialOrder.indexOf(candidate.issueId) > initialMountedIds.length - 1 &&
+        initialOrder.indexOf(candidate.issueId) >
+          initialMountedIds.length - 1 &&
         centerY >= snapshot.rootTop + edgeInset &&
         centerY <= snapshot.rootBottom - edgeInset
       );
