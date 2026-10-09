@@ -935,6 +935,85 @@ describe("MarkdownEditor shared Source surface", () => {
     expect(uploadAttachments.mock.calls[0]?.[0]).toHaveLength(1);
   });
 
+  it("applies a dirty Source draft before uploading a selected image", async () => {
+    const target = "/api/assets/00000000-0000-4000-8000-000000000099";
+    const imageAsset: MarkdownAsset = {
+      kind: "attachment",
+      target,
+      alt: "diagram.png",
+    };
+    let resolveUpload: ((asset: MarkdownAsset) => void) | undefined;
+    const uploadImage = vi.fn(
+      () =>
+        new Promise<MarkdownAsset>((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+    const uploadAttachments = vi.fn().mockResolvedValue({
+      items: [],
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      partial: false,
+    });
+    const onChange = vi.fn();
+    const { container } = render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value="Existing body"
+          onChange={onChange}
+          onUploadFiles={uploadAttachments}
+          imageUpload={{
+            adapter: { upload: uploadImage },
+            context: { vault: "reef-e2e" },
+          }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = await screen.findByRole("textbox", {
+      name: "Issue description",
+    });
+    fireEvent.change(source, {
+      target: { value: "Existing body\n\nSource draft" },
+    });
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [
+          new File(["png"], "diagram.png", { type: "image/png" }),
+          new File(["notes"], "notes.txt", { type: "text/plain" }),
+        ],
+      },
+    });
+
+    await waitFor(() => expect(uploadImage).toHaveBeenCalledOnce());
+    expect(container.querySelector("[data-markdown-mode]")).toHaveAttribute(
+      "data-markdown-mode",
+      "wysiwyg",
+    );
+    expect(
+      container.querySelector("[data-markdown-image-upload-status]"),
+    ).toBeVisible();
+    expect(screen.getByTestId("markdown-editor-content")).toHaveTextContent(
+      "Source draft",
+    );
+    expect(uploadAttachments).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveUpload?.(imageAsset);
+    });
+
+    await waitFor(() => {
+      expect(onChange.mock.lastCall?.[0]).toContain("Source draft");
+      expect(onChange.mock.lastCall?.[0]).toContain(
+        `![diagram.png](${target})`,
+      );
+    });
+  });
+
   it("routes WYSIWYG image drops through the public image upload surface", async () => {
     const target = "/api/assets/00000000-0000-4000-8000-000000000031";
     const upload = vi.fn().mockResolvedValue({

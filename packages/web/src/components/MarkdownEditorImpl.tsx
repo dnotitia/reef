@@ -128,11 +128,16 @@ function MarkdownAttachmentPicker({
   label,
   disabled,
   onFiles,
+  onImageFiles,
   onUnsupportedImage,
 }: {
   label: string;
   disabled: boolean;
   onFiles: (files: File[]) => void;
+  onImageFiles: (
+    files: readonly File[],
+    selectFiles: (files: readonly File[]) => void,
+  ) => void;
   onUnsupportedImage: () => void;
 }) {
   const imageUpload = useMarkdownImageUploadContext();
@@ -144,7 +149,7 @@ function MarkdownAttachmentPicker({
     const images = files.filter(isImageUploadFile);
     const attachments = files.filter((file) => !isImageUploadFile(file));
     if (images.length > 0) {
-      if (imageUpload) imageUpload.selectFiles(images);
+      if (imageUpload) onImageFiles(images, imageUpload.selectFiles);
       else onUnsupportedImage();
     }
     if (attachments.length > 0) onFiles(attachments);
@@ -703,6 +708,14 @@ function MarkdownEditorContent({
                 label={toolbarLabels.attachFile}
                 disabled={uploadingFiles}
                 onFiles={(files) => void handleUploadFiles(files)}
+                onImageFiles={(files, selectFiles) => {
+                  if (modeRef.current === "source") {
+                    restoreSourceAfterUploadRef.current = false;
+                    modeRef.current = "wysiwyg";
+                    modeChangeRef.current?.("wysiwyg");
+                  }
+                  selectFiles(files);
+                }}
                 onUnsupportedImage={handleUnsupportedImageUpload}
               />
             ) : null}

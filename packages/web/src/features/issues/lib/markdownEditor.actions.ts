@@ -42,6 +42,7 @@ type MarkdownUnavailableReason = Extract<
 export interface IssueMarkdownImageUploadAdapterOptions {
   issueId: string;
   vault: string;
+  unsupportedImageTypeMessage: string;
 }
 
 export interface IssueMarkdownAttachmentUploadOptions {
@@ -135,12 +136,13 @@ function unavailable(
 async function uploadDocumentAsset(
   file: File,
   context: MarkdownUploadContext,
+  unsupportedImageTypeMessage: string,
 ): Promise<MarkdownAsset> {
   if (!context.vault) {
     throw invalidUploadContext("A vault is required for image uploads.");
   }
   if (!IMAGE_MIME_TYPES.has(file.type)) {
-    throw invalidUploadContext("This image type is not supported.");
+    throw invalidUploadContext(unsupportedImageTypeMessage);
   }
 
   const query = new URLSearchParams({
@@ -190,15 +192,15 @@ export function createIssueMarkdownImageUploadAdapter(
   return {
     async upload(file, context) {
       const named = namedFile(file);
-      if (!IMAGE_MIME_TYPES.has(named.type)) {
-        throw invalidUploadContext("This image type is not supported.");
-      }
-
-      return uploadDocumentAsset(named, {
-        ...context,
-        vault: context?.vault ?? options.vault,
-        draftId: context?.draftId ?? options.issueId,
-      });
+      return uploadDocumentAsset(
+        named,
+        {
+          ...context,
+          vault: context?.vault ?? options.vault,
+          draftId: context?.draftId ?? options.issueId,
+        },
+        options.unsupportedImageTypeMessage,
+      );
     },
   };
 }

@@ -148,6 +148,7 @@ function IssueDetailLoaded({
 }) {
   const t = useTranslations("toasts");
   const dt = useTranslations("issues.detail");
+  const tMarkdownEditor = useTranslations("markdownEditor");
   const autosaveFeedbackLabels = useMemo(
     () => ({ retry: t("retry"), retrying: t("retrying") }),
     [t],
@@ -175,7 +176,9 @@ function IssueDetailLoaded({
     serverDraft,
   );
   const latestBodyRef = useRef(draft.body);
-  latestBodyRef.current = draft.body;
+  useEffect(() => {
+    latestBodyRef.current = draft.body;
+  }, [draft.body]);
   const editorUploadedTargetsRef = useRef(new Set<string>());
   const activeImageBatchTargetsRef = useRef(new Set<string>());
   const previousServerDraftRef = useRef(serverDraft);
@@ -214,21 +217,33 @@ function IssueDetailLoaded({
     [data.commit_hash, issue.id, vault],
   );
   const uploadImageAdapter = useMemo(
-    () => createIssueMarkdownImageUploadAdapter({ issueId, vault }),
-    [issueId, vault],
+    () =>
+      createIssueMarkdownImageUploadAdapter({
+        issueId,
+        vault,
+        unsupportedImageTypeMessage: tMarkdownEditor("unsupportedImageType"),
+      }),
+    [issueId, tMarkdownEditor, vault],
   );
-  const cleanupEditorAssetIfUnused = useCallback(
-    (target: string) => {
-      if (!editorUploadedTargetsRef.current.has(target)) return;
+  const cleanupEditorAssetsIfUnused = useCallback(
+    (targets: Iterable<string>) => {
       const currentTargets = new Set(
         extractMarkdownTargets(latestBodyRef.current).map(
-          ({ target: currentTarget }) => currentTarget,
+          ({ target }) => target,
         ),
       );
-      if (currentTargets.has(target)) return;
-
-      editorUploadedTargetsRef.current.delete(target);
-      void discardIssueMarkdownAsset({ vault, target }).catch(() => undefined);
+      for (const target of targets) {
+        if (
+          !editorUploadedTargetsRef.current.has(target) ||
+          currentTargets.has(target)
+        ) {
+          continue;
+        }
+        editorUploadedTargetsRef.current.delete(target);
+        void discardIssueMarkdownAsset({ vault, target }).catch(
+          () => undefined,
+        );
+      }
     },
     [vault],
   );
@@ -245,15 +260,15 @@ function IssueDetailLoaded({
 
       const targets = [...activeImageBatchTargetsRef.current];
       activeImageBatchTargetsRef.current.clear();
-      for (const target of targets) cleanupEditorAssetIfUnused(target);
+      cleanupEditorAssetsIfUnused(targets);
     },
-    [cleanupEditorAssetIfUnused],
+    [cleanupEditorAssetsIfUnused],
   );
   const handleBodyAssetReplaced = useCallback(
     (previousTarget: string) => {
-      cleanupEditorAssetIfUnused(previousTarget);
+      cleanupEditorAssetsIfUnused([previousTarget]);
     },
-    [cleanupEditorAssetIfUnused],
+    [cleanupEditorAssetsIfUnused],
   );
   const bodyImageUpload = useMemo(
     () => ({

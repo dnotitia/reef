@@ -45,6 +45,7 @@ describe("issue Markdown adapters", () => {
     const adapter = createIssueMarkdownImageUploadAdapter({
       issueId: "REEF-001",
       vault: "reef-test",
+      unsupportedImageTypeMessage: "This image type is not supported.",
     });
     mockApiFetch.mockResolvedValueOnce(assetResponse("diagram.png"));
 
@@ -79,6 +80,7 @@ describe("issue Markdown adapters", () => {
     const adapter = createIssueMarkdownImageUploadAdapter({
       issueId: "REEF-001",
       vault: "reef-test",
+      unsupportedImageTypeMessage: "This image type is not supported.",
     });
     mockApiFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: "temporarily unavailable" }), {
@@ -95,6 +97,28 @@ describe("issue Markdown adapters", () => {
       retryable: true,
       message: "temporarily unavailable",
     });
+  });
+
+  it("uses the localized message for unsupported image types", async () => {
+    const adapter = createIssueMarkdownImageUploadAdapter({
+      issueId: "REEF-001",
+      vault: "reef-test",
+      unsupportedImageTypeMessage: "지원하지 않는 이미지 형식입니다.",
+    });
+
+    await expect(
+      adapter.upload(
+        new File(["svg"], "diagram.svg", { type: "image/svg+xml" }),
+        {
+          vault: "reef-test",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid",
+      retryable: false,
+      message: "지원하지 않는 이미지 형식입니다.",
+    });
+    expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
   it("keeps non-image files on the separate issue attachment path", async () => {
