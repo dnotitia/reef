@@ -1523,6 +1523,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
       await setTheme(page, preference, colorScheme);
       await expect(editor).toBeVisible();
       await expect(commentRenderer).toBeVisible();
+      await expect(documentReference).toHaveAttribute(
+        "data-markdown-resolution",
+        "available",
+      );
+      await expect(documentReference).toHaveAttribute(
+        "href",
+        "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
+      );
 
       const surface = await readMarkdownSurface(editor);
       const commentSurface = await readCommentMarkdownSurface(commentRenderer);
@@ -3713,10 +3721,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const documentHref = await akbLink.getAttribute("href");
     if (!documentHref) throw new Error("Resolved AKB document link has no URL");
-    const documentPopup = page.waitForEvent("popup");
+    const openedDocumentPage = page.context().waitForEvent("page");
     await akbLink.focus();
     await page.keyboard.press("Enter");
-    const openedDocument = await documentPopup;
+    const openedDocument = await openedDocumentPage;
     await expect.poll(() => openedDocument.url()).toBe(documentHref);
     await openedDocument.close();
 
