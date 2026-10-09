@@ -10,6 +10,7 @@ const ENTRYPOINTS = [
   "playwright.config.ts",
   "scripts/dev-e2e.mjs",
   "scripts/e2e-shards.mjs",
+  "scripts/build.mjs",
 ];
 const BUNDLER_OVERRIDES = ["--webpack", "--turbopack"];
 
@@ -27,11 +28,14 @@ describe("Next.js bundler contract", () => {
 
     expect(JSON.parse(sources[0]).scripts).toMatchObject({
       dev: "next dev -p 7333",
-      build: "next build",
+      build: "node scripts/build.mjs",
     });
     expect(sources[1]).toContain("next dev -p");
     expect(sources[2]).toContain('"exec", "next", "dev", "-p"');
     expect(sources[3]).toMatch(/"exec",\s*"turbo",\s*"run",\s*"build"/u);
+    expect(sources[4]).toMatch(
+      /require\.resolve\("next\/dist\/bin\/next"\),\s*"build"/u,
+    );
     expect(sources.slice(1).flatMap(findBundlerOverrides)).toEqual([]);
   });
 

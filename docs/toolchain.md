@@ -47,3 +47,6 @@ workspace discovery helper and rejects direct shared-version declarations,
 duplicate root-only tools, Git-prepared package drift, invalid workspace
 protocols, unused or named catalogs, and runtime drift. Its normal and negative
 regression tests run as part of `pnpm run check`.
+
+See [Validation workflow](validation.md) for focused checks, full gates and
+production E2E artifact reuse.

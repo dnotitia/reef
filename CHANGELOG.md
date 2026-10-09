@@ -76,6 +76,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Production E2E reuse verifies the current build inputs before Playwright starts.**
+  Canonical builds carry Turbo input provenance and the Next build identity in
+  local cache entries and CI archives. Stale or missing provenance fails the
+  runner with a nonzero exit code while unchanged inputs remain reusable.
 - **Concurrent SSO requests wait briefly for the active refresh to finish.**
   Requests sharing a session now reuse the credential committed by the refresh
   owner, and report a retryable conflict only when no fresh credential appears

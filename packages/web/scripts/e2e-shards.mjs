@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { cp, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertCurrentProductionBuild } from "./production-build.mjs";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_WEB_URL = "http://localhost:7353";
@@ -65,6 +66,7 @@ try {
   } else {
     process.stdout.write("[e2e:shards] skipping Next.js build\n");
   }
+  await assertCurrentProductionBuild();
   await prepareStandaloneAssets();
 
   process.stdout.write(
@@ -300,6 +302,7 @@ function pipeWithPrefix(readable, writable, prefix) {
 
 function shutdown(code) {
   interrupted = true;
+  process.exitCode = code;
   for (const child of children) child.kill("SIGTERM");
   setTimeout(() => process.exit(code), 1000).unref();
 }
