@@ -46,6 +46,11 @@ explicitly in the entries below.
 - **Issue Markdown editing uses the shared Source surface.** Reef delegates
   Source mode and draft synchronization to the shared editor while preserving
   issue-body Markdown and Source attachment uploads. (REEF-630)
+- **Issue-body images now use the shared target-resolution lifecycle.** Detail
+  views bind image display to the canonical issue document and loaded revision;
+  draft creation binds it to the active vault. Runtime display URLs stay out of
+  saved Markdown, and the duplicate attachment-image resolver and alt-text
+  rewrite are removed.
 - **Markdown link insertion searches documents and files in the active vault.**
   Selected resources persist as canonical AKB links while their display text
   stays in Markdown. (REEF-629)

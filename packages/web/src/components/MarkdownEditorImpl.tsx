@@ -15,17 +15,13 @@ import {
   type MarkdownLocale,
   type MarkdownEditingSurfaceProps,
   type MarkdownEditorMode,
+  type MarkdownImageOptions,
   type MarkdownImageMenuOptions,
   type MarkdownReferenceAdapter,
   type MarkdownReferenceCandidate,
   type MarkdownReferenceResolution,
 } from "@akb/markdown-editor/react";
-import {
-  parseMarkdown,
-  type MarkdownCommands,
-  type MarkdownNode,
-  type MarkdownTargetResolution,
-} from "@akb/markdown-editor";
+import type { MarkdownCommands } from "@akb/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
@@ -89,47 +85,14 @@ function localeForMarkdownEditor(locale: string): MarkdownLocale {
   return locale;
 }
 
-// The pinned Markdown parser keeps escaped slashes in uploaded image alt text
-// literally. Collapse its serialized pairs in the editor input copy so the
-// rendered alt text stays the original filename; persisted Markdown stays
-// escaped and standards-compatible.
-const ASSET_IMAGE_MARKDOWN_ALT =
-  /(!\[)(.*?)(\]\(\/api\/assets\/[0-9a-f-]{36}(?:\?[^)]*)?(?:\s+"[^"]*")?\))/giu;
-
-function markdownForEditor(markdown: string): string {
-  return markdown.replace(
-    ASSET_IMAGE_MARKDOWN_ALT,
-    (_match, opening: string, alt: string, target: string) =>
-      opening + alt.replace(/\\\\/gu, "\\") + target,
-  );
-}
-
-function legacyImageResolutions(
-  markdown: string,
-  resolveImageSrc: ((src: string) => string) | undefined,
-): ReadonlyMap<string, MarkdownTargetResolution> {
-  if (!resolveImageSrc) return new Map();
-  const resolutions = new Map<string, MarkdownTargetResolution>();
-  const visit = (node: MarkdownNode) => {
-    if (node.type === "image") {
-      const target = node.attrs?.target;
-      if (typeof target === "string" && isAkbFileUri(target)) {
-        resolutions.set(target, {
-          target,
-          kind: "file",
-          status: "available",
-          runtimeUrl: resolveImageSrc(target),
-        });
-      }
-    }
-    for (const child of node.content ?? []) visit(child);
-  };
-  for (const node of parseMarkdown(markdown, { profile: "preserve" }).content ??
-    []) {
-    visit(node);
-  }
-  return resolutions;
-}
+const ISSUE_MARKDOWN_IMAGE_OPTIONS: MarkdownImageOptions = {
+  classNames: {
+    frame: "block max-w-full align-top",
+    image: "block h-auto max-w-full",
+    message:
+      "my-4 flex min-h-12 max-w-full items-center justify-center whitespace-normal break-words rounded-md border border-border-subtle bg-surface-subtle px-4 py-3 text-sm text-muted-foreground",
+  },
+};
 
 const ISSUE_IMAGE_MENU_OPTIONS: MarkdownImageMenuOptions = {
   classNames: {
@@ -161,7 +124,6 @@ function MarkdownEditorContent({
   onUploadFiles,
   adapters,
   resolverContext,
-  resolveImageSrc,
   mentionConfig,
   enableHeightResize = false,
   preferredHeight,
@@ -223,11 +185,6 @@ function MarkdownEditorContent({
     () => normalizeExistingAkbDocumentMarkdownLinks(value),
     [value],
   );
-  const editorInitialMarkdown = useMemo(
-    () => markdownForEditor(initialMarkdown),
-    [initialMarkdown],
-  );
-
   const mentionReferenceAdapter = useMemo<
     MarkdownReferenceAdapter | undefined
   >(() => {
@@ -390,7 +347,7 @@ function MarkdownEditorContent({
         latestValueRef.current = next;
         lastSyncedValueRef.current = next;
         onChangeRef.current(next);
-        commandsRef.current?.setMarkdown(markdownForEditor(next));
+        commandsRef.current?.setMarkdown(next);
         if (!rootRef.current?.contains(document.activeElement)) {
           onBlurRef.current?.(next);
         }
@@ -406,7 +363,7 @@ function MarkdownEditorContent({
       latestValueRef.current = markdown;
       lastSyncedValueRef.current = markdown;
       if (markdown !== rawMarkdown) {
-        commandsRef.current?.setMarkdown(markdownForEditor(markdown));
+        commandsRef.current?.setMarkdown(markdown);
       }
       if (changed) onChangeRef.current(markdown);
       queueDocumentTitleResolution(markdown);
@@ -415,7 +372,7 @@ function MarkdownEditorContent({
   );
 
   const editor = useMarkdownEditor({
-    initialMarkdown: editorInitialMarkdown,
+    initialMarkdown,
     profile: "preserve",
     editable: !readOnly,
     onChange: (markdown) => publishMarkdown(markdown),
@@ -430,14 +387,7 @@ function MarkdownEditorContent({
     targetResolver,
     { vault, ...resolverContext },
   );
-  const resolutions = useMemo(
-    () =>
-      new Map([
-        ...targetResolutions,
-        ...legacyImageResolutions(value, resolveImageSrc),
-      ]),
-    [resolveImageSrc, targetResolutions, value],
-  );
+  const resolutions = targetResolutions;
   const referenceResolutions = useMarkdownReferenceResolutions(
     value,
     mentionReferenceAdapter,
@@ -513,7 +463,7 @@ function MarkdownEditorContent({
   const handleMarkdownApplied = useCallback(() => {
     if (!sourceApplyPendingRef.current) return;
     sourceApplyPendingRef.current = false;
-    commandsRef.current?.setMarkdown(markdownForEditor(latestValueRef.current));
+    commandsRef.current?.setMarkdown(latestValueRef.current);
   }, []);
 
   const handleUploadFiles = useCallback(
@@ -868,6 +818,7 @@ function MarkdownEditorContent({
               <MarkdownSurface
                 editor={editor}
                 editable={!readOnly}
+                image={ISSUE_MARKDOWN_IMAGE_OPTIONS}
                 className="relative min-w-0"
                 contentClassName={editorBodyClassName}
                 contentAttributes={{

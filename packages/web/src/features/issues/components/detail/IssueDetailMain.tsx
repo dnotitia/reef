@@ -54,7 +54,6 @@ export function IssueDetailMain({
   onUploadBodyFiles,
   markdownAdapters,
   resolverContext,
-  resolveBodyImageSrc,
   commitTitle,
   commitBody,
   commit,
@@ -78,9 +77,6 @@ export function IssueDetailMain({
   onUploadBodyFiles?: ComponentProps<typeof MarkdownEditor>["onUploadFiles"];
   markdownAdapters?: Pick<MarkdownAdapters, "targetResolver">;
   resolverContext?: MarkdownTargetResolverContext;
-  resolveBodyImageSrc?: ComponentProps<
-    typeof MarkdownEditor
-  >["resolveImageSrc"];
   commitTitle: (value: string) => void;
   commitBody: (value: string) => void;
   commit: (patch: IssueUpdatePatch) => void;
@@ -180,7 +176,6 @@ export function IssueDetailMain({
           onUploadFiles={onUploadBodyFiles}
           adapters={markdownAdapters}
           resolverContext={resolverContext}
-          resolveImageSrc={resolveBodyImageSrc}
           placeholder={t("descriptionWysiwygPlaceholder")}
           sourcePlaceholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}

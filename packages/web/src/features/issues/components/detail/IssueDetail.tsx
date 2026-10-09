@@ -7,7 +7,6 @@ import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIss
 import { useDeleteIssue } from "@/features/issues/hooks/mutations/useDeleteIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
-import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import {
   type IssueDetailResponse,
   useIssue,
@@ -29,7 +28,6 @@ import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { buildOpenIssueHref } from "../../lib/issueHref";
-import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 import { buildStatusPatch } from "../../lib/statusPatch";
 import { CloseIssueDialog } from "./CloseIssueDialog";
 import { DeleteIssueDialog } from "./DeleteIssueDialog";
@@ -191,20 +189,13 @@ function IssueDetailLoaded({
     }),
     [akbWebBase, vault],
   );
-  const resolverContext = useMemo<MarkdownTargetResolverContext>(() => {
-    const source = parseAkbDocumentUri(akbIssueDocumentUri(vault, issueId));
-    const document = source
-      ? [source.collection, source.slug].filter(Boolean).join("/")
-      : undefined;
-    return {
+  const resolverContext = useMemo<MarkdownTargetResolverContext>(
+    () => ({
       vault,
-      ...(document ? { document } : {}),
+      document: akbIssueDocumentUri(vault, issue.id),
       ...(data.commit_hash ? { commit: data.commit_hash } : {}),
-    };
-  }, [data.commit_hash, issueId, vault]);
-  const resolveBodyImageSrc = useMemo(
-    () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
-    [issueId, vault],
+    }),
+    [data.commit_hash, issue.id, vault],
   );
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
   // Grounding is set by this explicit affordance — not silently from the
@@ -440,7 +431,6 @@ function IssueDetailLoaded({
           onUploadBodyFiles={handleBodyUploadFiles}
           markdownAdapters={markdownAdapters}
           resolverContext={resolverContext}
-          resolveBodyImageSrc={resolveBodyImageSrc}
           commitTitle={commitTitle}
           commitBody={commitBody}
           commit={commit}

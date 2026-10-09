@@ -3572,6 +3572,103 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
   });
 
+  test("continues input beneath an image-only body and keeps its Markdown stable", async ({
+    page,
+    request,
+  }) => {
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    const editor = page.locator(".reef-markdown-editor");
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    const source = page.locator('[data-markdown-mode="source"] textarea');
+    const imageMarkdown = `![Only image](${MARKDOWN_FIXTURE_IMAGE_PATH})`;
+    await sourceToggle.click();
+    await source.fill(imageMarkdown);
+    await sourceToggle.click();
+
+    const image = editor.getByRole("img", { name: "Only image", exact: true });
+    await expect(image).toBeVisible();
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement &&
+            element.complete &&
+            element.naturalWidth > 0,
+        ),
+      )
+      .toBe(true);
+
+    const imageBox = await image.boundingBox();
+    const editorBox = await editor.boundingBox();
+    if (!imageBox || !editorBox) {
+      throw new Error("Image-only editor geometry is unavailable");
+    }
+    const pointerX = editorBox.x + Math.min(12, editorBox.width / 2);
+    const pointerY = imageBox.y + imageBox.height + 24;
+    if (pointerY >= editorBox.y + editorBox.height) {
+      throw new Error(
+        "Image-only editor has no pointer insertion space below the image",
+      );
+    }
+    await page.mouse.click(pointerX, pointerY);
+    await page.keyboard.type("Pointer continuation.");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Keyboard continuation.");
+
+    await sourceToggle.click();
+    const savedMarkdown = await source.inputValue();
+    expect(savedMarkdown).toContain(imageMarkdown);
+    expect(savedMarkdown).toContain("Pointer continuation.");
+    expect(savedMarkdown).toContain("Keyboard continuation.");
+    expect(savedMarkdown.indexOf(imageMarkdown)).toBeLessThan(
+      savedMarkdown.indexOf("Pointer continuation."),
+    );
+    expect(savedMarkdown.indexOf("Pointer continuation.")).toBeLessThan(
+      savedMarkdown.indexOf("Keyboard continuation."),
+    );
+    expect(savedMarkdown).not.toMatch(/\n{3,}/u);
+
+    const saveResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        request.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = request.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return body.update?.content === savedMarkdown;
+    });
+    await page.getByTestId("issue-title-input").click();
+    const persistedResponse = await saveResponse;
+    expect(persistedResponse.ok()).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path.startsWith("issues/"))
+          ?.content;
+      })
+      .toBe(savedMarkdown);
+
+    for (let reopen = 0; reopen < 2; reopen += 1) {
+      await page.reload();
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      await sourceToggle.click();
+      await expect(source).toHaveValue(savedMarkdown);
+      await sourceToggle.click();
+    }
+  });
+
   test("keeps independent task state through keyboard, Source, save, and re-entry", async ({
     page,
     request,

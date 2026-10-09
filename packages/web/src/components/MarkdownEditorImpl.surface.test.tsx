@@ -10,8 +10,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   parseMarkdown,
   type MarkdownNode,
-  type MarkdownTargetResolver,
   type MarkdownTargetResolution,
+  type MarkdownTargetResolver,
+  type MarkdownTargetResolverContext,
 } from "@akb/markdown-editor";
 import {
   MarkdownEditingSurface,
@@ -306,6 +307,225 @@ describe("Markdown target presentation", () => {
 });
 
 describe("MarkdownEditor shared Source surface", () => {
+  it("keeps the canonical escaped image alt, title, and target in the public preserve surface", async () => {
+    const markdown = String.raw`![screen\\shot-猫](${repeatedImageTarget} "Build evidence")`;
+    const onChange = vi.fn();
+    render(
+      <MarkdownLocaleProvider locale="en">
+        <PublicSurfaceHarness
+          markdown={markdown}
+          onChange={onChange}
+          onBlur={vi.fn()}
+        />
+      </MarkdownLocaleProvider>,
+    );
+
+    const content = await screen.findByTestId("markdown-editor-content");
+    await waitFor(() => expect(content.querySelector("img")).not.toBeNull());
+    const image = content.querySelector("img");
+    expect(image).toHaveAttribute("alt", String.raw`screen\shot-猫`);
+    expect(image).toHaveAttribute("title", "Build evidence");
+    expect(image).toHaveAttribute("data-markdown-target", repeatedImageTarget);
+    expect(image).toHaveAttribute("src", repeatedImageTarget);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("aborts stale image resolution, releases late results, and releases the active result on unmount", async () => {
+    const markdown = `![Evidence](${repeatedImageTarget})`;
+    const oldRelease = vi.fn();
+    const activeRelease = vi.fn();
+    let oldSignal: AbortSignal | undefined;
+    let resolveOld: ((value: MarkdownTargetResolution) => void) | undefined;
+    let resolveActive: ((value: MarkdownTargetResolution) => void) | undefined;
+    const resolver: MarkdownTargetResolver = {
+      resolve: vi.fn(
+        (_target: string, context?: MarkdownTargetResolverContext) =>
+          new Promise<MarkdownTargetResolution>((resolve) => {
+            if (context?.commit === "commit-1") {
+              oldSignal = context.signal;
+              resolveOld = resolve;
+              return;
+            }
+            resolveActive = resolve;
+          }),
+      ),
+    };
+    const onChange = vi.fn();
+    const renderEditor = (commit: string) => (
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={markdown}
+          onChange={onChange}
+          vault="reef-test"
+          resolverContext={{
+            vault: "reef-test",
+            document: "akb://reef-test/coll/issues/doc/reef-001.md",
+            commit,
+          }}
+          adapters={{ targetResolver: resolver }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>
+    );
+    const view = render(renderEditor("commit-1"));
+
+    await waitFor(() => expect(resolveOld).toBeTypeOf("function"));
+    expect(resolver.resolve).toHaveBeenCalledWith(
+      repeatedImageTarget,
+      expect.objectContaining({
+        vault: "reef-test",
+        document: "akb://reef-test/coll/issues/doc/reef-001.md",
+        commit: "commit-1",
+      }),
+    );
+
+    view.rerender(renderEditor("commit-2"));
+    await waitFor(() => expect(resolveActive).toBeTypeOf("function"));
+    expect(oldSignal?.aborted).toBe(true);
+
+    act(() => {
+      resolveOld?.({
+        target: repeatedImageTarget,
+        status: "available",
+        runtimeUrl: "/stale-image.png",
+        release: oldRelease,
+      });
+    });
+    await waitFor(() => expect(oldRelease).toHaveBeenCalledOnce());
+
+    act(() => {
+      resolveActive?.({
+        target: repeatedImageTarget,
+        status: "available",
+        runtimeUrl: "/current-image.png",
+        release: activeRelease,
+      });
+    });
+    const content = await screen.findByTestId("markdown-editor-content");
+    await waitFor(() =>
+      expect(content.querySelector("img")).toHaveAttribute(
+        "src",
+        "/current-image.png",
+      ),
+    );
+    expect(content.querySelector("img")).not.toHaveAttribute(
+      "src",
+      "/stale-image.png",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+
+    view.unmount();
+    expect(activeRelease).toHaveBeenCalledOnce();
+  });
+
+  it("keeps inaccessible images labeled by alt text without exposing their target", async () => {
+    const markdown = `![Private evidence](${repeatedImageTarget} "Build note")`;
+    const resolver: MarkdownTargetResolver = {
+      resolve: vi.fn(
+        async (target: string): Promise<MarkdownTargetResolution> => ({
+          target,
+          status: "unavailable",
+          reason: "inaccessible",
+        }),
+      ),
+    };
+    const onChange = vi.fn();
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={markdown}
+          onChange={onChange}
+          vault="reef-test"
+          adapters={{ targetResolver: resolver }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const content = await screen.findByTestId("markdown-editor-content");
+    const frame = await waitFor(() => {
+      const imageFrame = content.querySelector<HTMLElement>(
+        "[data-markdown-image-frame]",
+      );
+      expect(imageFrame).not.toBeNull();
+      expect(imageFrame).toHaveAttribute(
+        "data-markdown-image-state",
+        "unavailable",
+      );
+      return imageFrame as HTMLElement;
+    });
+    const image = content.querySelector("img");
+
+    expect(frame).toHaveAttribute("role", "img");
+    expect(frame.getAttribute("aria-label")).toContain("Private evidence");
+    expect(frame.getAttribute("aria-label")).not.toContain(repeatedImageTarget);
+    expect(image).toHaveAttribute("alt", "Private evidence");
+    expect(image).toHaveAttribute("title", "Build note");
+    expect(image).toHaveAttribute("data-markdown-target", repeatedImageTarget);
+    expect(image).not.toHaveAttribute("src");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the target and accessible explanation after image decode failure", async () => {
+    const markdown = `![Decode evidence](${repeatedImageTarget} "Decode note")`;
+    const refresh = vi.fn(
+      async (): Promise<MarkdownTargetResolution> => ({
+        target: repeatedImageTarget,
+        status: "unavailable",
+        reason: "inaccessible",
+      }),
+    );
+    const resolver: MarkdownTargetResolver = {
+      resolve: vi.fn(
+        async (target: string): Promise<MarkdownTargetResolution> => ({
+          target,
+          status: "available",
+          runtimeUrl: "/bad-image.png",
+          refresh,
+        }),
+      ),
+    };
+    const onChange = vi.fn();
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={markdown}
+          onChange={onChange}
+          vault="reef-test"
+          adapters={{ targetResolver: resolver }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const content = await screen.findByTestId("markdown-editor-content");
+    const image = await waitFor(() => {
+      const renderedImage = content.querySelector("img");
+      expect(renderedImage).toHaveAttribute("src", "/bad-image.png");
+      return renderedImage as HTMLImageElement;
+    });
+    fireEvent.error(image);
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    const frame = content.querySelector<HTMLElement>(
+      "[data-markdown-image-frame]",
+    );
+    await waitFor(() =>
+      expect(frame).toHaveAttribute("data-markdown-image-state", "decode"),
+    );
+
+    expect(frame).toHaveAttribute("role", "img");
+    expect(frame?.getAttribute("aria-label")).toContain("Decode evidence");
+    expect(frame?.getAttribute("aria-label")).not.toContain(
+      repeatedImageTarget,
+    );
+    expect(image).toHaveAttribute("alt", "Decode evidence");
+    expect(image).toHaveAttribute("title", "Decode note");
+    expect(image).toHaveAttribute("data-markdown-target", repeatedImageTarget);
+    expect(image).not.toHaveAttribute("src");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       locale: "en" as const,
