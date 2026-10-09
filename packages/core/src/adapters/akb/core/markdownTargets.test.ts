@@ -64,7 +64,34 @@ describe("resolveAkbMarkdownTarget", () => {
     );
   });
 
+  it("uses the shared parsed path while preserving the canonical target", async () => {
+    const target = "akb://reef-test/coll/a/doc/b/doc/c.md";
+    request.mockResolvedValueOnce({
+      uri: target,
+      vault: "reef-test",
+      path: "a/doc/b/c.md",
+      title: "Nested guide",
+      type: "document",
+      status: "active",
+      tags: [],
+    });
+
+    await expect(
+      resolveAkbMarkdownTarget({ adapter, vault: "reef-test", target }),
+    ).resolves.toEqual({
+      target,
+      kind: "document",
+      status: "available",
+    });
+    expect(request).toHaveBeenCalledWith(
+      "/api/v1/documents/reef-test/a/doc/b/c.md",
+      { resource: "document a/doc/b/c.md" },
+    );
+  });
+
   it("does not request cross-vault or unsupported targets", async () => {
+    const repeatedMalformedMarkers = `akb://reef-test/coll/${"a/doc/".repeat(64)}a\n/doc/guide.md`;
+
     await expect(
       resolveAkbMarkdownTarget({
         adapter,
@@ -79,6 +106,18 @@ describe("resolveAkbMarkdownTarget", () => {
         target: "akb://reef-test/table/pipeline",
       }),
     ).resolves.toMatchObject({ status: "unavailable", reason: "unsupported" });
+    await expect(
+      resolveAkbMarkdownTarget({
+        adapter,
+        vault: "reef-test",
+        target: repeatedMalformedMarkers,
+      }),
+    ).resolves.toEqual({
+      target: repeatedMalformedMarkers,
+      kind: undefined,
+      status: "unavailable",
+      reason: "unsupported",
+    });
     expect(request).not.toHaveBeenCalled();
   });
 

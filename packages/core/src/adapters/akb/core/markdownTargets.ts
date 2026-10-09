@@ -4,9 +4,9 @@ import {
   isAkbAccountErrorCode,
 } from "../../../errors";
 import { AKB_FILE_URI_RE } from "../../../schemas/files";
-import { AKB_DOCUMENT_URI_RE } from "../../../schemas/issues/references";
 import type { MarkdownTargetAccessResult } from "../../../schemas/markdownTargets";
-import { getAkbDocument } from "./documents";
+import { getAkbDocumentByPath } from "./documents";
+import { parseAkbDocumentUri } from "./documentUri";
 import { getAkbFileMetadata } from "./files";
 import type { AkbAdapter } from "./http";
 
@@ -57,12 +57,17 @@ export async function resolveAkbMarkdownTarget({
   vault: string;
   target: string;
 }): Promise<MarkdownTargetAccessResult> {
-  if (AKB_DOCUMENT_URI_RE.test(target)) {
-    if (uriVault(target) !== vault) {
+  const document = parseAkbDocumentUri(target);
+  if (document) {
+    if (document.vault !== vault) {
       return unavailable(target, "document", "cross-vault");
     }
     try {
-      await getAkbDocument({ adapter, vault, uri: target });
+      await getAkbDocumentByPath({
+        adapter,
+        vault,
+        path: document.path,
+      });
       return { target, kind: "document", status: "available" };
     } catch (error) {
       return unavailableForError(target, "document", error);

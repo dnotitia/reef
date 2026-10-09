@@ -16,21 +16,7 @@ import {
   DocumentResponseSchema,
 } from "./http";
 import { withSpan } from "./tracing";
-
-const AKB_DOCUMENT_URI_PARTS_RE =
-  /^akb:\/\/([^/]+)\/(?:(?:coll\/(.+)\/doc\/(.+))|(?:doc\/(.+)))$/;
-
-function documentPathFromUri(
-  expectedVault: string,
-  uri: string,
-): string | null {
-  const match = AKB_DOCUMENT_URI_PARTS_RE.exec(uri);
-  if (!match || match[1] !== expectedVault) return null;
-  const collection = match[2];
-  const collSlug = match[3];
-  const rootPath = match[4];
-  return collection && collSlug ? `${collection}/${collSlug}` : rootPath;
-}
+import { parseAkbDocumentUri } from "./documentUri";
 
 export async function searchDocuments({
   adapter,
@@ -134,10 +120,16 @@ export async function resolveDocumentTitles({
   const uniqueUris = [...new Set(uris)];
   const documents = await Promise.all(
     uniqueUris.map(async (uri): Promise<AkbDocumentReference> => {
-      const path = documentPathFromUri(vault, uri);
-      if (!path) return { uri, title: null, resource_type: "doc" };
+      const parsed = parseAkbDocumentUri(uri);
+      if (!parsed || parsed.vault !== vault) {
+        return { uri, title: null, resource_type: "doc" };
+      }
       try {
-        const document = await getAkbDocument({ adapter, vault, uri });
+        const document = await getAkbDocumentByPath({
+          adapter,
+          vault,
+          path: parsed.path,
+        });
         return { uri, title: document.title, resource_type: "doc" };
       } catch {
         return { uri, title: null, resource_type: "doc" };
@@ -157,12 +149,25 @@ export async function getAkbDocument({
   vault: string;
   uri: string;
 }): Promise<DocumentResponse> {
-  const path = documentPathFromUri(vault, uri);
-  if (!path) {
+  const parsed = parseAkbDocumentUri(uri);
+  if (!parsed || parsed.vault !== vault) {
     throw new SchemaValidationError({
       issues: ["uri must be a canonical AKB document URI in the current vault"],
     });
   }
+  return getAkbDocumentByPath({ adapter, vault, path: parsed.path });
+}
+
+/** Read a document path already produced by the shared URI parser. */
+export async function getAkbDocumentByPath({
+  adapter,
+  vault,
+  path,
+}: {
+  adapter: AkbAdapter;
+  vault: string;
+  path: string;
+}): Promise<DocumentResponse> {
   return withSpan("akb.documents.get", { vault }, async () => {
     const payload = await adapter.request(
       `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
