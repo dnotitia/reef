@@ -1356,7 +1356,6 @@ test.describe("large Board column virtualization", () => {
         timeout: 15_000,
       })
       .toBeGreaterThan(0);
-    const safeDropInset = 64;
     const readVisibleDropCandidates = () =>
       scroll.evaluate((element) => {
         const root = element as HTMLElement;
@@ -1382,31 +1381,68 @@ test.describe("large Board column virtualization", () => {
           visible,
         };
       });
+    // Keep the pointer beyond dnd-kit's 20% auto-scroll edge bands.
+    const autoScrollEdgeRatio = 0.2;
+    const safeDropMarginPx = 16;
+    const isSafeDropCandidate = (
+      candidate: { issueId: string; top: number; bottom: number },
+      snapshot: { rootTop: number; rootBottom: number },
+    ) => {
+      const edgeInset =
+        (snapshot.rootBottom - snapshot.rootTop) * autoScrollEdgeRatio +
+        safeDropMarginPx;
+      const centerY = (candidate.top + candidate.bottom) / 2;
+      return (
+        initialOrder.indexOf(candidate.issueId) > initialMountedIds.length - 1 &&
+        centerY >= snapshot.rootTop + edgeInset &&
+        centerY <= snapshot.rootBottom - edgeInset
+      );
+    };
+    // Let the bottom-edge drag move the virtualized window beyond its initial
+    // mount before moving the pointer out of the auto-scroll band.
     await expect
       .poll(
         async () => {
           const snapshot = await readVisibleDropCandidates();
-          return snapshot.visible.some((candidate) => {
-            const index = initialOrder.indexOf(candidate.issueId);
-            return (
-              index > initialMountedIds.length - 1 &&
-              candidate.top >= snapshot.rootTop + safeDropInset &&
-              candidate.bottom <= snapshot.rootBottom - safeDropInset
-            );
-          });
+          return snapshot.visible.some((candidate) =>
+            isSafeDropCandidate(candidate, snapshot),
+          );
         },
         { timeout: 15_000 },
       )
       .toBe(true);
+
+    const settledScrollBox = await scroll.boundingBox();
+    if (!settledScrollBox) {
+      throw new Error("missing Board scroll bounds after auto-scroll");
+    }
+    await page.mouse.move(
+      settledScrollBox.x + settledScrollBox.width / 2,
+      settledScrollBox.y + settledScrollBox.height / 2,
+    );
+    let previousScrollTop: number | null = null;
+    let consecutiveStableReads = 0;
+    await expect
+      .poll(
+        async () => {
+          const currentScrollTop = await scroll.evaluate(
+            (element) => (element as HTMLElement).scrollTop,
+          );
+          consecutiveStableReads =
+            currentScrollTop === previousScrollTop
+              ? consecutiveStableReads + 1
+              : 0;
+          previousScrollTop = currentScrollTop;
+          return consecutiveStableReads >= 2;
+        },
+        { timeout: 5_000 },
+      )
+      .toBe(true);
+
     const targetCandidate = await readVisibleDropCandidates();
-    const safeTarget = targetCandidate.visible.find((candidate) => {
-      const index = initialOrder.indexOf(candidate.issueId);
-      return (
-        index > initialMountedIds.length - 1 &&
-        candidate.top >= targetCandidate.rootTop + safeDropInset &&
-        candidate.bottom <= targetCandidate.rootBottom - safeDropInset
-      );
-    });
+    const safeTarget = targetCandidate.visible.find((candidate) =>
+      isSafeDropCandidate(candidate, targetCandidate),
+    );
     const targetId = safeTarget?.issueId;
     if (!targetId) throw new Error("missing mounted Board drop target");
     const targetIndex = initialOrder.indexOf(targetId);

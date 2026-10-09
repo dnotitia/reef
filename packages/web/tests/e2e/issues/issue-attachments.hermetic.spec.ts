@@ -159,10 +159,11 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await expect(source).toHaveValue(
       new RegExp(`!\\[reef-toolbar\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     );
-    await expect(insertImageButton).toBeEnabled();
     await page.locator('[data-testid="markdown-editor"]').screenshot({
       path: "test-results/reef-633-toolbar-image-live-proof.png",
     });
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    await expect(insertImageButton).toBeEnabled();
   });
 
   test("retries only the failed image and keeps earlier successful images (REEF-633)", async ({
