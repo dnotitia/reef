@@ -117,10 +117,11 @@ async function holdIssueDetailResponse(
   issueId: string,
 ) {
   const gate = createResponseGate();
+  const inFlightHandlers = new Set<Promise<void>>();
   const matcher = (url: URL) =>
     url.pathname === `/api/issues/${issueId}` &&
     url.searchParams.get("vault") === vault;
-  const handler = async (route: Route) => {
+  const runHandler = async (route: Route) => {
     if (route.request().method() !== "GET") {
       await route.continue();
       return;
@@ -130,10 +131,39 @@ async function holdIssueDetailResponse(
     await gate.releaseWait;
     await route.fulfill({ response });
   };
+  const handler = (route: Route) => {
+    let handlerPromise: Promise<void>;
+    handlerPromise = runHandler(route).finally(() => {
+      inFlightHandlers.delete(handlerPromise);
+    });
+    inFlightHandlers.add(handlerPromise);
+    return handlerPromise;
+  };
   await page.route(matcher, handler);
   return {
     ...gate,
-    remove: () => page.unroute(matcher, handler),
+    remove: async () => {
+      gate.release();
+      let handlerError: unknown;
+      let hasHandlerError = false;
+      try {
+        while (inFlightHandlers.size > 0) {
+          const results = await Promise.allSettled([...inFlightHandlers]);
+          if (!hasHandlerError) {
+            const rejected = results.find(
+              (result) => result.status === "rejected",
+            );
+            if (rejected?.status === "rejected") {
+              handlerError = rejected.reason;
+              hasHandlerError = true;
+            }
+          }
+        }
+        if (hasHandlerError) throw handlerError;
+      } finally {
+        await page.unroute(matcher, handler);
+      }
+    },
   };
 }
 
@@ -404,7 +434,6 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
           gate.release();
           await responseDelivered;
         } finally {
-          gate.release();
           await gate.remove();
         }
       }
