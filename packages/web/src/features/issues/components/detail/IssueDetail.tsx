@@ -15,8 +15,14 @@ import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import {
+  extractMarkdownTargets,
+  type MarkdownAsset,
+} from "@akb/markdown-editor";
+import {
+  createIssueMarkdownImageUploadAdapter,
   createMarkdownTargetResolver,
-  uploadIssueMarkdownFiles,
+  discardIssueMarkdownAsset,
+  uploadIssueMarkdownAttachments,
 } from "@/features/issues/lib/markdownEditor.actions";
 import {
   akbIssueDocumentUri,
@@ -24,7 +30,14 @@ import {
   type IssueUpdatePatch,
 } from "@reef/core";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { buildOpenIssueHref } from "../../lib/issueHref";
 import { buildStatusPatch } from "../../lib/statusPatch";
@@ -161,6 +174,10 @@ function IssueDetailLoaded({
     issueDetailDraftReducer,
     serverDraft,
   );
+  const latestBodyRef = useRef(draft.body);
+  latestBodyRef.current = draft.body;
+  const editorUploadedTargetsRef = useRef(new Set<string>());
+  const activeImageBatchTargetsRef = useRef(new Set<string>());
   const previousServerDraftRef = useRef(serverDraft);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -195,6 +212,65 @@ function IssueDetailLoaded({
       ...(data.commit_hash ? { commit: data.commit_hash } : {}),
     }),
     [data.commit_hash, issue.id, vault],
+  );
+  const uploadImageAdapter = useMemo(
+    () => createIssueMarkdownImageUploadAdapter({ issueId, vault }),
+    [issueId, vault],
+  );
+  const cleanupEditorAssetIfUnused = useCallback(
+    (target: string) => {
+      if (!editorUploadedTargetsRef.current.has(target)) return;
+      const currentTargets = new Set(
+        extractMarkdownTargets(latestBodyRef.current).map(
+          ({ target: currentTarget }) => currentTarget,
+        ),
+      );
+      if (currentTargets.has(target)) return;
+
+      editorUploadedTargetsRef.current.delete(target);
+      void discardIssueMarkdownAsset({ vault, target }).catch(() => undefined);
+    },
+    [vault],
+  );
+  const handleBodyAssetUploaded = useCallback((asset: MarkdownAsset) => {
+    editorUploadedTargetsRef.current.add(asset.target);
+    activeImageBatchTargetsRef.current.add(asset.target);
+  }, []);
+  const handleBodyImageUploadingChange = useCallback(
+    (uploading: boolean) => {
+      if (uploading) {
+        activeImageBatchTargetsRef.current.clear();
+        return;
+      }
+
+      const targets = [...activeImageBatchTargetsRef.current];
+      activeImageBatchTargetsRef.current.clear();
+      for (const target of targets) cleanupEditorAssetIfUnused(target);
+    },
+    [cleanupEditorAssetIfUnused],
+  );
+  const handleBodyAssetReplaced = useCallback(
+    (previousTarget: string) => {
+      cleanupEditorAssetIfUnused(previousTarget);
+    },
+    [cleanupEditorAssetIfUnused],
+  );
+  const bodyImageUpload = useMemo(
+    () => ({
+      adapter: uploadImageAdapter,
+      context: { ...resolverContext, draftId: issueId },
+      onUploadingChange: handleBodyImageUploadingChange,
+      onAssetUploaded: handleBodyAssetUploaded,
+      onAssetReplaced: handleBodyAssetReplaced,
+    }),
+    [
+      handleBodyAssetReplaced,
+      handleBodyAssetUploaded,
+      handleBodyImageUploadingChange,
+      issueId,
+      resolverContext,
+      uploadImageAdapter,
+    ],
   );
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
   // Grounding is set by this explicit affordance — not silently from the
@@ -245,8 +321,13 @@ function IssueDetailLoaded({
     if (value !== (data.content ?? "")) commit({}, value);
   }
 
+  function handleBodyChange(value: string) {
+    latestBodyRef.current = value;
+    setDraftField("body", value);
+  }
+
   async function handleBodyUploadFiles(files: File[]) {
-    return uploadIssueMarkdownFiles({
+    return uploadIssueMarkdownAttachments({
       issueId,
       vault,
       files,
@@ -422,12 +503,13 @@ function IssueDetailLoaded({
           externalRefs={draft.externalRefs}
           implementationRefs={draft.implementationRefs}
           setTitle={(value) => setDraftField("title", value)}
-          setBody={(value) => setDraftField("body", value)}
+          setBody={handleBodyChange}
           setExternalRefs={(value) => setDraftField("externalRefs", value)}
           setImplementationRefs={(value) =>
             setDraftField("implementationRefs", value)
           }
-          onUploadBodyFiles={handleBodyUploadFiles}
+          onUploadBodyAttachments={handleBodyUploadFiles}
+          bodyImageUpload={bodyImageUpload}
           markdownAdapters={markdownAdapters}
           resolverContext={resolverContext}
           commitTitle={commitTitle}

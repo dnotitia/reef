@@ -12,7 +12,9 @@ vi.mock("@/lib/apiClient", async () => {
 
 import {
   createMarkdownTargetResolver,
-  uploadIssueMarkdownFiles,
+  createIssueMarkdownImageUploadAdapter,
+  discardIssueMarkdownAsset,
+  uploadIssueMarkdownAttachments,
 } from "./markdownEditor.actions";
 
 const ASSET_ID = "00000000-0000-4000-8000-000000000001";
@@ -37,53 +39,65 @@ describe("issue Markdown adapters", () => {
     mockApiFetch.mockReset();
   });
 
-  it("keeps successful image uploads when another item fails", async () => {
-    const first = new File(["one"], "first.png", { type: "image/png" });
-    const second = new File(["two"], "second.png", { type: "image/png" });
-    const legacyUpload = vi.fn();
-    mockApiFetch
-      .mockResolvedValueOnce(assetResponse("first.png"))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "busy" }), { status: 503 }),
-      );
-
-    const result = await uploadIssueMarkdownFiles({
+  it("uploads one image with adapter context and preserves the canonical target", async () => {
+    const file = new File(["one"], "diagram.png", { type: "image/png" });
+    const controller = new AbortController();
+    const adapter = createIssueMarkdownImageUploadAdapter({
       issueId: "REEF-001",
       vault: "reef-test",
-      files: [first, second],
-      uploadLegacyAttachment: legacyUpload,
+    });
+    mockApiFetch.mockResolvedValueOnce(assetResponse("diagram.png"));
+
+    await expect(
+      adapter.upload(file, {
+        vault: "reef-test",
+        document: "akb://reef-test/coll/issues/doc/reef-001.md",
+        commit: "commit-1",
+        draftId: "REEF-001",
+        target: "/api/assets/previous-target",
+        signal: controller.signal,
+      }),
+    ).resolves.toEqual({
+      id: ASSET_ID,
+      kind: "attachment",
+      target: `/api/assets/${ASSET_ID}`,
+      alt: "diagram.png",
+      expiresAt: "2026-09-11T00:00:00.000Z",
     });
 
-    expect(result).toMatchObject({
-      succeeded: 1,
-      failed: 1,
-      cancelled: 0,
-      partial: true,
-    });
-    expect(result.items.map((item) => item.status)).toEqual([
-      "success",
-      "failed",
-    ]);
-    expect(result.items[0]).toMatchObject({
-      status: "success",
-      asset: {
-        kind: "attachment",
-        target: `/api/assets/${ASSET_ID}`,
-        alt: "first.png",
-      },
-    });
-    expect(legacyUpload).not.toHaveBeenCalled();
-    expect(mockApiFetch).toHaveBeenNthCalledWith(
-      1,
-      "/api/assets?vault=reef-test&filename=first.png",
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      "/api/assets?vault=reef-test&filename=diagram.png",
       expect.objectContaining({
         method: "POST",
-        body: first,
+        body: file,
+        signal: controller.signal,
       }),
     );
   });
 
-  it("keeps non-image files on the existing issue attachment path", async () => {
+  it("marks transient image upload failures retryable for the shared surface", async () => {
+    const adapter = createIssueMarkdownImageUploadAdapter({
+      issueId: "REEF-001",
+      vault: "reef-test",
+    });
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "temporarily unavailable" }), {
+        status: 503,
+      }),
+    );
+
+    await expect(
+      adapter.upload(new File(["one"], "diagram.png", { type: "image/png" }), {
+        vault: "reef-test",
+      }),
+    ).rejects.toMatchObject({
+      code: "unavailable",
+      retryable: true,
+      message: "temporarily unavailable",
+    });
+  });
+
+  it("keeps non-image files on the separate issue attachment path", async () => {
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
     const legacyUpload = vi.fn().mockResolvedValue({
       attachment: {
@@ -94,7 +108,7 @@ describe("issue Markdown adapters", () => {
       markdown: null,
     });
 
-    const result = await uploadIssueMarkdownFiles({
+    const result = await uploadIssueMarkdownAttachments({
       issueId: "REEF-001",
       vault: "reef-test",
       files: [file],
@@ -116,6 +130,51 @@ describe("issue Markdown adapters", () => {
     });
     expect(legacyUpload).toHaveBeenCalledWith(file);
     expect(mockApiFetch).not.toHaveBeenCalled();
+  });
+
+  it("does not send images through the general attachment adapter", async () => {
+    const uploadLegacyAttachment = vi.fn();
+    const result = await uploadIssueMarkdownAttachments({
+      issueId: "REEF-001",
+      vault: "reef-test",
+      files: [new File(["one"], "diagram.png", { type: "image/png" })],
+      uploadLegacyAttachment,
+    });
+
+    expect(result).toMatchObject({ failed: 1, succeeded: 0 });
+    expect(uploadLegacyAttachment).not.toHaveBeenCalled();
+  });
+
+  it("uses the existing guarded asset discard route for unused unclaimed targets", async () => {
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ discarded: true }), { status: 200 }),
+    );
+
+    await expect(
+      discardIssueMarkdownAsset({
+        vault: "reef-test",
+        target: `/api/assets/${ASSET_ID}`,
+      }),
+    ).resolves.toBe(true);
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      `/api/assets/${ASSET_ID}?vault=reef-test`,
+      { method: "DELETE" },
+    );
+  });
+
+  it("preserves claimed assets when the existing discard route refuses them", async () => {
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "asset claimed" }), {
+        status: 409,
+      }),
+    );
+
+    await expect(
+      discardIssueMarkdownAsset({
+        vault: "reef-test",
+        target: `/api/assets/${ASSET_ID}`,
+      }),
+    ).resolves.toBe(false);
   });
 
   it("resolves stable attachments and same-vault document links", async () => {

@@ -9,7 +9,10 @@ import {
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   parseMarkdown,
+  type MarkdownAsset,
   type MarkdownNode,
+  type MarkdownUploadAdapter,
+  type MarkdownUploadContext,
   type MarkdownTargetResolution,
   type MarkdownTargetResolver,
   type MarkdownTargetResolverContext,
@@ -33,6 +36,10 @@ beforeAll(() => {
   Object.defineProperty(window, "scrollBy", {
     configurable: true,
     value: () => undefined,
+  });
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => null,
   });
 });
 
@@ -785,21 +792,11 @@ describe("MarkdownEditor shared Source surface", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a Source draft while pasting an attachment into the shared surface", async () => {
+  it("keeps generic attachment uploads separate from image insertion", async () => {
     const onChange = vi.fn();
     const onUploadFiles = vi.fn().mockResolvedValue({
-      items: [
-        {
-          status: "success" as const,
-          file: new Blob(["brief"]),
-          asset: {
-            kind: "attachment" as const,
-            target: "/api/assets/00000000-0000-4000-8000-000000000001",
-            alt: "brief.png",
-          },
-        },
-      ],
-      succeeded: 1,
+      items: [],
+      succeeded: 0,
       failed: 0,
       cancelled: 0,
       partial: false,
@@ -818,13 +815,293 @@ describe("MarkdownEditor shared Source surface", () => {
     fireEvent.click(screen.getByTitle("Toggle source mode"));
     const source = screen.getByRole("textbox", { name: "Issue description" });
     fireEvent.change(source, { target: { value: "Source draft" } });
-    const file = new File(["x"], "brief.pdf", { type: "application/pdf" });
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
     fireEvent.paste(source, { clipboardData: { files: [file] } });
 
-    const expected =
-      "Source draft\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
-    await waitFor(() => expect(source).toHaveValue(expected));
-    expect(onUploadFiles).toHaveBeenCalledWith([file]);
-    expect(onChange).toHaveBeenLastCalledWith(expected);
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
+    expect(source).toHaveValue("Source draft");
+    expect(onChange).toHaveBeenLastCalledWith("Source draft");
+  });
+
+  it("routes standalone image paste through the public image upload surface", async () => {
+    const onChange = vi.fn();
+    const onAssetUploaded = vi.fn();
+    let uploadContext: MarkdownUploadContext | undefined;
+    const asset: MarkdownAsset = {
+      id: "asset-1",
+      kind: "attachment",
+      target: "/api/assets/00000000-0000-4000-8000-000000000001",
+      alt: "diagram.png",
+    };
+    const upload = vi.fn(
+      async (_file: Blob, context?: MarkdownUploadContext) => {
+        uploadContext = context;
+        return asset;
+      },
+    );
+    const adapter: MarkdownUploadAdapter = { upload };
+
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value="Alpha\n\nOmega"
+          onChange={onChange}
+          imageUpload={{
+            adapter,
+            context: {
+              vault: "reef-e2e",
+              document: "akb://reef-e2e/coll/issues/doc/reef-001.md",
+              commit: "commit-1",
+              draftId: "REEF-001",
+            },
+            onAssetUploaded,
+          }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const editor = await screen.findByTestId("markdown-editor-content");
+    const file = new File(["png"], "diagram.png", { type: "image/png" });
+    fireEvent.paste(editor, {
+      clipboardData: { files: [file], getData: () => "" },
+    });
+
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(onChange.mock.lastCall?.[0]).toContain(
+        `![diagram.png](${asset.target})`,
+      ),
+    );
+    expect(uploadContext).toMatchObject({
+      vault: "reef-e2e",
+      document: "akb://reef-e2e/coll/issues/doc/reef-001.md",
+      commit: "commit-1",
+      draftId: "REEF-001",
+    });
+    expect(uploadContext?.signal).toBeInstanceOf(AbortSignal);
+    expect(onAssetUploaded).toHaveBeenCalledWith(asset, file);
+    expect(screen.getByRole("button", { name: "Insert image" })).toBeVisible();
+  });
+
+  it("routes selected images through image upload and non-images through attachment upload", async () => {
+    const imageAsset: MarkdownAsset = {
+      kind: "attachment",
+      target: "/api/assets/00000000-0000-4000-8000-000000000021",
+      alt: "diagram.png",
+    };
+    const uploadImage = vi.fn().mockResolvedValue(imageAsset);
+    const uploadAttachments = vi.fn().mockResolvedValue({
+      items: [],
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      partial: false,
+    });
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value="Existing body"
+          onChange={vi.fn()}
+          onUploadFiles={uploadAttachments}
+          imageUpload={{
+            adapter: { upload: uploadImage },
+            context: { vault: "reef-e2e" },
+          }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [
+          new File(["png"], "diagram.png", { type: "image/png" }),
+          new File(["notes"], "notes.txt", { type: "text/plain" }),
+        ],
+      },
+    });
+
+    await waitFor(() => expect(uploadImage).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(uploadAttachments).toHaveBeenCalledWith([
+        expect.objectContaining({ name: "notes.txt" }),
+      ]),
+    );
+    expect(uploadImage.mock.calls[0]?.[0]).toMatchObject({
+      name: "diagram.png",
+      type: "image/png",
+    });
+    expect(uploadAttachments.mock.calls[0]?.[0]).toHaveLength(1);
+  });
+
+  it("routes WYSIWYG image drops through the public image upload surface", async () => {
+    const target = "/api/assets/00000000-0000-4000-8000-000000000031";
+    const upload = vi.fn().mockResolvedValue({
+      kind: "attachment",
+      target,
+      alt: "dropped.png",
+    } satisfies MarkdownAsset);
+    const onChange = vi.fn();
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value="Existing body"
+          onChange={onChange}
+          imageUpload={{
+            adapter: { upload },
+            context: { vault: "reef-e2e" },
+          }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const editor = await screen.findByTestId("markdown-editor-content");
+    const file = new File(["png"], "dropped.png", { type: "image/png" });
+    fireEvent.drop(editor, {
+      dataTransfer: { files: [file], items: [] },
+      clientX: 4,
+      clientY: 4,
+    });
+
+    await waitFor(() => expect(upload).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(onChange.mock.lastCall?.[0]).toContain(
+        `![dropped.png](${target})`,
+      ),
+    );
+    expect(upload.mock.calls[0]?.[0]).toBe(file);
+  });
+
+  it("replaces an existing image through the shared upload controller", async () => {
+    const replacement: MarkdownAsset = {
+      kind: "attachment",
+      target: "/api/assets/00000000-0000-4000-8000-000000000032",
+      alt: "replacement.png",
+    };
+    const upload = vi.fn().mockResolvedValue(replacement);
+    const onAssetReplaced = vi.fn();
+    const onAssetUploaded = vi.fn();
+    const onChange = vi.fn();
+    const { container } = render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={`![Existing image](${repeatedImageTarget})`}
+          onChange={onChange}
+          imageUpload={{
+            adapter: { upload },
+            context: { vault: "reef-e2e", draftId: "REEF-001" },
+            onAssetReplaced,
+            onAssetUploaded,
+          }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const editor = await screen.findByTestId("markdown-editor-content");
+    await waitFor(() => expect(editor.querySelector("img")).not.toBeNull());
+    act(() => editor.focus());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Replace image: Existing image",
+      }),
+    );
+
+    const picker = container.querySelector<HTMLInputElement>(
+      'input[type="file"][accept="image/*"]',
+    );
+    expect(picker).not.toBeNull();
+    expect(picker).not.toHaveProperty("multiple", true);
+    const file = new File(["replacement"], "replacement.png", {
+      type: "image/png",
+    });
+    fireEvent.change(picker as HTMLInputElement, { target: { files: [file] } });
+
+    await waitFor(() => expect(upload).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(onChange.mock.lastCall?.[0]).toContain(
+        `![replacement.png](${replacement.target})`,
+      ),
+    );
+    expect(upload.mock.calls[0]?.[1]).toMatchObject({
+      vault: "reef-e2e",
+      draftId: "REEF-001",
+      target: repeatedImageTarget,
+    });
+    expect(onAssetUploaded).toHaveBeenCalledWith(replacement, file);
+    expect(onAssetReplaced).toHaveBeenCalledWith(
+      repeatedImageTarget,
+      replacement,
+      file,
+    );
+  });
+
+  it("keeps successful images and retries only failed files through the shared UI", async () => {
+    const onChange = vi.fn();
+    const firstAsset: MarkdownAsset = {
+      kind: "attachment",
+      target: "/api/assets/00000000-0000-4000-8000-000000000011",
+      alt: "first.png",
+    };
+    const secondAsset: MarkdownAsset = {
+      kind: "attachment",
+      target: "/api/assets/00000000-0000-4000-8000-000000000012",
+      alt: "second.png",
+    };
+    const retryable = Object.assign(new Error("temporary failure"), {
+      code: "unavailable" as const,
+      retryable: true,
+    });
+    const upload = vi
+      .fn<MarkdownUploadAdapter["upload"]>()
+      .mockResolvedValueOnce(firstAsset)
+      .mockRejectedValueOnce(retryable)
+      .mockResolvedValueOnce(secondAsset);
+    const adapter: MarkdownUploadAdapter = { upload };
+    const { container } = render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value="Existing body"
+          onChange={onChange}
+          imageUpload={{ adapter, context: { vault: "reef-e2e" } }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>,
+    );
+
+    const picker = container.querySelector<HTMLInputElement>(
+      'input[type="file"][accept="image/*"]',
+    );
+    expect(picker).not.toBeNull();
+    fireEvent.change(picker as HTMLInputElement, {
+      target: {
+        files: [
+          new File(["first"], "first.png", { type: "image/png" }),
+          new File(["second"], "second.png", { type: "image/png" }),
+        ],
+      },
+    });
+
+    const failure = await screen.findByRole("alert");
+    expect(failure).toBeVisible();
+    fireEvent.click(within(failure).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(3));
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = await screen.findByRole("textbox", {
+      name: "Issue description",
+    });
+    await waitFor(async () => {
+      const sourceValue = (source as HTMLTextAreaElement).value;
+      expect(sourceValue).toContain(firstAsset.target);
+      expect(sourceValue).toContain(secondAsset.target);
+    });
+    expect(
+      upload.mock.calls.map(([file]) =>
+        file instanceof File ? file.name : "not-a-file",
+      ),
+    ).toEqual(["first.png", "second.png", "second.png"]);
   });
 });

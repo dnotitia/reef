@@ -10,6 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MarkdownAsset } from "@akb/markdown-editor";
 
 const markdownEditorProps = vi.hoisted(() => ({
   calls: [] as Array<Record<string, unknown>>,
@@ -241,7 +242,70 @@ describe("IssueDetail", { timeout: 10_000 }, () => {
       document: "akb://reef-acme/coll/issues/doc/reef-001.md",
       commit: "issue-commit-1",
     });
+    expect(editorProps?.imageUpload).toMatchObject({
+      context: {
+        vault: "reef-acme",
+        document: "akb://reef-acme/coll/issues/doc/reef-001.md",
+        commit: "issue-commit-1",
+        draftId: "REEF-001",
+      },
+    });
     expect(editorProps).not.toHaveProperty("resolveImageSrc");
+  });
+
+  it("discards editor-created assets only after the latest draft drops their target", async () => {
+    render(
+      wrap(
+        <IssueDetail issueId="REEF-001" vault="reef-acme" onClose={() => {}} />,
+      ),
+    );
+    await screen.findByDisplayValue("Sample title");
+    await waitFor(() =>
+      expect(markdownEditorProps.calls.length).toBeGreaterThan(0),
+    );
+
+    const editorProps = markdownEditorProps.calls.at(-1);
+    const imageUpload = editorProps?.imageUpload as {
+      onAssetReplaced: (
+        previousTarget: string,
+        asset: MarkdownAsset,
+        file: Blob,
+      ) => void;
+      onAssetUploaded: (asset: MarkdownAsset, file: Blob) => void;
+      onUploadingChange: (uploading: boolean) => void;
+    };
+    const onChange = editorProps?.onChange as (markdown: string) => void;
+    const target = "/api/assets/00000000-0000-4000-8000-000000000041";
+    const asset: MarkdownAsset = {
+      kind: "attachment",
+      target,
+      alt: "diagram.png",
+    };
+
+    act(() => {
+      imageUpload.onUploadingChange(true);
+      imageUpload.onAssetUploaded(
+        asset,
+        new File(["png"], "diagram.png", { type: "image/png" }),
+      );
+      onChange(`![diagram.png](${target})`);
+      imageUpload.onUploadingChange(false);
+    });
+
+    expect(mockApiFetch).not.toHaveBeenCalledWith(`${target}?vault=reef-acme`, {
+      method: "DELETE",
+    });
+
+    act(() => {
+      onChange("Replaced image");
+      imageUpload.onAssetReplaced(target, asset, new Blob());
+    });
+
+    await waitFor(() =>
+      expect(mockApiFetch).toHaveBeenCalledWith(`${target}?vault=reef-acme`, {
+        method: "DELETE",
+      }),
+    );
   });
 
   it("copies the canonical deep link from the actions menu and toasts success", async () => {

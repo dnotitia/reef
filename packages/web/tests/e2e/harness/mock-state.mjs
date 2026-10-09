@@ -204,6 +204,9 @@ export function createState(scenario) {
     attachmentReadPending: new Map(),
     markdownLinkSearchControls: new Map(),
     markdownLinkSearchPending: new Map(),
+    assetUploadDelayMs: 0,
+    assetUploadFailOnce: new Set(),
+    assetUploadAttempts: [],
     planningCatalogFailure: false,
     planningCatalogDelayMs: 0,
     contentSearchMode: "healthy",
@@ -406,6 +409,7 @@ export function publicState(state) {
     markdown_link_search_pending: Object.fromEntries(
       state.markdownLinkSearchPending,
     ),
+    asset_upload_attempts: state.assetUploadAttempts,
     workspace_initialization: {
       failure_operation: state.workspaceInitFailureOperation,
       failures_remaining: state.workspaceInitFailureRemaining,
