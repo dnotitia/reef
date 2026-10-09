@@ -3583,6 +3583,33 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
     const editor = page.locator(".reef-markdown-editor");
+    const documentReference = editor.locator(
+      'a[data-markdown-target="akb://reef-e2e/coll/docs/doc/spec-overview.md"]',
+    );
+    await expect(documentReference).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
+    await expect(fileLink).toHaveAttribute(
+      "data-markdown-target",
+      MARKDOWN_FIXTURE_FILE_URI,
+    );
+    await expect(fileLink).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
+    const issueReference = editor.locator(
+      '[data-markdown-reference="true"][data-markdown-reference-kind="issue"][data-markdown-reference-id="REEF-002"]',
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-markdown-reference-resolution",
+      "available",
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-markdown-reference-runtime-url",
+      "/workspace/reef-e2e/issues/REEF-002",
+    );
     const checkboxes = editor.locator(
       'ul[data-type="taskList"] input[type="checkbox"]',
     );
