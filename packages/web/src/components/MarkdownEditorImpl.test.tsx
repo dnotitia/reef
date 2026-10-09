@@ -395,27 +395,19 @@ describe("MarkdownEditor product adapter", () => {
     expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
   });
 
-  it("keeps legacy AKB attachment image resolution presentation-only", () => {
-    const target = "akb://reef-test/issues/file/file-1";
-    const resolveImageSrc = vi.fn(
-      () => "/api/issues/REEF-001/attachments/file",
-    );
+  it("passes Reef image presentation classes to the shared surface", () => {
     renderEditor({
-      value: "![Screenshot](akb://reef-test/issues/file/file-1)",
+      value: "![Diagram](/api/assets/00000000-0000-4000-8000-000000000001)",
       onChange: vi.fn(),
-      resolveImageSrc,
     });
 
-    const surfaceProps = markdownMocks.surfaceProps as {
-      resolutions: ReadonlyMap<string, { runtimeUrl: string }>;
-    };
-    expect(surfaceProps.resolutions.get(target)).toMatchObject({
-      target,
-      status: "available",
-      runtimeUrl: "/api/issues/REEF-001/attachments/file",
+    expect(markdownMocks.surfaceProps?.image).toMatchObject({
+      classNames: {
+        frame: "block max-w-full align-top",
+        image: "block h-auto max-w-full",
+        message: expect.stringContaining("border-border-subtle"),
+      },
     });
-    expect(resolveImageSrc).toHaveBeenCalledWith(target);
-    expect(screen.getByTestId("markdown-editor-content")).toBeEmptyDOMElement();
   });
 
   it("passes refreshed target resolutions to the shared surface when markdown changes", () => {
@@ -610,15 +602,13 @@ describe("MarkdownEditor product adapter", () => {
     expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
   });
 
-  it("prepares uploaded image alt escapes for the shared Markdown parser", () => {
+  it("passes canonical escaped image alt text to the shared Markdown parser", () => {
     const persistedMarkdown =
       "![reef'\\\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)";
-    const editorMarkdown =
-      "![reef'\\한글😀.png](/api/assets/00000000-0000-4000-8000-000000000001)";
     renderEditor({ value: persistedMarkdown, onChange: vi.fn() });
 
     expect(markdownMocks.editorOptions).toMatchObject({
-      initialMarkdown: editorMarkdown,
+      initialMarkdown: persistedMarkdown,
     });
   });
 

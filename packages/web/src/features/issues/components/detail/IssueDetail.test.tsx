@@ -11,6 +11,17 @@ import userEvent from "@testing-library/user-event";
 import { type ReactNode, StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const markdownEditorProps = vi.hoisted(() => ({
+  calls: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock("@/components/MarkdownEditor", () => ({
+  MarkdownEditor: (props: Record<string, unknown>) => {
+    markdownEditorProps.calls.push(props);
+    return <div data-testid="issue-detail-markdown-editor-stub" />;
+  },
+}));
+
 vi.mock("@/lib/apiClient", async () => {
   const actual =
     await vi.importActual<typeof import("@/lib/apiClient")>("@/lib/apiClient");
@@ -134,6 +145,7 @@ function deferred<T>() {
 describe("IssueDetail", { timeout: 10_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    markdownEditorProps.calls.length = 0;
     // Default: GET /api/issues/REEF-001 returns the sample
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
@@ -179,6 +191,57 @@ describe("IssueDetail", { timeout: 10_000 }, () => {
       ),
     );
     expect(await screen.findByDisplayValue("Sample title")).toBeInTheDocument();
+  });
+
+  it("binds image resolution to the canonical issue document and loaded commit", async () => {
+    mockApiFetch.mockImplementation(async (url) => {
+      const normalizedUrl = String(url);
+      if (isIssueDetailRequest(normalizedUrl, "REEF-001")) {
+        return new Response(
+          JSON.stringify({
+            issue: SAMPLE,
+            content:
+              "![Diagram](/api/assets/00000000-0000-4000-8000-000000000001)",
+            commit_hash: "issue-commit-1",
+          }),
+          { status: 200 },
+        );
+      }
+      if (normalizedUrl.startsWith("/api/issues?vault=")) {
+        return new Response(JSON.stringify({ issues: [SAMPLE] }), {
+          status: 200,
+        });
+      }
+      if (normalizedUrl.startsWith("/api/planning?vault=")) {
+        return new Response(JSON.stringify(PLANNING_CATALOG), {
+          status: 200,
+        });
+      }
+      if (normalizedUrl.startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify(issueQueryFallback(normalizedUrl)), {
+        status: 200,
+      });
+    });
+
+    render(
+      wrap(
+        <IssueDetail issueId="REEF-001" vault="reef-acme" onClose={() => {}} />,
+      ),
+    );
+    await screen.findByDisplayValue("Sample title");
+    await waitFor(() =>
+      expect(markdownEditorProps.calls.length).toBeGreaterThan(0),
+    );
+
+    const editorProps = markdownEditorProps.calls.at(-1);
+    expect(editorProps?.resolverContext).toEqual({
+      vault: "reef-acme",
+      document: "akb://reef-acme/coll/issues/doc/reef-001.md",
+      commit: "issue-commit-1",
+    });
+    expect(editorProps).not.toHaveProperty("resolveImageSrc");
   });
 
   it("copies the canonical deep link from the actions menu and toasts success", async () => {

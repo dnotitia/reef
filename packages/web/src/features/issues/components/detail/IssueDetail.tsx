@@ -7,7 +7,6 @@ import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIss
 import { useDeleteIssue } from "@/features/issues/hooks/mutations/useDeleteIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
-import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import {
   type IssueDetailResponse,
   useIssue,
@@ -19,7 +18,11 @@ import {
   createMarkdownTargetResolver,
   uploadIssueMarkdownFiles,
 } from "@/features/issues/lib/markdownEditor.actions";
-import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
+import {
+  akbIssueDocumentUri,
+  type ClosedReason,
+  type IssueUpdatePatch,
+} from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -185,9 +188,13 @@ function IssueDetailLoaded({
     }),
     [akbWebBase, vault],
   );
-  const resolveBodyImageSrc = useMemo(
-    () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
-    [issueId, vault],
+  const resolverContext = useMemo(
+    () => ({
+      vault,
+      document: akbIssueDocumentUri(vault, issue.id),
+      ...(data.commit_hash ? { commit: data.commit_hash } : {}),
+    }),
+    [data.commit_hash, issue.id, vault],
   );
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
   // Grounding is set by this explicit affordance — not silently from the
@@ -422,7 +429,7 @@ function IssueDetailLoaded({
           }
           onUploadBodyFiles={handleBodyUploadFiles}
           markdownAdapters={markdownAdapters}
-          resolveBodyImageSrc={resolveBodyImageSrc}
+          resolverContext={resolverContext}
           commitTitle={commitTitle}
           commitBody={commitBody}
           commit={commit}
