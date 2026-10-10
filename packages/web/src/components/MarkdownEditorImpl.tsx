@@ -609,18 +609,34 @@ function MarkdownEditorContent({
           requests.map((uri) => [uri, titles.get(uri) ?? null]),
         );
         if (inSource) {
+          const currentSource = sourceStateRef.current;
+          if (
+            !requestSourceSnapshot ||
+            !currentSource ||
+            currentSource.mode !== "source" ||
+            currentSource.session !== requestSourceSnapshot.session
+          ) {
+            return;
+          }
+          const currentUris = new Set(
+            extractAkbDocumentUris(currentSource.markdown),
+          );
+          const currentRequests = requests.filter((uri) =>
+            currentUris.has(uri),
+          );
+          if (currentRequests.length === 0) return;
           if (
             !applyResolvedDocumentTitles(
-              requestSourceSnapshot?.markdown ?? markdown,
+              currentSource.markdown,
               requestContextKey,
-              requestSourceSnapshot,
+              currentSource,
               requestTitles,
-              requests,
+              currentRequests,
             )
           ) {
             return;
           }
-          for (const uri of requests) {
+          for (const uri of currentRequests) {
             sourceTitleAttemptsRef.current.add(sourceAttemptKey(uri));
           }
           return;
@@ -958,7 +974,7 @@ function MarkdownEditorContent({
             {onUploadFiles ? (
               <MarkdownAttachmentPicker
                 label={toolbarLabels.attachFile}
-                disabled={uploadingFiles}
+                disabled={disabled || uploadingFiles || mode === "source"}
                 onFiles={(files) => void handleUploadFiles(files)}
                 onImageFiles={(files, selectFiles) => {
                   if (modeRef.current === "source") {

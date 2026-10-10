@@ -882,12 +882,15 @@ describe("MarkdownEditor shared Source surface", () => {
     await waitFor(() =>
       expect(resolve).toHaveBeenCalledWith("reef-test", [uri]),
     );
+    const editedWhileResolving = `See ${uri} now, still writing.`;
+    fireEvent.change(source, { target: { value: editedWhileResolving } });
+    await waitFor(() => expect(source).toHaveValue(editedWhileResolving));
     source.setSelectionRange(source.value.length, source.value.length);
     fireEvent.select(source);
 
     act(() => resolveTitles?.(new Map([[uri, "Research Guide"]])));
 
-    const normalized = `See [Research Guide](${uri}) now.`;
+    const normalized = `See [Research Guide](${uri}) now, still writing.`;
     await waitFor(() => expect(source).toHaveValue(normalized));
     expect(source.selectionStart).toBe(normalized.length);
     expect(onChange).toHaveBeenLastCalledWith(normalized);
@@ -897,14 +900,14 @@ describe("MarkdownEditor shared Source surface", () => {
     await waitFor(() => expect(undo).toBeEnabled());
     fireEvent.click(undo);
     await waitFor(() =>
-      expect(onChange).toHaveBeenLastCalledWith(`See ${uri} now.`),
+      expect(onChange).toHaveBeenLastCalledWith(editedWhileResolving),
     );
-    await waitFor(() => expect(source).toHaveValue(`See ${uri} now.`));
+    await waitFor(() => expect(source).toHaveValue(editedWhileResolving));
     await waitFor(() => expect(redo).toBeEnabled());
     fireEvent.click(redo);
     await waitFor(() => expect(source).toHaveValue(normalized));
     fireEvent.click(undo);
-    await waitFor(() => expect(source).toHaveValue(`See ${uri} now.`));
+    await waitFor(() => expect(source).toHaveValue(editedWhileResolving));
 
     fireEvent.change(source, {
       target: { value: `See ${uri} and ${otherUri} now.` },
@@ -988,6 +991,12 @@ describe("MarkdownEditor shared Source surface", () => {
 
     expect(source).toHaveValue(edited);
     expect(onChange).toHaveBeenCalledTimes(changesBeforeResolution);
+
+    fireEvent.change(source, { target: { value: initial } });
+    await waitFor(() =>
+      expect(source).toHaveValue(`See [Research Guide](${uri}) now.`),
+    );
+    expect(resolve).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a cancelled Source title response after re-entry starts a new session", async () => {
@@ -1552,7 +1561,12 @@ describe("MarkdownEditor shared Source surface", () => {
       </IntlTestProvider>,
     );
 
+    const attachmentButton = screen.getByRole("button", {
+      name: "Attach file",
+    });
+    expect(attachmentButton).toBeEnabled();
     fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(attachmentButton).toBeDisabled();
     const source = screen.getByRole("textbox", { name: "Issue description" });
     fireEvent.change(source, { target: { value: "Source draft" } });
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
