@@ -947,10 +947,10 @@ describe("MarkdownEditor shared Source surface", () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  it("discards a title response after the Source draft revision advances", async () => {
+  it("discards a title response after the Source draft deletes its URI", async () => {
     const uri = "akb://reef-test/coll/research/doc/guide.md";
     const initial = `See ${uri} now.`;
-    const edited = `${initial}\n\nKeep writing.`;
+    const edited = "Keep writing after deleting the link.";
     let resolveTitles: ((titles: Map<string, string | null>) => void) | null =
       null;
     const resolve = vi
@@ -978,6 +978,7 @@ describe("MarkdownEditor shared Source surface", () => {
     );
     fireEvent.change(source, { target: { value: edited } });
     await waitFor(() => expect(source).toHaveValue(edited));
+    expect(edited).not.toContain(uri);
     const changesBeforeResolution = onChange.mock.calls.length;
 
     await act(async () => {
@@ -987,6 +988,260 @@ describe("MarkdownEditor shared Source surface", () => {
 
     expect(source).toHaveValue(edited);
     expect(onChange).toHaveBeenCalledTimes(changesBeforeResolution);
+  });
+
+  it("ignores a cancelled Source title response after re-entry starts a new session", async () => {
+    const uri = "akb://reef-test/coll/research/doc/guide.md";
+    const resolveTitles: Array<(titles: Map<string, string | null>) => void> =
+      [];
+    const requests: Array<{
+      mode: string | null | undefined;
+      resolve: (titles: Map<string, string | null>) => void;
+    }> = [];
+    vi.spyOn(
+      documentTitleResolver,
+      "resolveAkbDocumentTitles",
+    ).mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolveTitles.push(done);
+          requests.push({
+            mode: screen
+              .queryByTestId("markdown-editor")
+              ?.querySelector("[data-markdown-mode]")
+              ?.getAttribute("data-markdown-mode"),
+            resolve: done,
+          });
+        }),
+    );
+    const onChange = vi.fn();
+    function ControlledEditor() {
+      const [value, setValue] = useState("");
+      return (
+        <MarkdownEditor
+          value={value}
+          onChange={(markdown) => {
+            onChange(markdown);
+            setValue(markdown);
+          }}
+          vault="reef-test"
+        />
+      );
+    }
+    render(
+      <IntlTestProvider locale="en">
+        <ControlledEditor />
+      </IntlTestProvider>,
+    );
+
+    const toggle = screen.getByTitle("Toggle source mode");
+    fireEvent.click(toggle);
+    const source = await screen.findByRole("textbox", {
+      name: "Markdown source",
+    });
+    fireEvent.change(source, { target: { value: uri } });
+    await waitFor(() => expect(resolveTitles).toHaveLength(1));
+    const firstSessionRequestCount = resolveTitles.length;
+
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(
+        screen
+          .getByTestId("markdown-editor")
+          .querySelector("[data-markdown-mode]"),
+      ).toHaveAttribute("data-markdown-mode", "wysiwyg"),
+    );
+    fireEvent.click(toggle);
+    const reenteredSource = await screen.findByRole("textbox", {
+      name: "Markdown source",
+    });
+    await waitFor(() =>
+      expect(resolveTitles.length).toBeGreaterThan(firstSessionRequestCount),
+    );
+    const currentSourceRequest = resolveTitles.length - 1;
+    const changesBeforeCancelledResponse = onChange.mock.calls.length;
+
+    await act(async () => {
+      for (let index = 0; index < currentSourceRequest; index += 1) {
+        resolveTitles[index]?.(new Map([[uri, "Stale title"]]));
+      }
+      await Promise.resolve();
+    });
+
+    expect(
+      requests.filter((request) => request.mode === "source"),
+    ).toHaveLength(2);
+    const fallbackMarkdown = `[guide](${uri})`;
+    expect(reenteredSource).toHaveValue(fallbackMarkdown);
+    expect(reenteredSource).not.toHaveValue(`[Stale title](${uri})`);
+    expect(onChange).toHaveBeenCalledTimes(changesBeforeCancelledResponse);
+
+    await act(async () => {
+      resolveTitles[currentSourceRequest]?.(new Map([[uri, "Current title"]]));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(reenteredSource).toHaveValue(`[Current title](${uri})`),
+    );
+  });
+
+  it("discards a pending title response when the editor becomes read-only", async () => {
+    const uri = "akb://reef-test/coll/research/doc/guide.md";
+    let resolveTitles: ((titles: Map<string, string | null>) => void) | null =
+      null;
+    vi.spyOn(
+      documentTitleResolver,
+      "resolveAkbDocumentTitles",
+    ).mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolveTitles = done;
+        }),
+    );
+    const onChange = vi.fn();
+    function ControlledEditor({ readOnly = false }: { readOnly?: boolean }) {
+      const [value, setValue] = useState("");
+      return (
+        <MarkdownEditor
+          value={value}
+          onChange={(markdown) => {
+            onChange(markdown);
+            setValue(markdown);
+          }}
+          readOnly={readOnly}
+          vault="reef-test"
+        />
+      );
+    }
+    const view = render(
+      <IntlTestProvider locale="en">
+        <ControlledEditor />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = (await screen.findByRole("textbox", {
+      name: "Markdown source",
+    })) as HTMLTextAreaElement;
+    fireEvent.change(source, { target: { value: uri } });
+    await waitFor(() =>
+      expect(
+        documentTitleResolver.resolveAkbDocumentTitles,
+      ).toHaveBeenCalledWith("reef-test", [uri]),
+    );
+
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <ControlledEditor readOnly />
+      </IntlTestProvider>,
+    );
+    await waitFor(() => expect(source).toHaveProperty("readOnly", true));
+    const changesBeforeResolution = onChange.mock.calls.length;
+
+    await act(async () => {
+      resolveTitles?.(new Map([[uri, "Research Guide"]]));
+      await Promise.resolve();
+    });
+
+    expect(source).toHaveValue(uri);
+    expect(onChange).toHaveBeenCalledTimes(changesBeforeResolution);
+  });
+
+  it("keeps composed Source text intact when a title response arrives during composition", async () => {
+    const uri = "akb://reef-test/coll/research/doc/guide.md";
+    const initial = `See ${uri} now.`;
+    let resolveTitles: ((titles: Map<string, string | null>) => void) | null =
+      null;
+    vi.spyOn(
+      documentTitleResolver,
+      "resolveAkbDocumentTitles",
+    ).mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolveTitles = done;
+        }),
+    );
+    const onChange = vi.fn();
+    function ControlledEditor() {
+      const [value, setValue] = useState("");
+      return (
+        <MarkdownEditor
+          value={value}
+          onChange={(markdown) => {
+            onChange(markdown);
+            setValue(markdown);
+          }}
+          vault="reef-test"
+        />
+      );
+    }
+    render(
+      <IntlTestProvider locale="en">
+        <ControlledEditor />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = (await screen.findByRole("textbox", {
+      name: "Markdown source",
+    })) as HTMLTextAreaElement;
+    fireEvent.change(source, { target: { value: initial } });
+    await waitFor(() =>
+      expect(
+        documentTitleResolver.resolveAkbDocumentTitles,
+      ).toHaveBeenCalledWith("reef-test", [uri]),
+    );
+
+    fireEvent.compositionStart(source);
+    await act(async () => {
+      resolveTitles?.(new Map([[uri, "Research Guide"]]));
+      await Promise.resolve();
+    });
+    expect(source).toHaveValue(initial);
+
+    const composedDraft = `${initial} 조합`;
+    fireEvent.change(source, { target: { value: composedDraft } });
+    expect(source).toHaveValue(composedDraft);
+    fireEvent.compositionEnd(source, { data: " 조합" });
+
+    await waitFor(() =>
+      expect(source).toHaveValue(`See [Research Guide](${uri}) now. 조합`),
+    );
+    expect(onChange).toHaveBeenLastCalledWith(
+      `See [Research Guide](${uri}) now. 조합`,
+    );
+  });
+
+  it("keeps a Source draft editable when title resolution returns its failure fallback", async () => {
+    const uri = "akb://reef-test/coll/research/doc/guide.md";
+    const markdown = `See ${uri} now.`;
+    const onChange = vi.fn();
+    const resolve = vi
+      .spyOn(documentTitleResolver, "resolveAkbDocumentTitles")
+      .mockResolvedValue(new Map([[uri, null]]));
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor value="" onChange={onChange} vault="reef-test" />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = await screen.findByRole("textbox", {
+      name: "Markdown source",
+    });
+    fireEvent.change(source, { target: { value: markdown } });
+
+    await waitFor(() =>
+      expect(resolve).toHaveBeenCalledWith("reef-test", [uri]),
+    );
+    const fallbackMarkdown = `See [guide](${uri}) now.`;
+    await waitFor(() => expect(source).toHaveValue(fallbackMarkdown));
+    expect(onChange).toHaveBeenLastCalledWith(fallbackMarkdown);
+
+    const continuedMarkdown = `${fallbackMarkdown}\n\nContinue writing.`;
+    fireEvent.change(source, { target: { value: continuedMarkdown } });
+    expect(source).toHaveValue(continuedMarkdown);
+    expect(onChange).toHaveBeenLastCalledWith(continuedMarkdown);
   });
 
   it("discards a pending title response after the Source target changes", async () => {
