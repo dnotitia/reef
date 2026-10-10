@@ -60,6 +60,11 @@ pnpm run check
 pnpm --filter @reef/web run test:e2e:sharded
 ```
 
+The local shard runner gives each Playwright process a separate compilation
+cache under `packages/web/test-results/transform-cache-{shard}`. This prevents
+parallel cold collection from reading another shard's partially written cache
+files while retaining cache reuse within each shard.
+
 ## Reuse existing fixture behavior
 
 Reset external fixture data with `resetFixture`, then log in through

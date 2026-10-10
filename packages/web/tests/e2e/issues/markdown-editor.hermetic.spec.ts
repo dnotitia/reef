@@ -3112,7 +3112,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
       listbox.getByTestId("markdown-reference-loading"),
     ).toBeVisible();
 
-    await page.keyboard.press("Control+Backspace");
+    for (let index = 0; index < 5; index++) {
+      await page.keyboard.press("Backspace");
+    }
+    await expect(editor.locator("p").last()).toHaveText("@");
     await page.keyboard.type("incident");
     await expect(
       listbox

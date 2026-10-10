@@ -206,6 +206,11 @@ function runShard(shard, total, webUrl, mockUrl) {
     cwd: PACKAGE_ROOT,
     env: {
       ...process.env,
+      PWTEST_CACHE_DIR: resolve(
+        PACKAGE_ROOT,
+        "test-results",
+        `transform-cache-${shard}`,
+      ),
       REEF_WEB_URL: webUrl,
       REEF_E2E_MOCK_URL: mockUrl,
       REEF_E2E_WEB_COMMAND:
