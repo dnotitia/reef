@@ -521,10 +521,20 @@ export async function handleAkb(req, res, url, state) {
     const vault = vaultFor(decodeURIComponent(assetUploadMatch[1]));
     if (!vault) return;
     if (!vault.assets) vault.assets = new Map();
+    const name = url.searchParams.get("filename") || "attachment";
+    if (state.assetUploadDelayMs > 0) {
+      await sleep(state.assetUploadDelayMs);
+    }
     const body = await readRawBody(req);
+    if (state.assetUploadFailOnce.delete(name)) {
+      state.assetUploadAttempts.push({
+        filename: name,
+        status: "failed",
+      });
+      return json(res, 503, { error: "temporary asset upload failure" });
+    }
     if (body.length === 0) return json(res, 400, { error: "empty asset" });
     const id = uuidFor(1000 + vault.assets.size);
-    const name = url.searchParams.get("filename") || "attachment";
     const mimeType = String(req.headers["content-type"] ?? "");
     const asset = {
       id,
@@ -536,6 +546,7 @@ export async function handleAkb(req, res, url, state) {
       createdAt: NOW,
     };
     vault.assets.set(id, asset);
+    state.assetUploadAttempts.push({ filename: name, status: "uploaded" });
     return json(res, 201, {
       kind: "attachment",
       id,

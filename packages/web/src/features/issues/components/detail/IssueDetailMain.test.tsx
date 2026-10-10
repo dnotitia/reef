@@ -15,7 +15,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { markdownEditorProps, mockMarkdownMentionConfig } = vi.hoisted(() => ({
   markdownEditorProps: [] as Array<{
     enableHeightResize?: boolean;
+    imageUpload?: unknown;
     mentionConfig?: unknown;
+    onUploadFiles?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
     resolverContext?: MarkdownTargetResolverContext;
@@ -25,7 +27,9 @@ const { markdownEditorProps, mockMarkdownMentionConfig } = vi.hoisted(() => ({
 vi.mock("@/components/MarkdownEditor", () => ({
   MarkdownEditor: (props: {
     enableHeightResize?: boolean;
+    imageUpload?: unknown;
     mentionConfig?: unknown;
+    onUploadFiles?: unknown;
     placeholder?: string;
     sourcePlaceholder?: string;
     resolverContext?: MarkdownTargetResolverContext;
@@ -177,6 +181,22 @@ describe("IssueDetailMain reference picker", () => {
     } | null;
     expect(config?.issues).toEqual(allIssues);
     expect(config?.searchAdapter).toBe(markdownResourceSearchAdapter);
+  });
+});
+
+describe("IssueDetailMain image uploads", () => {
+  it("passes image uploads and general attachments through separate props", () => {
+    const imageUpload = {
+      adapter: { upload: vi.fn() },
+      context: { vault: "reef-test", draftId: "REEF-001" },
+    };
+    const onUploadBodyAttachments = vi.fn();
+    renderMain({ bodyImageUpload: imageUpload, onUploadBodyAttachments });
+
+    expect(markdownEditorProps.at(-1)).toMatchObject({
+      imageUpload,
+      onUploadFiles: onUploadBodyAttachments,
+    });
   });
 });
 

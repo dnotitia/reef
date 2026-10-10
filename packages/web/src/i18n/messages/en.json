@@ -1825,6 +1825,7 @@
     "toggleSourceMode": "Toggle source mode",
     "uploading": "Uploading attachment…",
     "uploadError": "Couldn't upload that file.",
+    "unsupportedImageType": "This image type is not supported.",
     "resizeHandle": "Resize issue description editor",
     "resizeHandleDescription": "Diagonal handle controls the issue description editor height. Current {current}px; minimum {min}px; maximum {max}px.",
     "mentionOption": "Mention {username}"

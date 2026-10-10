@@ -40,10 +40,6 @@ const markdownMocks = vi.hoisted(() => ({
   commands: {
     focus: vi.fn(() => true),
     setMarkdown: vi.fn(() => true),
-    insertMarkdown: vi.fn((_markdown: string) => true),
-    insertImage: vi.fn(
-      (_target: string, _alt?: string, _title?: string) => true,
-    ),
   },
   state: { isEmpty: true },
   targetResolutions: new Map<string, unknown>(),
@@ -296,38 +292,6 @@ function setViewport(width: number, height: number) {
   window.dispatchEvent(new Event("resize"));
 }
 
-const successfulUpload = {
-  items: [
-    {
-      status: "success" as const,
-      file: new Blob(["brief"]),
-      asset: {
-        kind: "attachment" as const,
-        target: "/api/assets/00000000-0000-4000-8000-000000000001",
-        alt: "brief.png",
-      },
-    },
-  ],
-  succeeded: 1,
-  failed: 0,
-  cancelled: 0,
-  partial: false,
-};
-
-function mockImageInsertion(initialMarkdown: string) {
-  let markdown = initialMarkdown;
-  markdownMocks.commands.insertMarkdown.mockImplementation((snippet) => {
-    markdown += snippet;
-    emitEditorChange(markdown);
-    return true;
-  });
-  markdownMocks.commands.insertImage.mockImplementation((target, alt = "") => {
-    markdown += `![${alt}](${target})`;
-    emitEditorChange(markdown);
-    return true;
-  });
-}
-
 function issue(id: string, title: string): IssueListItem {
   return IssueListItemSchema.parse({
     id,
@@ -344,8 +308,6 @@ function issue(id: string, title: string): IssueListItem {
 describe("MarkdownEditor product adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    markdownMocks.commands.insertMarkdown.mockImplementation(() => true);
-    markdownMocks.commands.insertImage.mockImplementation(() => true);
     markdownMocks.editorOptions = null;
     markdownMocks.surfaceProps = null;
     markdownMocks.toolbarLink = null;
@@ -488,51 +450,26 @@ describe("MarkdownEditor product adapter", () => {
     );
   });
 
-  it("inserts successful uploads through the public image command and reports partial failures", async () => {
+  it("keeps general file uploads out of the body image insertion path", async () => {
     const onChange = vi.fn();
     const onBlur = vi.fn();
     const onUploadFiles = vi.fn().mockResolvedValue({
-      ...successfulUpload,
-      items: [
-        ...successfulUpload.items,
-        {
-          status: "failed" as const,
-          file: new Blob(["failed"]),
-          error: { code: "unknown" as const, message: "busy", retryable: true },
-        },
-      ],
-      succeeded: 1,
-      failed: 1,
-      partial: true,
+      items: [],
+      succeeded: 0,
+      failed: 0,
+      cancelled: 0,
+      partial: false,
     });
     renderEditor({ value: "Existing body", onChange, onBlur, onUploadFiles });
-    mockImageInsertion("Existing body");
     const file = new File(["x"], "brief.pdf", { type: "application/pdf" });
 
     fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
       target: { files: [file] },
     });
 
-    const expected =
-      "Existing body\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
-    await waitFor(() => {
-      expect(onUploadFiles).toHaveBeenCalledWith([file]);
-      expect(onChange).toHaveBeenLastCalledWith(expected);
-      expect(onBlur).toHaveBeenCalledWith(expected);
-    });
-    expect(markdownMocks.commands.focus).toHaveBeenCalledWith("end");
-    expect(markdownMocks.commands.insertMarkdown).toHaveBeenCalledWith("\n\n");
-    expect(markdownMocks.commands.insertImage).toHaveBeenCalledWith(
-      "/api/assets/00000000-0000-4000-8000-000000000001",
-      "brief.png",
-      undefined,
-    );
-    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalledWith(
-      expected,
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Couldn't upload that file.",
-    );
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onBlur).not.toHaveBeenCalled();
   });
 
   it("does not append Markdown when an upload rejects", async () => {
@@ -552,32 +489,6 @@ describe("MarkdownEditor product adapter", () => {
       );
     });
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("keeps the Source draft current while files are pasted into it", async () => {
-    const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockResolvedValue(successfulUpload);
-    renderEditor({ value: "Existing body", onChange, onUploadFiles });
-    fireEvent.click(screen.getByTitle("Toggle source mode"));
-    const source = screen.getByRole("textbox", { name: "Markdown source" });
-    fireEvent.change(source, { target: { value: "Source draft" } });
-    mockImageInsertion("Source draft");
-
-    fireEvent.paste(source, {
-      clipboardData: {
-        files: [new File(["x"], "brief.pdf", { type: "application/pdf" })],
-      },
-    });
-
-    const expected =
-      "Source draft\n\n![brief.png](/api/assets/00000000-0000-4000-8000-000000000001)";
-    await waitFor(() => expect(source).toHaveValue(expected));
-    expect(onChange).toHaveBeenLastCalledWith(expected);
-    expect(markdownMocks.commands.insertImage).toHaveBeenCalledWith(
-      "/api/assets/00000000-0000-4000-8000-000000000001",
-      "brief.png",
-      undefined,
-    );
   });
 
   it("uses the latest Source and WYSIWYG values for change, blur, and mode handoff", () => {
