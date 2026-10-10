@@ -9,6 +9,7 @@ import {
   MarkdownToolbarGroup,
   useMarkdownCommands,
   useMarkdownEditor,
+  useMarkdownImageUploadContext,
   useMarkdownReferenceResolutions,
   useMarkdownState,
   useMarkdownTargetResolutions,
@@ -17,6 +18,7 @@ import {
   type MarkdownEditorMode,
   type MarkdownImageOptions,
   type MarkdownImageMenuOptions,
+  type MarkdownImageUploadOptions,
   type MarkdownReferenceAdapter,
   type MarkdownReferenceCandidate,
   type MarkdownReferenceResolution,
@@ -108,6 +110,75 @@ const ISSUE_IMAGE_MENU_OPTIONS: MarkdownImageMenuOptions = {
     (target.startsWith("/") && !target.startsWith("//")),
 };
 
+const ISSUE_IMAGE_UPLOAD_CLASS_NAMES: NonNullable<
+  MarkdownImageUploadOptions["classNames"]
+> = {
+  status: "border-x border-b border-border-subtle px-3 py-2 text-sm",
+  actions: "flex flex-wrap items-center gap-1.5",
+  action:
+    "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus disabled:cursor-not-allowed disabled:opacity-50",
+  input: "hidden",
+};
+
+function isImageUploadFile(file: File): boolean {
+  return file.type.startsWith("image/");
+}
+
+function MarkdownAttachmentPicker({
+  label,
+  disabled,
+  onFiles,
+  onImageFiles,
+  onUnsupportedImage,
+}: {
+  label: string;
+  disabled: boolean;
+  onFiles: (files: File[]) => void;
+  onImageFiles: (
+    files: readonly File[],
+    selectFiles: (files: readonly File[]) => void,
+  ) => void;
+  onUnsupportedImage: () => void;
+}) {
+  const imageUpload = useMarkdownImageUploadContext();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = filesFromFileList(event.currentTarget.files);
+    event.currentTarget.value = "";
+    const images = files.filter(isImageUploadFile);
+    const attachments = files.filter((file) => !isImageUploadFile(file));
+    if (images.length > 0) {
+      if (imageUpload) onImageFiles(images, imageUpload.selectFiles);
+      else onUnsupportedImage();
+    }
+    if (attachments.length > 0) onFiles(attachments);
+  };
+
+  return (
+    <>
+      <MarkdownToolbarGroup label={label}>
+        <MarkdownToolbarButton
+          label={label}
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Paperclip className="h-4 w-4" aria-hidden="true" />
+        </MarkdownToolbarButton>
+      </MarkdownToolbarGroup>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        aria-label={label}
+        data-testid="markdown-attachment-input"
+        onChange={handleInputChange}
+      />
+    </>
+  );
+}
+
 function MarkdownEditorContent({
   value,
   onChange,
@@ -119,6 +190,7 @@ function MarkdownEditorContent({
   onBlur,
   vault,
   onUploadFiles,
+  imageUpload,
   adapters,
   resolverContext,
   mentionConfig,
@@ -134,7 +206,6 @@ function MarkdownEditorContent({
   const commandsRef = useRef<MarkdownCommands | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modeRef = useRef<MarkdownEditorMode>("wysiwyg");
   // Keep the package's mode authoritative while gating its image action target.
   const imageMenuOptions = useMemo<MarkdownImageMenuOptions>(
@@ -165,6 +236,16 @@ function MarkdownEditorContent({
   const [mentionOpen, setMentionOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
   const [externalLinkHref, setExternalLinkHref] = useState<string | null>(null);
+  const imageUploadOptions = useMemo(() => {
+    if (!imageUpload) return undefined;
+    return {
+      ...imageUpload,
+      classNames: {
+        ...ISSUE_IMAGE_UPLOAD_CLASS_NAMES,
+        ...imageUpload.classNames,
+      },
+    };
+  }, [imageUpload]);
   const normalizeMarkdown = useCallback(
     (markdown: string) =>
       normalizeExistingAkbDocumentMarkdownLinks(
@@ -465,7 +546,15 @@ function MarkdownEditorContent({
 
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
-      if (!onUploadFiles || readOnly || uploadingFiles) return;
+      const attachments = files.filter((file) => !isImageUploadFile(file));
+      if (
+        !onUploadFiles ||
+        readOnly ||
+        uploadingFiles ||
+        attachments.length === 0
+      ) {
+        return;
+      }
       const returnToSource =
         modeRef.current === "source" || restoreSourceAfterUploadRef.current;
       restoreSourceAfterUploadRef.current = returnToSource;
@@ -473,45 +562,15 @@ function MarkdownEditorContent({
       setUploadingFiles(true);
       setUploadError(false);
       try {
-        const result = await onUploadFiles(files);
+        const result = await onUploadFiles(attachments);
         if (result.failed > 0 || result.cancelled > 0) setUploadError(true);
-        const assets = result.items.flatMap((item) =>
-          item.status === "success" && item.asset.kind === "attachment"
-            ? [item.asset]
-            : [],
-        );
-        if (assets.length === 0) return;
-        const current = latestValueRef.current;
-        if (!commands.focus("end"))
-          throw new Error("Markdown editor is unavailable.");
-        if (current.trim() && !commands.insertMarkdown("\n\n")) {
-          throw new Error("Could not prepare the Markdown insertion point.");
-        }
-        for (const asset of assets) {
-          if (
-            !commands.insertImage(asset.target, asset.alt ?? "", asset.title)
-          ) {
-            throw new Error("Could not insert an uploaded image.");
-          }
-        }
-        const next = latestValueRef.current;
-        queueDocumentTitleResolution(next);
-        if (!rootRef.current?.contains(document.activeElement)) {
-          onBlurRef.current?.(next);
-        }
       } catch {
         setUploadError(true);
       } finally {
         setUploadingFiles(false);
       }
     },
-    [
-      commands,
-      onUploadFiles,
-      queueDocumentTitleResolution,
-      readOnly,
-      uploadingFiles,
-    ],
+    [onUploadFiles, readOnly, uploadingFiles],
   );
 
   useEffect(() => {
@@ -520,21 +579,14 @@ function MarkdownEditorContent({
     modeChangeRef.current?.("source");
   }, [uploadingFiles]);
 
-  const openFilePicker = useCallback(() => {
-    if (readOnly || uploadingFiles || !onUploadFiles) return;
-    fileInputRef.current?.click();
-  }, [onUploadFiles, readOnly, uploadingFiles]);
-  const handleInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const files = filesFromFileList(event.currentTarget.files);
-      event.currentTarget.value = "";
-      if (files.length > 0) void handleUploadFiles(files);
-    },
-    [handleUploadFiles],
-  );
+  const handleUnsupportedImageUpload = useCallback(() => {
+    setUploadError(true);
+  }, []);
   const handleSurfacePaste = useCallback(
     (event: ClipboardEvent<HTMLDivElement>) => {
-      const files = filesFromFileList(event.clipboardData.files);
+      const files = filesFromFileList(event.clipboardData.files).filter(
+        (file) => !isImageUploadFile(file),
+      );
       if (!files.length || !onUploadFiles || readOnly) return;
       event.preventDefault();
       void handleUploadFiles(files);
@@ -543,7 +595,9 @@ function MarkdownEditorContent({
   );
   const handleSurfaceDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
-      const files = filesFromFileList(event.dataTransfer.files);
+      const files = filesFromFileList(event.dataTransfer.files).filter(
+        (file) => !isImageUploadFile(file),
+      );
       if (!files.length || !onUploadFiles || readOnly) return;
       event.preventDefault();
       void handleUploadFiles(files);
@@ -552,7 +606,12 @@ function MarkdownEditorContent({
   );
   const handleSurfaceDragOver = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
-      if (onUploadFiles && !readOnly && event.dataTransfer.files.length > 0) {
+      const files = filesFromFileList(event.dataTransfer.files);
+      const hasNonImageFile = files.some((file) => !isImageUploadFile(file));
+      const hasNonImageItem = Array.from(event.dataTransfer.items ?? []).some(
+        (item) => item.kind === "file" && !item.type.startsWith("image/"),
+      );
+      if (onUploadFiles && !readOnly && (hasNonImageFile || hasNonImageItem)) {
         event.preventDefault();
       }
     },
@@ -645,25 +704,19 @@ function MarkdownEditorContent({
           >
             {toolbar}
             {onUploadFiles ? (
-              <MarkdownToolbarGroup label={toolbarLabels.attachFile}>
-                <MarkdownToolbarButton
-                  label={toolbarLabels.attachFile}
-                  disabled={uploadingFiles}
-                  onClick={openFilePicker}
-                >
-                  <Paperclip className="h-4 w-4" aria-hidden="true" />
-                </MarkdownToolbarButton>
-              </MarkdownToolbarGroup>
-            ) : null}
-            {onUploadFiles ? (
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                aria-label={toolbarLabels.attachFile}
-                data-testid="markdown-attachment-input"
-                onChange={handleInputChange}
+              <MarkdownAttachmentPicker
+                label={toolbarLabels.attachFile}
+                disabled={uploadingFiles}
+                onFiles={(files) => void handleUploadFiles(files)}
+                onImageFiles={(files, selectFiles) => {
+                  if (modeRef.current === "source") {
+                    restoreSourceAfterUploadRef.current = false;
+                    modeRef.current = "wysiwyg";
+                    modeChangeRef.current?.("wysiwyg");
+                  }
+                  selectFiles(files);
+                }}
+                onUnsupportedImage={handleUnsupportedImageUpload}
               />
             ) : null}
           </div>
@@ -688,10 +741,10 @@ function MarkdownEditorContent({
       );
     },
     [
-      handleInputChange,
+      handleUploadFiles,
+      handleUnsupportedImageUpload,
       headerOutlet,
       onUploadFiles,
-      openFilePicker,
       readOnly,
       toolbarLabels,
       uploadingFiles,
@@ -751,6 +804,7 @@ function MarkdownEditorContent({
             readOnly={readOnly}
             modeSwitchDisabled={readOnly}
             imageMenu={imageMenuOptions}
+            imageUpload={imageUploadOptions}
             renderHeader={renderHeader}
             toolbar={
               <MarkdownToolbar

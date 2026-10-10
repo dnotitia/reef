@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Issue-body image insertion, paste, drop, and replacement now use the shared
+  Markdown upload flow.** Per-file retry preserves successful images, while
+  unused unclaimed assets from this editor are discarded; ordinary attachments
+  and comment uploads keep their separate paths. (REEF-633)
 - **Issue-body `@` suggestions now include documents and confirmed files
   alongside people and issues.** Resource selections insert canonical AKB links
   and remain editable in the description. (REEF-635)

@@ -60,6 +60,22 @@ export async function resetFixture(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setAssetUploadControl(
+  request: APIRequestContext,
+  options: { delayMs?: number; failOnce?: readonly string[] },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/asset-upload-control`,
+    {
+      data: {
+        delay_ms: options.delayMs ?? 0,
+        fail_once: options.failOnce ?? [],
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setActivityDisplayName(
   request: APIRequestContext,
   username: string,
@@ -181,6 +197,10 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_read_pending: Record<string, number>;
   attachment_read_pending: Record<string, number>;
   markdown_link_search_pending: Record<string, number>;
+  asset_upload_attempts: Array<{
+    filename: string;
+    status: "failed" | "uploaded";
+  }>;
   workspace_initialization: {
     failure_operation: "document" | "document_get" | "tables" | null;
     failures_remaining: number;
@@ -267,6 +287,13 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       filename: string;
       mime_type: string;
       confirmed: boolean;
+    }>;
+    assets: Array<{
+      id: string;
+      name: string;
+      mime_type: string;
+      size_bytes: number;
+      claimed: boolean;
     }>;
   }>;
 }> {

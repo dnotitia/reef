@@ -4,6 +4,7 @@ import type {
   MarkdownTargetResolverContext,
   MarkdownUploadBatchResult,
 } from "@akb/markdown-editor";
+import type { MarkdownImageUploadOptions } from "@akb/markdown-editor/react";
 import type { IssueListItem, VaultMember } from "@reef/core";
 import type { Ref } from "react";
 
@@ -32,11 +33,13 @@ export interface MarkdownEditorProps {
   /** Active AKB vault. Enables akb:// document title resolution when supplied. */
   vault?: string;
   /**
-   * Optional file upload hook for issue-owned editor surfaces. The editor
-   * mutates markdown after this resolves, inserting successful attachment
-   * items and leaving failed/cancelled items out of the document.
+   * Optional upload hook for non-image attachments. Images use the shared
+   * Markdown image upload surface so insertion and replacement retain their
+   * selected editor position.
    */
   onUploadFiles?: (files: File[]) => Promise<MarkdownUploadBatchResult>;
+  /** Product-owned image storage and retention policy for the shared surface. */
+  imageUpload?: MarkdownImageUploadOptions;
   /** Common target resolver used for ephemeral WYSIWYG reference resolution. */
   adapters?: Pick<MarkdownAdapters, "targetResolver">;
   /** Source identity used by the common target resolver; is not serialized. */

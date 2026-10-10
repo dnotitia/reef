@@ -39,7 +39,13 @@ type MarkdownUnavailableReason = Extract<
   { status: "unavailable" }
 >["reason"];
 
-export interface IssueMarkdownUploadAdapterOptions {
+export interface IssueMarkdownImageUploadAdapterOptions {
+  issueId: string;
+  vault: string;
+  unsupportedImageTypeMessage: string;
+}
+
+export interface IssueMarkdownAttachmentUploadOptions {
   issueId: string;
   vault: string;
   uploadLegacyAttachment: (file: File) => Promise<AttachmentUploadResult>;
@@ -130,12 +136,13 @@ function unavailable(
 async function uploadDocumentAsset(
   file: File,
   context: MarkdownUploadContext,
+  unsupportedImageTypeMessage: string,
 ): Promise<MarkdownAsset> {
   if (!context.vault) {
     throw invalidUploadContext("A vault is required for image uploads.");
   }
   if (!IMAGE_MIME_TYPES.has(file.type)) {
-    throw invalidUploadContext("This image type is not supported.");
+    throw invalidUploadContext(unsupportedImageTypeMessage);
   }
 
   const query = new URLSearchParams({
@@ -149,7 +156,22 @@ async function uploadDocumentAsset(
     signal: context.signal,
   });
   if (!response.ok) {
-    await throwHttpError(response, `Image upload failed: ${response.status}`);
+    try {
+      await throwHttpError(response, `Image upload failed: ${response.status}`);
+    } catch (error) {
+      const status = isRecord(error) ? error.status : undefined;
+      if (status === 429 || (typeof status === "number" && status >= 500)) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : `Image upload failed: ${response.status}`;
+        throw Object.assign(
+          new Error(message),
+          adapterError("unavailable", message, true),
+        );
+      }
+      throw error;
+    }
   }
   const payload: unknown = await response.json();
   if (!isDocumentAssetUploadResponse(payload)) {
@@ -164,18 +186,35 @@ async function uploadDocumentAsset(
   };
 }
 
-function createIssueMarkdownUploadAdapter(
-  options: IssueMarkdownUploadAdapterOptions,
+export function createIssueMarkdownImageUploadAdapter(
+  options: IssueMarkdownImageUploadAdapterOptions,
 ): MarkdownUploadAdapter {
   return {
     async upload(file, context) {
       const named = namedFile(file);
-      if (IMAGE_MIME_TYPES.has(named.type)) {
-        return uploadDocumentAsset(named, {
+      return uploadDocumentAsset(
+        named,
+        {
           ...context,
           vault: context?.vault ?? options.vault,
           draftId: context?.draftId ?? options.issueId,
-        });
+        },
+        options.unsupportedImageTypeMessage,
+      );
+    },
+  };
+}
+
+function createIssueMarkdownAttachmentUploadAdapter(
+  options: IssueMarkdownAttachmentUploadOptions,
+): MarkdownUploadAdapter {
+  return {
+    async upload(file) {
+      const named = namedFile(file);
+      if (named.type.startsWith("image/")) {
+        throw invalidUploadContext(
+          "Images must use the Markdown image upload flow.",
+        );
       }
 
       const result = await options.uploadLegacyAttachment(named);
@@ -189,18 +228,38 @@ function createIssueMarkdownUploadAdapter(
   };
 }
 
-export function uploadIssueMarkdownFiles(
-  options: IssueMarkdownUploadAdapterOptions & {
+export function uploadIssueMarkdownAttachments(
+  options: IssueMarkdownAttachmentUploadOptions & {
     files: readonly File[];
     signal?: AbortSignal;
   },
 ): Promise<MarkdownUploadBatchResult> {
-  const adapter = createIssueMarkdownUploadAdapter(options);
+  const adapter = createIssueMarkdownAttachmentUploadAdapter(options);
   return uploadMarkdownBatch(adapter, options.files, {
     vault: options.vault,
     draftId: options.issueId,
     signal: options.signal,
   });
+}
+
+export async function discardIssueMarkdownAsset(options: {
+  vault: string;
+  target: string;
+}): Promise<boolean> {
+  const assetId = ASSET_TARGET_RE.exec(options.target)?.[1];
+  if (!assetId) return false;
+
+  const query = new URLSearchParams({ vault: options.vault });
+  const response = await apiFetch(
+    `/api/assets/${assetId}?${query.toString()}`,
+    { method: "DELETE" },
+  );
+  if (response.status === 404 || response.status === 409) return false;
+  if (!response.ok) {
+    await throwHttpError(response, `Image cleanup failed: ${response.status}`);
+  }
+  const payload: unknown = await response.json();
+  return isRecord(payload) && payload.discarded === true;
 }
 
 function akbVault(target: string): string | undefined {

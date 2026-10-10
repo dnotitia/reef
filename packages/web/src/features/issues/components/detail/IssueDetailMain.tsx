@@ -51,7 +51,8 @@ export function IssueDetailMain({
   setBody,
   setExternalRefs,
   setImplementationRefs,
-  onUploadBodyFiles,
+  onUploadBodyAttachments,
+  bodyImageUpload,
   markdownAdapters,
   resolverContext,
   commitTitle,
@@ -74,7 +75,10 @@ export function IssueDetailMain({
   setBody: ValueSetter<string>;
   setExternalRefs: ValueSetter<ExternalRef[]>;
   setImplementationRefs: ValueSetter<ImplementationRef[]>;
-  onUploadBodyFiles?: ComponentProps<typeof MarkdownEditor>["onUploadFiles"];
+  onUploadBodyAttachments?: ComponentProps<
+    typeof MarkdownEditor
+  >["onUploadFiles"];
+  bodyImageUpload?: ComponentProps<typeof MarkdownEditor>["imageUpload"];
   markdownAdapters?: Pick<MarkdownAdapters, "targetResolver">;
   resolverContext?: MarkdownTargetResolverContext;
   commitTitle: (value: string) => void;
@@ -173,7 +177,8 @@ export function IssueDetailMain({
           value={body}
           onChange={setBody}
           onBlur={commitBody}
-          onUploadFiles={onUploadBodyFiles}
+          onUploadFiles={onUploadBodyAttachments}
+          imageUpload={bodyImageUpload}
           adapters={markdownAdapters}
           resolverContext={resolverContext}
           placeholder={t("descriptionWysiwygPlaceholder")}

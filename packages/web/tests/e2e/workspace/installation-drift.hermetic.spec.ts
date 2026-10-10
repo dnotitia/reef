@@ -174,6 +174,10 @@ test.describe("installation drift and readiness guidance", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await page.goto("/workspace/reef-e2e/settings/workspace");
     const ownerSettings = page.getByTestId("workspace-installation-section");
+    await expect(ownerSettings).toBeVisible();
+    await expect(
+      page.getByTestId("workspace-installation-reef-e2e"),
+    ).toHaveCount(0);
     const ownerDisclosure = ownerSettings.getByTestId(
       "installation-details-disclosure",
     );

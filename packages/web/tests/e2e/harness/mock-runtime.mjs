@@ -30,6 +30,15 @@ export function runtimeDiscovery(state) {
         content_type: "application/json",
         body: { scenario: "<supported_scenario>" },
       },
+      asset_upload_control: {
+        method: "POST",
+        path: "/__e2e/asset-upload-control",
+        content_type: "application/json",
+        body: {
+          delay_ms: "<milliseconds>",
+          fail_once: ["<filename>", "..."],
+        },
+      },
       activity_identity_control: {
         method: "POST",
         path: "/__e2e/activity-identity-control",

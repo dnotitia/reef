@@ -1,6 +1,11 @@
 import { Buffer } from "node:buffer";
 import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  readFixtureState,
+  resetFixture,
+  setAssetUploadControl,
+} from "../harness/fixture";
 
 const INLINE_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAAs0lEQVR42u3ZsQmAQBAEQHMTezA3sQfLEmxEEGzC0D5sQ9O3g/vgeUSYYMNNbqLlmmlLKUo/P2FK++O1h+mOJUxpP51DmHttw5T2GwAAAAAAAAAAAAAAPgCofeBcv/aBc/3aB871AQAAAAAAAAAAAAD4AsAQs4QBAAAAAAAAAAAA+AcYYpYwAAAAAAAAAAAAAP8AQ8wSBgAAAAAAAAAAAOAfYIhZwgAAAAAAAAAAAAB+D/ACWn8C0ZKjwsMAAAAASUVORK5CYII=",
@@ -53,14 +58,14 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
-    await page.locator('[data-testid="markdown-source-toggle"] button').click();
-    const source = page.locator('[data-markdown-mode="source"] textarea');
-    await pasteFile(page, '[data-markdown-mode="source"] textarea', {
+    await pasteFile(page, '[data-testid="markdown-editor-content"]', {
       name: "reef-inline.png",
       mimeType: "image/png",
       bytes: INLINE_PNG,
     });
 
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const source = page.locator('[data-markdown-mode="source"] textarea');
     await expect(source).toHaveValue(
       new RegExp(`!\\[reef-inline\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     );
@@ -127,19 +132,21 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     });
   });
 
-  test("inserts uploaded image markdown from the editor toolbar file picker (REEF-401)", async ({
+  test("inserts images from the shared image toolbar picker (REEF-633)", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
-    const attachButton = page.getByTitle("Attach file");
-    await expect(attachButton).toBeVisible();
-    await expect(attachButton).toBeEnabled();
+    const insertImageButton = page.getByRole("button", {
+      name: "Insert image",
+    });
+    await expect(insertImageButton).toBeVisible();
+    await expect(insertImageButton).toBeEnabled();
 
     const chooserPromise = page.waitForEvent("filechooser");
-    await attachButton.click();
+    await insertImageButton.click();
     const chooser = await chooserPromise;
     await chooser.setFiles({
       name: "reef-toolbar.png",
@@ -152,10 +159,75 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await expect(source).toHaveValue(
       new RegExp(`!\\[reef-toolbar\\.png\\]\\(${UPLOADED_ASSET_TARGET}\\)`),
     );
-    await expect(attachButton).toBeEnabled();
     await page.locator('[data-testid="markdown-editor"]').screenshot({
-      path: "test-results/reef-401-toolbar-attachment-live-proof.png",
+      path: "test-results/reef-633-toolbar-image-live-proof.png",
     });
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    await expect(insertImageButton).toBeEnabled();
+  });
+
+  test("retries only the failed image and keeps earlier successful images (REEF-633)", async ({
+    page,
+    request,
+  }) => {
+    await setAssetUploadControl(request, {
+      delayMs: 25,
+      failOnce: ["retry-second.png"],
+    });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    const insertImageButton = page.getByRole("button", {
+      name: "Insert image",
+    });
+    const chooserPromise = page.waitForEvent("filechooser");
+    await insertImageButton.click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles([
+      { name: "first.png", mimeType: "image/png", buffer: INLINE_PNG },
+      {
+        name: "retry-second.png",
+        mimeType: "image/png",
+        buffer: INLINE_PNG,
+      },
+    ]);
+
+    const failure = page.getByRole("alert");
+    await expect(failure).toBeVisible();
+    await expect(failure.getByRole("button", { name: "Retry" })).toBeVisible();
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const source = page.locator('[data-markdown-mode="source"] textarea');
+    await expect(source).toHaveValue(/first\.png/);
+    await expect(source).not.toHaveValue(/retry-second\.png/);
+    await expect(source).toHaveValue(
+      new RegExp(UPLOADED_ASSET_TARGET.replaceAll("/", "\\/")),
+    );
+
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    await page
+      .getByRole("alert")
+      .getByRole("button", { name: "Retry" })
+      .click();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    await expect(source).toHaveValue(/first\.png/);
+    await expect(source).toHaveValue(/retry-second\.png/);
+    await expect(source).toHaveValue(
+      new RegExp(UPLOADED_ASSET_TARGET.replaceAll("/", "\\/")),
+    );
+    await expect(source).toHaveValue(/00000000-0000-4000-8000-000000001001/);
+
+    const state = await readFixtureState(request);
+    expect(
+      state.asset_upload_attempts.filter((attempt) =>
+        ["first.png", "retry-second.png"].includes(attempt.filename),
+      ),
+    ).toEqual([
+      { filename: "first.png", status: "uploaded" },
+      { filename: "retry-second.png", status: "failed" },
+      { filename: "retry-second.png", status: "uploaded" },
+    ]);
   });
 
   test("renders and reloads an uploaded image with a special filename", async ({
@@ -165,9 +237,11 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
-    const attachButton = page.getByTitle("Attach file");
+    const insertImageButton = page.getByRole("button", {
+      name: "Insert image",
+    });
     const chooserPromise = page.waitForEvent("filechooser");
-    await attachButton.click();
+    await insertImageButton.click();
     const chooser = await chooserPromise;
     const saveResponse = page.waitForResponse((response) => {
       const request = response.request();

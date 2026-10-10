@@ -89,6 +89,35 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, scenario: state.scenario });
     }
     if (
+      url.pathname === "/__e2e/asset-upload-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const delayMs = Number(body?.delay_ms ?? 0);
+      const failOnce = body?.fail_once ?? [];
+      if (
+        !Number.isFinite(delayMs) ||
+        delayMs < 0 ||
+        delayMs > 10_000 ||
+        !Array.isArray(failOnce) ||
+        failOnce.some(
+          (filename) =>
+            typeof filename !== "string" ||
+            filename.length === 0 ||
+            filename.length > 255,
+        )
+      ) {
+        return json(res, 400, { error: "invalid asset upload control" });
+      }
+      state.assetUploadDelayMs = Math.trunc(delayMs);
+      state.assetUploadFailOnce = new Set(failOnce);
+      return json(res, 200, {
+        ok: true,
+        delay_ms: state.assetUploadDelayMs,
+        fail_once: [...state.assetUploadFailOnce],
+      });
+    }
+    if (
       url.pathname === "/__e2e/activity-identity-control" &&
       req.method === "POST"
     ) {
