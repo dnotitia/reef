@@ -88,6 +88,14 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Attachment image Markdown escapes backslashes alongside brackets.**
+  Special-character filenames remain inside the image alt text instead of
+  breaking the generated Markdown syntax.
+- **Security dependencies use patched versions.** Next.js and transitive image,
+  Markdown, math, HTTP, telemetry, and build dependencies resolve the reported
+  GitHub Dependabot vulnerabilities.
+- **Parallel E2E shards use separate Playwright compilation caches.** Cold
+  test collection no longer reads files while another shard is writing them.
 - **Production E2E reuse verifies the current build inputs before Playwright starts.**
   Canonical builds carry Turbo input provenance and the Next build identity in
   local cache entries and CI archives. Stale or missing provenance fails the
