@@ -1349,6 +1349,49 @@ describe("MarkdownEditor shared Source surface", () => {
     expect(onChange).toHaveBeenCalledTimes(changesBeforeUnmount);
   });
 
+  it("keeps the latest Source draft visible after a same-target save acknowledgement", async () => {
+    const onChange = vi.fn();
+    const document = "akb://reef-test/coll/issues/doc/reef-001.md";
+    const initialMarkdown = "# Title\n\nOriginal body.";
+    const savedMarkdown = `${initialMarkdown}\n\nLatest Source paragraph.`;
+    const renderEditor = (value: string, commit: string) => (
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={value}
+          onChange={onChange}
+          vault="reef-test"
+          resolverContext={{ vault: "reef-test", document, commit }}
+          ariaLabel="Issue description"
+        />
+      </IntlTestProvider>
+    );
+    const view = render(renderEditor(initialMarkdown, "commit-1"));
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const source = await screen.findByRole("textbox", {
+      name: "Issue description",
+    });
+    fireEvent.change(source, { target: { value: savedMarkdown } });
+    expect(source).toHaveValue(savedMarkdown);
+    expect(onChange).toHaveBeenLastCalledWith(savedMarkdown);
+
+    view.rerender(renderEditor(savedMarkdown, "commit-1"));
+    expect(source).toHaveValue(savedMarkdown);
+
+    view.rerender(renderEditor(savedMarkdown, "commit-2"));
+    expect(source).toHaveValue(savedMarkdown);
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const editor = await screen.findByTestId("markdown-editor-content");
+    await waitFor(() =>
+      expect(editor).toHaveTextContent("Latest Source paragraph."),
+    );
+    expect(editor.closest("[data-markdown-mode]")).toHaveAttribute(
+      "data-markdown-mode",
+      "wysiwyg",
+    );
+  });
+
   it("preserves WYSIWYG selection, undo, and callbacks on unchanged rerenders and Source round trips", async () => {
     const onChange = vi.fn();
     const onBlur = vi.fn();

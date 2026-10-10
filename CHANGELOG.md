@@ -17,7 +17,8 @@ explicitly in the entries below.
 - **Markdown Source now resolves bare AKB document URIs to canonical title links.**
   The shared toolbar stays in place with WYSIWYG-only commands disabled and
   Source Undo/Redo available; stale title lookups are discarded when the draft
-  changes. (REEF-660)
+  changes, and same-target save acknowledgements preserve the Source draft across
+  WYSIWYG transitions. (REEF-660)
 - **Issue Markdown links now check current-workspace access before opening.**
   Unavailable documents and files stay disabled; available file links open
   through Reef's fresh-download proxy. (REEF-636)

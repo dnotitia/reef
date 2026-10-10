@@ -240,7 +240,6 @@ function MarkdownEditorContent({
   const surfaceSourceContextKey = JSON.stringify([
     vault ?? "",
     resolverContext?.document ?? "",
-    resolverContext?.commit ?? "",
     sourceContextKey ?? "",
   ]);
   const sourceContextKeyRef = useRef(surfaceSourceContextKey);
