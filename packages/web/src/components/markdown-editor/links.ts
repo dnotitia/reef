@@ -5,14 +5,39 @@ import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 
 const LINK_CLICK_SUPPRESSION_MS = 1000;
 
+function findEditorLink(
+  root: ParentNode,
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  const element = target instanceof Element ? target : null;
+  const anchor = element?.closest<HTMLAnchorElement>("a[href]") ?? null;
+  if (!anchor || !root.contains(anchor)) return null;
+  return anchor;
+}
+
 function findClickedEditorLink(
   root: ParentNode,
   event: MouseEvent,
 ): HTMLAnchorElement | null {
-  const target = event.target instanceof Element ? event.target : null;
-  const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
-  if (!anchor || !root.contains(anchor)) return null;
-  return anchor;
+  return findEditorLink(root, event.target);
+}
+
+function isUnavailableMarkdownTarget(anchor: HTMLAnchorElement): boolean {
+  return (
+    anchor.getAttribute("aria-disabled") === "true" ||
+    anchor.dataset.markdownResolution === "pending" ||
+    anchor.dataset.markdownResolution === "unavailable"
+  );
+}
+
+export function preventUnavailableEditorLinkBehavior(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  const anchor = findClickedEditorLink(root, event);
+  if (!anchor || !isUnavailableMarkdownTarget(anchor)) return false;
+  event.preventDefault();
+  return true;
 }
 
 export function openLinkWindow(href: string, target = "_blank"): boolean {
@@ -66,15 +91,36 @@ function openEditorLink(
   return openLinkWindow(href, anchor.getAttribute("target") ?? "_blank");
 }
 
+export function openFocusedEditorLink(
+  root: ParentNode,
+  event: KeyboardEvent,
+  requestExternalConfirmation: (href: string) => void,
+): boolean {
+  if (event.key !== "Enter" || event.repeat) return false;
+  const anchor = findEditorLink(root, event.target);
+  if (!anchor || anchor !== document.activeElement) return false;
+  if (isUnavailableMarkdownTarget(anchor)) {
+    event.preventDefault();
+    return true;
+  }
+  if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
+  event.preventDefault();
+  return true;
+}
+
 export function openClickedEditorLink(
   root: ParentNode,
   event: MouseEvent,
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
   requestExternalConfirmation: (href: string) => void,
 ): boolean {
-  if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
+  if (preventUnavailableEditorLinkBehavior(root, event)) {
+    window.getSelection()?.removeAllRanges();
+    return true;
+  }
+  if (event.button !== 0) return false;
 
   const openedAt = linksOpenedFromMouseUp.get(anchor);
   if (
@@ -109,9 +155,10 @@ export function openEditorLinkOnMouseUp(
   linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
   requestExternalConfirmation: (href: string) => void,
 ): boolean {
-  if (event.button !== 0) return false;
   const anchor = findClickedEditorLink(root, event);
   if (!anchor) return false;
+  if (preventUnavailableEditorLinkBehavior(root, event)) return true;
+  if (event.button !== 0) return false;
   if (!openEditorLink(anchor, requestExternalConfirmation)) return false;
 
   linksOpenedFromMouseUp.set(anchor, Date.now());

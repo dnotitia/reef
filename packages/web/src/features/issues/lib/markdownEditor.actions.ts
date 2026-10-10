@@ -14,6 +14,10 @@ import {
 } from "@akb/markdown-editor";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import {
+  MarkdownTargetAccessResultSchema,
+  type MarkdownTargetAccessResult,
+} from "@reef/core";
+import {
   buildAkbDocumentUrl,
   parseAkbDocumentUri,
 } from "@/lib/akb/documentUri";
@@ -54,6 +58,30 @@ export interface IssueMarkdownAttachmentUploadOptions {
 export interface MarkdownTargetResolverOptions {
   vault: string;
   akbWebBase?: string | null;
+}
+
+async function resolveStoredTargetAccess(
+  target: string,
+  vault: string,
+  signal?: AbortSignal,
+): Promise<MarkdownTargetAccessResult> {
+  const response = await apiFetch(
+    `/api/markdown/targets/resolve?vault=${encodeURIComponent(vault)}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ target }),
+      signal,
+    },
+  );
+  if (!response.ok) {
+    await throwHttpError(response, "Failed to resolve Markdown target");
+  }
+  const result = MarkdownTargetAccessResultSchema.parse(await response.json());
+  if (result.target !== target) {
+    return { target, status: "unavailable", reason: "unknown" };
+  }
+  return result;
 }
 
 function fileName(file: Blob): string {
@@ -325,20 +353,42 @@ export function createMarkdownTargetResolver(
       const targetVault = akbVault(target);
       const vault = resolverVault(options, context);
       if (document) {
+        const runtimeUrl = buildAkbDocumentUrl(options.akbWebBase, target);
         if (vault && document.vault !== vault) {
           return unavailable(target, "document", "cross-vault");
+        }
+        if (!runtimeUrl) return unavailable(target, "document", "unknown");
+        if (!vault) return unavailable(target, "document", "unknown");
+        const access = await resolveStoredTargetAccess(
+          target,
+          vault,
+          context.signal,
+        );
+        if (access.status === "unavailable") return access;
+        if (access.kind !== "document") {
+          return unavailable(target, "document", "unknown");
         }
         return {
           target,
           kind: "document",
           status: "available",
-          runtimeUrl: buildAkbDocumentUrl(options.akbWebBase, target) ?? target,
+          runtimeUrl,
         };
       }
 
       if (isAkbFileUri(target)) {
         if (vault && targetVault && targetVault !== vault) {
           return unavailable(target, "file", "cross-vault");
+        }
+        if (!vault) return unavailable(target, "file", "unknown");
+        const access = await resolveStoredTargetAccess(
+          target,
+          vault,
+          context.signal,
+        );
+        if (access.status === "unavailable") return access;
+        if (access.kind !== "file") {
+          return unavailable(target, "file", "unknown");
         }
         return {
           target,

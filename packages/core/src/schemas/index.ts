@@ -1,5 +1,6 @@
 export * from "./issues";
 export * from "./files";
+export * from "./markdownTargets";
 export * from "./notifications";
 export * from "./workspace";
 export * from "./planning";

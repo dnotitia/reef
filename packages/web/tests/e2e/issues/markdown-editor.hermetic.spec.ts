@@ -34,6 +34,8 @@ interface RuntimeDiscovery {
   tasks?: Record<string, MarkdownFixtureTask>;
 }
 
+const AKB_WEB_BASE = "https://akb.e2e.test";
+
 async function readMarkdownFixtureTask(
   request: APIRequestContext,
 ): Promise<MarkdownFixtureTask> {
@@ -1523,6 +1525,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
       await setTheme(page, preference, colorScheme);
       await expect(editor).toBeVisible();
       await expect(commentRenderer).toBeVisible();
+      await expect(documentReference).toHaveAttribute(
+        "data-markdown-resolution",
+        "available",
+      );
+      await expect(documentReference).toHaveAttribute(
+        "href",
+        "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
+      );
 
       const surface = await readMarkdownSurface(editor);
       const commentSurface = await readCommentMarkdownSurface(commentRenderer);
@@ -3670,6 +3680,33 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
     const editor = page.locator(".reef-markdown-editor");
+    const documentReference = editor.locator(
+      'a[data-markdown-target="akb://reef-e2e/coll/docs/doc/spec-overview.md"]',
+    );
+    await expect(documentReference).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
+    await expect(fileLink).toHaveAttribute(
+      "data-markdown-target",
+      MARKDOWN_FIXTURE_FILE_URI,
+    );
+    await expect(fileLink).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
+    const issueReference = editor.locator(
+      '[data-markdown-reference="true"][data-markdown-reference-kind="issue"][data-markdown-reference-id="REEF-002"][data-markdown-reference-escaped="false"]',
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-markdown-reference-resolution",
+      "available",
+    );
+    await expect(issueReference).toHaveAttribute(
+      "data-markdown-reference-runtime-url",
+      "/workspace/reef-e2e/issues/REEF-002",
+    );
     const checkboxes = editor.locator(
       'ul[data-type="taskList"] input[type="checkbox"]',
     );
@@ -3762,6 +3799,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const surface = await readMarkdownSurface(editor);
     const normalLink = editor.getByRole("link", { name: "reef link" });
     const akbLink = editor.getByRole("link", { name: "AKB report" });
+    const fileLink = editor.getByRole("link", { name: "incident.log" });
     const issueReference = editor.locator(
       'a[data-markdown-reference-runtime-url="/workspace/reef-e2e/issues/REEF-002"][role="link"]',
     );
@@ -3783,6 +3821,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     await page.keyboard.press("Tab");
     await expect(akbLink).toBeFocused();
+    await expect(akbLink).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
     await expect(akbLink).toHaveCSS("outline-width", "2px");
     await expect(akbLink).toHaveCSS("outline-color", surface.colors.brandFocus);
 
@@ -3802,5 +3844,37 @@ test.describe("Hermetic Markdown editor fixture", () => {
       surface.colors.brandFocus,
     );
     await expect(mention).not.toBeFocused();
+
+    const documentHref = await akbLink.getAttribute("href");
+    if (!documentHref) throw new Error("Resolved AKB document link has no URL");
+    await page.context().route(`${AKB_WEB_BASE}/**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>AKB document</title>",
+      });
+    });
+    const openedDocumentPage = page.context().waitForEvent("page");
+    await akbLink.focus();
+    await page.keyboard.press("Enter");
+    const openedDocument = await openedDocumentPage;
+    await expect.poll(() => openedDocument.url()).toBe(documentHref);
+    await expect(openedDocument).toHaveTitle("AKB document");
+    await openedDocument.close();
+
+    await expect(fileLink).toHaveAttribute(
+      "data-markdown-resolution",
+      "available",
+    );
+    await expect(fileLink).toHaveAttribute("href", /^\/api\/files\?/u);
+    const fileRequest = page.context().waitForEvent("request", (request) => {
+      const url = new URL(request.url());
+      return (
+        url.pathname === "/api/files" &&
+        url.searchParams.get("uri") === MARKDOWN_FIXTURE_FILE_URI
+      );
+    });
+    await fileLink.click();
+    expect((await fileRequest).method()).toBe("GET");
   });
 });

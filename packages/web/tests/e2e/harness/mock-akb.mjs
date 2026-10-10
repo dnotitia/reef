@@ -504,14 +504,16 @@ export async function handleAkb(req, res, url, state) {
     const vault = vaultFor(decodeURIComponent(fileMatch[1]));
     if (!vault) return;
     const file = vault.files?.get(decodeURIComponent(fileMatch[2]));
-    if (!file) return json(res, 404, { error: "file not found" });
-    res.writeHead(200, {
-      "Content-Type": file.mimeType,
-      "Content-Length": String(file.body.length),
-      "Content-Disposition": `inline; filename="${headerQuoted(file.filename)}"`,
-      "Cache-Control": "no-store",
+    if (!file?.confirmed || !file.body) {
+      return json(res, 404, { error: "file not found" });
+    }
+    return json(res, 200, {
+      kind: "file",
+      uri: file.uri,
+      name: file.filename,
+      mime_type: file.mimeType,
+      size_bytes: file.sizeBytes,
     });
-    return res.end(file.body);
   }
 
   const assetUploadMatch = path.match(/^\/api\/v1\/assets\/([^/]+)$/);

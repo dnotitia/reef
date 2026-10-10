@@ -49,6 +49,7 @@ import {
   type ChangeEvent,
   type ClipboardEvent,
   type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -71,6 +72,8 @@ import {
 import {
   openClickedEditorLink,
   openEditorLinkOnMouseUp,
+  openFocusedEditorLink,
+  preventUnavailableEditorLinkBehavior,
   preventEditorSelectionOnLinkMouseDown,
 } from "./markdown-editor/links";
 import { MarkdownEditorResizeHandle } from "./markdown-editor/ResizeHandle";
@@ -643,6 +646,14 @@ function MarkdownEditorContent({
     },
     [],
   );
+  const handleSurfaceKeyDownCapture = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const surface = surfaceRef.current;
+      if (!surface) return;
+      openFocusedEditorLink(surface, event.nativeEvent, setExternalLinkHref);
+    },
+    [],
+  );
   const handleSurfaceMouseDownCapture = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       const surface = surfaceRef.current;
@@ -661,6 +672,14 @@ function MarkdownEditorContent({
         linksOpenedFromMouseUpRef.current,
         setExternalLinkHref,
       );
+    },
+    [],
+  );
+  const handleUnavailableLinkAuxClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const surface = surfaceRef.current;
+      if (surface)
+        preventUnavailableEditorLinkBehavior(surface, event.nativeEvent);
     },
     [],
   );
@@ -844,6 +863,9 @@ function MarkdownEditorContent({
               ref={surfaceRef}
               className="relative min-w-0"
               onClickCapture={handleSurfaceClickCapture}
+              onKeyDownCapture={handleSurfaceKeyDownCapture}
+              onAuxClickCapture={handleUnavailableLinkAuxClickCapture}
+              onContextMenuCapture={handleUnavailableLinkAuxClickCapture}
               onMouseDownCapture={handleSurfaceMouseDownCapture}
               onMouseUpCapture={handleSurfaceMouseUpCapture}
             >

@@ -32,6 +32,49 @@ describe("downloadAkbResourceFile", () => {
     expect(new TextDecoder().decode(result.body)).toBe("hello");
   });
 
+  it("obtains a fresh download URL for every file open", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          name: "incident.log",
+          download_url: "https://files.akb.test/signed/first",
+          mime_type: "text/plain",
+          size_bytes: 5,
+        },
+      },
+      { rawBody: new TextEncoder().encode("first") },
+      {
+        body: {
+          name: "incident.log",
+          download_url: "https://files.akb.test/signed/second",
+          mime_type: "text/plain",
+          size_bytes: 6,
+        },
+      },
+      { rawBody: new TextEncoder().encode("second") },
+    ]);
+    const adapter = makeAdapter();
+
+    const first = await downloadAkbResourceFile({
+      adapter,
+      vault: "reef-test",
+      fileUri: "akb://reef-test/coll/incidents/file/file-1",
+    });
+    const second = await downloadAkbResourceFile({
+      adapter,
+      vault: "reef-test",
+      fileUri: "akb://reef-test/coll/incidents/file/file-1",
+    });
+
+    expect(new TextDecoder().decode(first.body)).toBe("first");
+    expect(new TextDecoder().decode(second.body)).toBe("second");
+    expect(calls.filter((call) => call.url.includes("/download"))).toHaveLength(
+      2,
+    );
+    expect(calls[1]?.url).toBe("https://files.akb.test/signed/first");
+    expect(calls[3]?.url).toBe("https://files.akb.test/signed/second");
+  });
+
   it("rejects invalid and cross-vault file URIs without network access", async () => {
     const { calls } = setupFetch([]);
     const adapter = makeAdapter();

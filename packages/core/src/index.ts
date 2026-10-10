@@ -106,8 +106,14 @@ export {
   hasAnyFilter,
   AddIssueReferenceRequestSchema,
   AkbFileUriSchema,
+  AkbFileMetadataSchema,
   AKB_FILE_URI_RE,
   type AkbFileUri,
+  type AkbFileMetadata,
+  MarkdownTargetAccessResultSchema,
+  ResolveMarkdownTargetRequestSchema,
+  type MarkdownTargetAccessResult,
+  type ResolveMarkdownTargetRequest,
   MarkdownResourceSearchResponseSchema,
   MarkdownResourceSearchResultSchema,
   ResolveDocumentTitlesRequestSchema,
@@ -620,6 +626,7 @@ export {
   type GetCurrentActorParams as AkbGetCurrentActorParams,
   type GetCurrentActorResult as AkbGetCurrentActorResult,
 } from "./adapters/akb";
+export { resolveAkbMarkdownTarget as akbResolveMarkdownTarget } from "./adapters/akb";
 export {
   VaultSkillStatusSchema,
   type StoredVaultSkill,

@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   parseMarkdown,
   type MarkdownAsset,
@@ -43,6 +43,8 @@ beforeAll(() => {
   });
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 const repeatedImageTarget = "/api/assets/00000000-0000-4000-8000-000000000001";
 const independentImageTarget = "akb://reef-e2e/issues/file/incident-log";
 
@@ -71,10 +73,14 @@ function PublicSurfaceHarness({
   markdown,
   onChange,
   onBlur,
+  resolutions,
+  resolvingTargets,
 }: {
   markdown: string;
   onChange: (markdown: string) => void;
   onBlur: () => void;
+  resolutions?: ReadonlyMap<string, MarkdownTargetResolution>;
+  resolvingTargets?: boolean;
 }) {
   const editor = useMarkdownEditor({
     initialMarkdown: markdown,
@@ -111,11 +117,201 @@ function PublicSurfaceHarness({
             "data-testid": "markdown-editor-content",
             "aria-label": "Issue description",
           }}
+          resolutions={resolutions}
+          resolvingTargets={resolvingTargets}
         />
       </MarkdownEditingSurface>
     </div>
   );
 }
+
+describe("Markdown target presentation", () => {
+  it("keeps pending and unavailable links disabled and runtime URLs ephemeral", async () => {
+    const target = "akb://reef-e2e/coll/docs/doc/guide.md";
+    const runtimeUrl = "https://akb.example/vault/reef-e2e/doc/docs%2Fguide.md";
+    const markdown = `[Project guide](${target})`;
+    const onChange = vi.fn();
+    const onBlur = vi.fn();
+    const view = render(
+      <MarkdownLocaleProvider locale="en">
+        <PublicSurfaceHarness
+          markdown={markdown}
+          onChange={onChange}
+          onBlur={onBlur}
+          resolutions={new Map()}
+          resolvingTargets
+        />
+      </MarkdownLocaleProvider>,
+    );
+    const editor = await screen.findByTestId("markdown-editor-content");
+
+    await waitFor(() => {
+      expect(editor.querySelector("a[data-markdown-target]")).toHaveAttribute(
+        "data-markdown-resolution",
+        "pending",
+      );
+    });
+    expect(editor.querySelector("a[data-markdown-target]")).toHaveAttribute(
+      "href",
+      "#",
+    );
+    expect(editor.querySelector("a[data-markdown-target]")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    view.rerender(
+      <MarkdownLocaleProvider locale="en">
+        <PublicSurfaceHarness
+          markdown={markdown}
+          onChange={onChange}
+          onBlur={onBlur}
+          resolvingTargets
+          resolutions={
+            new Map<string, MarkdownTargetResolution>([
+              [
+                target,
+                {
+                  target,
+                  kind: "document",
+                  status: "available",
+                  runtimeUrl,
+                },
+              ],
+            ])
+          }
+        />
+      </MarkdownLocaleProvider>,
+    );
+    await waitFor(() => {
+      expect(editor.querySelector("a[data-markdown-target]")).toHaveAttribute(
+        "data-markdown-resolution",
+        "available",
+      );
+    });
+    expect(editor.querySelector("a[data-markdown-target]")).toHaveAttribute(
+      "href",
+      runtimeUrl,
+    );
+
+    view.rerender(
+      <MarkdownLocaleProvider locale="en">
+        <PublicSurfaceHarness
+          markdown={markdown}
+          onChange={onChange}
+          onBlur={onBlur}
+          resolvingTargets
+          resolutions={
+            new Map<string, MarkdownTargetResolution>([
+              [
+                target,
+                {
+                  target,
+                  kind: "document",
+                  status: "unavailable",
+                  reason: "deleted",
+                },
+              ],
+            ])
+          }
+        />
+      </MarkdownLocaleProvider>,
+    );
+    await waitFor(() => {
+      expect(editor.querySelector("a[data-markdown-target]")).toHaveAttribute(
+        "data-markdown-resolution",
+        "unavailable",
+      );
+    });
+    const unavailableLink = editor.querySelector("a[data-markdown-target]");
+    expect(unavailableLink).toHaveAttribute("href", "#");
+    expect(unavailableLink).toHaveAttribute("aria-disabled", "true");
+    expect(unavailableLink).toHaveAttribute("title");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(markdown).toBe(`[Project guide](${target})`);
+  });
+
+  it("opens available references and blocks unavailable ones in read-only mode", async () => {
+    const target = "akb://reef-e2e/coll/docs/doc/guide.md";
+    const runtimeUrl = "https://akb.example/vault/reef-e2e/doc/docs%2Fguide.md";
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const onChange = vi.fn();
+    const accessibleResolver: MarkdownTargetResolver = {
+      async resolve(resolvedTarget) {
+        return {
+          target: resolvedTarget,
+          kind: "document",
+          status: "available",
+          runtimeUrl,
+        };
+      },
+    };
+    const view = render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={`[Project guide](${target})`}
+          onChange={onChange}
+          readOnly
+          vault="reef-e2e"
+          adapters={{ targetResolver: accessibleResolver }}
+        />
+      </IntlTestProvider>,
+    );
+    const availableLink = await screen.findByRole("link", {
+      name: "Project guide",
+    });
+    await waitFor(() =>
+      expect(availableLink).toHaveAttribute(
+        "data-markdown-resolution",
+        "available",
+      ),
+    );
+    fireEvent.click(availableLink);
+    expect(open).toHaveBeenCalledWith(
+      runtimeUrl,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+
+    const unavailableResolver: MarkdownTargetResolver = {
+      async resolve(resolvedTarget) {
+        return {
+          target: resolvedTarget,
+          kind: "document",
+          status: "unavailable",
+          reason: "deleted",
+        };
+      },
+    };
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={`[Project guide](${target})`}
+          onChange={onChange}
+          readOnly
+          vault="reef-e2e"
+          adapters={{ targetResolver: unavailableResolver }}
+        />
+      </IntlTestProvider>,
+    );
+    const unavailableLink = await screen.findByRole("link", {
+      name: "Project guide",
+    });
+    await waitFor(() =>
+      expect(unavailableLink).toHaveAttribute(
+        "data-markdown-resolution",
+        "unavailable",
+      ),
+    );
+    open.mockClear();
+    fireEvent.click(unavailableLink);
+    expect(unavailableLink).toHaveAttribute("href", "#");
+    expect(unavailableLink).toHaveAttribute("aria-disabled", "true");
+    expect(open).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
 
 describe("MarkdownEditor shared Source surface", () => {
   it("keeps the canonical escaped image alt, title, and target in the public preserve surface", async () => {

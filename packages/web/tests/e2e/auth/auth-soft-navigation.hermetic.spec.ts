@@ -411,19 +411,57 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
-    const initialProbe = page.waitForResponse(
-      (response) =>
-        isAuthProbeRequest(response.request()) && response.status() === 200,
-    );
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await initialProbe;
-    await setAuthControl(request, { session: "revoked" });
+    const pendingProtectedRequests = new Set<
+      import("@playwright/test").Request
+    >();
+    const trackProtectedRequest = (
+      protectedRequest: import("@playwright/test").Request,
+    ) => {
+      if (isProtectedApiRequest(protectedRequest)) {
+        pendingProtectedRequests.add(protectedRequest);
+      }
+    };
+    const settleProtectedRequest = (
+      protectedRequest: import("@playwright/test").Request,
+    ) => {
+      pendingProtectedRequests.delete(protectedRequest);
+    };
+    page.on("request", trackProtectedRequest);
+    page.on("requestfinished", settleProtectedRequest);
+    page.on("requestfailed", settleProtectedRequest);
 
-    const probe = page.waitForRequest(isAuthProbeRequest);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await probe;
-    await expectLogin(page, ISSUES_PATH);
+    try {
+      await openExistingWorkspace(page);
+      await expect(page.getByTestId("kanban-board")).toBeVisible();
+
+      const initialProbe = page.waitForResponse(
+        (response) =>
+          isAuthProbeRequest(response.request()) && response.status() === 200,
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await initialProbe;
+      await expect
+        .poll(() =>
+          [...pendingProtectedRequests].map((pendingRequest) => {
+            const route = new URL(pendingRequest.url()).pathname
+              .replace(/\/REEF-[A-Z0-9-]+/gi, "/:issue")
+              .replace(/\/reef-[a-z0-9-]+/gi, "/:workspace");
+            return `${pendingRequest.method()} ${route}`;
+          }),
+        )
+        .toEqual([]);
+
+      await setAuthControl(request, { session: "revoked" });
+
+      const probe = page.waitForRequest(isAuthProbeRequest);
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await probe;
+      await expectLogin(page, ISSUES_PATH);
+    } finally {
+      page.off("request", trackProtectedRequest);
+      page.off("requestfinished", settleProtectedRequest);
+      page.off("requestfailed", settleProtectedRequest);
+    }
   });
 
   test("preserves browser-local workspace context across passive expiry and same-account login", async ({

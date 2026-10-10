@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
-import { AkbFileUriSchema } from "../../../schemas/files";
+import {
+  AkbFileMetadataSchema,
+  AkbFileUriSchema,
+} from "../../../schemas/files";
 import type { AkbAdapter } from "./http";
 import { withSpan } from "./tracing";
 
@@ -45,6 +48,12 @@ export interface DownloadAkbFileResult {
   contentType: string;
   filename: string | null;
   sizeBytes: number | null;
+}
+
+export interface GetAkbFileMetadataParams {
+  adapter: AkbAdapter;
+  vault: string;
+  fileUri: string;
 }
 
 function fileIdFromUri(uri: string): string {
@@ -200,6 +209,34 @@ export async function downloadAkbResourceFile({
 
   return withSpan("akb.files.download_resource", { vault }, () =>
     downloadAkbFile(adapter, vault, fileUri),
+  );
+}
+
+/** Read canonical AKB file metadata without generating a download URL. */
+export async function getAkbFileMetadata({
+  adapter,
+  vault,
+  fileUri,
+}: GetAkbFileMetadataParams): Promise<z.infer<typeof AkbFileMetadataSchema>> {
+  if (
+    !AkbFileUriSchema.safeParse(fileUri).success ||
+    !fileUri.startsWith(`akb://${vault}/`)
+  ) {
+    throw new SchemaValidationError({
+      issues: [
+        "file_uri must be a canonical AKB file URI in the current vault",
+      ],
+    });
+  }
+
+  const fileId = fileIdFromUri(fileUri);
+  return withSpan("akb.files.metadata", { vault }, async () =>
+    AkbFileMetadataSchema.parse(
+      await adapter.request(
+        `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(fileId)}`,
+        { resource: `file ${fileId}` },
+      ),
+    ),
   );
 }
 

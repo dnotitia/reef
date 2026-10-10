@@ -206,16 +206,37 @@ describe("issue Markdown adapters", () => {
       vault: "reef-test",
       akbWebBase: "https://akb.example",
     });
-    mockApiFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          kind: "attachment",
-          target: `/api/assets/${ASSET_ID}`,
-          status: "claimed",
-        }),
-        { status: 200 },
-      ),
-    );
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            kind: "attachment",
+            target: `/api/assets/${ASSET_ID}`,
+            status: "claimed",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            target: "akb://reef-test/coll/docs/doc/guide.md",
+            kind: "document",
+            status: "available",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            target: "akb://reef-test/coll/incidents/file/incident-1",
+            kind: "file",
+            status: "available",
+          }),
+          { status: 200 },
+        ),
+      );
 
     await expect(
       resolver.resolve(`/api/assets/${ASSET_ID}`, { vault: "reef-test" }),
@@ -254,7 +275,90 @@ describe("issue Markdown adapters", () => {
       runtimeUrl:
         "/api/files?vault=reef-test&uri=akb%3A%2F%2Freef-test%2Fcoll%2Fincidents%2Ffile%2Fincident-1&download=1",
     });
-    expect(mockApiFetch).toHaveBeenCalledTimes(1);
+    expect(mockApiFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("checks document and file access before returning a runtime link", async () => {
+    const documentUri = "akb://reef-test/coll/docs/doc/guide.md";
+    const fileUri = "akb://reef-test/coll/docs/file/incident-log";
+    const resolver = createMarkdownTargetResolver({
+      vault: "reef-test",
+      akbWebBase: "https://akb.example",
+    });
+    mockApiFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            target: documentUri,
+            kind: "document",
+            status: "available",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            target: fileUri,
+            kind: "file",
+            status: "available",
+          }),
+          { status: 200 },
+        ),
+      );
+
+    await expect(
+      resolver.resolve(documentUri, {
+        vault: "reef-test",
+        document: "REEF-001",
+        commit: "commit-1",
+      }),
+    ).resolves.toEqual({
+      target: documentUri,
+      kind: "document",
+      status: "available",
+      runtimeUrl: "https://akb.example/vault/reef-test/doc/docs%2Fguide.md",
+    });
+    await expect(
+      resolver.resolve(fileUri, { vault: "reef-test" }),
+    ).resolves.toEqual({
+      target: fileUri,
+      kind: "file",
+      status: "available",
+      runtimeUrl:
+        "/api/files?vault=reef-test&uri=akb%3A%2F%2Freef-test%2Fcoll%2Fdocs%2Ffile%2Fincident-log&download=1",
+    });
+
+    expect(mockApiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/markdown/targets/resolve?vault=reef-test",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ target: documentUri }),
+      }),
+    );
+    expect(mockApiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/markdown/targets/resolve?vault=reef-test",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ target: fileUri }),
+      }),
+    );
+  });
+
+  it("does not make an AKB document available without a configured web URL", async () => {
+    const documentUri = "akb://reef-test/coll/docs/doc/guide.md";
+    const resolver = createMarkdownTargetResolver({ vault: "reef-test" });
+
+    await expect(
+      resolver.resolve(documentUri, { vault: "reef-test" }),
+    ).resolves.toMatchObject({
+      target: documentUri,
+      kind: "document",
+      status: "unavailable",
+    });
+    expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
   it("binds asset metadata and runtime URLs to the source document revision", async () => {

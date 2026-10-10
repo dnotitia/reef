@@ -655,6 +655,13 @@ function markdownFixtureVault(name) {
     content: "Alpha reference notes for the unified issue-body picker.",
     tags: ["markdown", "fixture"],
   });
+  seedReferenceDocument(vault, "docs/spec-overview.md", {
+    title: "Spec overview",
+    type: "reference",
+    summary: "Fixture document cited by Markdown target resolution coverage.",
+    content: "Spec overview linked by the Markdown editor fixture.",
+    tags: ["docs", "markdown", "e2e"],
+  });
   return vault;
 }
 

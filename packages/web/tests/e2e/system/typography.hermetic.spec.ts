@@ -1298,26 +1298,27 @@ test.describe("Hermetic typography role contract", () => {
           );
         }, nextScrollTop);
 
-        const mountedGeometry = await column
-          .getByTestId("kanban-card")
-          .evaluateAll((elements) =>
-            elements.map((element) => {
-              const title = element.querySelector<HTMLElement>("h4");
-              const lineHeight = title
-                ? Number.parseFloat(getComputedStyle(title).lineHeight)
-                : 0;
-              return {
-                id: element.getAttribute("data-issue-id"),
-                height:
-                  Math.round(element.getBoundingClientRect().height * 100) /
-                  100,
-                titleLines:
-                  title && lineHeight > 0
-                    ? Math.round(title.scrollHeight / lineHeight)
-                    : 0,
-              };
-            }),
-          );
+        const mountedGeometry = await column.evaluate((columnElement) =>
+          Array.from(
+            columnElement.querySelectorAll<HTMLElement>(
+              '[data-testid="kanban-card"]',
+            ),
+          ).map((element) => {
+            const title = element.querySelector<HTMLElement>("h4");
+            const lineHeight = title
+              ? Number.parseFloat(getComputedStyle(title).lineHeight)
+              : 0;
+            return {
+              id: element.getAttribute("data-issue-id"),
+              height:
+                Math.round(element.getBoundingClientRect().height * 100) / 100,
+              titleLines:
+                title && lineHeight > 0
+                  ? Math.round(title.scrollHeight / lineHeight)
+                  : 0,
+            };
+          }),
+        );
         for (const actual of mountedGeometry) {
           if (!actual.id) {
             throw new Error("typography card is missing its issue id");

@@ -471,6 +471,9 @@ test.describe("installation drift and readiness guidance", () => {
             if (canManage) {
               await expect(settingsSection).toBeVisible();
               await expect(
+                page.getByTestId("workspace-installation-reef-e2e"),
+              ).toHaveCount(0);
+              await expect(
                 settingsSection.getByTestId("installation-details-disclosure"),
               ).not.toHaveAttribute("open");
             } else {

@@ -30,6 +30,84 @@ async function closeQuickEditor(
   await expect(page.getByTestId("issue-quick-edit-anchor")).toHaveCount(0);
 }
 
+type ResizeObservation = {
+  listenerTarget: "window" | "document";
+  type: "resize" | "focusin" | "keydown";
+  timestamp: number;
+  targetRole: string | null;
+  targetTestId: string | null;
+  viewportWidth: number;
+  viewportHeight: number;
+  defaultPrevented: boolean;
+};
+
+type ResizeObserverWindow = Window & {
+  __reef636BacklogPriorityResizeObserver?: {
+    observations: ResizeObservation[];
+    cleanup: () => void;
+  };
+};
+
+function installBacklogPriorityResizeObserver() {
+  const observations: ResizeObservation[] = [];
+  const listeners: Array<
+    [Window | Document, ResizeObservation["type"], EventListener]
+  > = [];
+
+  for (const [target, listenerTarget] of [
+    [window, "window"],
+    [document, "document"],
+  ] as const) {
+    for (const type of ["resize", "focusin", "keydown"] as const) {
+      const listener: EventListener = (event) => {
+        if (
+          type === "keydown" &&
+          (!(event instanceof KeyboardEvent) || event.key !== "Escape")
+        ) {
+          return;
+        }
+        const element =
+          event.target instanceof HTMLElement ? event.target : null;
+        observations.push({
+          listenerTarget,
+          type,
+          timestamp: performance.now(),
+          targetRole: element?.getAttribute("role") ?? null,
+          targetTestId: element?.getAttribute("data-testid") ?? null,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          defaultPrevented: event.defaultPrevented,
+        });
+      };
+      target.addEventListener(type, listener, { capture: true, passive: true });
+      listeners.push([target, type, listener]);
+    }
+  }
+
+  (window as ResizeObserverWindow).__reef636BacklogPriorityResizeObserver = {
+    observations,
+    cleanup: () => {
+      for (const [target, type, listener] of listeners) {
+        target.removeEventListener(type, listener, true);
+      }
+    },
+  };
+}
+
+function disposeBacklogPriorityResizeObserver(
+  page: Parameters<typeof openExistingWorkspace>[0],
+  includeObservations: boolean,
+) {
+  return page.evaluate((include) => {
+    const observerWindow = window as ResizeObserverWindow;
+    const observer = observerWindow.__reef636BacklogPriorityResizeObserver;
+    if (!observer) return null;
+    observer.cleanup();
+    delete observerWindow.__reef636BacklogPriorityResizeObserver;
+    return include ? observer.observations : null;
+  }, includeObservations);
+}
+
 test.describe("Hermetic Backlog quick edit", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -127,25 +205,51 @@ test.describe("Hermetic Backlog quick edit", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.setViewportSize({ width: 1024, height: 700 });
+    await page.addInitScript(installBacklogPriorityResizeObserver);
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );
 
-    const row = page.getByTestId("backlog-row").first();
-    await expect(row).toBeVisible();
-    await row.getByTestId("issue-inline-edit-priority").click();
+    let observerDisposed = false;
+    try {
+      const row = page.getByTestId("backlog-row").first();
+      await expect(row).toBeVisible();
+      await row.getByTestId("issue-inline-edit-priority").click();
 
-    const anchor = page.getByTestId("issue-quick-edit-anchor");
-    await expect(anchor).toBeVisible();
-    await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
-    await expect(page.getByRole("listbox")).toBeVisible();
+      const anchor = page.getByTestId("issue-quick-edit-anchor");
+      await expect(anchor).toBeVisible();
+      await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
+      await expect(page.getByRole("listbox")).toBeVisible();
 
-    await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize({ width: 1280, height: 900 });
 
-    await expect(anchor).toBeVisible();
-    await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
-    await expect(page.getByRole("listbox")).toBeVisible();
-    await closeQuickEditor(page, "priority");
+      await expect(anchor).toBeVisible();
+      await expect(page.getByTestId("issue-quick-edit-priority")).toBeVisible();
+      await expect(page.getByRole("listbox")).toBeVisible();
+      await closeQuickEditor(page, "priority");
+    } catch (error) {
+      observerDisposed = true;
+      let observations: ResizeObservation[] = [];
+      try {
+        observations =
+          (await disposeBacklogPriorityResizeObserver(page, true)) ?? [];
+      } catch {
+        // Preserve the original Playwright failure if the page has closed.
+      }
+      console.log(
+        `BACKLOG_PRIORITY_RESIZE_FAILURE ${JSON.stringify({ observations })}`,
+      );
+      throw error;
+    } finally {
+      if (!observerDisposed) {
+        observerDisposed = true;
+        try {
+          await disposeBacklogPriorityResizeObserver(page, false);
+        } catch {
+          // Observer cleanup must not change the test result.
+        }
+      }
+    }
   });
 
   test("collision-places the narrow Backlog Priority editor inside a 640px viewport", async ({

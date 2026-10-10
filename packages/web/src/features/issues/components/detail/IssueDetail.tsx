@@ -29,6 +29,7 @@ import {
   type ClosedReason,
   type IssueUpdatePatch,
 } from "@reef/core";
+import type { MarkdownTargetResolverContext } from "@akb/markdown-editor";
 import { useTranslations } from "next-intl";
 import {
   useCallback,
@@ -208,7 +209,7 @@ function IssueDetailLoaded({
     }),
     [akbWebBase, vault],
   );
-  const resolverContext = useMemo(
+  const resolverContext = useMemo<MarkdownTargetResolverContext>(
     () => ({
       vault,
       document: akbIssueDocumentUri(vault, issue.id),
