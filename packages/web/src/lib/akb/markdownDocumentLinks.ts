@@ -62,6 +62,7 @@ function isReplaceableAkbLinkText(
 function normalizeExistingAkbLinks(
   markdown: string,
   titleByUri: ReadonlyMap<string, string | null | undefined>,
+  allowedUris?: ReadonlySet<string>,
 ): string {
   return markdown.replace(
     MARKDOWN_AKB_LINK_RE,
@@ -75,6 +76,7 @@ function normalizeExistingAkbLinks(
       if (imagePrefix) return match;
       const { uri, trailing } = trimTrailingPunctuation(rawUri);
       if (trailing || !isAkbDocumentUri(uri)) return match;
+      if (allowedUris && !allowedUris.has(uri)) return match;
 
       const fallback = akbDocumentSlugTitle(uri);
       if (!isReplaceableAkbLinkText(text, uri, fallback)) return match;
@@ -88,12 +90,14 @@ function normalizeExistingAkbLinks(
 function linkBareAkbUris(
   markdown: string,
   titleByUri: ReadonlyMap<string, string | null | undefined>,
+  allowedUris?: ReadonlySet<string>,
 ): string {
   const linkRanges = collectMarkdownLinkRanges(markdown);
   return markdown.replace(BARE_AKB_URI_RE, (raw, offset: number) => {
     if (isInsideRange(offset, linkRanges)) return raw;
     const { uri, trailing } = trimTrailingPunctuation(raw);
     if (!isAkbDocumentUri(uri)) return raw;
+    if (allowedUris && !allowedUris.has(uri)) return raw;
     return `[${markdownLinkText(titleForUri(uri, titleByUri))}](${uri})${trailing}`;
   });
 }
@@ -128,5 +132,18 @@ export function normalizeAkbDocumentMarkdownLinks(
   return linkBareAkbUris(
     normalizeExistingAkbLinks(markdown, titleByUri),
     titleByUri,
+  );
+}
+
+export function normalizeAkbDocumentMarkdownLinksForUris(
+  markdown: string,
+  titleByUri: ReadonlyMap<string, string | null | undefined>,
+  uris: readonly string[],
+): string {
+  const allowedUris = new Set(uris);
+  return linkBareAkbUris(
+    normalizeExistingAkbLinks(markdown, titleByUri, allowedUris),
+    titleByUri,
+    allowedUris,
   );
 }

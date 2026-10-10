@@ -169,6 +169,7 @@ export function NewIssueDialog({
     setReferences,
     body,
     setBody,
+    draftRevision,
     formApi,
     resetFields,
     buildCreateFields,
@@ -783,6 +784,7 @@ export function NewIssueDialog({
               body={body}
               onBodyChange={setBody}
               vault={vault ?? undefined}
+              sourceContextKey={`new-issue-draft:${draftRevision}`}
               mentionConfig={issueBodyMentionConfig}
               enableHeightResize
               preferredDescriptionHeight={resolvedPreferredDescriptionHeight}

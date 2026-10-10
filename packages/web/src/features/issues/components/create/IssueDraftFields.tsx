@@ -47,6 +47,7 @@ interface IssueDraftFieldsProps {
   body: string;
   onBodyChange: (body: string) => void;
   vault?: string;
+  sourceContextKey?: string;
   mentionConfig?: ComponentProps<typeof MarkdownEditor>["mentionConfig"];
   /** Explicit product opt-in for the shared issue Description height contract. */
   enableHeightResize?: boolean;
@@ -106,6 +107,7 @@ export function IssueDraftFields({
   body,
   onBodyChange,
   vault,
+  sourceContextKey,
   mentionConfig,
   enableHeightResize = false,
   preferredDescriptionHeight,
@@ -270,6 +272,7 @@ export function IssueDraftFields({
             readOnly={disabled}
             ariaLabel={t("descriptionAriaLabel")}
             vault={vault}
+            sourceContextKey={sourceContextKey}
             adapters={markdownAdapters}
             resolverContext={resolverContext}
             mentionConfig={mentionConfig}

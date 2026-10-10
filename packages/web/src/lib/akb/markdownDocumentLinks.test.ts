@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
+  normalizeAkbDocumentMarkdownLinksForUris,
   normalizeExistingAkbDocumentMarkdownLinks,
 } from "./markdownDocumentLinks";
 
@@ -25,6 +26,19 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
     expect(normalizeAkbDocumentMarkdownLinks(URI, titles)).toBe(
       `[Research Report](${URI})`,
     );
+  });
+
+  it("normalizes only the document URIs included in the current resolution", () => {
+    const otherUri = "akb://reef-test/coll/research/doc/notes.md";
+    const markdown = `${URI} and ${otherUri}`;
+
+    expect(
+      normalizeAkbDocumentMarkdownLinksForUris(
+        markdown,
+        new Map([[URI, "Research Report"]]),
+        [URI],
+      ),
+    ).toBe(`[Research Report](${URI}) and ${otherUri}`);
   });
 
   it("keeps bare AKB document URIs when normalizing only existing links", () => {

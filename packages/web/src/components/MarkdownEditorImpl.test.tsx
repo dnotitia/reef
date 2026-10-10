@@ -65,6 +65,7 @@ vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
     MarkdownEditingSurface: ({
       editor,
       markdown,
+      sourceContextKey,
       onSourceChange,
       onMarkdownApplied,
       readOnly = false,
@@ -98,11 +99,15 @@ vi.mock("@akb/markdown-editor/react", async (importOriginal) => {
         mode,
         onModeChange,
         disabled: !editor || modeSwitchDisabled,
-        toolbar: mode === "wysiwyg" ? toolbar : null,
+        toolbar,
       });
 
       return (
-        <div {...props} data-markdown-mode={mode}>
+        <div
+          {...props}
+          data-markdown-mode={mode}
+          data-source-context-key={sourceContextKey}
+        >
           {header}
           <div hidden={mode !== "wysiwyg"} data-markdown-mode-panel="wysiwyg">
             {children}
@@ -516,9 +521,7 @@ describe("MarkdownEditor product adapter", () => {
     expect(onBlur).toHaveBeenCalledWith("Latest source text");
 
     fireEvent.click(screen.getByTitle("Toggle source mode"));
-    expect(markdownMocks.commands.setMarkdown).toHaveBeenLastCalledWith(
-      "Latest source text",
-    );
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
     expect(screen.getByTestId("markdown-editor-content")).toHaveAttribute(
       "contenteditable",
       "true",
@@ -607,9 +610,7 @@ describe("MarkdownEditor product adapter", () => {
     expect(onChange).toHaveBeenLastCalledWith(savedMarkdown);
     fireEvent.click(screen.getByTitle("Toggle source mode"));
 
-    expect(markdownMocks.commands.setMarkdown).toHaveBeenLastCalledWith(
-      savedMarkdown,
-    );
+    expect(markdownMocks.commands.setMarkdown).not.toHaveBeenCalled();
     const resolutions = markdownMocks.surfaceProps?.resolutions as
       | ReadonlyMap<string, { runtimeUrl?: string; status?: string }>
       | undefined;

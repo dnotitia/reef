@@ -37,6 +37,7 @@ const { mockMarkdownEditorResize } = vi.hoisted(() => ({
   mockMarkdownEditorResize: {
     enabled: false,
     preferredHeight: undefined as number | undefined,
+    sourceContextKey: undefined as string | undefined,
   },
 }));
 const { mockMarkdownTargetContext, mockMarkdownAdapters } = vi.hoisted(() => ({
@@ -55,6 +56,7 @@ vi.mock("@/components/MarkdownEditor", () => ({
     preferredHeight,
     adapters,
     resolverContext,
+    sourceContextKey,
   }: {
     value: string;
     onChange: (value: string) => void;
@@ -65,11 +67,13 @@ vi.mock("@/components/MarkdownEditor", () => ({
     preferredHeight?: number;
     adapters?: unknown;
     resolverContext?: unknown;
+    sourceContextKey?: string;
   }) => {
     mockMarkdownMentionConfig.current = mentionConfig;
     mockMarkdownEditorResize.enabled = enableHeightResize ?? false;
     mockMarkdownEditorResize.preferredHeight = preferredHeight;
     mockMarkdownTargetContext.current = resolverContext;
+    mockMarkdownEditorResize.sourceContextKey = sourceContextKey;
     mockMarkdownAdapters.current = adapters;
     return (
       <>
@@ -306,6 +310,7 @@ describe("NewIssueDialog", () => {
     mockMarkdownMentionConfig.current = null;
     mockMarkdownEditorResize.enabled = false;
     mockMarkdownEditorResize.preferredHeight = undefined;
+    mockMarkdownEditorResize.sourceContextKey = undefined;
     mockMarkdownTargetContext.current = null;
     mockMarkdownAdapters.current = null;
     mockViewStore.state.newIssueDialogOpen = false;
@@ -645,6 +650,8 @@ describe("NewIssueDialog", () => {
     render(wrap(<NewIssueDialog />));
 
     expect(await screen.findByText("New sub-issue")).toBeInTheDocument();
+    const firstDraftContext = mockMarkdownEditorResize.sourceContextKey;
+    expect(firstDraftContext).toMatch(/^new-issue-draft:\d+$/);
     expect(screen.getByTestId("new-issue-parent-locked")).toHaveTextContent(
       "REEF-352",
     );
@@ -693,6 +700,11 @@ describe("NewIssueDialog", () => {
     });
     await waitFor(() =>
       expect(screen.getByTestId("new-issue-title-input")).toHaveValue(""),
+    );
+    await waitFor(() =>
+      expect(mockMarkdownEditorResize.sourceContextKey).not.toBe(
+        firstDraftContext,
+      ),
     );
     expect(
       screen.getByRole("textbox", { name: "Markdown source" }),
