@@ -214,8 +214,15 @@ describe("POST /api/issues/[id]/attachments", () => {
     );
   });
 
-  it("preserves a backslash in a special-character image filename", async () => {
-    const filename = "reef'\\한글😀.png";
+  it.each([
+    ["reef'\\한글😀.png", "reef'\\\\한글😀.png"],
+    [String.raw`screen[1].png`, String.raw`screen\[1\].png`],
+    [String.raw`screen\[1\].png`, String.raw`screen\\\[1\\\].png`],
+    [
+      String.raw`screen\](https://example.com)![other\].png`,
+      String.raw`screen\\\](https://example.com)!\[other\\\].png`,
+    ],
+  ])("escapes the image alt text for %s", async (filename, escapedFilename) => {
     mockUploadAttachment.mockResolvedValue({
       ...ATTACHMENT,
       filename,
@@ -235,7 +242,7 @@ describe("POST /api/issues/[id]/attachments", () => {
 
     expect(res.status).toBe(201);
     expect((await res.json()).markdown).toBe(
-      `![${filename}](akb://reef-test/issues/file/file-1)`,
+      `![${escapedFilename}](akb://reef-test/issues/file/file-1)`,
     );
     expect(mockUploadAttachment).toHaveBeenCalledWith(
       expect.objectContaining({ filename }),

@@ -537,7 +537,8 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
       );
     });
     const priorityTrigger = page.getByTestId("priority-dropdown-trigger");
-    await priorityTrigger.click();
+    // dnd-kit suppresses document clicks for 50ms after a drop.
+    await priorityTrigger.click({ delay: 100 });
     await page.getByTestId("priority-option-medium").click();
     await expect(priorityTrigger).toContainText("Medium");
     await priorityFilterRequestPromise;

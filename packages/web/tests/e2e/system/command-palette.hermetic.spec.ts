@@ -12,14 +12,15 @@ async function enterCommandMode(page: import("@playwright/test").Page) {
   await expect(page.locator(commandInput)).toBeFocused();
 }
 
-async function selectEditorContents(page: Page, editor: Locator) {
+async function selectEditorContents(editor: Locator) {
+  await editor.focus();
+  await editor.press(`${PRIMARY_MODIFIER}+A`);
   const selectedText = await editor.evaluate((element) => {
     const selection = window.getSelection();
     if (!selection) throw new Error("Browser selection API is unavailable");
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    if (!element.contains(selection.anchorNode)) {
+      throw new Error("Editor selection is outside the editable content");
+    }
     return selection.toString();
   });
   expect(selectedText.trim()).not.toBe("");
@@ -418,7 +419,7 @@ test.describe("Hermetic command palette", () => {
     const editor = editorWrapper.locator(".reef-markdown-editor");
     await expect(editor).toBeVisible();
     await editor.fill("Locale draft text");
-    const selectedText = await selectEditorContents(page, editor);
+    const selectedText = await selectEditorContents(editor);
     await editorWrapper
       .getByRole("button", { name: "굵게", exact: true })
       .click();
@@ -470,7 +471,7 @@ test.describe("Hermetic command palette", () => {
     const editor = editorWrapper.locator(".reef-markdown-editor");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await expect(editor).toBeVisible();
-    const selectedText = await selectEditorContents(page, editor);
+    const selectedText = await selectEditorContents(editor);
     await editorWrapper
       .getByRole("button", { name: "굵게", exact: true })
       .click();
