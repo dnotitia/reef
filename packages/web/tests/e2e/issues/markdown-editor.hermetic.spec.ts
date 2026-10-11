@@ -3051,7 +3051,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const readVisibleMentions = (editor: Locator) =>
       editor
         .locator(
-          '[data-markdown-reference-kind="person"][data-markdown-reference-escaped="false"]',
+          '[data-markdown-reference="true"][data-markdown-reference-kind="person"][data-markdown-reference-escaped="false"]',
         )
         .evaluateAll((elements) =>
           elements.map((element) => [
