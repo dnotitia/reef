@@ -982,7 +982,10 @@ export function renderKubernetesManifest(
       { stage: "kubernetes_render" },
     );
   }
-  return resources.map((resource) => stringify(resource)).join("---\n");
+  // kubectl reads YAML 1.1; preserve string settings such as nginx's "off".
+  return resources
+    .map((resource) => stringify(resource, { version: "1.1" }))
+    .join("---\n");
 }
 
 function assertNoCredentialInManifest(manifest, token) {

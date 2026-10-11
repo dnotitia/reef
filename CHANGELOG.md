@@ -124,6 +124,11 @@ explicitly in the entries below.
 - Keep the processor private, single-replica, and `Recreate`; preserve ingress
   SSE buffering-off and timeout settings. Both runtime digests must match the
   build artifact and receipt; AKB Manifest v2 verifies only the web digest.
+- Docker builds now package the processor's production dependency subset when
+  the workspace contains web-only Markdown patches. Normal frozen installs
+  continue to require every declared patch.
+- The release CLI preserves ingress annotation strings through Kubernetes YAML
+  decoding, so the SSE buffering-off and timeout settings survive deployment.
 
 ## v0.16.1 - 2026-09-28
 
