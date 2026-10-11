@@ -2141,7 +2141,17 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const sourceToggle = page
       .getByTestId("markdown-source-toggle")
       .getByRole("button");
+    await Promise.all([
+      expect(editor).toBeVisible(),
+      expect(toolbar).toBeVisible(),
+      expect(sourceToggle).toBeVisible(),
+      expect(sourceToggle).toBeEnabled(),
+    ]);
     const readHeaderLayout = async () => {
+      await Promise.all([
+        expect(toolbar).toBeVisible(),
+        expect(sourceToggle).toBeVisible(),
+      ]);
       const readBox = (box: ElementBox | null) => {
         if (!box) throw new Error("Markdown header geometry is unavailable");
         const round = (value: number) => Math.round(value * 10) / 10;

@@ -427,6 +427,15 @@ while people and issue suggestions remain available from the loaded workspace
 data. Search loading, empty and error states, cancellation, and selection
 restoration stay in the shared editor.
 
+Issue Description Source mode keeps the shared editor header and disables
+WYSIWYG-only commands while Source Undo/Redo remain available. Bare AKB document
+URIs with a resolved title become Markdown links that preserve the canonical
+`akb://` target; existing user-authored labels remain intact. A successful save
+acknowledgement for the same logical document or draft does not reset its
+in-progress Source handoff or history. After mode changes and save/reopen, the
+canonical links and authored labels remain in Markdown; a different product
+target uses its own Source context.
+
 Editable Issue Markdown images with same-origin or AKB file targets expose the
 shared image actions at each image occurrence. Description edits and removal
 update only that Markdown occurrence, use the editor's undo history, and leave
