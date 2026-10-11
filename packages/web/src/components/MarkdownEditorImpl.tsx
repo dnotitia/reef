@@ -41,7 +41,7 @@ import {
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
 import { markdownResourceSearchAdapter } from "@/lib/akb/markdownResourceSearch";
 import { cn } from "@/lib/utils";
-import { formatMentionToken } from "@reef/core";
+import { formatMentionToken, parseMentionTokens } from "@reef/core";
 import { useLocale, useTranslations } from "next-intl";
 import { Paperclip } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -325,10 +325,13 @@ function MarkdownEditorContent({
       },
       async resolve(reference, context): Promise<MarkdownReferenceResolution> {
         if (reference.kind === "person") {
+          const authoredMention = parseMentionTokens(reference.value).find(
+            (token) => token.raw === reference.value,
+          );
           const member = config.members.find(
             (candidate) =>
-              candidate.username.toLocaleLowerCase() ===
-              reference.id.toLocaleLowerCase(),
+              candidate.username === reference.id &&
+              candidate.username === authoredMention?.username,
           );
           if (!member) {
             return {
@@ -721,7 +724,7 @@ function MarkdownEditorContent({
             data-testid="markdown-toolbar-controls"
             className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5"
           >
-            {toolbar}
+            {mode === "wysiwyg" ? toolbar : null}
             {onUploadFiles ? (
               <MarkdownAttachmentPicker
                 label={toolbarLabels.attachFile}

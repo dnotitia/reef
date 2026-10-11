@@ -9,8 +9,16 @@ import {
   MarkdownLocaleProvider,
   MarkdownToolbar,
 } from "@akb/markdown-editor/react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import {
+  buildResolvedMentionRecipients,
+  formatMentionToken,
+  parseMentionTokens,
+  type VaultMember,
+} from "@reef/core";
+import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
+import { MarkdownEditor } from "./MarkdownEditorImpl";
 
 describe("Markdown editor public contract", () => {
   it("preserves the preserve profile constructs through canonical serialization", () => {
@@ -88,6 +96,91 @@ describe("Markdown editor public contract", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps exact username identities separate from authored mention tokens", async () => {
+    const username = "team@ops\\blue}";
+    const authoredToken = formatMentionToken(username);
+    const onChange = vi.fn();
+    const member = {
+      username,
+      display_name: "Operations owner",
+    } as VaultMember;
+    const { container } = render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value={`Before ${authoredToken} after.`}
+          onChange={onChange}
+          readOnly
+          mentionConfig={{
+            members: [member],
+            issues: [],
+            mentionOptionLabel: (value) => `@${value}`,
+          }}
+        />
+      </IntlTestProvider>,
+    );
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-markdown-reference="true"]'),
+      ).toHaveAttribute("data-markdown-reference-resolution", "available"),
+    );
+    const reference = container.querySelector(
+      '[data-markdown-reference="true"]',
+    );
+    if (!reference) {
+      throw new Error("Shared Markdown surface did not render the mention");
+    }
+
+    expect(reference).toHaveAttribute("data-markdown-reference-id", username);
+    expect(reference).toHaveAttribute(
+      "data-markdown-reference-value",
+      authoredToken,
+    );
+    expect(reference).toHaveAttribute(
+      "data-markdown-reference-title",
+      `@${username}`,
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("preserves core username and recipient identity through repeated public round trips", () => {
+    const usernames = ["alice", "한글42", "Ada Lovelace", "team@ops\\blue}"];
+    const markdown = `Before ${usernames.map(formatMentionToken).join(" and ")} after.`;
+    const expectedReferences = usernames.map((username) => ({
+      id: username,
+      value: formatMentionToken(username),
+    }));
+    const expectedRecipients = buildResolvedMentionRecipients(
+      markdown,
+      usernames,
+    );
+    let current = markdown;
+
+    expect(
+      parseMentionTokens(markdown).map(({ username }) => username),
+    ).toEqual(usernames);
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      expect(
+        extractMarkdownReferences(current)
+          .filter(({ kind }) => kind === "person")
+          .map(({ id, value }) => ({ id, value })),
+      ).toEqual(expectedReferences);
+
+      current = serializeMarkdown(
+        parseMarkdown(current, { profile: "preserve" }),
+        { profile: "preserve" },
+      );
+
+      expect(current).toBe(markdown);
+      expect(
+        parseMentionTokens(current).map(({ username }) => username),
+      ).toEqual(usernames);
+      expect(buildResolvedMentionRecipients(current, usernames)).toEqual(
+        expectedRecipients,
+      );
+    }
   });
 
   it("changes shared toolbar labels when its locale provider changes", () => {

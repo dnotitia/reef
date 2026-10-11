@@ -583,6 +583,16 @@ export function runtimeDiscovery(state) {
             "open the fixture issue and use the @ menu to search for and insert the confirmed Alpha reference document and incident.log file while keeping the issue description available for further editing",
         },
       },
+      markdown_mentions: {
+        scenario: "markdown_mentions",
+        workspace: REEF_VAULT,
+        start_path: markdownFixtureStartPath(state),
+        interaction: {
+          type: "markdown_editor",
+          operation:
+            "verify exact-case and escaped person mentions through issue creation and Description editing, save, and reopen",
+        },
+      },
       large_issue_list: {
         scenario: "large_vault",
         workspace: "reef-e2e",

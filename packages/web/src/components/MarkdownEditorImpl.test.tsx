@@ -8,7 +8,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import {
+  buildResolvedMentionRecipients,
   IssueListItemSchema,
+  formatMentionToken,
+  parseMentionTokens,
   type IssueListItem,
   type VaultMember,
 } from "@reef/core";
@@ -896,6 +899,129 @@ describe("MarkdownEditor product adapter", () => {
       title: "Auth flow",
       runtimeUrl: "/workspace/reef-test/issues/REEF-001",
     });
+  });
+
+  it("resolves person identities by exact username regardless of roster order", async () => {
+    const alice = {
+      username: "alice",
+      display_name: "Alice Lower",
+    } as VaultMember;
+    const upperAlice = {
+      username: "Alice",
+      display_name: "Alice Upper",
+    } as VaultMember;
+
+    for (const members of [
+      [alice, upperAlice],
+      [upperAlice, alice],
+    ]) {
+      const view = renderEditor({
+        value: "@alice @Alice",
+        onChange: vi.fn(),
+        mentionConfig: {
+          members,
+          issues: [],
+          mentionOptionLabel: (username) => `@${username}`,
+        },
+      });
+      const options = markdownMocks.editorOptions as {
+        reference: { adapter: MarkdownReferenceAdapter };
+      };
+
+      await expect(
+        options.reference.adapter.resolve?.(
+          { kind: "person", id: "alice", value: "@alice" },
+          { vault: "reef-test" },
+        ),
+      ).resolves.toMatchObject({
+        status: "available",
+        id: "alice",
+        subtitle: "Alice Lower",
+      });
+      await expect(
+        options.reference.adapter.resolve?.(
+          { kind: "person", id: "Alice", value: "@Alice" },
+          { vault: "reef-test" },
+        ),
+      ).resolves.toMatchObject({
+        status: "available",
+        id: "Alice",
+        subtitle: "Alice Upper",
+      });
+      view.unmount();
+    }
+  });
+
+  it("does not resolve a wrong-case mention against an alice-only roster", async () => {
+    renderEditor({
+      value: "@Alice",
+      onChange: vi.fn(),
+      mentionConfig: {
+        members: [
+          { username: "alice", display_name: "Alice Lower" } as VaultMember,
+        ],
+        issues: [],
+        mentionOptionLabel: (username) => `@${username}`,
+      },
+    });
+    const options = markdownMocks.editorOptions as {
+      reference: { adapter: MarkdownReferenceAdapter };
+    };
+
+    await expect(
+      options.reference.adapter.resolve?.(
+        { kind: "person", id: "Alice", value: "@Alice" },
+        { vault: "reef-test" },
+      ),
+    ).resolves.toMatchObject({
+      status: "unavailable",
+      reason: "inaccessible",
+    });
+  });
+
+  it("uses core mention parsing for the authored token and preserves exact recipients", async () => {
+    const usernames = ["한글42", "Ada Lovelace", "team@ops\\blue}"];
+    const tokens = usernames.map(formatMentionToken);
+    const body = `Before ${tokens.join(" ")} after.`;
+    const members = usernames.map((username) => ({ username }) as VaultMember);
+
+    expect(parseMentionTokens(body).map(({ username }) => username)).toEqual(
+      usernames,
+    );
+    expect(
+      buildResolvedMentionRecipients(body, [...usernames].reverse()),
+    ).toEqual([...usernames].sort());
+
+    renderEditor({
+      value: body,
+      onChange: vi.fn(),
+      mentionConfig: {
+        members,
+        issues: [],
+        mentionOptionLabel: (username) => `@${username}`,
+      },
+    });
+    const options = markdownMocks.editorOptions as {
+      reference: { adapter: MarkdownReferenceAdapter };
+    };
+
+    for (const username of usernames) {
+      await expect(
+        options.reference.adapter.resolve?.(
+          {
+            kind: "person",
+            id: username,
+            value: formatMentionToken(username),
+          },
+          { vault: "reef-test" },
+        ),
+      ).resolves.toMatchObject({
+        status: "available",
+        id: username,
+        title: `@${username}`,
+        value: formatMentionToken(username),
+      });
+    }
   });
 
   describe("issue description resize", () => {
