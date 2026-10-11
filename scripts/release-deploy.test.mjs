@@ -1728,7 +1728,16 @@ spec:
               value: keep
             - name: REEF_RELEASE_ID
               value: stale
-${EVENT_PROCESSOR_MANIFEST}`;
+${EVENT_PROCESSOR_MANIFEST}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: reef-web
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+`;
   const registrationA = {
     appId: APP_ID,
     releaseId: RELEASE_ID,
@@ -1749,7 +1758,7 @@ ${EVENT_PROCESSOR_MANIFEST}`;
     manifestChecksum: "f".repeat(64),
   };
   const getResources = (yaml) =>
-    parseAllDocuments(yaml)
+    parseAllDocuments(yaml, { version: "1.1" })
       .filter((document) => document.toString().trim().length > 0)
       .map((document) => document.toJS());
   const getDeployment = (resources) =>
@@ -1784,6 +1793,22 @@ ${EVENT_PROCESSOR_MANIFEST}`;
   const resourcesB = getResources(renderedB);
   const envA = getContainerEnv(getDeployment(resourcesA));
   const envB = getContainerEnv(getDeployment(resourcesB));
+
+  for (const resources of [resourcesA, resourcesB]) {
+    const ingress = resources.find((resource) => resource.kind === "Ingress");
+    assert.equal(
+      ingress.metadata.annotations[
+        "nginx.ingress.kubernetes.io/proxy-buffering"
+      ],
+      "off",
+    );
+    assert.equal(
+      ingress.metadata.annotations[
+        "nginx.ingress.kubernetes.io/proxy-read-timeout"
+      ],
+      "600",
+    );
+  }
 
   assert.equal(envA.REEF_RELEASE_ID, registrationA.releaseId);
   assert.equal(envB.REEF_RELEASE_ID, registrationB.releaseId);

@@ -5,7 +5,8 @@ WORKDIR /app
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm run build:packages && pnpm run build
-RUN pnpm deploy --filter @reef/event-processor --prod --legacy /tmp/reef-event-processor
+# The processor's dependency subset excludes the web-only Markdown patch.
+RUN pnpm deploy --filter @reef/event-processor --prod --legacy --config.allow-unused-patches=true /tmp/reef-event-processor
 
 
 # Stage 2: runner — minimal runtime image.

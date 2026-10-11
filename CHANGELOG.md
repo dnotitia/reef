@@ -12,246 +12,123 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.0 - 2026-10-12
+
+### Added
+
+- **My Work and Inbox span every ready workspace accessible to the signed-in
+  actor.** Both retain source-workspace links even when issue ids overlap;
+  My Work can filter its queue by workspace, and Inbox has an account-wide
+  unread badge. Personal navigation is separate from workspace navigation.
+  (REEF-658, REEF-666)
+- **Markdown references search documents and files in the active workspace.**
+  Link insertion and `@` suggestions save canonical AKB links alongside people
+  and issue references; links verify current access before opening, and files
+  download through Reef's authenticated proxy. (REEF-629, REEF-635, REEF-636)
+- **Issue images support description editing, removal, and replacement.**
+  Insertion, paste, drop, and replacement share per-file retry, preserve successful
+  uploads, and discard unused unclaimed editor assets. Removing a Markdown image
+  preserves its AKB resource. (REEF-632, REEF-633)
+- **Milestones and releases have shareable detail panels** with rendered notes,
+  linked issue previews, and planning rollups. (REEF-597)
+
 ### Changed
 
-- **Markdown Source now resolves bare AKB document URIs to canonical title links.**
-  The shared toolbar stays in place with WYSIWYG-only commands disabled and
-  Source Undo/Redo available; stale title lookups are discarded when the draft
-  changes, and same-target save acknowledgements preserve the Source draft across
-  WYSIWYG transitions. (REEF-660)
-- **Issue Markdown links now check current-workspace access before opening.**
-  Unavailable documents and files stay disabled; available file links open
-  through Reef's fresh-download proxy. (REEF-636)
-- **Issue-body image insertion, paste, drop, and replacement now use the shared
-  Markdown upload flow.** Per-file retry preserves successful images, while
-  unused unclaimed assets from this editor are discarded; ordinary attachments
-  and comment uploads keep their separate paths. (REEF-633)
-- **Issue-body `@` suggestions now include documents and confirmed files
-  alongside people and issues.** Resource selections insert canonical AKB links
-  and remain editable in the description. (REEF-635)
-- **Issue Markdown images now have shared description and removal controls.**
-  Edits apply to one image occurrence and remain part of Markdown undo history;
-  removing an image from the body preserves the referenced AKB resource.
-  Controls follow images while scrolling and are hidden in Source mode. Dialogs
-  return focus to the editor after closing. (REEF-632)
-- **Workspace discovery now reads member-scoped installation activity in parallel.**
-  The workspace list preserves per-vault unknown results and no longer fetches
-  installation details or product readiness for every accessible vault.
-  Pickers and resume select only confirmed active installations; selected
-  workspace requests still enforce Reef readiness. (REEF-664)
-- **Inbox now spans every ready workspace accessible to the signed-in actor.**
-  Rows retain their source workspace, duplicate issue notifications remain
-  distinct, and the account-scoped unread badge reflects up to 100 unread rows
-  across the full scope. The selected-workspace list endpoint is removed.
-  (REEF-666)
-- **The overdue sprint rollover notice now follows the Issues content alignment and
-  reads as a neutral status row.** Its action and dismiss controls share one
-  aligned group, with a matching pending frame across Issues and Planning.
-  (REEF-663)
-- **My Work now spans every ready workspace accessible to the signed-in actor.**
-  Its workspace filter narrows only the queue, duplicate issue IDs retain their
-  source-workspace links, and the sidebar separates Personal from Workspace
-  navigation. (REEF-658)
-- **Issue Markdown editing uses the shared Source surface.** Reef delegates
-  Source mode and draft synchronization to the shared editor while preserving
-  issue-body Markdown and Source attachment uploads. (REEF-630)
-- **Issue-body images now use the shared target-resolution lifecycle.** Detail
-  views bind image display to the canonical issue document and loaded revision;
-  draft creation binds it to the active vault. Runtime display URLs stay out of
-  saved Markdown, and the duplicate attachment-image resolver and alt-text
-  rewrite are removed.
-- **Markdown link insertion searches documents and files in the active vault.**
-  Selected resources persist as canonical AKB links while their display text
-  stays in Markdown. (REEF-629)
-- Milestone and release names now open a shared URL-backed detail panel with
-  rendered notes, linked issue previews, and the shared planning rollup; sprint
-  details remain on their dedicated route. (REEF-597)
-- **AKB owns every Reef table schema.** Workspace readiness now verifies the
-  canonical installation, required table metadata, and Reef data initialization
-  through a read-only Core check. Normal product and agent requests no longer
-  create, migrate, or stamp tables. (REEF-419)
-- Reports now receive validated server-computed aggregates, flow metrics, health
-  rollups, pivots, and forecasts in one workspace-scoped response instead of
-  loading issue and activity rows into the browser. (REEF-617)
-- Board columns now virtualize card rendering for large groups while preserving
-  complete issue counts and keyboard traversal. (REEF-616)
-- **Workspace setup follows AKB's app installation lifecycle.** Owners and
-  admins explicitly approve install, restore, or fresh-install commands;
-  ordinary members receive only the canonical active status. Uninstall retains
-  AKB data, while full vault deletion remains separate. (REEF-418)
-- **Workspace setup guidance follows the user's current task.** Onboarding only
-  creates a new workspace; it no longer lists existing installation states or
-  setup commands. Remembered ready-workspace entry and ASCII fallback remain,
-  while a remembered accessible but unavailable workspace opens its own access
-  guidance. That screen offers a safe status recheck and an owner/admin link to
-  the selected workspace's existing diagnostics, without setup mutations.
-  Settings remains scoped to the selected workspace, with admin details on
-  demand and no setup task for ready readers or writers. Release diagnostics
-  continue to distinguish canonical drift from the installation snapshot,
-  including release identities when versions alone collide.
-  (REEF-422)
+- **Breaking: AKB owns Reef installation and schema lifecycle.** Owners and
+  admins explicitly approve installation, restore, and fresh-install commands;
+  uninstall retains data. Product and agent requests verify canonical activity,
+  required table metadata, and initialized Reef data without modifying schemas.
+  Onboarding creates workspaces, while existing workspace access and Settings
+  provide task-specific guidance and administrator diagnostics.
+  (REEF-418, REEF-419, REEF-422)
+- **Breaking: the Event Processor discovers all active Reef installations**
+  through app-scoped inventory instead of a configured single vault. It keeps
+  the last verified worker set through inventory failures and reconciles each
+  installation independently. (REEF-659)
+- **Large boards virtualize cards within each column**, preserving full counts,
+  keyboard traversal, drag targets during auto-scroll, and the focused card's
+  position after detail close or workspace reentry. (REEF-616, REEF-661)
+- **Reports use validated server-computed results** for aggregates, flow metrics,
+  health rollups, pivots, and forecasts instead of loading raw issue and activity
+  rows into the browser. (REEF-617)
+- **Markdown editing uses the shared Source surface, toolbar, and localization.**
+  Source supports title links and Undo/Redo; draft synchronization and image
+  resolution preserve canonical Markdown instead of saving runtime display URLs.
+  (REEF-626, REEF-630, REEF-660)
 
 ### Fixed
 
-- **Issue descriptions stay visible after reload while Markdown references are positioned.**
-  Late positioning callbacks from a closed reference menu no longer hide the
-  document body. (REEF-660)
-- **Issue-body mentions preserve exact usernames through shared Markdown editing.**
-  Source and WYSIWYG editing keep canonical tokens for Unicode usernames and
-  usernames with spaces or punctuation; unresolved mentions do not block
-  matched people. (REEF-638)
-- **Markdown Source leaves AKB examples inside inline and fenced code untouched.**
-  Bare URIs and link-shaped samples keep their original text, while plain-text
-  document URIs still receive resolved titles. (REEF-660)
-- **Attachment image Markdown escapes backslashes alongside brackets.**
-  Special-character filenames remain inside the image alt text instead of
-  breaking the generated Markdown syntax.
-- **Security dependencies use patched versions.** Next.js and transitive image,
-  Markdown, math, HTTP, telemetry, and build dependencies resolve the reported
-  GitHub Dependabot vulnerabilities.
-- **Parallel E2E shards use separate Playwright compilation caches.** Cold
-  test collection no longer reads files while another shard is writing them.
-- **Production E2E reuse verifies the current build inputs before Playwright starts.**
-  Canonical builds carry Turbo input provenance and the Next build identity in
-  local cache entries and CI archives. Stale or missing provenance fails the
-  runner with a nonzero exit code while unchanged inputs remain reusable.
-- **Concurrent SSO requests wait briefly for the active refresh to finish.**
-  Requests sharing a session now reuse the credential committed by the refresh
-  owner, and report a retryable conflict only when no fresh credential appears
-  within the bounded wait. (REEF-668)
-- **The sprint rollover notice stays visible during a failed issue refetch.**
-  Cached issue rows keep the notice and its board frame in place while the
-  existing board error and retry action handle recovery. The hermetic fixture
-  can exercise conflict, service-error, and network failures. (REEF-668)
-- **Board move revalidation no longer shows result-loading progress for the
-  whole Board.** The existing Board and Backlog Board card keep their own save
-  feedback during the background list refresh, while a user-driven search or
-  filter query still shows progress. (REEF-667)
-- **Workspace favorites survive temporary availability gaps.** The browser
-  retains the full validated preference set when a favorite is absent, inactive,
-  or has an unknown activity result, then shows it again when confirmed active.
-  (REEF-664)
-- **Auth-pending Issues chrome now holds the loaded board position at narrow
-  widths.** The filter row and rollover title placeholder match their resolved
-  frame heights during first render. (REEF-663)
-- **My Work issue detail stays bound to its source workspace.** Status edits,
-  related issue links, and drill Back routes now keep using the workspace that
-  owns the opened issue, including when another workspace contains the same id.
-  (REEF-658)
-- **Unavailable workspace entries no longer imply an access denial.** Their
-  heading now describes availability in English and Korean, while genuine
-  access denials keep their existing guidance. (REEF-422)
-- **Onboarding keeps its creation form after an empty workspace response or a
-  successful list retry.** Workspace resume checks no longer restart when the
-  create panel mounts. (REEF-422)
-- **Pointer drags on large Board columns keep the card under the pointer as the
-  target through auto-scroll.** If hit testing finds only the dragged card,
-  Board follows dnd-kit's valid target instead of rejecting the drop as a
-  self-drop. Reorders also no longer fall through to the column tail when
-  collision data lags. (REEF-616)
-- **Board navigation restores the focused issue occurrence and its column position.**
-  When an already-focused card matches its saved position, restoration skips
-  the intermediate scroll. The in-memory anchor is scoped to the signed-in
-  account and workspace, so a matching issue id in another vault does not
-  inherit the previous view.
-  (REEF-616)
-- **Board restoration preserves the focused card's pixel anchor across detail
-  close and workspace reentry.** Internal refocus no longer records a transient
-  align-start position, while a newer user anchor still takes precedence.
-  (REEF-661)
-- **Markdown link search stays opaque and readable in both themes.** Reef maps
-  the shared editor's surface, muted, selected, and destructive color roles so
-  the dialog, inputs, and result list remain legible. (REEF-629)
-- **Wide Markdown tables stay inside the editor's scroll area.** The editor
-  constrains the shared surface's table wrapper so table content does not widen
-  the issue detail panel. (REEF-630)
-- **Source-authored bare AKB document URIs stay as entered.** WYSIWYG continues
-  to normalize bare document links, and explicit Markdown links keep canonical
-  AKB targets. (REEF-630)
-- **Board reordering preserves status-change times for neighboring issues.**
-  Rank materialization and re-spacing now stamp the transition time only on the
-  issue whose status changed, keeping auto-hide, report dates, and activity
-  timelines aligned with the actual transition. (REEF-655)
-- **Issue activity and people controls show current vault display names.**
-  Timeline actors, selected assignees, and mention suggestions resolve stable
-  usernames through the current roster, with readable document-history
-  fallbacks for former members. (REEF-653)
-- **Direct issue links keep the detail frame visible while authentication, issue
-  data, and the editor load.** Hard entry and reload carry the same panel and
-  chrome into the interactive Sheet without a blank handoff or stacked modal.
-  (REEF-648)
-- **Issue detail no longer reserves blank space for attachments while files are
-  loading.** Empty results and inline-image-only results leave Delivery and
-  Activity in place until downloadable files are available. (REEF-652)
-- **Issue details distinguish unloaded sub-issues from a confirmed empty list.**
-  The section keeps its add action while loading, offers retry after a failed
-  request, and retains known child rows when background revalidation fails.
-  (REEF-651)
-- **Issue detail restores its tab-local panel width and Description height while
-  the issue or editor loads.** Loading skeletons use the saved dimensions from
-  first paint, so the panel, toolbar, and content below the editor do not jump
-  when the loaded UI takes over. (REEF-650)
-- **Markdown editor labels follow the selected language in New Issue and issue
-  details.** The app uses the shared editor's public API for its toolbar,
-  mentions, slash commands, and attachment uploads.
-- **Issue-body references stay presentation-only in Markdown editing.** Runtime
-  labels and destinations no longer feed back into the editor document, so
-  Source mode and save/reload preserve the authored tokens. (REEF-626)
-- **Issue search keeps one results-level progress indicator through debounce and
-  refresh.** Empty searches start quietly, and board, list, backlog, and timeline
-  searches share one progress bar and live announcement. (REEF-645)
-- **Workspace resume and issue-view loading keep their destination frame visible.**
-  Login retains the app shell while a saved workspace is checked, and list and
-  timeline loading preserve their table and schedule structures instead of
-  collapsing to one generic bar.
-- **The issues board holds its rollover notice space while an eligible sprint is
-  being resolved.** The board stays in place as issue data arrives, and the
-  frame collapses once the loaded data confirms there is no notice to show.
-- **Saved Light, Dark, and System themes apply before the first paint.** The
-  nonce-authorized root bootstrap reads the existing localStorage mirror, and
-  segmented-control fills switch immediately with the root theme. (REEF-643)
-- **Rapid search transitions keep results paired with their query across
-  board, list, and backlog views.** Cached searches no longer show a blank
-  result set while the input catches up, and delayed searches retain the prior
-  results until the requested set arrives. (REEF-646)
-- **Directly opened issue details keep their Sheet and wayfinding mounted while
-  a relationship destination loads.** The existing Sheet follows the replaced
-  issue URL, keeping Back, Close, and the destination-specific editor together.
-  (REEF-649)
+- **Participant subscriptions stay synchronized before activity is recorded.**
+  Issue creates and requester/assignee changes update their source subscriptions;
+  new comments and replies add a commenter source. Automatic updates preserve
+  explicit manual watch/mute choices. (REEF-659)
+- **Concurrent SSO requests reuse the completed refresh** instead of failing
+  immediately while another request refreshes the same session. (REEF-668)
+- **Search and board refreshes preserve existing results and position.** Rapid
+  queries retain their matching result sets with one progress indicator; card
+  saves no longer trigger whole-board loading, and reorder operations preserve
+  neighboring issues' status-change times. (REEF-645, REEF-646, REEF-655, REEF-667)
+- **Issue details and workspace entry keep their frame through loading and
+  navigation.** Saved editor dimensions apply immediately, relationship drills
+  keep the detail panel mounted, attachment loads do not shift content, and
+  sub-issue failures retain known rows with retry. (REEF-648–652)
+- **Markdown preserves exact mention identities and authored references** across
+  Source/WYSIWYG changes and save/reload. Code examples remain untouched, image
+  filenames escape special characters, and late reference-menu callbacks no
+  longer hide descriptions. (REEF-638, REEF-660)
+- **Workspace favorites survive temporary availability gaps**, and current vault
+  display names appear in activity and people controls. Saved themes apply before
+  first paint. (REEF-643, REEF-653, REEF-664)
+
+### Security
+
+- Patch Next.js and vulnerable transitive image, Markdown, math, HTTP, telemetry,
+  and build dependencies reported by GitHub Dependabot.
 
 ### Migration
 
-- **Reef schema v4 adds a unique key on `reef_activity(reef_id, event_key)` and
-  seven non-unique lookup indexes.** Fresh installs get both in complete
-  `create_table` descriptors from the canonical Desired Schema Projection.
-  Existing v3 installs can transition only from releases `0.14.0`, `0.15.0`, or
-  `0.16.0` with the exact v3 schema fingerprint
-  `dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727`, using
-  explicit AKB `add_unique_key` and `add_index` rollout steps. Reef requests do
-  not modify schemas. (REEF-366, REEF-654)
-- Deploy the AKB release that installs or reconciles Reef's canonical required
-  tables before this version. Reef readiness treats missing or stale local
-  `schema_version` settings as non-authoritative and performs no table schema
-  writes. (REEF-419)
-- Deploy an AKB build with the app installation lifecycle API before deploying
-  this Reef version. Readiness no longer falls back to the presence of Reef
-  configuration or tables. (REEF-418)
+- **Schema v4 requires an AKB-managed transition before deploying Reef.** It adds
+  `UNIQUE (reef_id, event_key)` to `reef_activity` and seven lookup indexes.
+  Existing v3 installations have explicit transitions from `0.14.0`, `0.15.0`,
+  `0.16.0`, and `0.16.1`, each requiring the exact source fingerprint
+  `dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727`.
+  Fresh installs receive complete v4 table descriptors. AKB must expose the
+  installation lifecycle, canonical required-table metadata, and rollout APIs;
+  Reef no longer repairs or stamps schemas. (REEF-366, REEF-418, REEF-419, REEF-654)
+- **Event Processor configuration changes:** remove
+  `REEF_EVENT_PROCESSOR_VAULT`; retain `REEF_EVENT_PROCESSOR_AKB_TOKEN` and add
+  the registered Reef app's `REEF_EVENT_PROCESSOR_APP_CREDENTIAL` to its Secret.
+  AKB must support app-scoped active-installation inventory, and the app must
+  already have `inventory:read`. (REEF-659)
+- **Refresh existing workspace AI instructions through Settings before agents
+  use the new write rules.** Vault skill version 23 documents source-specific
+  participant subscriptions and conflict-safe activity inserts. Deployment alone
+  does not update existing vault documents. (REEF-659, REEF-654)
+- **Persisted query cache advances to `reef-cache-v7`.** The first visit discards
+  old cached responses; aggregate personal queues are not persisted. Browser
+  preferences and drafts need no data migration. (REEF-658)
 
 ### Operational
 
-- **Apply the schema v4 transition in an operator-approved maintenance window.**
-  Block access to the affected workspace and stop the old Reef runtime; do not
-  run both versions concurrently. After the AKB rollout reaches terminal
-  `applied`, deploy the matching Release identity, Reef image, and installation
-  target settings. Resume access only after an authenticated Workspace Ready
-  check succeeds; neither `/api/healthz` nor `/api/readyz` alone confirms schema
-  validation. On partial failure, `blocked`, or timeout, keep maintenance in
-  place and preserve the job ID and applied results. If duplicate activity keys
-  block the rollout, existing rows and that target's schema remain unchanged;
-  Reef does not clean up or rewrite activity data automatically. Fix the cause,
-  then explicitly resume the same rollout with a new idempotency key. Reverting
-  only the image after schema changes are applied does not restore schema
-  compatibility. (REEF-366, REEF-654)
+- **Use a maintenance window for the v3→v4 transition.** Block Reef access and
+  stop both old runtimes before the app-wide AKB rollout; old and new versions
+  must not run concurrently. After terminal `applied`, deploy both matching image
+  digests and release identities, then verify authenticated Workspace Ready for
+  every affected installation before restoring access. Health/readiness probes
+  alone do not verify workspace schemas.
+- **On partial failure, `blocked`, or timeout, keep maintenance in place** and
+  preserve the job id and applied results. Duplicate activity keys block the
+  target without automatic cleanup; the operator must resolve the cause before
+  explicitly resuming the same rollout with a new idempotency key. An image-only
+  rollback cannot undo an applied schema transition. (REEF-366, REEF-654)
+- Keep the processor private, single-replica, and `Recreate`; preserve ingress
+  SSE buffering-off and timeout settings. Both runtime digests must match the
+  build artifact and receipt; AKB Manifest v2 verifies only the web digest.
+- Docker builds now package the processor's production dependency subset when
+  the workspace contains web-only Markdown patches. Normal frozen installs
+  continue to require every declared patch.
+- The release CLI preserves ingress annotation strings through Kubernetes YAML
+  decoding, so the SSE buffering-off and timeout settings survive deployment.
 
 ## v0.16.1 - 2026-09-28
 
@@ -293,12 +170,9 @@ explicitly in the entries below.
 ### Migration
 
 - Deploy the Event Processor alongside the web application with
-  `AKB_BACKEND_URL`, the secret `REEF_EVENT_PROCESSOR_AKB_TOKEN`, and the
-  registered Reef app's `REEF_EVENT_PROCESSOR_APP_CREDENTIAL`. The processor
-  now discovers every active app installation dynamically; remove the obsolete
-  `REEF_EVENT_PROCESSOR_VAULT` setting. AKB must provide the Change Event
-  stream, source reconciliation APIs, and app-scoped inventory with the existing
-  `inventory:read` capability. Cluster deployment additionally requires the
+  `AKB_BACKEND_URL`, `REEF_EVENT_PROCESSOR_VAULT`, and the secret
+  `REEF_EVENT_PROCESSOR_AKB_TOKEN`. AKB must provide the Change Event stream
+  and source reconciliation APIs; cluster deployment additionally requires the
   App Registry and rollout APIs plus an operator-only
   `REEF_CONTROL_PLANE_TOKEN`.
 - Refresh existing vault-skill/runbook documents through Settings to install the
