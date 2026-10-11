@@ -17,7 +17,7 @@
     "i18n:baseline:seed": "I18N_BASELINE_UPDATE=seed vitest run src/i18n/guard/i18nGuard.test.ts"
   },
   "dependencies": {
-    "@akb/markdown-editor": "git+https://github.com/dnotitia/akb.git#919c4dc75d91e68902e5507dc6982e3469fcca85&path:/frontend/packages/markdown-editor",
+    "@akb/markdown-editor": "git+https://github.com/dnotitia/akb.git#5e009d88d2726710236e58393e0f17658bfb1179&path:/frontend/packages/markdown-editor",
     "@ai-sdk/otel": "^1.0.58",
     "@ai-sdk/openai": "^4.0.36",
     "@dnd-kit/core": "^6.3.1",

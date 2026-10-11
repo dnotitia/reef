@@ -93,6 +93,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue-body mentions preserve exact usernames through shared Markdown editing.**
+  Source and WYSIWYG editing keep canonical tokens for Unicode usernames and
+  usernames with spaces or punctuation; unresolved mentions do not block
+  matched people. (REEF-638)
 - **Markdown Source leaves AKB examples inside inline and fenced code untouched.**
   Bare URIs and link-shaped samples keep their original text, while plain-text
   document URIs still receive resolved titles. (REEF-660)

@@ -15,7 +15,7 @@ catalog:
 pmOnFail: download
 
 allowBuilds:
-  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/919c4dc75d91e68902e5507dc6982e3469fcca85#path:/frontend/packages/markdown-editor': true
+  '@akb/markdown-editor@https://codeload.github.com/dnotitia/akb/tar.gz/5e009d88d2726710236e58393e0f17658bfb1179#path:/frontend/packages/markdown-editor': true
   "@biomejs/biome": true
   "@parcel/watcher": true
   "@swc/core": true
