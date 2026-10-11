@@ -3082,7 +3082,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await openExistingWorkspace(page);
     await page.goto(task.start_path ?? "");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
-    const existingEditor = page.locator(".reef-markdown-editor").first();
+    const existingEditor = page
+      .getByTestId("issue-detail")
+      .getByTestId("markdown-editor")
+      .first();
     await expectVisibleMentions(
       existingEditor,
       ["alice", ...usernames],
@@ -3161,7 +3164,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    const draftEditor = dialog.locator(".reef-markdown-editor").first();
+    const draftEditor = dialog.getByTestId("markdown-editor").first();
     await expectVisibleMentions(draftEditor, usernames);
 
     const createResponse = page.waitForResponse((response) => {
@@ -3185,7 +3188,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
       { timeout: 10_000 },
     );
     await expect(page.getByTestId("issue-detail")).toBeVisible();
-    const createdEditor = page.locator(".reef-markdown-editor").first();
+    const createdEditor = page
+      .getByTestId("issue-detail")
+      .getByTestId("markdown-editor")
+      .first();
     await expectVisibleMentions(createdEditor, usernames);
 
     const fixtureState = await readFixtureState(request);
