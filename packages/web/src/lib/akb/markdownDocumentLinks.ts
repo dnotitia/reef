@@ -1,3 +1,5 @@
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { visit } from "unist-util-visit";
 import { akbDocumentSlugTitle, parseAkbDocumentUri } from "./documentUri";
 
 const MARKDOWN_AKB_LINK_RE =
@@ -35,6 +37,26 @@ function isInsideRange(index: number, ranges: readonly LinkRange[]): boolean {
   return ranges.some((range) => index >= range.from && index < range.to);
 }
 
+function overlapsRange(
+  from: number,
+  to: number,
+  ranges: readonly LinkRange[],
+): boolean {
+  return ranges.some((range) => from < range.to && to > range.from);
+}
+
+function collectMarkdownCodeRanges(markdown: string): LinkRange[] {
+  const ranges: LinkRange[] = [];
+  visit(fromMarkdown(markdown), (node) => {
+    if (node.type !== "code" && node.type !== "inlineCode") return;
+    const from = node.position?.start.offset;
+    const to = node.position?.end.offset;
+    if (from === undefined || to === undefined || to <= from) return;
+    ranges.push({ from, to });
+  });
+  return ranges;
+}
+
 function markdownLinkText(title: string): string {
   return title
     .replace(/\\/g, "\\\\")
@@ -64,6 +86,7 @@ function normalizeExistingAkbLinks(
   titleByUri: ReadonlyMap<string, string | null | undefined>,
   allowedUris?: ReadonlySet<string>,
 ): string {
+  const codeRanges = collectMarkdownCodeRanges(markdown);
   return markdown.replace(
     MARKDOWN_AKB_LINK_RE,
     (
@@ -72,8 +95,11 @@ function normalizeExistingAkbLinks(
       text: string,
       rawUri: string,
       suffix: string,
+      offset: number,
     ) => {
       if (imagePrefix) return match;
+      if (overlapsRange(offset, offset + match.length, codeRanges))
+        return match;
       const { uri, trailing } = trimTrailingPunctuation(rawUri);
       if (trailing || !isAkbDocumentUri(uri)) return match;
       if (allowedUris && !allowedUris.has(uri)) return match;
@@ -93,8 +119,14 @@ function linkBareAkbUris(
   allowedUris?: ReadonlySet<string>,
 ): string {
   const linkRanges = collectMarkdownLinkRanges(markdown);
+  const codeRanges = collectMarkdownCodeRanges(markdown);
   return markdown.replace(BARE_AKB_URI_RE, (raw, offset: number) => {
-    if (isInsideRange(offset, linkRanges)) return raw;
+    if (
+      isInsideRange(offset, linkRanges) ||
+      overlapsRange(offset, offset + raw.length, codeRanges)
+    ) {
+      return raw;
+    }
     const { uri, trailing } = trimTrailingPunctuation(raw);
     if (!isAkbDocumentUri(uri)) return raw;
     if (allowedUris && !allowedUris.has(uri)) return raw;
@@ -104,14 +136,22 @@ function linkBareAkbUris(
 
 export function extractAkbDocumentUris(markdown: string): string[] {
   const uris = new Set<string>();
+  const codeRanges = collectMarkdownCodeRanges(markdown);
   for (const match of markdown.matchAll(MARKDOWN_AKB_LINK_RE)) {
+    const offset = match.index ?? 0;
+    if (overlapsRange(offset, offset + match[0].length, codeRanges)) continue;
     const { uri, trailing } = trimTrailingPunctuation(match[3] ?? "");
     if (!trailing && isAkbDocumentUri(uri)) uris.add(uri);
   }
   const linkRanges = collectMarkdownLinkRanges(markdown);
   for (const match of markdown.matchAll(BARE_AKB_URI_RE)) {
     const offset = match.index ?? 0;
-    if (isInsideRange(offset, linkRanges)) continue;
+    if (
+      isInsideRange(offset, linkRanges) ||
+      overlapsRange(offset, offset + match[0].length, codeRanges)
+    ) {
+      continue;
+    }
     const { uri } = trimTrailingPunctuation(match[0]);
     if (isAkbDocumentUri(uri)) uris.add(uri);
   }

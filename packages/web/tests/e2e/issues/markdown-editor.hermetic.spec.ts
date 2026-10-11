@@ -2219,7 +2219,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(await readHeaderLayout()).toEqual(wysiwygHeader);
 
     const bareUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
-    const authoredMarkdown = `${await source.inputValue()}\n\nSee ${bareUri}\n\n[Custom title](${bareUri})`;
+    const codeExamples = [
+      `\`${bareUri}\``,
+      "```markdown",
+      bareUri,
+      `[alpha-reference](${bareUri})`,
+      "```",
+    ].join("\n");
+    const authoredMarkdown = `${await source.inputValue()}\n\nSee ${bareUri}\n\n${codeExamples}\n\n[Custom title](${bareUri})`;
     expect(authoredMarkdown).toContain("WYSIWYG draft.");
     const normalizedMarkdown = authoredMarkdown.replace(
       `See ${bareUri}`,
@@ -2323,6 +2330,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
     await expect(reopenedSource).toHaveValue(persistedMarkdown);
     const reopenedMarkdown = await reopenedSource.inputValue();
+    expect(reopenedMarkdown).toContain(codeExamples);
     expect(reopenedMarkdown).toContain("[Alpha reference]");
     expect(reopenedMarkdown).toContain("[Custom title]");
     expect(reopenedMarkdown).not.toContain("https://akb.e2e.test/vault/");

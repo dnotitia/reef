@@ -844,6 +844,14 @@ describe("MarkdownEditor shared Source surface", () => {
   it("applies resolved document titles to the live Source draft", async () => {
     const uri = "akb://reef-test/coll/research/doc/guide.md";
     const otherUri = "akb://reef-test/coll/research/doc/notes.md";
+    const code = [
+      `\`${uri}\``,
+      `\`\`${uri}\`\``,
+      "```markdown",
+      uri,
+      "[guide](akb://reef-test/coll/research/doc/guide.md)",
+      "```",
+    ].join("\n");
     const onChange = vi.fn();
     let resolveTitles: ((titles: Map<string, string | null>) => void) | null =
       null;
@@ -878,11 +886,12 @@ describe("MarkdownEditor shared Source surface", () => {
     const source = (await screen.findByRole("textbox", {
       name: "Markdown source",
     })) as HTMLTextAreaElement;
-    fireEvent.change(source, { target: { value: `See ${uri} now.` } });
+    const authoredMarkdown = `See ${uri} now.\n\n${code}`;
+    fireEvent.change(source, { target: { value: authoredMarkdown } });
     await waitFor(() =>
       expect(resolve).toHaveBeenCalledWith("reef-test", [uri]),
     );
-    const editedWhileResolving = `See ${uri} now, still writing.`;
+    const editedWhileResolving = `${authoredMarkdown}\n\nStill writing.`;
     fireEvent.change(source, { target: { value: editedWhileResolving } });
     await waitFor(() => expect(source).toHaveValue(editedWhileResolving));
     source.setSelectionRange(source.value.length, source.value.length);
@@ -890,7 +899,7 @@ describe("MarkdownEditor shared Source surface", () => {
 
     act(() => resolveTitles?.(new Map([[uri, "Research Guide"]])));
 
-    const normalized = `See [Research Guide](${uri}) now, still writing.`;
+    const normalized = `See [Research Guide](${uri}) now.\n\n${code}\n\nStill writing.`;
     await waitFor(() => expect(source).toHaveValue(normalized));
     expect(source.selectionStart).toBe(normalized.length);
     expect(onChange).toHaveBeenLastCalledWith(normalized);
@@ -908,6 +917,17 @@ describe("MarkdownEditor shared Source surface", () => {
     await waitFor(() => expect(source).toHaveValue(normalized));
     fireEvent.click(undo);
     await waitFor(() => expect(source).toHaveValue(editedWhileResolving));
+    fireEvent.click(redo);
+    await waitFor(() => expect(source).toHaveValue(normalized));
+
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const editor = await screen.findByTestId("markdown-editor-content");
+    await waitFor(() => expect(editor).toHaveTextContent(uri));
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    const returnedSource = await screen.findByRole("textbox", {
+      name: "Markdown source",
+    });
+    await waitFor(() => expect(returnedSource).toHaveValue(normalized));
 
     fireEvent.change(source, {
       target: { value: `See ${uri} and ${otherUri} now.` },

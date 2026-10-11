@@ -93,6 +93,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Markdown Source leaves AKB examples inside inline and fenced code untouched.**
+  Bare URIs and link-shaped samples keep their original text, while plain-text
+  document URIs still receive resolved titles. (REEF-660)
 - **Attachment image Markdown escapes backslashes alongside brackets.**
   Special-character filenames remain inside the image alt text instead of
   breaking the generated Markdown syntax.
