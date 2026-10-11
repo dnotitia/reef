@@ -85,7 +85,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       },
     });
 
-    expect(blueprint.transition_plans).toHaveLength(4);
+    expect(blueprint.transition_plans).toHaveLength(5);
     const freshPlan = blueprint.transition_plans[0];
     if (!freshPlan || freshPlan.source !== "fresh") {
       throw new Error("expected the fresh install plan first");
@@ -141,6 +141,10 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       },
       {
         release_version: "0.16.0",
+        schema_fingerprint: SCHEMA_V3_FINGERPRINT,
+      },
+      {
+        release_version: "0.16.1",
         schema_fingerprint: SCHEMA_V3_FINGERPRINT,
       },
     ]);
@@ -272,7 +276,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       image_digest: IMAGE_DIGEST,
       schema_version: REEF_SCHEMA_VERSION,
     });
-    expect(first.manifest.transition_plans).toHaveLength(4);
+    expect(first.manifest.transition_plans).toHaveLength(5);
     expect(
       first.manifest.transition_plans[0]?.steps.every((step) =>
         /^[0-9a-f]{64}$/u.test(step.checksum),
@@ -284,6 +288,13 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       schema_fingerprint: SCHEMA_V3_FINGERPRINT,
     });
     expect(first.manifest.transition_plans[3]?.steps).toEqual(
+      first.manifest.transition_plans[1]?.steps,
+    );
+    expect(first.manifest.transition_plans[4]?.source).toEqual({
+      release_version: "0.16.1",
+      schema_fingerprint: SCHEMA_V3_FINGERPRINT,
+    });
+    expect(first.manifest.transition_plans[4]?.steps).toEqual(
       first.manifest.transition_plans[1]?.steps,
     );
   });
