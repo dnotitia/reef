@@ -1,0 +1,58 @@
+diff --git a/package.json b/package.json
+index d2a354ccde85495009f2d2de716722e79622c028..48d8b5fc0bafb6864618d18fbe8c11e3001db3ee 100644
+--- a/package.json
++++ b/package.json
+@@ -30,7 +30,8 @@
+     "typecheck": "tsc -p tsconfig.json --noEmit",
+     "lint": "eslint src test",
+     "test": "vitest run",
+-    "prepare": "pnpm run build"
++    "prepare": "pnpm run build",
++    "postinstall": "node scripts/fix-markdown-reference-position.mjs"
+   },
+   "peerDependencies": {
+     "react": "^19.0.0",
+diff --git a/scripts/fix-markdown-reference-position.mjs b/scripts/fix-markdown-reference-position.mjs
+new file mode 100644
+index 0000000..cbac92d
+--- /dev/null
++++ b/scripts/fix-markdown-reference-position.mjs
+@@ -0,0 +1,38 @@
++import { readFile, writeFile } from 'node:fs/promises'
++
++const bundlePath = new URL('../dist/react/markdown-reference-menu.js', import.meta.url)
++const original = await readFile(bundlePath, 'utf8')
++const marker = 'const currentRenderer = new ReactRenderer(MarkdownReferenceMenu, {'
++
++if (original.includes(marker)) process.exit(0)
++
++function replaceExactlyOnce(source, before, after) {
++  const index = source.indexOf(before)
++  if (index === -1 || source.indexOf(before, index + before.length) !== -1) {
++    throw new Error('The pinned markdown-editor bundle no longer matches its Reef patch.')
++  }
++  return source.slice(0, index) + after + source.slice(index + before.length)
++}
++
++let patched = replaceExactlyOnce(
++  original,
++  'renderer = new ReactRenderer(MarkdownReferenceMenu, {',
++  marker,
++)
++patched = replaceExactlyOnce(
++  patched,
++  "renderer.element.dataset.testid = 'markdown-reference-popup';",
++  "renderer = currentRenderer; currentRenderer.element.dataset.testid = 'markdown-reference-popup';",
++)
++patched = replaceExactlyOnce(
++  patched,
++  'unmount = props.mount(renderer.element, {',
++  'unmount = props.mount(currentRenderer.element, {',
++)
++patched = replaceExactlyOnce(
++  patched,
++  'const positioned = positionMarkdownReferenceMenu(renderer?.element ?? document.body, props.editor, data, getMarkdownReferenceAnchorRect(props.editor, props.clientRect));',
++  'if (renderer !== currentRenderer) return; const positioned = positionMarkdownReferenceMenu(currentRenderer.element, props.editor, data, getMarkdownReferenceAnchorRect(props.editor, props.clientRect));',
++)
++
++await writeFile(bundlePath, patched)

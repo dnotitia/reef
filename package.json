@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/dnotitia/reef/issues"
   },
-  "packageManager": "pnpm@11.10.0",
+  "packageManager": "pnpm@12.11.2",
   "engines": {
     "node": ">=24.15.0"
   },

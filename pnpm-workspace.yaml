@@ -58,3 +58,6 @@ overrides:
   "undici@^8.0.0": "8.10.2"
   "vite": "6.4.3"
   "ws": "8.21.0"
+
+patchedDependencies:
+  '@akb/markdown-editor@0.17.1': patches/@akb__markdown-editor@0.17.1.patch

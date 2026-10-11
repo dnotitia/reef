@@ -2208,7 +2208,9 @@ test.describe("Hermetic Markdown editor fixture", () => {
       );
     });
     await editor.focus();
-    await page.keyboard.press("Control+Home");
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home",
+    );
     await page.keyboard.type("WYSIWYG draft. ");
     await expect(firstParagraph).toContainText("WYSIWYG draft.");
     await page.getByTestId("issue-title-input").click();

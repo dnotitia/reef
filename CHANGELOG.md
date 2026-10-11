@@ -93,6 +93,9 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue descriptions stay visible after reload while Markdown references are positioned.**
+  Late positioning callbacks from a closed reference menu no longer hide the
+  document body. (REEF-660)
 - **Issue-body mentions preserve exact usernames through shared Markdown editing.**
   Source and WYSIWYG editing keep canonical tokens for Unicode usernames and
   usernames with spaces or punctuation; unresolved mentions do not block

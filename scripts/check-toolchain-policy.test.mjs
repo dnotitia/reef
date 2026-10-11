@@ -22,7 +22,7 @@ async function createFixture() {
       {
         name: "fixture-root",
         private: true,
-        packageManager: "pnpm@11.10.0",
+        packageManager: "pnpm@12.11.2",
         engines: { node: ">=24.15.0" },
         devDependencies: { "root-tool": "^1.0.0" },
       },
