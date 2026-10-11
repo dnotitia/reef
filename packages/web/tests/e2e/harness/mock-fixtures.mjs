@@ -16,6 +16,7 @@ import {
 import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates.ts";
 import {
   akbBuildReefVaultSkillDocuments,
+  formatMentionToken,
   REEF_VAULT_SKILL_VERSION,
 } from "@reef/core";
 
@@ -153,6 +154,7 @@ export const SUPPORTED_SCENARIOS = [
   "activity_display_names",
   "large_vault",
   "markdown_fixture",
+  "markdown_mentions",
   "typography",
   "status_quick_edit",
   "planning_overflow",
@@ -320,6 +322,9 @@ export function createScenarioVaults(scenario) {
     }
   } else if (scenario === "markdown_fixture") {
     vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));
+    vaults.set("raw-vault", rawVault("raw-vault"));
+  } else if (scenario === "markdown_mentions") {
+    vaults.set(REEF_VAULT, markdownMentionsVault(REEF_VAULT));
     vaults.set("raw-vault", rawVault("raw-vault"));
   } else if (scenario === "demo_board") {
     vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
@@ -662,6 +667,42 @@ function markdownFixtureVault(name) {
     content: "Spec overview linked by the Markdown editor fixture.",
     tags: ["docs", "markdown", "e2e"],
   });
+  return vault;
+}
+
+function markdownMentionsVault(name) {
+  const vault = markdownFixtureVault(name);
+  const usernames = [
+    "alice",
+    "Alice",
+    "한글42",
+    "Ada Lovelace",
+    "team@ops\\blue}",
+  ];
+  const issue = vault.issues.find(
+    (candidate) => candidate.reef_id === "REEF-001",
+  );
+  const document = issue
+    ? vault.documents.get(issuePathFor(issue.reef_id))
+    : undefined;
+  if (!document) throw new Error("Markdown mentions fixture requires REEF-001");
+
+  vault.members.push(
+    ...usernames.slice(1).map((username, index) => ({
+      username,
+      display_name: `Mention user ${index + 1}`,
+      email: `markdown-mention-${index + 1}@example.com`,
+      role: "writer",
+      since: NOW,
+    })),
+  );
+  document.content = [
+    document.content,
+    `Canonical mentions: ${usernames.map(formatMentionToken).join(" ")}.`,
+    `Unresolved mention: ${formatMentionToken("missing-person")}.`,
+    `Excluded mentions: \`${formatMentionToken("alice")}\` [${formatMentionToken("Alice")}](https://example.test/mention) and \\${formatMentionToken("한글42")}.`,
+    "```md\n@alice\n```",
+  ].join("\n\n");
   return vault;
 }
 

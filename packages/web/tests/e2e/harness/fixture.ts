@@ -37,6 +37,7 @@ export type FixtureScenario =
   | "activity_display_names"
   | "large_vault"
   | "markdown_fixture"
+  | "markdown_mentions"
   | "typography"
   | "status_quick_edit"
   | "planning_overflow"

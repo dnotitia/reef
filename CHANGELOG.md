@@ -88,6 +88,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue-body mentions preserve exact usernames through shared Markdown editing.**
+  Source and WYSIWYG editing keep canonical tokens for Unicode usernames and
+  usernames with spaces or punctuation; unresolved mentions do not block
+  matched people. (REEF-638)
 - **Attachment image Markdown escapes backslashes alongside brackets.**
   Special-character filenames remain inside the image alt text instead of
   breaking the generated Markdown syntax.
