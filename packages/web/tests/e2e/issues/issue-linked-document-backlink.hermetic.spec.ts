@@ -116,7 +116,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
     });
   });
 
-  test("preserves a bare AKB document URI in Source through save and reopen", async ({
+  test("resolves bare AKB document URIs to title links in Source through save and reopen", async ({
     page,
     request,
   }) => {
@@ -129,9 +129,9 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       .getByRole("button")
       .click();
     const source = page.locator('[data-markdown-mode="source"] textarea');
-    const bareMarkdown = `See ${REFERENCE_URI}`;
-    await source.fill(bareMarkdown);
-    await expect(source).toHaveValue(bareMarkdown);
+    const canonicalMarkdown = `See [Spec overview](${REFERENCE_URI})`;
+    await source.fill(`See ${REFERENCE_URI}`);
+    await expect(source).toHaveValue(canonicalMarkdown);
 
     const saveResponse = page.waitForResponse((response) => {
       const request = response.request();
@@ -142,7 +142,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
         const body = request.postDataJSON() as {
           update?: { content?: unknown };
         };
-        return body.update?.content === bareMarkdown;
+        return body.update?.content === canonicalMarkdown;
       }
       return false;
     });
@@ -158,7 +158,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
           ?.documents.find((document) => document.path === "issues/reef-001.md")
           ?.content;
       })
-      .toBe(bareMarkdown);
+      .toBe(canonicalMarkdown);
 
     await page.reload();
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
@@ -169,7 +169,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
     const reopenedSource = page.locator(
       '[data-markdown-mode="source"] textarea',
     );
-    await expect(reopenedSource).toHaveValue(bareMarkdown);
+    await expect(reopenedSource).toHaveValue(canonicalMarkdown);
   });
 
   test("keeps ordinary body text clicks at the clicked paragraph after editor rerenders", async ({

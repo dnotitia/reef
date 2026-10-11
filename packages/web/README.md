@@ -34,7 +34,7 @@ Prerequisites:
 
 - Node.js 24.15+ support floor; the repository execution pin is the exact
   version declared in the root `.node-version` file.
-- pnpm 11.10.0
+- pnpm 12.11.2
 - A reachable AKB backend
 
 reef-web talks to AKB through `AKB_BACKEND_URL`; it does not require AKB to run

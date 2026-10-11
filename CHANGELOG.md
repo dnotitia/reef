@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Markdown Source now resolves bare AKB document URIs to canonical title links.**
+  The shared toolbar stays in place with WYSIWYG-only commands disabled and
+  Source Undo/Redo available; stale title lookups are discarded when the draft
+  changes, and same-target save acknowledgements preserve the Source draft across
+  WYSIWYG transitions. (REEF-660)
 - **Issue Markdown links now check current-workspace access before opening.**
   Unavailable documents and files stay disabled; available file links open
   through Reef's fresh-download proxy. (REEF-636)
@@ -88,10 +93,16 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Issue descriptions stay visible after reload while Markdown references are positioned.**
+  Late positioning callbacks from a closed reference menu no longer hide the
+  document body. (REEF-660)
 - **Issue-body mentions preserve exact usernames through shared Markdown editing.**
   Source and WYSIWYG editing keep canonical tokens for Unicode usernames and
   usernames with spaces or punctuation; unresolved mentions do not block
   matched people. (REEF-638)
+- **Markdown Source leaves AKB examples inside inline and fenced code untouched.**
+  Bare URIs and link-shaped samples keep their original text, while plain-text
+  document URIs still receive resolved titles. (REEF-660)
 - **Attachment image Markdown escapes backslashes alongside brackets.**
   Special-character filenames remain inside the image alt text instead of
   breaking the generated Markdown syntax.

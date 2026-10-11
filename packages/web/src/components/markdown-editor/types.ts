@@ -44,6 +44,8 @@ export interface MarkdownEditorProps {
   adapters?: Pick<MarkdownAdapters, "targetResolver">;
   /** Source identity used by the common target resolver; is not serialized. */
   resolverContext?: MarkdownTargetResolverContext;
+  /** Editing target identity for invalidating deferred Source changes. */
+  sourceContextKey?: string;
   /**
    * Enables issue-body member mentions. Omit this elsewhere so the
    * shared editor keeps its existing schema and interaction contract.

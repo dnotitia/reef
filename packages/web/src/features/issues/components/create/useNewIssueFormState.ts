@@ -45,6 +45,7 @@ export function useNewIssueFormState() {
   // linked post-write by the server.
   const [references, setReferences] = useState<string[]>([]);
   const [body, setBody] = useState("");
+  const [draftRevision, setDraftRevision] = useState(0);
 
   const formApi: EnrichmentFormApi = {
     values: {
@@ -92,6 +93,7 @@ export function useNewIssueFormState() {
   };
 
   const resetFields = useCallback((defaults: NewIssueFormDefaults = {}) => {
+    setDraftRevision((revision) => revision + 1);
     setTitle("");
     setIssueType(defaults.issueType ?? "task");
     setPriority(defaults.priority ?? NO_SELECTION);
@@ -188,6 +190,7 @@ export function useNewIssueFormState() {
     setReferences,
     body,
     setBody,
+    draftRevision,
     formApi,
     resetFields,
     buildCreateFields,

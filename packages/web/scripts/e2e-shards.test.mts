@@ -48,7 +48,7 @@ async function fixture() {
   );
   await writeFile(
     join(root, "package.json"),
-    JSON.stringify({ private: true, packageManager: "pnpm@11.10.0" }),
+    JSON.stringify({ private: true, packageManager: "pnpm@12.11.2" }),
   );
   await writeFile(
     join(root, "pnpm-workspace.yaml"),

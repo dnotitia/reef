@@ -23,7 +23,6 @@ import {
   type MarkdownReferenceCandidate,
   type MarkdownReferenceResolution,
 } from "@akb/markdown-editor/react";
-import type { MarkdownCommands } from "@akb/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { isAkbFileUri } from "@/features/issues/lib/attachmentUrls";
@@ -36,6 +35,7 @@ import {
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
+  normalizeAkbDocumentMarkdownLinksForUris,
   normalizeExistingAkbDocumentMarkdownLinks,
 } from "@/lib/akb/markdownDocumentLinks";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
@@ -53,6 +53,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -196,6 +197,7 @@ function MarkdownEditorContent({
   imageUpload,
   adapters,
   resolverContext,
+  sourceContextKey,
   mentionConfig,
   enableHeightResize = false,
   preferredHeight,
@@ -206,7 +208,13 @@ function MarkdownEditorContent({
   const lastSyncedValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
   const onBlurRef = useRef(onBlur);
-  const commandsRef = useRef<MarkdownCommands | null>(null);
+  const commandsRef = useRef<ReturnType<typeof useMarkdownCommands> | null>(
+    null,
+  );
+  const sourceStateRef = useRef<
+    NonNullable<ReturnType<typeof useMarkdownState>>["source"] | null
+  >(null);
+  const mountedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const modeRef = useRef<MarkdownEditorMode>("wysiwyg");
@@ -226,8 +234,15 @@ function MarkdownEditorContent({
   const sourceApplyPendingRef = useRef(false);
   const restoreSourceAfterUploadRef = useRef(false);
   const titleByUriRef = useRef(new Map<string, string | null>());
+  const sourceTitleAttemptsRef = useRef(new Set<string>());
   const pendingTitleUrisRef = useRef(new Set<string>());
   const activeVaultRef = useRef(vault);
+  const surfaceSourceContextKey = JSON.stringify([
+    vault ?? "",
+    resolverContext?.document ?? "",
+    sourceContextKey ?? "",
+  ]);
+  const sourceContextKeyRef = useRef(surfaceSourceContextKey);
   const mentionOpenDismissRef = useRef<(() => void) | null>(null);
   const slashOpenDismissRef = useRef<(() => void) | null>(null);
   const linksOpenedFromMouseUpRef = useRef(
@@ -258,9 +273,116 @@ function MarkdownEditorContent({
     [],
   );
   const normalizeWysiwygMarkdown = useCallback(
-    (markdown: string) =>
-      normalizeAkbDocumentMarkdownLinks(markdown, titleByUriRef.current),
+    (
+      markdown: string,
+      titles: ReadonlyMap<
+        string,
+        string | null | undefined
+      > = titleByUriRef.current,
+    ) => normalizeAkbDocumentMarkdownLinks(markdown, titles),
     [],
+  );
+  const applyResolvedDocumentTitles = useCallback(
+    (
+      markdown: string,
+      expectedContextKey: string,
+      sourceSnapshot = sourceStateRef.current,
+      titles: ReadonlyMap<
+        string,
+        string | null | undefined
+      > = titleByUriRef.current,
+      sourceUris: readonly string[] = [...titles.keys()],
+    ) => {
+      if (
+        !vault ||
+        activeVaultRef.current !== vault ||
+        sourceContextKeyRef.current !== expectedContextKey
+      ) {
+        return false;
+      }
+      if (modeRef.current === "source" || sourceSnapshot?.mode === "source") {
+        if (modeRef.current !== "source") return false;
+        const source = sourceSnapshot;
+        const currentSource = sourceStateRef.current;
+        if (
+          !source ||
+          source.mode !== "source" ||
+          !currentSource ||
+          currentSource.mode !== "source" ||
+          currentSource.session !== source.session
+        ) {
+          return false;
+        }
+        if (
+          source.markdown !== markdown ||
+          currentSource.revision !== source.revision ||
+          currentSource.markdown !== source.markdown
+        ) {
+          return true;
+        }
+        const normalized = normalizeAkbDocumentMarkdownLinksForUris(
+          source.markdown,
+          titles,
+          sourceUris,
+        );
+        if (normalized === source.markdown) return true;
+
+        let from = 0;
+        while (
+          from < source.markdown.length &&
+          from < normalized.length &&
+          source.markdown[from] === normalized[from]
+        ) {
+          from += 1;
+        }
+        let to = source.markdown.length;
+        let replacementTo = normalized.length;
+        while (
+          to > from &&
+          replacementTo > from &&
+          source.markdown[to - 1] === normalized[replacementTo - 1]
+        ) {
+          to -= 1;
+          replacementTo -= 1;
+        }
+
+        const result = commandsRef.current?.applySourceChange({
+          revision: source.revision,
+          session: source.session,
+          from,
+          to,
+          expectedText: source.markdown.slice(from, to),
+          replacementText: normalized.slice(from, replacementTo),
+        });
+        if (!result) return false;
+        if (result.applied) return true;
+        switch (result.reason) {
+          case "source-inactive":
+          case "read-only":
+          case "composing":
+            return false;
+          case "stale":
+          case "invalid-range":
+          case "target-mismatch":
+          case "unchanged":
+            return true;
+        }
+        return false;
+      }
+
+      const current = latestValueRef.current;
+      const normalized = normalizeAkbDocumentMarkdownLinks(current, titles);
+      if (normalized === current) return true;
+      latestValueRef.current = normalized;
+      lastSyncedValueRef.current = normalized;
+      onChangeRef.current(normalized);
+      commandsRef.current?.setMarkdown(normalized);
+      if (!rootRef.current?.contains(document.activeElement)) {
+        onBlurRef.current?.(normalized);
+      }
+      return true;
+    },
+    [vault],
   );
   const initialMarkdown = useMemo(
     () => normalizeExistingAkbDocumentMarkdownLinks(value),
@@ -405,39 +527,134 @@ function MarkdownEditorContent({
   );
   const queueDocumentTitleResolution = useCallback(
     (markdown: string) => {
-      if (
-        !vault ||
-        activeVaultRef.current !== vault ||
-        modeRef.current === "source"
-      ) {
-        return;
-      }
-      const unresolved = extractAkbDocumentUris(markdown).filter(
-        (uri) =>
-          !titleByUriRef.current.has(uri) &&
-          !pendingTitleUrisRef.current.has(uri),
+      if (!vault || activeVaultRef.current !== vault) return;
+      const requestContextKey = sourceContextKeyRef.current;
+      const requestSourceSnapshot = sourceStateRef.current;
+      const inSource =
+        modeRef.current === "source" &&
+        requestSourceSnapshot?.mode === "source";
+      const sourceAttemptKey = (uri: string) =>
+        JSON.stringify([
+          requestContextKey,
+          requestSourceSnapshot?.session ?? "",
+          uri,
+        ]);
+      const pendingKey = (uri: string) =>
+        JSON.stringify([
+          requestContextKey,
+          inSource ? (requestSourceSnapshot?.session ?? "") : "",
+          uri,
+        ]);
+      const documentUris = extractAkbDocumentUris(markdown);
+      const candidates = inSource
+        ? documentUris.filter(
+            (uri) => !sourceTitleAttemptsRef.current.has(sourceAttemptKey(uri)),
+          )
+        : documentUris;
+      const resolved = candidates.filter((uri) =>
+        titleByUriRef.current.has(uri),
       );
-      if (unresolved.length === 0) return;
-      for (const uri of unresolved) pendingTitleUrisRef.current.add(uri);
-      void resolveAkbDocumentTitles(vault, unresolved).then((titles) => {
-        if (activeVaultRef.current !== vault) return;
-        for (const uri of unresolved) {
-          pendingTitleUrisRef.current.delete(uri);
+      const resolvedTitles = new Map(
+        resolved.map((uri) => [uri, titleByUriRef.current.get(uri)]),
+      );
+      if (inSource) {
+        const complete = (uris: string[]) => {
+          if (
+            !applyResolvedDocumentTitles(
+              markdown,
+              requestContextKey,
+              requestSourceSnapshot,
+              resolvedTitles,
+              uris,
+            )
+          ) {
+            return;
+          }
+          for (const uri of uris) {
+            sourceTitleAttemptsRef.current.add(sourceAttemptKey(uri));
+          }
+        };
+        if (resolved.length > 0) complete(resolved);
+      } else {
+        applyResolvedDocumentTitles(
+          markdown,
+          requestContextKey,
+          requestSourceSnapshot,
+        );
+      }
+
+      const unresolved = candidates.filter(
+        (uri) => !titleByUriRef.current.has(uri),
+      );
+      const requests = unresolved.filter(
+        (uri) => !pendingTitleUrisRef.current.has(pendingKey(uri)),
+      );
+      if (!vault || requests.length === 0) return;
+      for (const uri of requests) {
+        pendingTitleUrisRef.current.add(pendingKey(uri));
+      }
+      void resolveAkbDocumentTitles(vault, requests).then((titles) => {
+        if (!mountedRef.current) return;
+        for (const uri of requests) {
+          pendingTitleUrisRef.current.delete(pendingKey(uri));
+        }
+        if (
+          activeVaultRef.current !== vault ||
+          sourceContextKeyRef.current !== requestContextKey
+        ) {
+          return;
+        }
+        for (const uri of requests) {
           titleByUriRef.current.set(uri, titles.get(uri) ?? null);
         }
-        if (modeRef.current === "source") return;
-        const next = normalizeMarkdown(latestValueRef.current);
-        if (next === latestValueRef.current) return;
-        latestValueRef.current = next;
-        lastSyncedValueRef.current = next;
-        onChangeRef.current(next);
-        commandsRef.current?.setMarkdown(next);
-        if (!rootRef.current?.contains(document.activeElement)) {
-          onBlurRef.current?.(next);
+        const requestTitles = new Map(
+          requests.map((uri) => [uri, titles.get(uri) ?? null]),
+        );
+        if (inSource) {
+          const currentSource = sourceStateRef.current;
+          if (
+            !requestSourceSnapshot ||
+            !currentSource ||
+            currentSource.mode !== "source" ||
+            currentSource.session !== requestSourceSnapshot.session
+          ) {
+            return;
+          }
+          const currentUris = new Set(
+            extractAkbDocumentUris(currentSource.markdown),
+          );
+          const currentRequests = requests.filter((uri) =>
+            currentUris.has(uri),
+          );
+          if (currentRequests.length === 0) return;
+          if (
+            !applyResolvedDocumentTitles(
+              currentSource.markdown,
+              requestContextKey,
+              currentSource,
+              requestTitles,
+              currentRequests,
+            )
+          ) {
+            return;
+          }
+          for (const uri of currentRequests) {
+            sourceTitleAttemptsRef.current.add(sourceAttemptKey(uri));
+          }
+          return;
         }
+        const current =
+          requestSourceSnapshot?.mode === "source"
+            ? requestSourceSnapshot.markdown
+            : latestValueRef.current;
+        applyResolvedDocumentTitles(
+          current,
+          requestContextKey,
+          requestSourceSnapshot,
+        );
       });
     },
-    [normalizeMarkdown, vault],
+    [applyResolvedDocumentTitles, vault],
   );
 
   const publishMarkdown = useCallback(
@@ -465,6 +682,9 @@ function MarkdownEditorContent({
   });
   const commands = useMarkdownCommands(editor);
   const state = useMarkdownState(editor);
+  const sourceMode = state?.source?.mode;
+  const sourceMarkdown = state?.source?.markdown;
+  const sourceIsComposing = state?.source?.isComposing;
   const targetResolver = adapters?.targetResolver;
   const targetResolutions = useMarkdownTargetResolutions(
     value,
@@ -501,19 +721,48 @@ function MarkdownEditorContent({
       : {}),
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  useLayoutEffect(() => {
+    if (sourceContextKeyRef.current !== surfaceSourceContextKey) {
+      sourceTitleAttemptsRef.current.clear();
+      pendingTitleUrisRef.current.clear();
+    }
     commandsRef.current = commands;
-  }, [commands]);
-  useEffect(() => {
     onChangeRef.current = onChange;
     onBlurRef.current = onBlur;
-  }, [onBlur, onChange]);
+    sourceStateRef.current = state?.source ?? null;
+    sourceContextKeyRef.current = surfaceSourceContextKey;
+  }, [commands, onBlur, onChange, state?.source, surfaceSourceContextKey]);
   useEffect(() => {
     if (activeVaultRef.current === vault) return;
     activeVaultRef.current = vault;
     titleByUriRef.current.clear();
     pendingTitleUrisRef.current.clear();
   }, [vault]);
+  useEffect(() => {
+    if (sourceContextKeyRef.current !== surfaceSourceContextKey) return;
+    if (
+      sourceMode === undefined ||
+      sourceMarkdown === undefined ||
+      sourceIsComposing
+    ) {
+      return;
+    }
+    queueDocumentTitleResolution(
+      sourceMode === "source" ? sourceMarkdown : latestValueRef.current,
+    );
+  }, [
+    queueDocumentTitleResolution,
+    sourceIsComposing,
+    sourceMarkdown,
+    sourceMode,
+    surfaceSourceContextKey,
+  ]);
   useEffect(() => {
     if (sourceApplyPendingRef.current) {
       // Keep the pending Source edit as latest until the shared surface applies it.
@@ -547,7 +796,6 @@ function MarkdownEditorContent({
   const handleMarkdownApplied = useCallback(() => {
     if (!sourceApplyPendingRef.current) return;
     sourceApplyPendingRef.current = false;
-    commandsRef.current?.setMarkdown(latestValueRef.current);
   }, []);
 
   const handleUploadFiles = useCallback(
@@ -724,11 +972,11 @@ function MarkdownEditorContent({
             data-testid="markdown-toolbar-controls"
             className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5"
           >
-            {mode === "wysiwyg" ? toolbar : null}
+            {toolbar}
             {onUploadFiles ? (
               <MarkdownAttachmentPicker
                 label={toolbarLabels.attachFile}
-                disabled={uploadingFiles}
+                disabled={disabled || uploadingFiles || mode === "source"}
                 onFiles={(files) => void handleUploadFiles(files)}
                 onImageFiles={(files, selectFiles) => {
                   if (modeRef.current === "source") {
@@ -820,6 +1068,7 @@ function MarkdownEditorContent({
           <MarkdownEditingSurface
             editor={editor}
             markdown={value}
+            sourceContextKey={surfaceSourceContextKey}
             profile="preserve"
             onSourceChange={handleSourceChange}
             onMarkdownApplied={handleMarkdownApplied}

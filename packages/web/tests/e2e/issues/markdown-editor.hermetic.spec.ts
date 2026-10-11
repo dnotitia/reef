@@ -2117,6 +2117,231 @@ test.describe("Hermetic Markdown editor fixture", () => {
     );
   });
 
+  test("Source title links undo, redo, and persist canonical targets", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const task = await readMarkdownFixtureTask(request);
+    await openExistingWorkspace(page);
+
+    let descriptionPatchRequests = 0;
+    page.on("request", (requestEvent) => {
+      if (
+        new URL(requestEvent.url()).pathname === "/api/issues/REEF-001" &&
+        requestEvent.method() === "PATCH"
+      ) {
+        descriptionPatchRequests += 1;
+      }
+    });
+
+    await page.goto(task.start_path ?? "");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+
+    const editor = page.locator(".reef-markdown-editor");
+    const toolbar = page.getByTestId("markdown-toolbar");
+    const sourceToggle = page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button");
+    await Promise.all([
+      expect(editor).toBeVisible(),
+      expect(toolbar).toBeVisible(),
+      expect(sourceToggle).toBeVisible(),
+      expect(sourceToggle).toBeEnabled(),
+    ]);
+    const readHeaderLayout = async () => {
+      await Promise.all([
+        expect(toolbar).toBeVisible(),
+        expect(sourceToggle).toBeVisible(),
+      ]);
+      const readBox = (box: ElementBox | null) => {
+        if (!box) throw new Error("Markdown header geometry is unavailable");
+        const round = (value: number) => Math.round(value * 10) / 10;
+        return {
+          x: round(box.x),
+          y: round(box.y),
+          width: round(box.width),
+          height: round(box.height),
+        };
+      };
+      const [toolbarBox, toggleBox, buttons] = await Promise.all([
+        toolbar.boundingBox(),
+        sourceToggle.boundingBox(),
+        toolbar.locator("button").evaluateAll((elements) =>
+          elements.map((button) => {
+            const box = button.getBoundingClientRect();
+            const round = (value: number) => Math.round(value * 10) / 10;
+            return {
+              x: round(box.x),
+              y: round(box.y),
+              width: round(box.width),
+              height: round(box.height),
+            };
+          }),
+        ),
+      ]);
+      return {
+        toolbar: readBox(toolbarBox),
+        toggle: readBox(toggleBox),
+        buttons,
+      };
+    };
+
+    const wysiwygHeader = await readHeaderLayout();
+    const firstParagraph = editor.locator("p").first();
+    const wysiwygDraftSave = page.waitForResponse((response) => {
+      const requestEvent = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/issues/REEF-001" ||
+        requestEvent.method() !== "PATCH"
+      ) {
+        return false;
+      }
+      const body = requestEvent.postDataJSON() as {
+        update?: { content?: unknown };
+      };
+      return (
+        typeof body.update?.content === "string" &&
+        body.update.content.includes("WYSIWYG draft.")
+      );
+    });
+    await editor.focus();
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home",
+    );
+    await page.keyboard.type("WYSIWYG draft. ");
+    await expect(firstParagraph).toContainText("WYSIWYG draft.");
+    await page.getByTestId("issue-title-input").click();
+    expect((await wysiwygDraftSave).ok()).toBeTruthy();
+    await editor.focus();
+
+    const patchesBeforeEnteringSource = descriptionPatchRequests;
+    await sourceToggle.click();
+    const source = page.locator('[data-markdown-mode="source"] textarea');
+    await expect(source).toBeVisible();
+    expect(descriptionPatchRequests).toBe(patchesBeforeEnteringSource);
+    expect(await readHeaderLayout()).toEqual(wysiwygHeader);
+
+    const bareUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
+    const codeExamples = [
+      `\`${bareUri}\``,
+      "```markdown",
+      bareUri,
+      `[alpha-reference](${bareUri})`,
+      "```",
+    ].join("\n");
+    const authoredMarkdown = `${await source.inputValue()}\n\nSee ${bareUri}\n\n${codeExamples}\n\n[Custom title](${bareUri})`;
+    expect(authoredMarkdown).toContain("WYSIWYG draft.");
+    const normalizedMarkdown = authoredMarkdown.replace(
+      `See ${bareUri}`,
+      `See [Alpha reference](${bareUri})`,
+    );
+    const titleResponse = page.waitForResponse((response) => {
+      const requestEvent = response.request();
+      if (
+        new URL(response.url()).pathname !== "/api/documents/resolve" ||
+        requestEvent.method() !== "POST"
+      ) {
+        return false;
+      }
+      const body = requestEvent.postDataJSON() as { uris?: string[] };
+      return body.uris?.includes(bareUri) ?? false;
+    });
+    await source.fill(authoredMarkdown);
+    expect((await titleResponse).status()).toBe(200);
+    await expect(source).toHaveValue(normalizedMarkdown);
+
+    const boldButton = toolbar.getByRole("button", { name: "Bold" });
+    const insertButtons = toolbar
+      .getByRole("group", { name: "Insert" })
+      .getByRole("button");
+    await expect(boldButton).toBeDisabled();
+    const insertButtonCount = await insertButtons.count();
+    expect(insertButtonCount).toBeGreaterThan(0);
+    for (let index = 0; index < insertButtonCount; index += 1) {
+      await expect(insertButtons.nth(index)).toBeDisabled();
+    }
+
+    const undo = toolbar.getByRole("button", { name: "Undo" });
+    const redo = toolbar.getByRole("button", { name: "Redo" });
+    await expect(undo).toBeEnabled();
+    await undo.click();
+    await expect(source).toHaveValue(authoredMarkdown);
+    await expect(redo).toBeEnabled();
+
+    const primaryModifier = process.platform === "darwin" ? "Meta" : "Control";
+    await source.focus();
+    await source.press(`${primaryModifier}+Shift+Z`);
+    await expect(source).toHaveValue(normalizedMarkdown);
+    await source.press(`${primaryModifier}+Z`);
+    await expect(source).toHaveValue(authoredMarkdown);
+    await redo.click();
+    await expect(source).toHaveValue(normalizedMarkdown);
+    const persistedMarkdown = await source.inputValue();
+
+    const sourceHeader = await readHeaderLayout();
+    expect(sourceHeader).toEqual(wysiwygHeader);
+    const patchesBeforeReturningToWysiwyg = descriptionPatchRequests;
+    await sourceToggle.click();
+    await expect(editor).toBeVisible();
+    await expect(
+      page
+        .getByTestId("markdown-editor")
+        .locator('[data-markdown-mode="wysiwyg"]'),
+    ).toBeVisible();
+    expect(await readHeaderLayout()).toEqual(wysiwygHeader);
+    expect(descriptionPatchRequests).toBe(patchesBeforeReturningToWysiwyg);
+
+    const canonicalLinks = editor.locator(
+      `a[data-markdown-target="${bareUri}"]`,
+    );
+    await expect(canonicalLinks).toHaveCount(2);
+    await expect(canonicalLinks.nth(0)).toHaveText("Alpha reference");
+    await expect(canonicalLinks.nth(1)).toHaveText("Custom title");
+    const runtimeHref =
+      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Falpha-reference.md";
+    await expect(canonicalLinks.nth(0)).toHaveAttribute("href", runtimeHref);
+    await expect(canonicalLinks.nth(1)).toHaveAttribute("href", runtimeHref);
+
+    expect(persistedMarkdown).toBe(normalizedMarkdown);
+    const patchesBeforeSave = descriptionPatchRequests;
+    const saveResponse = waitForIssueContentSave(
+      page,
+      "REEF-001",
+      persistedMarkdown,
+    );
+    await page.getByTestId("issue-title-input").click();
+    expect((await saveResponse).ok()).toBeTruthy();
+    expect(descriptionPatchRequests).toBe(patchesBeforeSave + 1);
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path.startsWith("issues/"))
+          ?.content;
+      })
+      .toBe(persistedMarkdown);
+
+    await page.reload();
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const reopenedSource = page.locator(
+      '[data-markdown-mode="source"] textarea',
+    );
+    await expect(reopenedSource).toHaveValue(persistedMarkdown);
+    const reopenedMarkdown = await reopenedSource.inputValue();
+    expect(reopenedMarkdown).toContain(codeExamples);
+    expect(reopenedMarkdown).toContain("[Alpha reference]");
+    expect(reopenedMarkdown).toContain("[Custom title]");
+    expect(reopenedMarkdown).not.toContain("https://akb.e2e.test/vault/");
+  });
+
   test("aligns safe external links and known issue references across body and comments", async ({
     page,
     request,

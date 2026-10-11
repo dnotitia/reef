@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractAkbDocumentUris,
   normalizeAkbDocumentMarkdownLinks,
+  normalizeAkbDocumentMarkdownLinksForUris,
   normalizeExistingAkbDocumentMarkdownLinks,
 } from "./markdownDocumentLinks";
 
@@ -25,6 +26,19 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
     expect(normalizeAkbDocumentMarkdownLinks(URI, titles)).toBe(
       `[Research Report](${URI})`,
     );
+  });
+
+  it("normalizes only the document URIs included in the current resolution", () => {
+    const otherUri = "akb://reef-test/coll/research/doc/notes.md";
+    const markdown = `${URI} and ${otherUri}`;
+
+    expect(
+      normalizeAkbDocumentMarkdownLinksForUris(
+        markdown,
+        new Map([[URI, "Research Report"]]),
+        [URI],
+      ),
+    ).toBe(`[Research Report](${URI}) and ${otherUri}`);
   });
 
   it("keeps bare AKB document URIs when normalizing only existing links", () => {
@@ -75,6 +89,33 @@ describe("normalizeAkbDocumentMarkdownLinks", () => {
       ),
     ).toBe("akb://reef-test/table/pipeline akb://reef-test/file/abc");
   });
+
+  it("preserves AKB URIs and automatic links inside Markdown code", () => {
+    const code = [
+      "````markdown",
+      `\`${URI}\``,
+      `\`\`${URI}\`\``,
+      `\`\`\`${URI}\`\`\``,
+      URI,
+      `[report](${URI})`,
+      "````",
+      "",
+      "~~~~~text",
+      URI,
+      `[report](${URI})`,
+      "~~~~~",
+    ].join("\n");
+    const markdown = `한글😀 ${URI}\n\n${code}`;
+    const titles = new Map([[URI, "Research Report"]]);
+
+    expect(normalizeAkbDocumentMarkdownLinks(markdown, titles)).toBe(
+      `한글😀 [Research Report](${URI})\n\n${code}`,
+    );
+    expect(
+      normalizeAkbDocumentMarkdownLinksForUris(markdown, titles, [URI]),
+    ).toBe(`한글😀 [Research Report](${URI})\n\n${code}`);
+    expect(normalizeExistingAkbDocumentMarkdownLinks(code, titles)).toBe(code);
+  });
 });
 
 describe("extractAkbDocumentUris", () => {
@@ -83,5 +124,19 @@ describe("extractAkbDocumentUris", () => {
     expect(
       extractAkbDocumentUris(`${URI}\n[Report](${URI})\nakb://v/file/abc`),
     ).toEqual([URI]);
+  });
+
+  it("does not extract AKB URIs from inline or fenced code", () => {
+    const code = [
+      `\`${URI}\``,
+      `\`\`${URI}\`\``,
+      `\`\`\`${URI}\`\`\``,
+      "```markdown",
+      URI,
+      `[report](${URI})`,
+      "```",
+    ].join("\n");
+
+    expect(extractAkbDocumentUris(code)).toEqual([]);
   });
 });
