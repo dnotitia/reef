@@ -142,6 +142,20 @@ const V3_SOURCE_MANIFEST_CHECKSUMS = {
 } satisfies Record<(typeof V3_SOURCE_VERSIONS)[number], string>;
 const V3_SCHEMA_FINGERPRINT =
   "dada7b10e269e374dde943db7458dee3d5c1b69788778ea0a29169a16924a727";
+const DECLARED_V3_SOURCE_PLAN_VERSIONS = [
+  ...V3_SOURCE_VERSIONS,
+  "0.16.1",
+] as const;
+const V4_NOOP_SOURCE_VERSIONS = [
+  "0.17.0",
+  "0.17.1",
+  "0.17.2",
+  "0.17.3",
+  "0.17.4",
+  "0.17.5",
+] as const;
+const V4_SCHEMA_FINGERPRINT =
+  "ec53a0d4dd7242e2f47c915f3e07c048044c9b68efc3383597d10df69244e080";
 const V4_LOOKUP_INDEXES = [
   { table: "reef_activity", columns: ["reef_id", "event_key"] },
   { table: "reef_attachments", columns: ["reef_id"] },
@@ -1115,12 +1129,16 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     const declaredSourcePlans = registeredRelease.manifest.transition_plans
       .filter(({ source }) => typeof source !== "string")
       .map(({ source }) => source);
-    expect(declaredSourcePlans).toEqual(
-      V3_SOURCE_VERSIONS.map((release_version) => ({
+    expect(declaredSourcePlans).toEqual([
+      ...DECLARED_V3_SOURCE_PLAN_VERSIONS.map((release_version) => ({
         release_version,
         schema_fingerprint: V3_SCHEMA_FINGERPRINT,
       })),
-    );
+      ...V4_NOOP_SOURCE_VERSIONS.map((release_version) => ({
+        release_version,
+        schema_fingerprint: V4_SCHEMA_FINGERPRINT,
+      })),
+    ]);
 
     const baselineReleases = new Map<
       (typeof V3_SOURCE_VERSIONS)[number],
@@ -1153,40 +1171,33 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       }
       const created = await createVault({ adapter, name, description });
       sourceProofVaults.push({ name, vaultId: created.vault_id });
-      await requestInstallation({
+      const install = await requestInstallation({
         adapter,
         appId: registeredApp.id,
         vaultId: created.vault_id,
         releaseId: baseline.releaseId,
         mode: "install",
       });
+      expect(install.commandStatus).toBe("accepted");
+      expect(install.installation.lifecycle).toBe("installing");
+      await waitForActiveInstallation({
+        adapter,
+        appId: registeredApp.id,
+        vaultId: created.vault_id,
+      });
       return { name, vaultId: created.vault_id, version, baseline };
     };
 
-    const applyBaselineRelease = async (
+    const verifyBaselineInstallations = async (
       targets: Awaited<ReturnType<typeof createBaselineVault>>[],
     ) => {
       const first = targets[0];
       if (!first || targets.some(({ version }) => version !== first.version)) {
-        throw new Error("Fixture baseline rollout must use one source version");
-      }
-      const baselineRequest = await rolloutApi.requestRollout({
-        appId: registeredApp.id,
-        releaseId: first.baseline.releaseId,
-        manifestChecksum: first.baseline.checksum,
-        idempotencyKey: randomUUID(),
-      });
-      const applied = await waitForAppliedRollout({
-        rollout: rolloutApi,
-        appId: registeredApp.id,
-        jobId: baselineRequest.rollout.jobId,
-      });
-      expect(applied.status).toBe("applied");
-      for (const target of targets) {
-        const rolloutTarget = applied.targets.find(
-          ({ vaultId }) => vaultId === target.vaultId,
+        throw new Error(
+          "Fixture baseline installs must use one source version",
         );
-        expect(rolloutTarget).toBeDefined();
+      }
+      for (const target of targets) {
         expect(
           await reefActivityUniqueKeys(adapter, target.name),
         ).not.toContainEqual(["reef_id", "event_key"]);
@@ -1200,13 +1211,14 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
           appId: registeredApp.id,
           vaultId: target.vaultId,
         });
+        expect(installation.lifecycle).toBe("active");
         expect(installation.currentRelease?.id).toBe(target.baseline.releaseId);
         expect(installation.currentRelease?.version).toBe(target.version);
         expect(installation.observed?.schemaFingerprint).toBe(
           V3_SCHEMA_FINGERPRINT,
         );
       }
-      return applied;
+      return targets;
     };
 
     const applyCurrentRelease = async (
@@ -1278,7 +1290,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       `reef-v3-15-${legacySuffix}`,
       "REEF-366 v0.15.0 source transition proof (throwaway)",
     );
-    await applyBaselineRelease([v3_15]);
+    await verifyBaselineInstallations([v3_15]);
     await applyCurrentRelease([v3_15]);
     expect(
       (
@@ -1295,7 +1307,7 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       `reef-v3-16-${legacySuffix}`,
       "REEF-366 v0.16.0 source transition proof (throwaway)",
     );
-    await applyBaselineRelease([v3_16]);
+    await verifyBaselineInstallations([v3_16]);
     await applyCurrentRelease([v3_16]);
     expect(
       (
@@ -1321,8 +1333,11 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
     );
     legacyVaultId = v3_14.vaultId;
     followingVaultId = v3_14Following.vaultId;
-    const baselineApplied = await applyBaselineRelease([v3_14, v3_14Following]);
-    expect(baselineApplied.targets).toHaveLength(2);
+    const baselineInstallations = await verifyBaselineInstallations([
+      v3_14,
+      v3_14Following,
+    ]);
+    expect(baselineInstallations).toHaveLength(2);
     expect(legacyVault).toBe(v3_14.name);
     expect(followingVault).toBe(v3_14Following.name);
     expect(legacyVaultId).toBe(v3_14.vaultId);
