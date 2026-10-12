@@ -59,7 +59,7 @@ const SAMPLE_VAULTS: VaultSummary[] = [
     name: "reef-acme",
     description: null,
     status: "active",
-    role: "owner",
+    role: "writer",
     created_at: "2026-05-01T00:00:00.000Z",
   },
   {

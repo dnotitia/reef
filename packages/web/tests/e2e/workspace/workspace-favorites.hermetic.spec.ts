@@ -102,14 +102,14 @@ test.describe("Hermetic workspace favorites", () => {
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
 
     // A favorite remains stored while one installation is confirmed inactive
-    // and another member-active lookup is temporarily unavailable.
+    // and another manager's installation lookup is temporarily unavailable.
     await setInstallationControl(request, {
       vault: "reef-alpha",
       lifecycle: "uninstalled",
     });
     await setInstallationControl(request, {
       vault: "reef-zeta",
-      memberLookup: "unavailable",
+      detailLookup: "unavailable",
     });
     await page.reload();
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
@@ -135,7 +135,7 @@ test.describe("Hermetic workspace favorites", () => {
     });
     await setInstallationControl(request, {
       vault: "reef-zeta",
-      memberLookup: "healthy",
+      detailLookup: "healthy",
     });
     await page.reload();
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
