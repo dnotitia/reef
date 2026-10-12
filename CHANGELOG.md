@@ -28,6 +28,10 @@ explicitly in the entries below.
 - Schema v4 and vault skill version 23 are unchanged. Existing v4 installations
   on `0.17.5` use an explicit no-op transition; no table, data, or runbook
   migration is required.
+- Deploy AKB backend `0.16.2` (API and worker) before applying Reef `0.17.6`
+  to both runtimes with matching image digests and release identities. Preserve
+  the existing CPU, SSO, and streaming settings. Roll back both runtimes with
+  the previous release's matching images and identity.
 
 ## v0.17.5 - 2026-10-12
 
