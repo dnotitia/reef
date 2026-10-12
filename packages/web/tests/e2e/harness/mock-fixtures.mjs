@@ -738,14 +738,8 @@ function installationDriftVault(name) {
   installation.drift = {
     release: {
       status: "in_sync",
-      desired: {
-        id: E2E_REEF_RELEASE_ID,
-        version: E2E_REEF_RELEASE_VERSION,
-      },
-      observed: {
-        id: E2E_REEF_RELEASE_ID,
-        version: E2E_REEF_RELEASE_VERSION,
-      },
+      desired: E2E_REEF_RELEASE_VERSION,
+      observed: E2E_REEF_RELEASE_VERSION,
     },
     schema: {
       status: "in_sync",

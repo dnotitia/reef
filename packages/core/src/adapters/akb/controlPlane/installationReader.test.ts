@@ -101,8 +101,8 @@ function installationFixture(
     drift: {
       release: {
         status: "mismatch",
-        desired: { id: RELEASE_ID, version: "2.0.0" },
-        observed: { id: RELEASE_ID, version: "1.0.0" },
+        desired: "2.0.0",
+        observed: "1.0.0",
         actual: SECRET,
       },
       schema: {
@@ -124,8 +124,8 @@ function installationFixture(
     drift_classification: {
       release: {
         status: "mismatch",
-        desired: { id: RELEASE_ID, version: "2.0.0" },
-        observed: { id: RELEASE_ID, version: "1.0.0" },
+        desired: "2.0.0",
+        observed: "1.0.0",
         actual: SECRET,
       },
       schema: {
@@ -223,8 +223,8 @@ describe("createAkbAppInstallationReader", () => {
       drift: {
         release: {
           status: "mismatch",
-          desired: { id: RELEASE_ID, version: "2.0.0" },
-          observed: { id: RELEASE_ID, version: "1.0.0" },
+          desired: { version: "2.0.0" },
+          observed: { version: "1.0.0" },
         },
         schema: {
           status: "in_sync",
@@ -243,8 +243,8 @@ describe("createAkbAppInstallationReader", () => {
       driftClassification: {
         release: {
           status: "mismatch",
-          desired: { id: RELEASE_ID, version: "2.0.0" },
-          observed: { id: RELEASE_ID, version: "1.0.0" },
+          desired: { version: "2.0.0" },
+          observed: { version: "1.0.0" },
         },
         schema: {
           status: "in_sync",
