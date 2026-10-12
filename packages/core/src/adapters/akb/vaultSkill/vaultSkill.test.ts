@@ -396,7 +396,9 @@ describe("installReefVaultSkill", () => {
     const calls = setupFetch([
       { body: { kind: "table_sql", result: "DELETE 1" } },
       { body: rootGuide },
-      ...docs.slice(1).map((doc) => ({ body: documentResponse(doc) })),
+      ...docs.slice(1).map((doc) => ({
+        body: documentResponse(doc, doc.content.replace(/\n+$/, "")),
+      })),
       ...stampResponses(),
     ]);
 
@@ -414,6 +416,19 @@ describe("installReefVaultSkill", () => {
       ),
     ).toHaveLength(0);
     expect(calls).toHaveLength(9);
+    expect(bodyOf(calls[7])).toEqual({
+      sql: "DELETE FROM reef_settings WHERE key = $1",
+      params: ["vault_skill"],
+    });
+    expect(bodyOf(calls[8])).toMatchObject({
+      sql: "INSERT INTO reef_settings (key, value) VALUES ($1, $2::json)",
+      params: [
+        "vault_skill",
+        expect.stringMatching(
+          new RegExp(`\\"version\\":${REEF_VAULT_SKILL_VERSION}`),
+        ),
+      ],
+    });
   });
 
   it("does not mark a Guide current when it also has a duplicate Reef section", async () => {

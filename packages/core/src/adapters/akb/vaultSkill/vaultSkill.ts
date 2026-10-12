@@ -211,7 +211,9 @@ async function upsertDocument(
         existing.title === doc.title &&
         existing.type === doc.type &&
         existing.summary === doc.summary &&
-        existing.content === doc.content &&
+        existing.content != null &&
+        normalizedDocumentText(existing.content) ===
+          normalizedDocumentText(doc.content) &&
         existing.tags.length === doc.tags.length &&
         existing.tags.every((tag, index) => tag === doc.tags[index]);
       if (isCurrent) return true;
