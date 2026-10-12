@@ -12,6 +12,27 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.6 - 2026-10-13
+
+### Fixed
+
+- **New Reef workspaces finish installation without a manual rollout.** AKB
+  installation commands now durably enqueue one schema job for the accepted
+  installation, and Reef waits for that job to become active before initializing
+  templates and workspace runbooks. On a new AKB Vault, Reef adds its guidance
+  to the seeded Guide while preserving the existing root metadata and body. A
+  blocked job stays out of Ready.
+
+### Migration
+
+- Schema v4 and vault skill version 23 are unchanged. Existing v4 installations
+  on `0.17.5` use an explicit no-op transition; no table, data, or runbook
+  migration is required.
+- Deploy AKB backend `0.16.2` (API and worker) before applying Reef `0.17.6`
+  to both runtimes with matching image digests and release identities. Preserve
+  the existing CPU, SSO, and streaming settings. Roll back both runtimes with
+  the previous release's matching images and identity.
+
 ## v0.17.5 - 2026-10-12
 
 ### Changed

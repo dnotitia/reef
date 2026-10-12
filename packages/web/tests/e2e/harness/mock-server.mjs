@@ -226,6 +226,26 @@ const server = createServer(async (req, res) => {
       });
     }
     if (
+      url.pathname === "/__e2e/installation-execution-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const vaultName = String(body?.vault ?? "");
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(vaultName)) {
+        return json(res, 422, { error: "invalid vault name" });
+      }
+      if (body?.fail === true) {
+        state.installationExecutionFailures.add(vaultName);
+      } else {
+        state.installationExecutionFailures.delete(vaultName);
+      }
+      return json(res, 200, {
+        ok: true,
+        vault: vaultName,
+        fail: state.installationExecutionFailures.has(vaultName),
+      });
+    }
+    if (
       url.pathname === "/__e2e/installation-control" &&
       req.method === "POST"
     ) {

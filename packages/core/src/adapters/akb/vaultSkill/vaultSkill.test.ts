@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConflictError } from "../../../errors";
 import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   REEF_VAULT_SKILL_VERSION,
@@ -8,8 +10,21 @@ import {
   hasReefVaultSkillDocuments,
   installReefVaultSkill,
 } from "../index";
+import { rootSkillContent } from "./content/rootSkill";
 
 mockOpenTelemetry();
+
+function defaultRootGuide(vault: string): string {
+  return readFileSync(
+    new URL(
+      "../../../../__tests__/fixtures/akb-default-root-guide.md",
+      import.meta.url,
+    ),
+    "utf8",
+  )
+    .replace("{{vault}}", vault)
+    .trimEnd();
+}
 
 interface FetchCall {
   url: string;
@@ -195,6 +210,95 @@ describe("installReefVaultSkill", () => {
     expect(calls[7]?.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
   });
 
+  it("adds Reef guidance to AKB's default Guide without replacing its root", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const rootPath = "overview/vault-skill.md";
+    const longInteriorLineBreakRun = "\n".repeat(8_192);
+    const stockContent = `${defaultRootGuide("reef-new")}${longInteriorLineBreakRun}Owner note after the blank run.`;
+    const stockGuide = {
+      uri: "akb://reef-new/coll/overview/doc/vault-skill.md",
+      vault: "reef-new",
+      path: rootPath,
+      title: "reef-new Guide",
+      type: "skill",
+      status: "draft",
+      summary:
+        "> Edit this document to describe how agents should write into this vault.",
+      tags: ["akb:skill"],
+      content: stockContent,
+      current_commit: "stock-guide-commit",
+    };
+    const calls: FetchCall[] = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const call = { url, init };
+      calls.push(call);
+      const method = init?.method ?? "GET";
+      const path = new URL(url).pathname;
+      let response: unknown;
+
+      if (path === "/api/v1/tables/reef-new/sql") {
+        const sql = String(bodyOf(call).sql ?? "");
+        response = {
+          kind: "table_sql",
+          result: sql.startsWith("DELETE") ? "DELETE 1" : "INSERT 0 1",
+        };
+      } else if (
+        path === "/api/v1/documents/reef-new/overview/vault-skill.md" &&
+        method === "GET"
+      ) {
+        response = stockGuide;
+      } else if (
+        path === "/api/v1/documents/reef-new/overview/vault-skill.md" &&
+        method === "PATCH"
+      ) {
+        response = putResponse(rootPath);
+      } else if (method === "GET") {
+        const doc = docs.find(({ path: docPath }) =>
+          path.endsWith(`/${docPath}`),
+        );
+        if (!doc) throw new Error(`Unexpected document request: ${url}`);
+        response = documentResponse(doc);
+      } else {
+        throw new Error(`Unexpected AKB request: ${method} ${url}`);
+      }
+
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await installReefVaultSkill({
+      adapter: makeAdapter(),
+      vault: "reef-new",
+      preserveExisting: true,
+    });
+
+    const rootPatch = calls.find(
+      (call) =>
+        call.url.endsWith(`/${rootPath}`) && call.init?.method === "PATCH",
+    );
+    if (!rootPatch) throw new Error("Expected the seeded Guide to be patched");
+    const rootPatchBody = bodyOf(rootPatch);
+    expect(rootPatchBody).toMatchObject({
+      expected_commit: "stock-guide-commit",
+      content: expect.stringContaining(stockContent),
+    });
+    expect(rootPatchBody.content).toContain(
+      `${longInteriorLineBreakRun}Owner note after the blank run.`,
+    );
+    expect(rootPatchBody.content).toContain(
+      "## Reef PM Workspace Instructions",
+    );
+    expect(rootPatchBody).not.toHaveProperty("title");
+    expect(rootPatchBody).not.toHaveProperty("summary");
+    expect(rootPatchBody).not.toHaveProperty("tags");
+    expect(
+      calls.filter((call) => call.url.includes("/tables/reef-new/sql")),
+    ).toHaveLength(3);
+  });
+
   it("does not stamp the current version over a preserved stale document", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
     const calls = setupFetch([
@@ -264,6 +368,169 @@ describe("installReefVaultSkill", () => {
     expect(calls[2].url).toBe(
       "https://akb.test/api/v1/documents/reef-new/overview/vault-skill.md",
     );
+  });
+
+  it("does not duplicate current Guide instructions when AKB trims the final newline", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const stockContent = defaultRootGuide("reef-new");
+    const reefBody = rootSkillContent("reef-new")
+      .replace(/^# [^\n]+\n+/, "")
+      .replace(/\n+$/, "");
+    const section = [
+      "<!-- reef-pm-workspace:start -->",
+      "## Reef PM Workspace Instructions",
+      "",
+      reefBody,
+      "<!-- reef-pm-workspace:end -->",
+    ].join("\n");
+    const mergedContent = `${stockContent.replace(/\n+$/, "")}\n\n${section}\n`;
+    const rootGuide = {
+      uri: "akb://reef-new/coll/overview/doc/vault-skill.md",
+      vault: "reef-new",
+      path: "overview/vault-skill.md",
+      title: "reef-new Guide",
+      type: "skill",
+      status: "draft",
+      summary:
+        "> Edit this document to describe how agents should write into this vault.",
+      tags: ["akb:skill"],
+      content: mergedContent.slice(0, -1),
+      current_commit: "merged-guide-commit",
+    };
+    const calls = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: rootGuide },
+      ...docs.slice(1).map((doc) => ({
+        body: documentResponse(doc, doc.content.replace(/\n+$/, "")),
+      })),
+      ...stampResponses(),
+    ]);
+
+    await installReefVaultSkill({
+      adapter: makeAdapter(),
+      vault: "reef-new",
+      preserveExisting: true,
+    });
+
+    expect(
+      calls.filter(
+        (call) =>
+          call.url.endsWith("/overview/vault-skill.md") &&
+          call.init?.method === "PATCH",
+      ),
+    ).toHaveLength(0);
+    expect(calls).toHaveLength(9);
+    expect(bodyOf(calls[7])).toEqual({
+      sql: "DELETE FROM reef_settings WHERE key = $1",
+      params: ["vault_skill"],
+    });
+    expect(bodyOf(calls[8])).toMatchObject({
+      sql: "INSERT INTO reef_settings (key, value) VALUES ($1, $2::json)",
+      params: [
+        "vault_skill",
+        expect.stringMatching(
+          new RegExp(`\\"version\\":${REEF_VAULT_SKILL_VERSION}`),
+        ),
+      ],
+    });
+  });
+
+  it("does not mark a Guide current when it also has a duplicate Reef section", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const reefBody = rootSkillContent("reef-new")
+      .replace(/^# [^\n]+\n+/, "")
+      .replace(/\n+$/, "");
+    const managedSection = [
+      "<!-- reef-pm-workspace:start -->",
+      "## Reef PM Workspace Instructions",
+      "",
+      reefBody,
+      "<!-- reef-pm-workspace:end -->",
+    ].join("\n");
+    const duplicatedGuide = `${defaultRootGuide("reef-new").trimEnd()}\n\n${managedSection}\n\n## Reef PM Workspace Instructions\n\nUser-maintained instructions.`;
+    const rootGuide = {
+      uri: "akb://reef-new/coll/overview/doc/vault-skill.md",
+      vault: "reef-new",
+      path: "overview/vault-skill.md",
+      title: "reef-new Guide",
+      type: "skill",
+      status: "draft",
+      summary:
+        "> Edit this document to describe how agents should write into this vault.",
+      tags: ["akb:skill"],
+      content: duplicatedGuide,
+      current_commit: "duplicate-guide-commit",
+    };
+    const calls = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: rootGuide },
+      ...docs.slice(1).map((doc) => ({ body: documentResponse(doc) })),
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+    ]);
+
+    await installReefVaultSkill({
+      adapter: makeAdapter(),
+      vault: "reef-new",
+      preserveExisting: true,
+    });
+
+    expect(
+      calls.filter(
+        (call) =>
+          call.url.endsWith("/overview/vault-skill.md") &&
+          call.init?.method === "PATCH",
+      ),
+    ).toHaveLength(0);
+    expect(calls).toHaveLength(docs.length + 1);
+    expect(
+      calls.filter((call) => call.url.includes("/tables/reef-new/sql")),
+    ).toHaveLength(1);
+    const initialClear = calls[0];
+    if (!initialClear) throw new Error("Expected the initial stamp clear");
+    expect(bodyOf(initialClear)).toEqual({
+      sql: "DELETE FROM reef_settings WHERE key = $1",
+      params: ["vault_skill"],
+    });
+  });
+
+  it("does not stamp over a Guide concurrently edited after its read", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const rootPath = "overview/vault-skill.md";
+    const stockGuide = {
+      uri: "akb://reef-new/coll/overview/doc/vault-skill.md",
+      vault: "reef-new",
+      path: rootPath,
+      title: "reef-new Guide",
+      type: "skill",
+      status: "draft",
+      summary:
+        "> Edit this document to describe how agents should write into this vault.",
+      tags: ["akb:skill"],
+      content:
+        "# reef-new Guide\n\n> Edit this document to describe how agents should write into this vault.\n> Until you do, it acts as the AKB-default template — agents fall back to\n> general AKB conventions (browse before write, no inline secrets, etc.).\n",
+      current_commit: "read-guide-commit",
+    };
+    const calls = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: stockGuide },
+      { status: 409, body: { detail: "document commit has changed" } },
+    ]);
+
+    await expect(
+      installReefVaultSkill({
+        adapter: makeAdapter(),
+        vault: "reef-new",
+        preserveExisting: true,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const attemptedPatch = calls[2];
+    if (!attemptedPatch) throw new Error("Expected the OCC-protected patch");
+    expect(bodyOf(attemptedPatch)).toMatchObject({
+      expected_commit: "read-guide-commit",
+      content: expect.stringContaining("AKB-default template"),
+    });
+    expect(calls).toHaveLength(3);
   });
 });
 

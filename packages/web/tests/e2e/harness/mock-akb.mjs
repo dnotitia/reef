@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   AUTH_PROBE_HANG_MAX_MS,
   fixtureLogin,
@@ -5,6 +6,14 @@ import {
   rawVault,
   REEF_VAULT,
 } from "./mock-fixtures.mjs";
+
+const AKB_DEFAULT_ROOT_GUIDE = readFileSync(
+  new URL(
+    "../../../../core/__tests__/fixtures/akb-default-root-guide.md",
+    import.meta.url,
+  ),
+  "utf8",
+);
 import {
   E2E_REEF_APP_ID,
   E2E_REEF_RELEASE_VERSION,
@@ -69,6 +78,29 @@ const REEF_INSTALLATION_TABLE_METADATA = REEF_DESIRED_TABLES.map((table) => ({
     ),
   })),
 }));
+
+function seedAkbVaultGuide(state, vault) {
+  const path = "overview/vault-skill.md";
+  const content = AKB_DEFAULT_ROOT_GUIDE.replace(
+    "{{vault}}",
+    vault.name,
+  ).trimEnd();
+  vault.documents.set(path, {
+    uri: docUri(vault.name, path),
+    vault: vault.name,
+    path,
+    title: `${vault.name} Guide`,
+    type: "skill",
+    status: "draft",
+    summary:
+      "> Edit this document to describe how agents should write into this vault.",
+    tags: ["akb:skill"],
+    content,
+    created_at: NOW,
+    updated_at: NOW,
+    current_commit: nextCommit(state),
+  });
+}
 
 function installationWire(vault) {
   const installation = vault.installation;
@@ -378,33 +410,102 @@ export async function handleAkb(req, res, url, state) {
         return json(res, 409, { error: "vault contains retained resources" });
       }
       const replayed =
-        (mode === "install" || mode === "fresh") &&
-        vault.installation?.lifecycle === "active" &&
-        vault.installation.currentReleaseId === releaseId;
+        (mode === "install" &&
+          ((vault.installation?.lifecycle === "installing" &&
+            vault.installation.desiredReleaseId === releaseId) ||
+            (vault.installation?.lifecycle === "active" &&
+              vault.installation.currentReleaseId === releaseId))) ||
+        (mode === "fresh" &&
+          vault.installation?.lifecycle === "installing" &&
+          vault.installation.currentReleaseId === null &&
+          vault.installation.desiredReleaseId === releaseId);
+      if (replayed) {
+        return json(res, 200, {
+          ...installationWire(vault),
+          command_status: "already_applied",
+          replayed: true,
+        });
+      }
+      if (
+        (mode === "install" && vault.installation) ||
+        (mode === "fresh" && vault.installation?.lifecycle !== "uninstalled")
+      ) {
+        return json(res, 409, {
+          error: "installation command conflicts with state",
+        });
+      }
       const currentReleaseId =
         mode === "restore" ? vault.installation.currentReleaseId : releaseId;
-      if (!vault.installation) {
-        vault.installation = {
-          id: uuidFor(20000 + state.commitSeq),
-          appId,
-          currentReleaseId,
-          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
-          lifecycle: "active",
-        };
-      } else {
+      if (mode === "restore") {
         vault.installation = {
           ...vault.installation,
           appId,
           lifecycle: "active",
           currentReleaseId,
           currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          blockedReason: null,
+        };
+        return json(res, 202, {
+          ...installationWire(vault),
+          command_status: "accepted",
+          replayed: false,
+        });
+      }
+      if (!vault.installation) {
+        vault.installation = {
+          id: uuidFor(20000 + state.commitSeq),
+          appId,
+          currentReleaseId: null,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          desiredReleaseId: releaseId,
+          desiredReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          lifecycle: "installing",
+          blockedReason: null,
+        };
+      } else {
+        vault.installation = {
+          ...vault.installation,
+          appId,
+          lifecycle: "installing",
+          currentReleaseId: null,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          desiredReleaseId: releaseId,
+          desiredReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          blockedReason: null,
         };
       }
-      for (const table of REEF_INSTALLATION_TABLES) vault.tables.add(table);
-      return json(res, 200, {
+      const installationId = vault.installation.id;
+      const installState = state;
+      setTimeout(() => {
+        if (
+          vault.installation?.id !== installationId ||
+          vault.installation.lifecycle !== "installing"
+        ) {
+          return;
+        }
+        if (installState.installationExecutionFailures.delete(vault.name)) {
+          vault.installation = {
+            ...vault.installation,
+            lifecycle: "blocked",
+            blockedReason: "step_failed",
+          };
+          return;
+        }
+        vault.installation = {
+          ...vault.installation,
+          lifecycle: "active",
+          currentReleaseId: releaseId,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          desiredReleaseId: undefined,
+          desiredReleaseVersion: undefined,
+          blockedReason: null,
+        };
+        for (const table of REEF_INSTALLATION_TABLES) vault.tables.add(table);
+      }, 300);
+      return json(res, 202, {
         ...installationWire(vault),
-        command_status: replayed ? "already_applied" : "accepted",
-        replayed,
+        command_status: "accepted",
+        replayed: false,
       });
     }
     if (req.method === "DELETE") {
@@ -424,7 +525,11 @@ export async function handleAkb(req, res, url, state) {
   if (path === "/api/v1/vaults" && req.method === "POST") {
     const name = url.searchParams.get("name");
     if (!name) return json(res, 422, { error: "missing vault name" });
-    if (!state.vaults.has(name)) state.vaults.set(name, rawVault(name));
+    if (!state.vaults.has(name)) {
+      const vault = rawVault(name);
+      seedAkbVaultGuide(state, vault);
+      state.vaults.set(name, vault);
+    }
     const vault = state.vaults.get(name);
     return json(res, 200, {
       vault_id: vault.id,
@@ -964,6 +1069,12 @@ export async function handleAkb(req, res, url, state) {
     if (req.method === "PATCH") {
       if (!existing) return json(res, 404, { error: "document not found" });
       const body = await readJson(req);
+      if (
+        body.expected_commit &&
+        body.expected_commit !== existing.current_commit
+      ) {
+        return json(res, 409, { error: "document commit has changed" });
+      }
       Object.assign(existing, {
         title: stringOr(existing.title, body.title),
         type: stringOr(existing.type, body.type),
