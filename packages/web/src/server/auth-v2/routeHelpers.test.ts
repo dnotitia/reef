@@ -105,7 +105,6 @@ function installRuntime(options: {
     },
     now: options.now ?? (() => 111),
     protocolFor: () => options.protocol,
-    close: async () => undefined,
   } as unknown as AuthV2RouteRuntime;
   runtimeRef.factory = undefined;
 
@@ -200,7 +199,6 @@ describe("auth-v2 credential resolution", () => {
         refreshLock,
         now: () => 111,
         protocolFor: () => makeProtocol(refresh),
-        close: vi.fn(async () => undefined),
       } as unknown as AuthV2RouteRuntime;
       runtimes.push(runtime);
       return runtime;

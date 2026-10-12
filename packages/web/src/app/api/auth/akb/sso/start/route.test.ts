@@ -19,7 +19,6 @@ const runtimeRef = vi.hoisted(() => ({
             browserBinding: string;
           }>;
         };
-        close: () => Promise<void>;
       }
     | undefined,
 }));
@@ -61,7 +60,6 @@ describe("SSO start route", () => {
           browserBinding: "A".repeat(43),
         })),
       }),
-      close: vi.fn(async () => undefined),
     };
   });
 

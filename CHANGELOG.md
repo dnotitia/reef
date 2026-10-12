@@ -12,6 +12,25 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.4 - 2026-10-12
+
+### Fixed
+
+- **SSO requests reuse the Web process's Redis transport.** Opening and closing
+  a connection for every AKB credential boundary amplified the concurrent
+  readiness reads used by workspace entry and personal menus. Login state and
+  credentials still read from Redis at each operation; AKB authentication
+  configuration, account validation, revocation, and refresh remain current.
+  Request handlers no longer close a process-owned connection.
+
+### Migration
+
+- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
+  on `0.17.0` through `0.17.3` use explicit no-op transitions. Apply the AKB
+  release before updating both runtime digests and release identities, then
+  verify signed-in workspace entry and API latency through the SSO path.
+
+
 ## v0.17.3 - 2026-10-12
 
 ### Fixed

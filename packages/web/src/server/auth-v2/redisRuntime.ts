@@ -27,6 +27,34 @@ export interface AuthV2RedisRuntime {
   close(): Promise<void>;
 }
 
+export type AuthV2ProcessRedis = Omit<AuthV2RedisRuntime, "close">;
+
+let processRedis:
+  | { identity: string; promise: Promise<AuthV2ProcessRedis> }
+  | undefined;
+
+/** Process-owned transport only; session records and credentials are never cached. */
+export function getProcessAuthV2Redis(
+  config: AuthV2EnabledRuntimeConfig,
+): Promise<AuthV2ProcessRedis> {
+  const identity = JSON.stringify([config.redisUrl, config.sessionNamespace]);
+  if (processRedis && processRedis.identity !== identity) {
+    throw new AuthV2RedisRuntimeError();
+  }
+  if (!processRedis) {
+    const promise = connectAuthV2Redis(config)
+      .then(({ backend, refreshLock, ping }) =>
+        Object.freeze({ backend, refreshLock, ping }),
+      )
+      .catch((error: unknown) => {
+        processRedis = undefined;
+        throw error;
+      });
+    processRedis = { identity, promise };
+  }
+  return processRedis.promise;
+}
+
 /**
  * Connect the production Redis dependency with bounded I/O and offline queue
  * disabled. The URL is supplied only to node-redis and is never included in a

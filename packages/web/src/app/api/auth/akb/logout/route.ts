@@ -93,8 +93,6 @@ export async function POST(request: Request): Promise<Response> {
       { error: "logout_unavailable" },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
-  } finally {
-    await runtime?.close();
   }
 }
 

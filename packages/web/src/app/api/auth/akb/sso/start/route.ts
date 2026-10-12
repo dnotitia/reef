@@ -57,8 +57,6 @@ export async function GET(request: Request): Promise<Response> {
         ? error.code
         : "sso_start_failed",
     );
-  } finally {
-    await runtime?.close();
   }
 }
 function failureRedirect(code: string): Response {
