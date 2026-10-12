@@ -37,6 +37,37 @@ type WorkspaceReadinessInspection =
       vaultId: string;
     };
 
+/** Check canonical installation availability without probing Reef data. */
+export async function requireWorkspaceActive(params: {
+  adapter: AkbAdapter;
+  vaultName: string;
+}): Promise<void> {
+  const { adapter, vaultName } = params;
+  const { vaults } = await akbListVaults({ adapter });
+  const vault = vaults.find((candidate) => candidate.name === vaultName);
+  if (!vault) throw new NotFoundError({ resource: `vault ${vaultName}` });
+  const target = readInstallationTarget();
+  if (!target || !vault.id) {
+    throw new WorkspaceReadinessError({
+      reason: "installation_status_unavailable",
+      status: 503,
+    });
+  }
+  const active = await readWorkspaceInstallationActive({
+    adapter,
+    appId: target.appId,
+    vault,
+  });
+  if (active === true) return;
+  throw new WorkspaceReadinessError({
+    reason:
+      active === false
+        ? "installation_required"
+        : "installation_status_unavailable",
+    status: active === false ? 409 : 503,
+  });
+}
+
 export async function requireWorkspaceReady(params: {
   adapter: AkbAdapter;
   vaultName: string;

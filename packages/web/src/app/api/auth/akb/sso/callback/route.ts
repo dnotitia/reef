@@ -35,7 +35,7 @@ export async function GET(request: Request): Promise<Response> {
 
   let runtime: Awaited<ReturnType<typeof getAuthV2RouteRuntime>> | undefined;
   try {
-    runtime = await getAuthV2RouteRuntime();
+    runtime = await getAuthV2RouteRuntime(request);
     const provider = runtime.contract.providers.find(
       (candidate) =>
         candidate.alias === stateCookie.providerAlias &&

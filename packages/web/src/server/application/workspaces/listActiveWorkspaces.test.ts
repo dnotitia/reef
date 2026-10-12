@@ -25,7 +25,7 @@ vi.mock("@/server/adapters/installationTarget", () => ({
     appId: "33333333-3333-4333-8333-333333333333",
   }),
 }));
-import { listReadyWorkspaces } from "./listReadyWorkspaces";
+import { listActiveWorkspaces } from "./listActiveWorkspaces";
 
 const adapter = { request: vi.fn() } satisfies AkbAdapter;
 const vaults = [
@@ -55,13 +55,12 @@ beforeEach(() => {
   });
 });
 
-describe("personal ready workspace discovery", () => {
+describe("personal active workspace discovery", () => {
   it("only inspects active installations for an ordinary user", async () => {
-    await expect(listReadyWorkspaces({ adapter })).resolves.toEqual([
+    await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([
       "reef-test",
     ]);
-    expect(readStatus).toHaveBeenCalledTimes(1);
-    expect(readStatus).toHaveBeenCalledWith({ adapter, vault: vaults[0] });
+    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("filters all accessible vaults using one authoritative admin inventory read", async () => {
@@ -76,16 +75,16 @@ describe("personal ready workspace discovery", () => {
       manyVaults.slice(0, 27).map((vault) => ({ vaultId: vault.id })),
     );
     readStatus.mockResolvedValue({ installation_status: "ready" });
-    const ready = await listReadyWorkspaces({ adapter });
+    const ready = await listActiveWorkspaces({ adapter });
     expect(ready).toHaveLength(27);
     expect(listInventory).toHaveBeenCalledTimes(1);
     expect(readActive).not.toHaveBeenCalled();
-    expect(readStatus).toHaveBeenCalledTimes(27);
+    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("propagates a resource denial during ordinary discovery instead of returning partial work", async () => {
     readActive.mockRejectedValue(denied());
-    await expect(listReadyWorkspaces({ adapter })).rejects.toMatchObject({
+    await expect(listActiveWorkspaces({ adapter })).rejects.toMatchObject({
       context: { status: 403, code: "permission_denied" },
     });
     expect(readStatus).not.toHaveBeenCalled();
@@ -95,14 +94,14 @@ describe("personal ready workspace discovery", () => {
     const error = denied();
     getMe.mockResolvedValue({ profile: { is_admin: true } });
     listInventory.mockRejectedValue(error);
-    await expect(listReadyWorkspaces({ adapter })).rejects.toBe(error);
+    await expect(listActiveWorkspaces({ adapter })).rejects.toBe(error);
     expect(readActive).not.toHaveBeenCalled();
     expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("skips unknown availability without inspecting workspace tables or initialization", async () => {
     readActive.mockResolvedValue(null);
-    await expect(listReadyWorkspaces({ adapter })).resolves.toEqual([]);
+    await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([]);
     expect(readStatus).not.toHaveBeenCalled();
   });
 
@@ -117,14 +116,7 @@ describe("personal ready workspace discovery", () => {
       const error = new AuthError({ origin: "akb", status, code });
       readActive.mockRejectedValue(error);
       readStatus.mockRejectedValue(error);
-      await expect(listReadyWorkspaces({ adapter })).rejects.toBe(error);
+      await expect(listActiveWorkspaces({ adapter })).rejects.toBe(error);
     },
   );
-
-  it("propagates an active workspace ACL failure instead of returning partial work", async () => {
-    readActive.mockResolvedValue(true);
-    await expect(listReadyWorkspaces({ adapter })).rejects.toMatchObject({
-      context: { status: 403, code: "permission_denied" },
-    });
-  });
 });

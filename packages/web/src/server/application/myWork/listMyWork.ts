@@ -7,12 +7,12 @@ import {
   type MyWorkResponse,
 } from "@reef/core";
 import { SpanStatusCode } from "@opentelemetry/api";
-import { listReadyWorkspaces } from "../workspaces/listReadyWorkspaces";
+import { listActiveWorkspaces } from "../workspaces/listActiveWorkspaces";
 
 /**
- * Resolve the actor and ready workspace scope before reading personal work.
+ * Resolve the actor and active workspace scope before reading personal work.
  * Vault access is still enforced by AKB for the single integrated SQL query;
- * readiness checks only decide which Reef workspaces belong in the scope.
+ * active installation checks only decide which Reef workspaces belong in the scope.
  */
 export async function listMyWork(params: {
   adapter: AkbAdapter;
@@ -21,15 +21,15 @@ export async function listMyWork(params: {
 }): Promise<MyWorkResponse> {
   return tracer.startActiveSpan("application.list_my_work", async (span) => {
     try {
-      const readyWorkspaces = await listReadyWorkspaces({
+      const activeWorkspaces = await listActiveWorkspaces({
         adapter: params.adapter,
       });
-      span.setAttribute("workspace_count", readyWorkspaces.length);
+      span.setAttribute("workspace_count", activeWorkspaces.length);
 
       const result = await akbListMyWorkIssues({
         adapter: params.adapter,
         actor: params.actor,
-        vaults: readyWorkspaces,
+        vaults: activeWorkspaces,
         query: params.query,
       });
 

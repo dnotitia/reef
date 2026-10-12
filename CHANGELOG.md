@@ -12,6 +12,39 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.5 - 2026-10-12
+
+### Changed
+
+- **Ordinary workspace reads trust AKB's active installation.** Issue, planning,
+  configuration, and other read APIs no longer preflight table schemas, default
+  templates, or skill/runbook documents. My Work and Inbox aggregate all active
+  installations without repeating readiness per workspace. Integrated SQL and
+  authorization/query failure propagation remain unchanged; installation
+  diagnostics, initialization, and mutations retain their detailed checks.
+- **SSO authentication configuration is shared within one Reef request.**
+  Parallel AKB calls and separately constructed adapters for the same request
+  reuse one authentication runtime. Each AKB boundary still resolves the current
+  Redis session and refreshes credentials when needed. Session records and
+  credentials are never memoized; each new request loads fresh configuration.
+
+### Migration
+
+- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
+  on `0.17.0` through `0.17.4` use explicit no-op transitions; no table, data,
+  or runbook migration is required. Apply the AKB release before updating both
+  runtime digests and release identities. SSO custody and session settings are
+  unchanged.
+
+### Operational
+
+- Preserve the deployment's existing CPU allocation and compare signed-in
+  issue-list, My Work, and Inbox latency after both runtimes are ready. A runtime
+  rollback must use the previous release's matching images and identity; rolling
+  back to `0.17.4` restores the repeated readiness and authentication-config
+  reads. Integrated query failures continue to fail the whole response.
+
+
 ## v0.17.4 - 2026-10-12
 
 ### Fixed

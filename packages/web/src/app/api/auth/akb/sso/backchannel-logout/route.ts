@@ -8,7 +8,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!body) return new Response(null, { status: 400 });
   let runtime: Awaited<ReturnType<typeof getAuthV2RouteRuntime>> | undefined;
   try {
-    runtime = await getAuthV2RouteRuntime();
+    runtime = await getAuthV2RouteRuntime(request);
     const jwks = createRemoteJWKSet(
       new URL(`${runtime.config.transportUrl}/protocol/openid-connect/certs`),
       { timeoutDuration: 5_000 },

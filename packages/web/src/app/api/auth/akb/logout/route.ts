@@ -61,7 +61,7 @@ export async function POST(request: Request): Promise<Response> {
 
   let runtime: AuthV2RouteRuntime | undefined;
   try {
-    runtime = await getAuthV2RouteRuntime();
+    runtime = await getAuthV2RouteRuntime(request);
     const record = await runtime.store.resolve(handle);
     if (!record) return clearLocalLogoutResponse();
 

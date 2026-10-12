@@ -16,11 +16,15 @@ server-only `packages/web/src/server/` tree and must not be reintroduced here.
 - Issue templates are table-only rows in `reef_templates`, addressed by their
   `name` stem; they are not searchable akb documents.
 - AKB owns every Reef table's schema. Reef's runtime AKB surface is read-only
-  for schema: the shared readiness check verifies the canonical required table,
-  column, type, required-flag, unique-key, and index metadata before product
-  reads or writes. It never creates, alters, drops, migrates, or stamps tables.
-  Missing, malformed, or mismatched schema blocks workspace use; normal paths do
-  not attempt recovery. Release blueprints and transition plans remain pure
+  for schema: ordinary product reads trust AKB's canonical active installation.
+  Installation diagnostics, initialization, and product mutations retain the
+  shared readiness verification of canonical table, column, type, required-flag,
+  unique-key, and index metadata. It never creates, alters, drops, migrates, or
+  stamps tables.
+  Ordinary reads propagate actual AKB query failures; they do not preflight
+  config, templates, runbooks, or the table catalog. Detailed readiness failures
+  still block initialization and mutations; normal paths do not repair schema.
+  Release blueprints and transition plans remain pure
   projections for AKB's install/reconciliation workflow.
   Use `meta`/`payload` JSON for ad-hoc fields; promote a field to a typed column
   only for filtering, sorting, joins, constraints/uniqueness, or indexing, then

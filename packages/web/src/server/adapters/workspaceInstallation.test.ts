@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockAkbCheckWorkspaceReadiness,
+  mockReadMemberInstallationActive,
+  mockReadInstallation,
   mockAkbInitializeReefWorkspace,
   mockAkbListVaults,
   mockReadInstallationTarget,
 } = vi.hoisted(() => ({
   mockAkbCheckWorkspaceReadiness: vi.fn(),
+  mockReadMemberInstallationActive: vi.fn(),
+  mockReadInstallation: vi.fn(),
   mockAkbInitializeReefWorkspace: vi.fn(),
   mockAkbListVaults: vi.fn(),
   mockReadInstallationTarget: vi.fn(),
@@ -18,6 +22,8 @@ vi.mock("@reef/core", async () => {
   return {
     ...actual,
     akbCheckWorkspaceReadiness: mockAkbCheckWorkspaceReadiness,
+    akbReadMemberInstallationActive: mockReadMemberInstallationActive,
+    akbReadInstallation: mockReadInstallation,
     akbInitializeReefWorkspace: mockAkbInitializeReefWorkspace,
     akbListVaults: mockAkbListVaults,
   };
@@ -38,6 +44,7 @@ import {
   readWorkspaceInstallationState,
   readWorkspaceInstallationStatus,
   requireWorkspaceReady,
+  requireWorkspaceActive,
 } from "./workspaceInstallation";
 
 const target = {
@@ -421,5 +428,77 @@ describe("readWorkspaceInstallationStatus", () => {
       machineCode: "installation_status_unavailable",
       status: 503,
     });
+  });
+});
+
+describe("requireWorkspaceActive", () => {
+  const adapter = { request: vi.fn() } as never;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockReadInstallationTarget.mockReturnValue(target);
+    mockAkbListVaults.mockResolvedValue({ vaults: [vault] });
+    mockReadMemberInstallationActive.mockResolvedValue(true);
+    mockReadInstallation.mockResolvedValue({ lifecycle: "active" });
+  });
+
+  it("allows active reads without schema, template, config, or runbook readiness", async () => {
+    mockAkbCheckWorkspaceReadiness.mockRejectedValue(
+      new SchemaValidationError({ issues: ["missing initialization data"] }),
+    );
+    await expect(
+      requireWorkspaceActive({ adapter, vaultName: vault.name }),
+    ).resolves.toBeUndefined();
+    expect(mockReadMemberInstallationActive).toHaveBeenCalledWith({
+      adapter,
+      appId: target.appId,
+      vaultId: vault.id,
+    });
+    expect(mockAkbCheckWorkspaceReadiness).not.toHaveBeenCalled();
+    expect(mockAkbInitializeReefWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("uses the authorized administrator installation read without running readiness", async () => {
+    mockAkbListVaults.mockResolvedValue({
+      vaults: [{ ...vault, role: "owner" }],
+    });
+    await expect(
+      requireWorkspaceActive({ adapter, vaultName: vault.name }),
+    ).resolves.toBeUndefined();
+    expect(mockReadInstallation).toHaveBeenCalledWith({
+      adapter,
+      appId: target.appId,
+      vaultId: vault.id,
+    });
+    expect(mockReadMemberInstallationActive).not.toHaveBeenCalled();
+    expect(mockAkbCheckWorkspaceReadiness).not.toHaveBeenCalled();
+  });
+
+  it("blocks a canonical inactive installation", async () => {
+    mockReadMemberInstallationActive.mockResolvedValue(false);
+    await expect(
+      requireWorkspaceActive({ adapter, vaultName: vault.name }),
+    ).rejects.toMatchObject({
+      machineCode: "installation_required",
+      status: 409,
+    });
+  });
+
+  it("keeps missing installation identity unavailable", async () => {
+    mockReadInstallationTarget.mockReturnValue(null);
+    await expect(
+      requireWorkspaceActive({ adapter, vaultName: vault.name }),
+    ).rejects.toMatchObject({
+      machineCode: "installation_status_unavailable",
+      status: 503,
+    });
+    expect(mockReadMemberInstallationActive).not.toHaveBeenCalled();
+  });
+
+  it("propagates resource and account denials without omitting the workspace", async () => {
+    const denial = new AuthError({ origin: "akb", status: 403 });
+    mockReadMemberInstallationActive.mockRejectedValue(denial);
+    await expect(
+      requireWorkspaceActive({ adapter, vaultName: vault.name }),
+    ).rejects.toBe(denial);
   });
 });

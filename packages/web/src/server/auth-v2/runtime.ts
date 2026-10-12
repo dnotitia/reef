@@ -56,7 +56,21 @@ export class AuthV2RouteRuntimeError extends Error {
   }
 }
 
-export async function getAuthV2RouteRuntime(): Promise<AuthV2RouteRuntime> {
+// Request identity bounds sharing of deployment auth configuration and runtime
+// construction. Session records and credentials are never stored in this map.
+const requestRuntimes = new WeakMap<Request, Promise<AuthV2RouteRuntime>>();
+
+export function getAuthV2RouteRuntime(
+  request: Request,
+): Promise<AuthV2RouteRuntime> {
+  const existing = requestRuntimes.get(request);
+  if (existing) return existing;
+  const runtime = createAuthV2RouteRuntime();
+  requestRuntimes.set(request, runtime);
+  return runtime;
+}
+
+async function createAuthV2RouteRuntime(): Promise<AuthV2RouteRuntime> {
   let config: AuthV2EnabledRuntimeConfig;
   try {
     config = requireAuthV2RuntimeConfig();

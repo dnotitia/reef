@@ -1,5 +1,5 @@
 import {
-  getWorkspaceAkbAdapter,
+  getWorkspaceReadAkbAdapter,
   invalidBodyResponse,
   invalidJsonBodyResponse,
   missingVaultParamResponse,
@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = ResolveMarkdownTargetRequestSchema.safeParse(rawBody);
   if (!parsed.success) return invalidBodyResponse(parsed.error);
 
-  const adapterResult = await getWorkspaceAkbAdapter(request, vault);
+  const adapterResult = await getWorkspaceReadAkbAdapter(request, vault);
   if ("response" in adapterResult) return adapterResult.response;
 
   try {

@@ -10,15 +10,18 @@ const {
   mockAkbWriteConfig,
   mockCreateAkbAdapter,
   mockRequireWorkspaceReady,
+  mockRequireWorkspaceActive,
 } = vi.hoisted(() => ({
   mockAkbReadConfig: vi.fn(),
   mockAkbWriteConfig: vi.fn(),
   mockCreateAkbAdapter: vi.fn(),
   mockRequireWorkspaceReady: vi.fn(),
+  mockRequireWorkspaceActive: vi.fn(),
 }));
 
 vi.mock("@/server/adapters/workspaceInstallation", () => ({
   requireWorkspaceReady: mockRequireWorkspaceReady,
+  requireWorkspaceActive: mockRequireWorkspaceActive,
 }));
 
 vi.mock("@reef/core", async () => {
@@ -56,6 +59,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
   mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+  mockRequireWorkspaceActive.mockResolvedValue(undefined);
   mockRequireWorkspaceReady.mockResolvedValue({ installation_status: "ready" });
 });
 
@@ -92,8 +96,8 @@ describe("GET /api/config", () => {
     expect(await res.json()).toEqual({ config: BASE_CONFIG });
   });
 
-  it("requires workspace readiness before reading config", async () => {
-    mockRequireWorkspaceReady.mockRejectedValueOnce(
+  it("requires an active installation before reading config", async () => {
+    mockRequireWorkspaceActive.mockRejectedValueOnce(
       new AuthError({ origin: "akb", status: 403 }),
     );
     const req = new Request("http://localhost/api/config?vault=reef-acme", {

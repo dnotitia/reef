@@ -8,7 +8,6 @@ import {
   respondWithError,
 } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
-import { requireWorkspaceReady } from "@/server/adapters/workspaceInstallation";
 import {
   AuthoringLanguageSchema,
   type Config,

@@ -18,7 +18,10 @@ import {
 import { AUTH_V2_SESSION_COOKIE } from "@/server/auth-v2/cookie";
 import { readAuthV2RuntimeConfig } from "@/server/auth-v2/config";
 import { resolveAuthV2Credential } from "@/server/auth-v2/routeHelpers";
-import { requireWorkspaceReady } from "@/server/adapters/workspaceInstallation";
+import {
+  requireWorkspaceActive,
+  requireWorkspaceReady,
+} from "@/server/adapters/workspaceInstallation";
 import { logger } from "@/lib/logging/logger";
 import {
   buildClearedAuthV2LogoutCookie,
@@ -347,19 +350,41 @@ export function getAkbAdapter(
   return {
     adapter: createAkbAdapter({
       baseUrl: backendUrl,
-      credential: () => resolveAuthV2Credential(handle),
+      credential: () => resolveAuthV2Credential(request, handle),
     }),
   };
 }
 
-/**
- * Build the per-request AKB adapter only after this workspace passes the
- * canonical installation, required-table, and product-initialization checks.
- * Lifecycle and onboarding handlers keep using `getAkbAdapter` directly.
- */
-export async function getWorkspaceAkbAdapter(
+/** Ordinary reads trust AKB's active installation; mutations retain readiness checks. */
+export function getWorkspaceAkbAdapter(
   request: Request,
   requestedVault?: string,
+): Promise<{ adapter: AkbAdapter } | { response: Response }> {
+  const check =
+    request.method === "GET" || request.method === "HEAD"
+      ? requireWorkspaceActive
+      : requireWorkspaceReady;
+  return getCheckedWorkspaceAkbAdapter(request, requestedVault, check);
+}
+
+/** Read-only operations that carry their query in a POST body use the same active gate. */
+export function getWorkspaceReadAkbAdapter(
+  request: Request,
+  requestedVault?: string,
+): Promise<{ adapter: AkbAdapter } | { response: Response }> {
+  return getCheckedWorkspaceAkbAdapter(
+    request,
+    requestedVault,
+    requireWorkspaceActive,
+  );
+}
+
+async function getCheckedWorkspaceAkbAdapter(
+  request: Request,
+  requestedVault: string | undefined,
+  checkInstallation:
+    | typeof requireWorkspaceActive
+    | typeof requireWorkspaceReady,
 ): Promise<{ adapter: AkbAdapter } | { response: Response }> {
   const adapterResult = getAkbAdapter(request);
   if ("response" in adapterResult) {
@@ -371,13 +396,13 @@ export async function getWorkspaceAkbAdapter(
     return { response: await missingVaultParamResponse() };
   }
   try {
-    await requireWorkspaceReady({
+    await checkInstallation({
       adapter: adapterResult.adapter,
       vaultName: vault,
     });
     return adapterResult;
   } catch (error) {
-    logger.error({ err: error, vault }, "workspace readiness check failed");
+    logger.error({ err: error, vault }, "workspace active check failed");
     return {
       response: await respondWithError(error, { resourceKind: "workspace" }),
     };

@@ -1,7 +1,7 @@
 import { tracer } from "@/lib/telemetry";
 import { akbListPersonalNotifications, type AkbAdapter } from "@reef/core";
 import { SpanStatusCode } from "@opentelemetry/api";
-import { listReadyWorkspaces } from "../workspaces/listReadyWorkspaces";
+import { listActiveWorkspaces } from "../workspaces/listActiveWorkspaces";
 
 export async function listPersonalNotifications(params: {
   adapter: AkbAdapter;
@@ -11,7 +11,7 @@ export async function listPersonalNotifications(params: {
     "application.list_personal_notifications",
     async (span) => {
       try {
-        const workspaces = await listReadyWorkspaces({
+        const workspaces = await listActiveWorkspaces({
           adapter: params.adapter,
         });
         span.setAttribute("workspace_count", workspaces.length);

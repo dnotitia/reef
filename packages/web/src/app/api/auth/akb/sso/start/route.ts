@@ -19,7 +19,7 @@ export async function GET(request: Request): Promise<Response> {
   let runtime: Awaited<ReturnType<typeof getAuthV2RouteRuntime>> | undefined;
 
   try {
-    runtime = await getAuthV2RouteRuntime();
+    runtime = await getAuthV2RouteRuntime(request);
     const available = runtime.contract.providers.filter(
       (provider) => provider.login_url !== null,
     );
