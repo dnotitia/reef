@@ -12,6 +12,25 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.2 - 2026-10-12
+
+### Fixed
+
+- **System administrators can open installed workspaces again.** Workspace
+  listings use the authorized installation detail read for owners and admins;
+  ordinary members keep the minimal active-status read. AKB intentionally
+  rejects system administrators on the member-only endpoint. Both paths return
+  only the active boolean to the browser, and permission failures remain unknown
+  without a fallback or a sign-out.
+
+### Migration
+
+- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
+  on `0.17.0` and `0.17.1` use explicit no-op transitions. Complete the AKB rollout
+  before updating both runtime image digests and release identities, then verify
+  workspace entry through the signed-in administrator browser as well as the
+  operator readiness checks.
+
 ## v0.17.1 - 2026-10-12
 
 ### Fixed

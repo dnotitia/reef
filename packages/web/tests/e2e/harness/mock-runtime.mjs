@@ -483,7 +483,7 @@ export function runtimeDiscovery(state) {
           vault_list_control: { operation: "vault_list_control" },
           installation_control: {
             operation: "installation_control",
-            per_workspace_failure_field: "member_lookup",
+            per_workspace_failure_field: "detail_lookup",
           },
         },
         identities: {

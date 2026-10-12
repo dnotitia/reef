@@ -13,7 +13,6 @@ import {
   AuthError as AkbAuthError,
   CreateVaultRequestSchema,
   EnrichedVaultSummarySchema,
-  akbReadMemberInstallationActive as readMemberInstallationActive,
   akbCreateVault as createVault,
   akbReadConfig as readConfig,
   akbListVaults as listVaults,
@@ -21,13 +20,14 @@ import {
 } from "@reef/core";
 import { z } from "zod";
 import { readInstallationTarget } from "@/server/adapters/installationTarget";
+import { readWorkspaceInstallationActive } from "@/server/adapters/workspaceInstallation";
 
 /**
  * GET /api/vaults → { vaults: EnrichedVaultSummary[] }
  *
- * Lists accessible AKB vaults with the minimal member-scoped installation
- * availability projection. Workspace readiness stays on selected-workspace
- * routes.
+ * Lists accessible AKB vaults with canonical, role-appropriate installation
+ * availability. Only the boolean projection reaches the browser; workspace
+ * readiness stays on selected-workspace routes.
  */
 
 const VaultsResponseSchema = z.object({
@@ -59,10 +59,10 @@ export async function GET(request: Request): Promise<Response> {
     const installationChecks = await Promise.allSettled(
       vaults.map((vault) =>
         target && vault.id
-          ? readMemberInstallationActive({
+          ? readWorkspaceInstallationActive({
               adapter,
               appId: target.appId,
-              vaultId: vault.id,
+              vault,
             })
           : Promise.resolve(null),
       ),

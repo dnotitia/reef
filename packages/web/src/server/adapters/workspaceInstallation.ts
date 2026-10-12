@@ -12,6 +12,8 @@ import {
   akbListVaults,
   akbInitializeReefWorkspace,
   akbCheckWorkspaceReadiness,
+  akbReadInstallation,
+  akbReadMemberInstallationActive,
   akbRequestInstallation,
   akbUninstallInstallation,
   type VaultSummary,
@@ -121,6 +123,26 @@ function isInstallationStatusUnavailable(error: unknown): boolean {
 
 function hasManagementRole(role: string | null | undefined): boolean {
   return role === "owner" || role === "admin";
+}
+
+/** Read canonical availability through the endpoint authorized for this role. */
+export async function readWorkspaceInstallationActive(params: {
+  adapter: AkbAdapter;
+  appId: string;
+  vault: VaultSummary;
+}): Promise<boolean | null> {
+  const vaultId = params.vault.id;
+  if (!vaultId) return null;
+  const input = { adapter: params.adapter, appId: params.appId, vaultId };
+  if (!hasManagementRole(params.vault.role)) {
+    return akbReadMemberInstallationActive(input);
+  }
+  try {
+    return (await akbReadInstallation(input)).lifecycle === "active";
+  } catch (error) {
+    if (error instanceof NotFoundError) return false;
+    throw error;
+  }
 }
 
 async function checkWorkspaceReadiness(params: {

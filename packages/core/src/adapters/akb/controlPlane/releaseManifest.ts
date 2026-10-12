@@ -431,13 +431,13 @@ export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
     transition_plans: [
       { source: "fresh", steps },
       ...upgradePlans,
-      {
+      ...["0.17.0", "0.17.1"].map((releaseVersion) => ({
         source: {
-          release_version: "0.17.0",
+          release_version: releaseVersion,
           schema_fingerprint: schema.fingerprint,
         },
         steps: [],
-      },
+      })),
     ],
   });
 }

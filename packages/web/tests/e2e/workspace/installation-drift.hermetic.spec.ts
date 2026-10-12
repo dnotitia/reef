@@ -52,6 +52,31 @@ test.describe("installation drift and readiness guidance", () => {
     await resetFixture(request, "installation_drift");
   });
 
+  test("a manager workspace opens when AKB denies the member-only availability endpoint", async ({
+    page,
+    request,
+  }) => {
+    await setInstallationControl(request, {
+      memberLookup: "forbidden",
+      detailLookup: "healthy",
+    });
+    await signInAsAlice(page);
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(
+      page.getByRole("heading", { name: "Issues", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId("workspace-access-denied")).toHaveCount(0);
+
+    const response = await page.request.get("/api/vaults");
+    expect(response.ok()).toBe(true);
+    const { vaults } = await response.json();
+    const workspace = vaults.find(
+      (vault: { name: string }) => vault.name === "reef-e2e",
+    );
+    expect(workspace.installation_active).toBe(true);
+    expect(workspace).not.toHaveProperty("installation");
+  });
+
   test("an active workspace stays usable while owner details show observed drift", async ({
     page,
     request,

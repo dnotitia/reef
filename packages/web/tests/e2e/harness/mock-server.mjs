@@ -239,13 +239,9 @@ const server = createServer(async (req, res) => {
       }
       if (
         state.scenario === "configured_multi" &&
-        [
-          "drift",
-          "observation",
-          "blocked_reason",
-          "detail_lookup",
-          "roles",
-        ].some((field) => body?.[field] !== undefined)
+        ["drift", "observation", "blocked_reason", "roles"].some(
+          (field) => body?.[field] !== undefined,
+        )
       ) {
         return json(res, 400, {
           error: "unsupported configured_multi installation control",
