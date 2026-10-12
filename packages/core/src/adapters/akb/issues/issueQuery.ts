@@ -505,7 +505,8 @@ export function defaultViewStatusFloor(params: SqlParameterBuilder): string {
  * property is preserved; which sprint is picked could differ).
  */
 function activeSprintIdSubquery(params: SqlParameterBuilder): string {
-  return `(SELECT "id" FROM ${tableRef(
+  // AKB's row id is UUID; issue sprint references are stored as TEXT.
+  return `(SELECT CAST("id" AS TEXT) FROM ${tableRef(
     REEF_SPRINTS_TABLE,
   )} WHERE "status" = ${params.add(
     "active",

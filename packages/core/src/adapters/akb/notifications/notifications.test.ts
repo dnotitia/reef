@@ -250,6 +250,10 @@ describe("notification adapter", () => {
       notifications[2]?.notification_key,
     );
     const request = sqlRequestBody(calls[0]);
+    expect(request.sql).not.toContain("notification_rows.*");
+    expect(request.sql.match(/"notification_rows"\."payload"/g)).toHaveLength(
+      2,
+    );
     expect(request.sql).toContain("notification_rows.recipient = $1");
     expect(request.sql).toContain("state IN ('unread', 'read')");
     expect(request.sql).toContain("archived_at IS NULL");

@@ -1,5 +1,6 @@
 import { ZodError, z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
+import { REEF_DESIRED_TABLES } from "./tableManifest";
 import type { ReefTableName } from "./constants";
 import type { AkbAdapter } from "./http";
 import { VaultNameSchema } from "../../../schemas/workspace/config";
@@ -30,6 +31,26 @@ export const AkbSqlResponseSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type AkbSqlResponse = z.infer<typeof AkbSqlResponseSchema>;
+
+/** UNION aligns columns by position; physical table column order is not a contract. */
+export function canonicalTableSelectColumns(
+  table: ReefTableName,
+  alias: string,
+): string {
+  const schema = REEF_DESIRED_TABLES.find(
+    (candidate) => candidate.name === table,
+  );
+  if (!schema)
+    throw new SchemaValidationError({ issues: ["unknown Reef table"] });
+  return [
+    "id",
+    ...schema.columns.map((column) => column.name),
+    "created_at",
+    "updated_at",
+  ]
+    .map((column) => `${quoteIdent(alias)}.${quoteIdent(column)}`)
+    .join(", ");
+}
 
 export function assertNoNul(value: string, fieldDescriptor: string): void {
   if (value.includes("\0")) {

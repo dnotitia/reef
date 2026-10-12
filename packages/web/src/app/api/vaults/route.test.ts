@@ -28,6 +28,7 @@ vi.mock("@reef/core", async () => {
     ...actual,
     akbCreateVault: mockAkbCreateVault,
     akbListVaults: mockAkbListVaults,
+    akbGetMe: vi.fn().mockResolvedValue({ profile: { is_admin: false } }),
     akbReadConfig: mockAkbReadConfig,
     akbReadMemberInstallationActive: mockAkbReadMemberInstallationActive,
     createAkbAdapter: mockCreateAkbAdapter,

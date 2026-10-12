@@ -135,6 +135,9 @@ describe("listMyWorkIssues", () => {
       "reef-e2e",
       "reef-zeta",
     ]);
+    expect(issueRequest.sql).not.toContain("issue_rows.*");
+    expect(issueRequest.sql.match(/"issue_rows"\."meta"/g)).toHaveLength(3);
+    expect(issueRequest.sql).toContain("CAST($2 AS TEXT)::timestamptz");
     expect(issueRequest.sql).toContain("reef_alpha__reef_issues");
     expect(issueRequest.sql).toContain("reef_e2e__reef_issues");
     expect(issueRequest.sql).toContain("reef_zeta__reef_issues");

@@ -54,6 +54,9 @@ describe("GET /api/vaults active availability contract", () => {
           return Response.json({ vaults: VAULTS });
         }
 
+        if (url.pathname === "/api/v1/auth/me")
+          return Response.json({ username: "alice", is_admin: false });
+
         activeInFlight += 1;
         maxActiveInFlight = Math.max(maxActiveInFlight, activeInFlight);
         await new Promise((resolve) => setTimeout(resolve, ACTIVE_DELAY_MS));
@@ -83,11 +86,11 @@ describe("GET /api/vaults active availability contract", () => {
     );
     expect(payload.vaults.every((vault) => vault.role === "reader")).toBe(true);
 
-    expect(calls).toHaveLength(21);
+    expect(calls).toHaveLength(22);
     expect(calls[0]?.path).toBe("/api/v1/my/vaults");
     expect(
       calls
-        .slice(1)
+        .slice(2)
         .every(({ path }) =>
           new RegExp(`/api/v1/apps/${APP_ID}/installations/[^/]+/active$`).test(
             path,

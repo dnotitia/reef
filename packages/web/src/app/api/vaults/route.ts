@@ -20,7 +20,7 @@ import {
 } from "@reef/core";
 import { z } from "zod";
 import { readInstallationTarget } from "@/server/adapters/installationTarget";
-import { readWorkspaceInstallationActive } from "@/server/adapters/workspaceInstallation";
+import { readWorkspaceAvailabilities } from "@/server/adapters/workspaceAvailability";
 
 /**
  * GET /api/vaults → { vaults: EnrichedVaultSummary[] }
@@ -56,17 +56,13 @@ export async function GET(request: Request): Promise<Response> {
     const { vaults } = await listVaults({ adapter });
 
     const target = readInstallationTarget();
-    const installationChecks = await Promise.allSettled(
-      vaults.map((vault) =>
-        target && vault.id
-          ? readWorkspaceInstallationActive({
-              adapter,
-              appId: target.appId,
-              vault,
-            })
-          : Promise.resolve(null),
-      ),
-    );
+    const installationChecks = target
+      ? await readWorkspaceAvailabilities({
+          adapter,
+          appId: target.appId,
+          vaults,
+        })
+      : vaults.map(() => ({ status: "fulfilled" as const, value: null }));
     const unknownCount = installationChecks.filter(
       (check) =>
         check.status === "rejected" && !isSessionOrAccountDenial(check.reason),

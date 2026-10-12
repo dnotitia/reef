@@ -386,6 +386,7 @@ export {
   createAkbAdapter,
   createAkbAppInstallationReader,
   createAkbAppInstallationInventoryReader,
+  listAdminActiveInstallations as akbListAdminActiveInstallations,
   readMemberInstallationActive as akbReadMemberInstallationActive,
   readInstallation as akbReadInstallation,
   requestInstallation as akbRequestInstallation,
