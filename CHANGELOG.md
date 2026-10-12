@@ -19,7 +19,9 @@ explicitly in the entries below.
 - **New Reef workspaces finish installation without a manual rollout.** AKB
   installation commands now durably enqueue one schema job for the accepted
   installation, and Reef waits for that job to become active before initializing
-  templates and workspace runbooks. A blocked job stays out of Ready.
+  templates and workspace runbooks. On a new AKB Vault, Reef adds its guidance
+  to the seeded Guide while preserving the existing root metadata and body. A
+  blocked job stays out of Ready.
 
 ### Migration
 

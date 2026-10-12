@@ -1608,13 +1608,16 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       description: "REEF-056 live contract smoke (throwaway)",
     });
     vaultId = freshVault.vault_id;
-    await requestInstallation({
+    const freshCommand = await requestInstallation({
       adapter,
       appId: registeredApp.id,
       vaultId,
       releaseId: registeredRelease.id,
       mode: "install",
     });
+    expect(freshCommand.commandStatus).toBe("accepted");
+    expect(freshCommand.replayed).toBe(false);
+    expect(freshCommand.installation.lifecycle).toBe("installing");
     await waitForActiveInstallation({
       adapter,
       appId: registeredApp.id,

@@ -22,6 +22,7 @@ import {
   type ReefVaultSkillDocument,
   buildReefVaultSkillDocuments,
 } from "./documents";
+import { rootSkillContent } from "./content/rootSkill";
 import { REEF_VAULT_SKILL_VERSION } from "./version";
 
 export { buildReefVaultSkillDocuments, type ReefVaultSkillDocument };
@@ -87,6 +88,99 @@ async function patchDocument(
   ensureDocumentPutResponse(payload);
 }
 
+const ROOT_SKILL_PATH = "overview/vault-skill.md";
+const ROOT_GUIDANCE_START = "<!-- reef-pm-workspace:start -->";
+const ROOT_GUIDANCE_END = "<!-- reef-pm-workspace:end -->";
+
+function currentRootGuidance(vault: string): string {
+  const [, ...body] = rootSkillContent(vault).split("\n");
+  return [
+    ROOT_GUIDANCE_START,
+    "## Reef PM Workspace Instructions",
+    "",
+    body.join("\n").replace(/^\n+/, "").replace(/\n+$/, ""),
+    ROOT_GUIDANCE_END,
+  ].join("\n");
+}
+
+function normalizedDocumentText(content: string): string {
+  return content.replace(/\r\n/g, "\n").replace(/\n+$/, "");
+}
+
+function existingRootGuidance(content: string): string | null {
+  const start = content.indexOf(ROOT_GUIDANCE_START);
+  const end = content.indexOf(ROOT_GUIDANCE_END);
+  if (start < 0 || end < start) return null;
+  if (
+    content.indexOf(ROOT_GUIDANCE_START, start + ROOT_GUIDANCE_START.length) >=
+      0 ||
+    content.indexOf(ROOT_GUIDANCE_END, end + ROOT_GUIDANCE_END.length) >= 0
+  ) {
+    return null;
+  }
+  return content.slice(start, end + ROOT_GUIDANCE_END.length);
+}
+
+async function patchRootGuide(
+  adapter: AkbAdapter,
+  vault: string,
+  currentCommit: string,
+  content: string,
+): Promise<void> {
+  const payload = await adapter.request(
+    `/api/v1/documents/${encodeURIComponent(vault)}/${ROOT_SKILL_PATH}`,
+    {
+      method: "PATCH",
+      body: {
+        content,
+        expected_commit: currentCommit,
+        message: "docs(reef): add Reef workspace instructions to vault guide",
+      },
+      resource: ROOT_SKILL_PATH,
+    },
+  );
+  ensureDocumentPutResponse(payload);
+}
+
+async function preserveRootGuide(
+  adapter: AkbAdapter,
+  vault: string,
+  existing: ReturnType<typeof ensureDocumentResponse>,
+  doc: ReefVaultSkillDocument,
+): Promise<boolean> {
+  const content = existing.content;
+  if (content == null || existing.type !== "skill") return false;
+
+  const expectedGuidance = currentRootGuidance(vault);
+  const storedGuidance = existingRootGuidance(content);
+  const guidanceHeadings = content.match(/## Reef PM Workspace Instructions/g);
+  const hasGuidanceMarkers =
+    content.includes(ROOT_GUIDANCE_START) ||
+    content.includes(ROOT_GUIDANCE_END);
+  if (hasGuidanceMarkers) {
+    return (
+      storedGuidance !== null &&
+      guidanceHeadings?.length === 1 &&
+      normalizedDocumentText(storedGuidance) ===
+        normalizedDocumentText(expectedGuidance)
+    );
+  }
+
+  const alreadyReefManaged =
+    existing.title === doc.title || existing.tags.includes("reef:pm-workspace");
+  if (
+    alreadyReefManaged ||
+    content.includes("## Reef PM Workspace Instructions") ||
+    !existing.current_commit
+  ) {
+    return false;
+  }
+
+  const mergedContent = `${normalizedDocumentText(content)}\n\n${expectedGuidance}\n`;
+  await patchRootGuide(adapter, vault, existing.current_commit, mergedContent);
+  return true;
+}
+
 async function putDocument(
   adapter: AkbAdapter,
   vault: string,
@@ -113,14 +207,18 @@ async function upsertDocument(
         { resource: doc.path },
       );
       const existing = ensureDocumentResponse(payload);
-      return (
+      const isCurrent =
         existing.title === doc.title &&
         existing.type === doc.type &&
         existing.summary === doc.summary &&
         existing.content === doc.content &&
         existing.tags.length === doc.tags.length &&
-        existing.tags.every((tag, index) => tag === doc.tags[index])
-      );
+        existing.tags.every((tag, index) => tag === doc.tags[index]);
+      if (isCurrent) return true;
+      if (doc.path === ROOT_SKILL_PATH) {
+        return preserveRootGuide(adapter, vault, existing, doc);
+      }
+      return false;
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;
     }
