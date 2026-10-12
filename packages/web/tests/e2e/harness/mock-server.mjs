@@ -336,20 +336,13 @@ const server = createServer(async (req, res) => {
         const reasonFor = (dimension) => `${dimension}_mismatch`;
         installation.drift.release = {
           status: nextStatuses.release,
-          desired: {
-            id: installation.desiredReleaseId,
-            version: installation.desiredReleaseVersion,
-          },
+          desired: installation.desiredReleaseVersion,
           observed:
             nextStatuses.release === "unknown"
               ? null
-              : {
-                  id: installation.currentReleaseId,
-                  version:
-                    nextStatuses.release === "mismatch"
-                      ? "0.15.0"
-                      : installation.currentReleaseVersion,
-                },
+              : nextStatuses.release === "mismatch"
+                ? "0.15.0"
+                : installation.currentReleaseVersion,
         };
         installation.drift.schema = {
           status: nextStatuses.schema,

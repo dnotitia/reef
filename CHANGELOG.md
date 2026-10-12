@@ -12,6 +12,24 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.1 - 2026-10-12
+
+### Fixed
+
+- Read AKB installation drift's release versions as strings. Workspace access,
+  Settings diagnostics, and Event Processor installation checks now accept the
+  canonical AKB response instead of rejecting an active installation.
+
+### Migration
+
+- Existing AKB table catalogs must use canonical type metadata. Normalize
+  legacy `json` and `number` aliases through AKB's `jsonb` and `numeric` rules
+  before workspace readiness checks; this preserves the logical schema and
+  physical table types. Reef runtime paths remain read-only for schemas.
+- Schema v4 is unchanged. An explicit no-op transition accepts `0.17.0` with
+  the exact v4 fingerprint; v3 installations still require the v3→v4
+  maintenance procedure documented for `0.17.0`.
+
 ## v0.17.0 - 2026-10-12
 
 ### Added

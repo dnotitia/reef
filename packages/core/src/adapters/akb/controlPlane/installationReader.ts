@@ -77,8 +77,8 @@ const WireDriftStatusSchema = z.enum(["in_sync", "mismatch", "unknown"]);
 
 const WireReleaseDriftSchema = z.looseObject({
   status: WireDriftStatusSchema,
-  desired: WireReleaseReferenceSchema.nullable().optional(),
-  observed: WireReleaseReferenceSchema.nullable().optional(),
+  desired: z.string().nullable().optional(),
+  observed: z.string().nullable().optional(),
 });
 
 const WireSchemaDriftSchema = z.looseObject({
@@ -403,8 +403,14 @@ function mapDrift(
   return {
     release: {
       status: value.release.status,
-      desired: mapReleaseReference(value.release.desired),
-      observed: mapReleaseReference(value.release.observed),
+      desired:
+        value.release.desired == null
+          ? value.release.desired
+          : { version: value.release.desired },
+      observed:
+        value.release.observed == null
+          ? value.release.observed
+          : { version: value.release.observed },
     },
     schema: {
       status: value.schema.status,

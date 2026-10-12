@@ -428,7 +428,17 @@ export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
     app_definition: { ...REEF_APP_DEFINITION },
     schema_version: REEF_SCHEMA_VERSION,
     schema,
-    transition_plans: [{ source: "fresh", steps }, ...upgradePlans],
+    transition_plans: [
+      { source: "fresh", steps },
+      ...upgradePlans,
+      {
+        source: {
+          release_version: "0.17.0",
+          schema_fingerprint: schema.fingerprint,
+        },
+        steps: [],
+      },
+    ],
   });
 }
 
