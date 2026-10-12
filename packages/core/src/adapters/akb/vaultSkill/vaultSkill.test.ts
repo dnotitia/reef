@@ -213,7 +213,8 @@ describe("installReefVaultSkill", () => {
   it("adds Reef guidance to AKB's default Guide without replacing its root", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
     const rootPath = "overview/vault-skill.md";
-    const stockContent = defaultRootGuide("reef-new");
+    const longInteriorLineBreakRun = "\n".repeat(8_192);
+    const stockContent = `${defaultRootGuide("reef-new")}${longInteriorLineBreakRun}Owner note after the blank run.`;
     const stockGuide = {
       uri: "akb://reef-new/coll/overview/doc/vault-skill.md",
       vault: "reef-new",
@@ -284,6 +285,9 @@ describe("installReefVaultSkill", () => {
       expected_commit: "stock-guide-commit",
       content: expect.stringContaining(stockContent),
     });
+    expect(rootPatchBody.content).toContain(
+      `${longInteriorLineBreakRun}Owner note after the blank run.`,
+    );
     expect(rootPatchBody.content).toContain(
       "## Reef PM Workspace Instructions",
     );

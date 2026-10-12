@@ -94,17 +94,25 @@ const ROOT_GUIDANCE_END = "<!-- reef-pm-workspace:end -->";
 
 function currentRootGuidance(vault: string): string {
   const [, ...body] = rootSkillContent(vault).split("\n");
+  const guidanceBody = normalizedDocumentText(
+    body.join("\n").replace(/^\n+/, ""),
+  );
   return [
     ROOT_GUIDANCE_START,
     "## Reef PM Workspace Instructions",
     "",
-    body.join("\n").replace(/^\n+/, "").replace(/\n+$/, ""),
+    guidanceBody,
     ROOT_GUIDANCE_END,
   ].join("\n");
 }
 
 function normalizedDocumentText(content: string): string {
-  return content.replace(/\r\n/g, "\n").replace(/\n+$/, "");
+  const normalized = content.replace(/\r\n/g, "\n");
+  let end = normalized.length;
+  while (end > 0 && normalized.charCodeAt(end - 1) === 10) {
+    end -= 1;
+  }
+  return normalized.slice(0, end);
 }
 
 function existingRootGuidance(content: string): string | null {
