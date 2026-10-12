@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthV2SessionRecord } from "./sessionStore";
 
 const state = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ vi.mock("@/lib/akb/loadAkbAuthConfig", () => ({
   loadAkbAuthConfig: state.loadConfig,
 }));
 vi.mock("./config", () => ({
+  readAuthV2RuntimeConfig: () => ({ mode: "sso" }),
   requireAuthV2RuntimeConfig: () => ({
     enabled: true,
     mode: "sso",
@@ -35,6 +36,11 @@ vi.mock("./sessionStore", () => ({
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  vi.stubEnv("AKB_BACKEND_URL", "https://akb.test");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ ok: true })),
+  );
   state.createClient.mockImplementation(() => ({
     on: vi.fn(),
     connect: state.connect,
@@ -73,6 +79,11 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
 function record(token: string): AuthV2SessionRecord {
   const now = Math.floor(Date.now() / 1000);
   return {
@@ -90,26 +101,57 @@ function record(token: string): AuthV2SessionRecord {
 }
 
 describe("SSO runtime transport ownership", () => {
-  it("shares one Redis connection while reading each user's current credential at every boundary", async () => {
+  it("shares auth configuration within each request while resolving the current session at every AKB boundary", async () => {
     const handles = ["A".repeat(43), "B".repeat(43)];
     let generation = 1;
     state.resolve.mockImplementation(async (handle: string) =>
       record(`${handle[0]}-${generation}`),
     );
-    const { resolveAuthV2Credential } = await import("./routeHelpers");
+    const requests = handles.map(
+      (handle) =>
+        new Request("https://reef.test/api/my-work", {
+          headers: { cookie: `__reef_auth_v2=${handle}` },
+        }),
+    );
+    const { getAkbAdapter } = await import("@/lib/api/requestHelpers");
+    const requestAdapter = (request: Request) => {
+      const result = getAkbAdapter(request);
+      if ("response" in result)
+        throw new Error("Expected an authenticated adapter");
+      return result.adapter;
+    };
+    const adapters = requests.map(requestAdapter);
     const first = await Promise.all(
       Array.from({ length: 100 }, (_, index) =>
-        resolveAuthV2Credential(handles[index % 2]),
+        adapters[index % 2].request("/api/v1/auth/me"),
       ),
     );
-    expect(first.slice(0, 2)).toEqual(["A-1", "B-1"]);
+    expect(first.slice(0, 2)).toEqual([{ ok: true }, { ok: true }]);
     generation = 2;
-    expect(await Promise.all(handles.map(resolveAuthV2Credential))).toEqual([
-      "A-2",
-      "B-2",
-    ]);
+    await Promise.all(
+      requests.map((request) =>
+        requestAdapter(request).request("/api/v1/auth/me"),
+      ),
+    );
     expect(state.resolve).toHaveBeenCalledTimes(102);
-    expect(state.loadConfig).toHaveBeenCalledTimes(102);
+    expect(state.loadConfig).toHaveBeenCalledTimes(2);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock.mock.calls[100]?.[1]?.headers).toMatchObject({
+      Authorization: "Bearer A-2",
+    });
+    expect(fetchMock.mock.calls[101]?.[1]?.headers).toMatchObject({
+      Authorization: "Bearer B-2",
+    });
+    const nextRequest = new Request("https://reef.test/api/my-work", {
+      headers: { cookie: `__reef_auth_v2=${handles[0]}` },
+    });
+    await requestAdapter(nextRequest).request("/api/v1/auth/me");
+    expect(state.loadConfig).toHaveBeenCalledTimes(3);
+    state.resolve.mockResolvedValue(null);
+    await expect(adapters[0].request("/api/v1/auth/me")).rejects.toMatchObject({
+      context: { status: 401 },
+    });
+    expect(state.loadConfig).toHaveBeenCalledTimes(3);
     expect(state.createClient).toHaveBeenCalledTimes(1);
     expect(state.quit).not.toHaveBeenCalled();
   });
@@ -117,10 +159,14 @@ describe("SSO runtime transport ownership", () => {
   it("retries transport initialization after a failed connection without poisoning later requests", async () => {
     state.connect.mockRejectedValueOnce(new Error("connection failed"));
     const { getAuthV2RouteRuntime } = await import("./runtime");
-    await expect(getAuthV2RouteRuntime()).rejects.toMatchObject({
+    await expect(
+      getAuthV2RouteRuntime(new Request("https://reef.test")),
+    ).rejects.toMatchObject({
       code: "auth_v2_runtime_unavailable",
     });
-    await expect(getAuthV2RouteRuntime()).resolves.toHaveProperty("store");
+    await expect(
+      getAuthV2RouteRuntime(new Request("https://reef.test")),
+    ).resolves.toHaveProperty("store");
     expect(state.createClient).toHaveBeenCalledTimes(2);
   });
 });

@@ -22,6 +22,10 @@ vi.mock("./runtime", () => ({
 
 const HANDLE = "H".repeat(43);
 
+function credentialRequest(): Request {
+  return new Request("https://reef.test/api/my-work");
+}
+
 function makeRecord(): AuthV2SessionRecord {
   return {
     provider_alias: "workforce",
@@ -139,9 +143,13 @@ describe("auth-v2 credential resolution", () => {
       protocol: makeProtocol(refresh),
     });
 
-    await expect(resolveAuthV2Credential(HANDLE)).resolves.toBe("access-200");
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).resolves.toBe("access-200");
     now = 250;
-    await expect(resolveAuthV2Credential(HANDLE)).resolves.toBe("access-311");
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).resolves.toBe("access-311");
 
     expect(refresh).toHaveBeenCalledTimes(2);
     expect(runtime.getRecord()).toMatchObject({
@@ -204,9 +212,12 @@ describe("auth-v2 credential resolution", () => {
       return runtime;
     };
 
-    const ownerResult = resolveAuthV2Credential(HANDLE);
+    const ownerResult = resolveAuthV2Credential(credentialRequest(), HANDLE);
     await refreshStarted.promise;
-    const waiterResult = resolveAuthV2Credential(HANDLE).then(
+    const waiterResult = resolveAuthV2Credential(
+      credentialRequest(),
+      HANDLE,
+    ).then(
       (credential) => ({ credential }),
       (error: unknown) => ({ error }),
     );
@@ -246,7 +257,7 @@ describe("auth-v2 credential resolution", () => {
       resolve,
     });
 
-    const result = resolveAuthV2Credential(HANDLE).then(
+    const result = resolveAuthV2Credential(credentialRequest(), HANDLE).then(
       () => ({ credential: "unexpected" }),
       (error: unknown) => ({ error }),
     );
@@ -269,7 +280,9 @@ describe("auth-v2 credential resolution", () => {
       resolve: async () => (calls++ === 0 ? makeRecord() : null),
     });
 
-    await expect(resolveAuthV2Credential(HANDLE)).rejects.toMatchObject({
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).rejects.toMatchObject({
       name: "AuthError",
       context: { origin: "akb", status: 401 },
     });
@@ -281,7 +294,9 @@ describe("auth-v2 credential resolution", () => {
     });
     const runtime = installRuntime({ protocol });
 
-    await expect(resolveAuthV2Credential(HANDLE)).rejects.toMatchObject({
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).rejects.toMatchObject({
       name: "AuthError",
       context: { origin: "akb", status: 401 },
     });
@@ -299,7 +314,7 @@ describe("auth-v2 credential resolution", () => {
 
     let failure: unknown;
     try {
-      await resolveAuthV2Credential(HANDLE);
+      await resolveAuthV2Credential(credentialRequest(), HANDLE);
     } catch (error) {
       failure = error;
     }
@@ -325,7 +340,9 @@ describe("auth-v2 credential resolution", () => {
     });
     const runtime = installRuntime({ protocol });
 
-    await expect(resolveAuthV2Credential(HANDLE)).rejects.toMatchObject({
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).rejects.toMatchObject({
       name: "AkbApiError",
       status: 503,
     });
@@ -354,7 +371,9 @@ describe("auth-v2 credential resolution", () => {
       replace: async () => false,
     });
 
-    await expect(resolveAuthV2Credential(HANDLE)).rejects.toMatchObject({
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).rejects.toMatchObject({
       name: "AkbApiError",
       status: 409,
     });
@@ -372,7 +391,9 @@ describe("auth-v2 credential resolution", () => {
       },
     });
 
-    await expect(resolveAuthV2Credential(HANDLE)).rejects.toMatchObject({
+    await expect(
+      resolveAuthV2Credential(credentialRequest(), HANDLE),
+    ).rejects.toMatchObject({
       name: "AkbApiError",
       status: 503,
     });

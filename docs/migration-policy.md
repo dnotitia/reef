@@ -44,16 +44,22 @@ manifest and release projection in Core so it can describe and verify the
 required shape, but Reef runtime paths do not create, alter, drop, migrate, or
 stamp those tables.
 
-Before Reef product APIs or agent runs use a workspace, Core checks AKB's
-canonical app-installation status, reads the required table catalog, compares
-table names, columns, types, required flags, unique keys, and indexes with the
-canonical projection, then checks the existing Reef data initialization
-(config, templates, and vault-skill documents). A missing, malformed, forbidden,
-unavailable, or mismatched table catalog blocks workspace use. A readiness
-check never repairs the schema. Authentication, account denial, canonical
-inactive state, resource permission denial, transport failure, malformed
-response, and table mismatch keep their separate outcomes; a schema or resource
-denial does not invalidate the user's session.
+Ordinary product reads confirm AKB's canonical active installation and trust
+AKB's app-owned table protection. They do not re-read the table catalog or
+preflight Reef config, default templates, or vault-skill documents. Account-wide
+My Work and Inbox select active installations through the authorized inventory
+or member/administrator status endpoint and keep their integrated cross-vault
+SQL queries. Any scope authorization or SQL failure still fails the complete
+personal response; Reef does not omit a failed source or return partial work.
+
+Installation diagnostics, owner/admin initialization, product mutations, and
+agent execution retain the detailed readiness check: Core compares table names,
+columns, types, required flags, unique keys, and indexes with the canonical
+projection, then checks existing Reef initialization data. This check never
+repairs schema. Authentication, account denial, canonical inactive state,
+resource permission denial, transport failure, malformed response, and table
+mismatch keep separate outcomes; a schema or resource denial does not invalidate
+the user's session.
 
 The `reef_settings.schema_version` row is not authoritative and is not read or
 updated. `REEF_SCHEMA_VERSION` remains part of the release blueprint contract;
@@ -73,8 +79,9 @@ projection and handled by AKB's app-installation and reconciliation workflow.
 Reef must not add a request-time DDL path, a table migration API, a Reef-owned
 migration ledger, a table-creation fallback, or a startup migration runner. AKB
 release registration and rollout remain the deployment-owned schema gate; Reef
-runtime readiness is a read-only verification after that gate. Required-table
-metadata must be present and match before the workspace is exposed as ready.
+detailed readiness is a read-only verification after that gate. Ordinary reads
+use canonical active state; required-table metadata must match before detailed
+diagnostics report the workspace ready or owner initialization proceeds.
 
 Keep ad-hoc extension fields in their owning `meta` or `payload` JSON envelope
 when database-level filtering, sorting, joining, uniqueness, constraints, or

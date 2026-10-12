@@ -34,10 +34,13 @@ export class AuthV2RouteSessionError extends Error {
 }
 
 /** Resolve the current SSO access token at the start of each AKB operation. */
-export async function resolveAuthV2Credential(handle: string): Promise<string> {
+export async function resolveAuthV2Credential(
+  request: Request,
+  handle: string,
+): Promise<string> {
   let runtime: Awaited<ReturnType<typeof getAuthV2RouteRuntime>> | undefined;
   try {
-    runtime = await getAuthV2RouteRuntime();
+    runtime = await getAuthV2RouteRuntime(request);
     let record = await resolveSession(runtime, handle);
     record = await refreshIfNeeded(runtime, handle, record);
     return record.access_token;

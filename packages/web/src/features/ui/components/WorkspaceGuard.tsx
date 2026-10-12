@@ -96,7 +96,7 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     (entry) => entry.name === vault,
   );
   // The list grants navigation only for confirmed active installations.
-  // Product requests still run requireWorkspaceReady at their server boundary.
+  // Product requests confirm active installation at their server boundary.
   const isMember =
     canRenderAuthenticatedTree &&
     vaultsQuery.isSuccess &&

@@ -6,6 +6,7 @@ vi.mock("@/server/adapters/workspaceInstallation", async () => {
   >("@/server/adapters/workspaceInstallation");
   return {
     ...actual,
+    requireWorkspaceActive: vi.fn(async () => undefined),
     requireWorkspaceReady: vi.fn(async () => ({
       installation_status: "ready" as const,
     })),

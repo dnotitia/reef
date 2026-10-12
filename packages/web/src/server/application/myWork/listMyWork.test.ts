@@ -81,14 +81,14 @@ describe("listMyWork", () => {
     });
   });
 
-  it("queries all and only ready workspaces in one integrated Core call", async () => {
+  it("queries all and only active workspaces in one integrated Core call", async () => {
     const adapter = { request: vi.fn() };
     const query = { limit: 25, offset: 50 };
 
     const result = await listMyWork({ adapter, actor: "alice", query });
 
     expect(result.issues).toEqual([]);
-    expect(mockReadWorkspaceInstallationStatus).toHaveBeenCalledTimes(2);
+    expect(mockReadWorkspaceInstallationStatus).not.toHaveBeenCalled();
     expect(mockAkbListMyWorkIssues).toHaveBeenCalledTimes(1);
     expect(mockAkbListMyWorkIssues).toHaveBeenCalledWith({
       adapter,
@@ -100,8 +100,7 @@ describe("listMyWork", () => {
 
   it("propagates an AKB workspace ACL failure instead of returning partial work", async () => {
     const denial = new AuthError({ origin: "akb", status: 403 });
-    mockReadWorkspaceInstallationStatus.mockReset();
-    mockReadWorkspaceInstallationStatus.mockRejectedValueOnce(denial);
+    mockReadWorkspaceInstallationActive.mockRejectedValueOnce(denial);
 
     await expect(
       listMyWork({ adapter: { request: vi.fn() }, actor: "alice" }),

@@ -3,10 +3,12 @@ import {
   openExistingWorkspace,
   resetFixture,
   setIssueListFailure,
+  setWorkspaceInitializationControl,
+  readFixtureState,
 } from "../harness/fixture";
 
 /**
- * Hermetic coverage for account-wide My Work across ready workspaces.
+ * Hermetic coverage for account-wide My Work across active workspaces.
  */
 test.describe("Hermetic My Work flow", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -16,7 +18,12 @@ test.describe("Hermetic My Work flow", () => {
 
   test("renders one globally sorted queue while the sidebar stays on its workspace", async ({
     page,
+    request,
   }) => {
+    await setWorkspaceInitializationControl(request, {
+      operation: "tables",
+      failures: 20,
+    });
     await openExistingWorkspace(page, "reef-alpha");
     await page.goto("/workspace/reef-alpha/my-work");
 
@@ -47,6 +54,22 @@ test.describe("Hermetic My Work flow", () => {
     await expect(
       page.getByTestId("my-work-row-reef-zeta-REEF-001"),
     ).toHaveAttribute("href", "/workspace/reef-zeta/issues/REEF-001");
+
+    const inbox = await page.request.get("/api/notifications");
+    expect(inbox.ok()).toBe(true);
+    const observed = await readFixtureState(request);
+    expect(
+      observed.calls.filter(
+        (call) => call.method === "GET" && /\/tables\/[^/]+$/.test(call.path),
+      ),
+    ).toEqual([]);
+    expect(
+      observed.calls.filter(
+        (call) =>
+          call.path.includes("reef/runbooks/") ||
+          call.path.includes("overview/vault-skill"),
+      ),
+    ).toEqual([]);
 
     for (const excludedId of ["REEF-901", "REEF-902", "REEF-903", "REEF-904"]) {
       await expect(

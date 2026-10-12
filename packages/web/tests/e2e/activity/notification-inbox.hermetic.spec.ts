@@ -572,7 +572,7 @@ test.describe("Hermetic notification Inbox", () => {
     expect(schemaMutationSql(final)).toEqual([]);
   });
 
-  test("surfaces notification readiness and data failures instead of returning empty success", async ({
+  test("surfaces notification SQL and data failures instead of returning empty success", async ({
     page,
     request,
   }) => {
@@ -590,7 +590,7 @@ test.describe("Hermetic notification Inbox", () => {
         error?: string;
         notifications?: Array<{ workspace: string }>;
       };
-      expect(response.status(), JSON.stringify(body)).toBe(409);
+      expect(response.ok(), JSON.stringify(body)).toBe(false);
       expect(body).toEqual(
         expect.objectContaining({ error: expect.any(String) }),
       );
@@ -628,7 +628,7 @@ test.describe("Hermetic notification Inbox", () => {
     }
   });
 
-  test("fails closed and retries workspace discovery, readiness, and source errors", async ({
+  test("uses active inventory and retries workspace discovery and source errors", async ({
     page,
     request,
   }) => {
@@ -693,19 +693,25 @@ test.describe("Hermetic notification Inbox", () => {
       () => setVaultListControl(request, { failures: 20 }),
       () => setVaultListControl(request, {}),
     );
-    await expectFailureThenRetry(
-      "workspace readiness failure",
-      () =>
-        setInstallationControl(request, {
-          vault: "reef-alpha",
-          detailLookup: "forbidden",
-        }),
-      () =>
-        setInstallationControl(request, {
-          vault: "reef-alpha",
-          detailLookup: "healthy",
-        }),
+    // Admin inventory is the authoritative active scope; detail diagnostics
+    // are no longer a dependency of the personal read.
+    await setInstallationControl(request, {
+      vault: "reef-alpha",
+      detailLookup: "forbidden",
+    });
+    const activeInventoryRead = await page.request.get("/api/notifications");
+    expect(activeInventoryRead.ok()).toBe(true);
+    expect(await activeInventoryRead.json()).toEqual(
+      expect.objectContaining({
+        notifications: expect.arrayContaining([
+          expect.objectContaining({ workspace: "reef-alpha" }),
+        ]),
+      }),
     );
+    await setInstallationControl(request, {
+      vault: "reef-alpha",
+      detailLookup: "healthy",
+    });
     await expectFailureThenRetry(
       "source data failure",
       () =>

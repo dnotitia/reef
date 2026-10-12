@@ -12,6 +12,21 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **Ordinary workspace reads trust AKB's active installation.** Issue, planning,
+  configuration, and other read APIs no longer preflight table schemas, default
+  templates, or skill/runbook documents. My Work and Inbox aggregate all active
+  installations without repeating readiness per workspace. Integrated SQL and
+  authorization/query failure propagation remain unchanged; installation
+  diagnostics, initialization, and mutations retain their detailed checks.
+- **SSO authentication configuration is shared within one Reef request.**
+  Parallel AKB calls and separately constructed adapters for the same request
+  reuse one authentication runtime. Each AKB boundary still resolves the current
+  Redis session and refreshes credentials when needed. Session records and
+  credentials are never memoized; each new request loads fresh configuration.
+
+
 ## v0.17.4 - 2026-10-12
 
 ### Fixed
