@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { AkbAdapter } from "../core/http";
+import { withSpan } from "../core/tracing";
 import {
   ControlPlaneInstallationInventoryItemSchema,
   ControlPlaneIdSchema,
@@ -109,6 +111,100 @@ async function exchangeAppCredential(
   );
 }
 
+async function readInventoryPages(
+  requestPage: (query: string) => Promise<{ body: unknown; status: number }>,
+  expectedAppId?: string,
+): Promise<{
+  installations: ControlPlaneInstallationInventoryItem[];
+  pagesRead: number;
+}> {
+  const installations: ControlPlaneInstallationInventoryItem[] = [];
+  const installationIds = new Set<string>();
+  const vaultIds = new Set<string>();
+  const cursors = new Set<string>();
+  let cursor: string | null = null;
+  let appId = expectedAppId;
+  let pagesRead = 0;
+
+  for (;;) {
+    const query = new URLSearchParams({
+      limit: String(PAGE_SIZE),
+      lifecycle: "active",
+    });
+    if (cursor !== null) query.set("cursor", cursor);
+
+    const response = await requestPage(query.toString());
+    pagesRead += 1;
+
+    const parsed = WireInventoryPageSchema.safeParse(response.body);
+    if (!parsed.success) throw invalidInventoryResponse(response.status);
+
+    for (const wireItem of parsed.data.items) {
+      if (appId !== undefined && wireItem.app_id !== appId) {
+        throw invalidInventoryResponse(response.status);
+      }
+      appId ??= wireItem.app_id;
+      if (
+        installationIds.has(wireItem.installation_id) ||
+        vaultIds.has(wireItem.vault_id)
+      ) {
+        throw invalidInventoryResponse(response.status);
+      }
+      installationIds.add(wireItem.installation_id);
+      vaultIds.add(wireItem.vault_id);
+
+      installations.push(
+        ControlPlaneInstallationInventoryItemSchema.parse({
+          installationId: wireItem.installation_id,
+          appId: wireItem.app_id,
+          vaultId: wireItem.vault_id,
+          vaultName: wireItem.vault_name,
+          lifecycle: wireItem.lifecycle,
+        }),
+      );
+    }
+
+    cursor = parsed.data.next_cursor;
+    if (cursor === null) break;
+    if (cursors.has(cursor)) {
+      throw invalidInventoryResponse(response.status);
+    }
+    cursors.add(cursor);
+  }
+
+  return { installations, pagesRead };
+}
+
+/** Read system-admin inventory with the signed-in user's AKB credential. */
+export async function listAdminActiveInstallations(params: {
+  adapter: AkbAdapter;
+  appId: string;
+}): Promise<ControlPlaneInstallationInventoryItem[]> {
+  const appId = ControlPlaneIdSchema.parse(params.appId);
+  return withSpan(
+    "akb.installations.inventory.list_active",
+    { app_id: appId },
+    async (span) => {
+      const { installations, pagesRead } = await readInventoryPages(
+        async (query) => ({
+          body: await params.adapter.request(
+            `/api/v1/apps/${appId}/inventory?${query}`,
+            {
+              method: "GET",
+              resource: "installation inventory",
+            },
+          ),
+          status: 200,
+        }),
+        appId,
+      );
+      span.setAttribute("page_count", pagesRead);
+      span.setAttribute("installation_count", installations.length);
+      return installations;
+    },
+  );
+}
+
 /**
  * Read the complete app-scoped active installation inventory. A partial or
  * internally inconsistent snapshot is rejected so callers never reconcile a
@@ -135,71 +231,23 @@ export function createAkbAppInstallationInventoryReader(
             requestFetch,
             policy,
           );
-          const installations: ControlPlaneInstallationInventoryItem[] = [];
-          const installationIds = new Set<string>();
-          const vaultIds = new Set<string>();
-          const cursors = new Set<string>();
-          let cursor: string | null = null;
-          let appId: string | undefined;
-          let pagesRead = 0;
-
-          for (;;) {
-            const query = new URLSearchParams({
-              limit: String(PAGE_SIZE),
-              lifecycle: "active",
-            });
-            if (cursor !== null) query.set("cursor", cursor);
-
-            const response = await requestControlPlaneJson({
-              baseUrl,
-              tokenSource: appToken,
-              requestFetch,
-              policy,
-              operation: OPERATION,
-              path: `/app/inventory?${query.toString()}`,
-              init: { method: "GET" },
-              acceptedStatuses: [200],
-              missingTokenCode: "missing_app_token",
-            });
-            setUpstreamStatus(response.status);
-            pagesRead += 1;
-
-            const parsed = WireInventoryPageSchema.safeParse(response.body);
-            if (!parsed.success)
-              throw invalidInventoryResponse(response.status);
-
-            for (const wireItem of parsed.data.items) {
-              if (appId !== undefined && wireItem.app_id !== appId) {
-                throw invalidInventoryResponse(response.status);
-              }
-              appId ??= wireItem.app_id;
-              if (
-                installationIds.has(wireItem.installation_id) ||
-                vaultIds.has(wireItem.vault_id)
-              ) {
-                throw invalidInventoryResponse(response.status);
-              }
-              installationIds.add(wireItem.installation_id);
-              vaultIds.add(wireItem.vault_id);
-
-              installations.push(
-                ControlPlaneInstallationInventoryItemSchema.parse({
-                  installationId: wireItem.installation_id,
-                  appId: wireItem.app_id,
-                  vaultId: wireItem.vault_id,
-                  vaultName: wireItem.vault_name,
-                  lifecycle: wireItem.lifecycle,
-                }),
-              );
-            }
-
-            cursor = parsed.data.next_cursor;
-            if (cursor === null) break;
-            if (cursors.has(cursor)) {
-              throw invalidInventoryResponse(response.status);
-            }
-            cursors.add(cursor);
-          }
+          const { installations, pagesRead } = await readInventoryPages(
+            async (query) => {
+              const response = await requestControlPlaneJson({
+                baseUrl,
+                tokenSource: appToken,
+                requestFetch,
+                policy,
+                operation: OPERATION,
+                path: `/app/inventory?${query}`,
+                init: { method: "GET" },
+                acceptedStatuses: [200],
+                missingTokenCode: "missing_app_token",
+              });
+              setUpstreamStatus(response.status);
+              return response;
+            },
+          );
 
           span.setAttribute("control_plane.page_count", pagesRead);
           span.setAttribute(

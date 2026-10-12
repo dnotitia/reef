@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockAkbListMyWorkIssues,
   mockAkbListVaults,
+  mockReadWorkspaceInstallationActive,
   mockReadWorkspaceInstallationStatus,
 } = vi.hoisted(() => ({
   mockAkbListMyWorkIssues: vi.fn(),
   mockAkbListVaults: vi.fn(),
+  mockReadWorkspaceInstallationActive: vi.fn(),
   mockReadWorkspaceInstallationStatus: vi.fn(),
 }));
 
@@ -17,11 +19,19 @@ vi.mock("@reef/core", async () => {
     ...actual,
     akbListMyWorkIssues: mockAkbListMyWorkIssues,
     akbListVaults: mockAkbListVaults,
+    akbGetMe: vi.fn().mockResolvedValue({ profile: { is_admin: false } }),
   };
 });
 
 vi.mock("@/server/adapters/workspaceInstallation", () => ({
+  readWorkspaceInstallationActive: mockReadWorkspaceInstallationActive,
   readWorkspaceInstallationStatus: mockReadWorkspaceInstallationStatus,
+}));
+
+vi.mock("@/server/adapters/installationTarget", () => ({
+  readInstallationTarget: () => ({
+    appId: "33333333-3333-4333-8333-333333333333",
+  }),
 }));
 
 vi.mock("@/lib/telemetry", () => ({
@@ -57,10 +67,12 @@ describe("listMyWork", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAkbListVaults.mockResolvedValue({ vaults });
+    mockReadWorkspaceInstallationActive.mockImplementation(
+      async ({ vault }) => vault.id !== "3",
+    );
     mockReadWorkspaceInstallationStatus
-      .mockResolvedValueOnce({ installation_status: "ready" })
-      .mockResolvedValueOnce({ installation_status: "ready" })
-      .mockResolvedValueOnce({ installation_status: "not_installed" });
+      .mockReset()
+      .mockResolvedValue({ installation_status: "ready" });
     mockAkbListMyWorkIssues.mockResolvedValue({
       workspaces: [],
       issues: [],
@@ -76,7 +88,7 @@ describe("listMyWork", () => {
     const result = await listMyWork({ adapter, actor: "alice", query });
 
     expect(result.issues).toEqual([]);
-    expect(mockReadWorkspaceInstallationStatus).toHaveBeenCalledTimes(3);
+    expect(mockReadWorkspaceInstallationStatus).toHaveBeenCalledTimes(2);
     expect(mockAkbListMyWorkIssues).toHaveBeenCalledTimes(1);
     expect(mockAkbListMyWorkIssues).toHaveBeenCalledWith({
       adapter,

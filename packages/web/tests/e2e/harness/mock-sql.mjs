@@ -31,7 +31,7 @@ const MY_WORK_STATUSES = new Set([
 
 /** Handle the two read-only cross-vault queries used by the My Work endpoint. */
 export function handleMyWorkSql(state, sql, username, allowedVaults) {
-  const isIssueQuery = /FROM\s*\(\s*SELECT\s+issue_rows\.\*/i.test(sql);
+  const isIssueQuery = /FROM\s*\(\s*SELECT\s+"issue_rows"\."id",/i.test(sql);
   const isCountQuery =
     /FROM\s*\(\s*SELECT\s+'[^']+'\s+AS\s+workspace,\s*"sprint_id"/i.test(sql);
   if (!isIssueQuery && !isCountQuery) return null;
@@ -46,7 +46,7 @@ export function handleMyWorkSql(state, sql, username, allowedVaults) {
   const branches = isIssueQuery
     ? [
         ...sql.matchAll(
-          /SELECT\s+issue_rows\.\*,\s*'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_issues\s+AS\s+issue_rows\s+WHERE\s+lower\(btrim\(issue_rows\."assigned_to"\)\)\s*=\s*lower\(btrim\('([^']+)'\)\)\s+AND\s+issue_rows\."status"\s+IN\s*\(([^)]+)\)\s+AND\s+issue_rows\."archived_at"\s+IS\s+NULL/gi,
+          /SELECT\s+(?:"issue_rows"\."[a-z_]+",\s*)+'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_issues\s+AS\s+issue_rows\s+WHERE\s+lower\(btrim\(issue_rows\."assigned_to"\)\)\s*=\s*lower\(btrim\('([^']+)'\)\)\s+AND\s+issue_rows\."status"\s+IN\s*\(([^)]+)\)\s+AND\s+issue_rows\."archived_at"\s+IS\s+NULL/gi,
         ),
       ].map((match) => ({
         workspace: match[1],
@@ -155,7 +155,9 @@ export function handleMyWorkSql(state, sql, username, allowedVaults) {
     }
   }
 
-  const asOf = Date.parse(sql.match(/\('([^']+)'::timestamptz/i)?.[1] ?? "");
+  const asOf = Date.parse(
+    sql.match(/\(CAST\('([^']+)' AS TEXT\)::timestamptz/i)?.[1] ?? "",
+  );
   items.sort((a, b) => compareMyWorkIssues(a, b, asOf));
   const offset = Number(sql.match(/\bOFFSET\s+(\d+)/i)?.[1] ?? 0);
   const limit = sql.match(/\bLIMIT\s+(\d+)/i)?.[1];
@@ -183,7 +185,7 @@ export function handlePersonalNotificationsSql(
 
   const branches = [
     ...sql.matchAll(
-      /SELECT\s+notification_rows\.\*,\s*'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+AS\s+notification_rows\s+WHERE\s+notification_rows\.recipient\s*=\s*'([^']+)'\s+AND\s+notification_rows\.state\s+IN\s*\('unread',\s*'read'\)\s+AND\s+notification_rows\.archived_at\s+IS\s+NULL/gi,
+      /SELECT\s+(?:"notification_rows"\."[a-z_]+",\s*)+'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+AS\s+notification_rows\s+WHERE\s+notification_rows\.recipient\s*=\s*'([^']+)'\s+AND\s+notification_rows\.state\s+IN\s*\('unread',\s*'read'\)\s+AND\s+notification_rows\.archived_at\s+IS\s+NULL/gi,
     ),
   ].map((match) => ({
     workspace: match[1],
@@ -1538,7 +1540,11 @@ function filterIssueRows(rows, sql, vault) {
   // My-Issues existence test into a single statement — recognized by the
   // embedded active-sprint subquery — so evaluate it directly rather than
   // letting the per-column matchers below mis-read its subqueries.
-  if (/SELECT "id" FROM reef_sprints WHERE "status" = 'active'/i.test(sql)) {
+  if (
+    /SELECT CAST\("id" AS TEXT\) FROM reef_sprints WHERE "status" = 'active'/i.test(
+      sql,
+    )
+  ) {
     return defaultViewRows(rows, sql, vault);
   }
   let out = [...rows];

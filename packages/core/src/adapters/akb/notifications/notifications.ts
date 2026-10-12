@@ -33,6 +33,7 @@ import {
   REEF_NOTIFICATIONS_TABLE,
   REEF_SUBSCRIPTIONS_TABLE,
   SqlParameterBuilder,
+  canonicalTableSelectColumns,
   crossVaultTableRef,
   decodeSettingsValue,
   runSql,
@@ -215,7 +216,7 @@ export async function listPersonalNotifications(
           "notification workspace",
         );
         const table = crossVaultTableRef(workspace, REEF_NOTIFICATIONS_TABLE);
-        return `SELECT notification_rows.*, ${workspaceParameter} AS workspace FROM ${table} AS notification_rows WHERE notification_rows.recipient = ${recipient} AND notification_rows.state IN ('unread', 'read') AND notification_rows.archived_at IS NULL`;
+        return `SELECT ${canonicalTableSelectColumns(REEF_NOTIFICATIONS_TABLE, "notification_rows")}, ${workspaceParameter} AS workspace FROM ${table} AS notification_rows WHERE notification_rows.recipient = ${recipient} AND notification_rows.state IN ('unread', 'read') AND notification_rows.archived_at IS NULL`;
       });
       const limit = params.add(100, "notification list limit");
       const response = await runSql(

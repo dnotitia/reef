@@ -39,6 +39,11 @@ afterEach(() => {
 beforeEach(() => {
   vi.stubEnv("REEF_AUTH_MODE", "local");
   vi.stubEnv("AKB_BACKEND_URL", baseUrl);
+  server.use(
+    http.get(`${baseUrl}/api/v1/auth/me`, () =>
+      HttpResponse.json({ username: "alice", is_admin: false }),
+    ),
+  );
 });
 
 function request() {
@@ -69,6 +74,35 @@ function vaultList(role: string) {
 }
 
 describe("GET /api/vaults AKB role contract", () => {
+  it("uses one inventory request for a verified system admin", async () => {
+    vaultList("admin");
+    let inventoryReads = 0;
+    server.use(
+      http.get(`${baseUrl}/api/v1/auth/me`, () =>
+        HttpResponse.json({ username: "admin", is_admin: true }),
+      ),
+      http.get(`${baseUrl}/api/v1/apps/${appId}/inventory`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("lifecycle")).toBe(
+          "active",
+        );
+        inventoryReads += 1;
+        return HttpResponse.json({
+          items: [{ ...installation(), vault_name: "reef-test" }],
+          next_cursor: null,
+        });
+      }),
+      http.get(installationPath, () => {
+        throw new Error("admin inventory must replace detail fan-out");
+      }),
+    );
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      vaults: [{ installation_active: true }],
+    });
+    expect(inventoryReads).toBe(1);
+  });
+
   it.each(["owner", "admin"])(
     "keeps a %s workspace available when AKB rejects the member-only API",
     async (role) => {
@@ -127,28 +161,40 @@ describe("GET /api/vaults AKB role contract", () => {
     },
   );
 
-  it("keeps a management permission denial unknown without using a member fallback or clearing auth", async () => {
-    vaultList("owner");
-    let memberReads = 0;
-    server.use(
-      http.get(installationPath, () =>
-        HttpResponse.json(
-          { detail: { code: "permission_denied" } },
-          { status: 403 },
+  it.each([false, true])(
+    "keeps a management denial unknown without a fallback or sign-out (system admin: %s)",
+    async (isAdmin) => {
+      vaultList("owner");
+      let memberReads = 0;
+      server.use(
+        http.get(`${baseUrl}/api/v1/auth/me`, () =>
+          HttpResponse.json({ username: "alice", is_admin: isAdmin }),
         ),
-      ),
-      http.get(`${installationPath}/active`, () => {
-        memberReads += 1;
-        return HttpResponse.json({ active: true });
-      }),
-    );
-    const response = await GET(request());
-    expect(await response.json()).toMatchObject({
-      vaults: [{ installation_active: null }],
-    });
-    expect(response.headers.get("set-cookie")).toBeNull();
-    expect(memberReads).toBe(0);
-  });
+        http.get(`${baseUrl}/api/v1/apps/${appId}/inventory`, () =>
+          HttpResponse.json(
+            { detail: { code: "permission_denied" } },
+            { status: 403 },
+          ),
+        ),
+        http.get(installationPath, () =>
+          HttpResponse.json(
+            { detail: { code: "permission_denied" } },
+            { status: 403 },
+          ),
+        ),
+        http.get(`${installationPath}/active`, () => {
+          memberReads += 1;
+          return HttpResponse.json({ active: true });
+        }),
+      );
+      const response = await GET(request());
+      expect(await response.json()).toMatchObject({
+        vaults: [{ installation_active: null }],
+      });
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(memberReads).toBe(0);
+    },
+  );
 
   it("reports a missing management installation as inactive", async () => {
     vaultList("owner");

@@ -12,6 +12,32 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.3 - 2026-10-12
+
+### Fixed
+
+- **Initial workspace entry avoids querying inactive personal workspaces.**
+  My Work and Inbox verify readiness only for active Reef installations.
+  System administrators use one paginated AKB inventory read instead of an
+  installation-detail request for every accessible vault; workspace listings
+  share this discovery path. Ordinary users retain role-appropriate reads,
+  and account/session and source permission failures still fail closed.
+- **Cross-workspace My Work and Inbox queries align columns by name.**
+  Installations with different physical table column orders now aggregate
+  correctly. My Work also sends its as-of timestamp as a text SQL parameter
+  before converting it in PostgreSQL.
+- **Default issue views match sprint ids using the declared text type.**
+  Active sprint UUID ids are converted to text before comparison with issue
+  sprint links, preventing the initial filtered list from failing in AKB.
+
+### Migration
+
+- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
+  on `0.17.0`, `0.17.1`, and `0.17.2` use explicit no-op transitions. Apply the
+  AKB release before updating both runtime digests and release identities;
+  verify the signed-in first issue list, My Work, and Inbox after rollout.
+
+
 ## v0.17.2 - 2026-10-12
 
 ### Fixed

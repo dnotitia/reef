@@ -20,7 +20,8 @@ mockOpenTelemetry();
 const FLOOR = `"archived_at" IS NULL AND "status" IN ($1, $2, $3)`;
 // The active-sprint pick, folded into the default-view query as a scalar
 // subquery (REEF-324) instead of a separate `getActiveSprint` round-trip.
-const SPRINT_SUBQ = `(SELECT "id" FROM reef_sprints WHERE "status" = $4 ORDER BY "start_date" DESC NULLS LAST, "id" DESC LIMIT 1)`;
+// AKB auto-generated ids are UUID; reef_issues.sprint_id is a TEXT reference.
+const SPRINT_SUBQ = `(SELECT CAST("id" AS TEXT) FROM reef_sprints WHERE "status" = $4 ORDER BY "start_date" DESC NULLS LAST, "id" DESC LIMIT 1)`;
 const SPRINT_FALLBACK = `(${SPRINT_SUBQ} IS NULL OR "sprint_id" = ${SPRINT_SUBQ})`;
 
 function viewWhere(options: {

@@ -11,6 +11,7 @@ import {
   type AkbAdapter,
   REEF_ISSUES_TABLE,
   SqlParameterBuilder,
+  canonicalTableSelectColumns,
   crossVaultTableRef,
   rowToIssue,
   runSql,
@@ -74,7 +75,7 @@ function issueTableBranches(
   return vaults.map((workspace) => {
     const workspaceParameter = params.add(workspace, "My Work workspace");
     const table = crossVaultTableRef(workspace, REEF_ISSUES_TABLE);
-    return `SELECT issue_rows.*, ${workspaceParameter} AS workspace FROM ${table} AS issue_rows WHERE lower(btrim(issue_rows."assigned_to")) = lower(btrim(${actorParameter})) AND issue_rows."status" IN (${statuses.join(", ")}) AND issue_rows."archived_at" IS NULL`;
+    return `SELECT ${canonicalTableSelectColumns(REEF_ISSUES_TABLE, "issue_rows")}, ${workspaceParameter} AS workspace FROM ${table} AS issue_rows WHERE lower(btrim(issue_rows."assigned_to")) = lower(btrim(${actorParameter})) AND issue_rows."status" IN (${statuses.join(", ")}) AND issue_rows."archived_at" IS NULL`;
   });
 }
 
@@ -97,7 +98,8 @@ function buildIssueQuery(
       ? params.add(query.offset, "My Work SQL offset")
       : undefined;
   const dueTimestamp = `(issue_rows."due_date"::timestamp AT TIME ZONE 'UTC')`;
-  const asOfTimestamp = `(${nowParameter}::timestamptz AT TIME ZONE 'UTC')`;
+  // JSON SQL parameters carry strings; keep the driver parameter typed as TEXT.
+  const asOfTimestamp = `(CAST(${nowParameter} AS TEXT)::timestamptz AT TIME ZONE 'UTC')`;
   const sql = `SELECT * FROM (${branches.join(" UNION ALL ")}) AS issue_rows ORDER BY CASE WHEN "due_date" IS NOT NULL AND ${dueTimestamp} < ${asOfTimestamp} THEN 0 WHEN "due_date" IS NOT NULL AND ${dueTimestamp} <= ${asOfTimestamp} + INTERVAL '7 days' THEN 1 ELSE 2 END ASC, CASE WHEN "due_date" IS NOT NULL AND ${dueTimestamp} <= ${asOfTimestamp} + INTERVAL '7 days' THEN "due_date" END ASC NULLS LAST, CASE "priority" WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC, CASE "status" WHEN 'in_progress' THEN 0 WHEN 'in_review' THEN 1 WHEN 'todo' THEN 2 WHEN 'backlog' THEN 3 ELSE 4 END ASC, "updated_at" DESC NULLS LAST, "workspace" ASC, "reef_id" ASC${limitParameter ? ` LIMIT ${limitParameter}` : ""}${offsetParameter ? ` OFFSET ${offsetParameter}` : ""}`;
   return { sql, params: params.params };
 }

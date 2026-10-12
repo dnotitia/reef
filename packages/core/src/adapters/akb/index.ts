@@ -214,6 +214,7 @@ export {
 } from "./controlPlane/installationReader";
 export {
   createAkbAppInstallationInventoryReader,
+  listAdminActiveInstallations,
   type AkbAppInstallationInventoryReader,
   type AkbAppInstallationInventoryReaderConfig,
 } from "./controlPlane/installationInventoryReader";

@@ -166,7 +166,8 @@ export function createState(scenario) {
     username: fixtureLogin.username,
     email: "alice@example.com",
     display_name: "Alice Example",
-    is_admin: true,
+    // Multi-vault manager fixtures exercise owner-authorized detail reads.
+    is_admin: scenario !== "configured_multi",
   };
   const bob = {
     id: "user-bob",

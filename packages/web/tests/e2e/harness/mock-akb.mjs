@@ -228,6 +228,40 @@ export async function handleAkb(req, res, url, state) {
     });
   }
 
+  const inventoryMatch = path.match(/^\/api\/v1\/apps\/([^/]+)\/inventory$/);
+  if (inventoryMatch && req.method === "GET") {
+    if (user.is_admin !== true) {
+      return json(res, 403, { error: "system administrator required" });
+    }
+    const appId = decodeURIComponent(inventoryMatch[1]);
+    if (appId !== E2E_REEF_APP_ID) {
+      return json(res, 404, { error: "app not found" });
+    }
+    const installations = [...state.vaults.values()]
+      .filter(
+        (vault) =>
+          vault.installation?.appId === appId &&
+          vault.installation.lifecycle === "active",
+      )
+      .map((vault) => ({
+        installation_id: vault.installation.id,
+        app_id: appId,
+        vault_id: vault.id,
+        vault_name: vault.name,
+        lifecycle: "active",
+      }));
+    const offset = Number(url.searchParams.get("cursor") ?? 0);
+    const limit = Math.min(
+      200,
+      Math.max(1, Number(url.searchParams.get("limit") ?? 200)),
+    );
+    const next = offset + limit;
+    return json(res, 200, {
+      items: installations.slice(offset, next),
+      next_cursor: next < installations.length ? String(next) : null,
+    });
+  }
+
   const installationMatch = path.match(
     /^\/api\/v1\/apps\/([^/]+)\/installations\/([^/]+)(\/active)?$/,
   );
