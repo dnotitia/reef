@@ -23,7 +23,7 @@ import type {
   AccountValidationResult,
   AccountValidator,
 } from "./oidcValidator";
-import { connectAuthV2Redis, type AuthV2RedisRuntime } from "./redisRuntime";
+import { getProcessAuthV2Redis, type AuthV2ProcessRedis } from "./redisRuntime";
 import { createAuthV2SessionCipher } from "./sessionCipher";
 import {
   createAuthV2SessionStore,
@@ -37,11 +37,10 @@ export interface AuthV2RouteRuntime {
   contract: AuthV2SsoContract;
   store: AuthV2SessionStore;
   stateStore: ReturnType<typeof createAuthV2LoginStateStore>;
-  refreshLock: AuthV2RedisRuntime["refreshLock"];
+  refreshLock: AuthV2ProcessRedis["refreshLock"];
   now: () => number;
   protocolFor(providerAlias: string): AuthV2OidcProtocol;
   accountValidator: AccountValidator<AkbUser>;
-  close(): Promise<void>;
 }
 
 export class AuthV2RouteRuntimeError extends Error {
@@ -78,9 +77,9 @@ export async function getAuthV2RouteRuntime(): Promise<AuthV2RouteRuntime> {
     throw new AuthV2RouteRuntimeError("auth_v2_contract_invalid");
   }
 
-  let redis: AuthV2RedisRuntime;
+  let redis: AuthV2ProcessRedis;
   try {
-    redis = await connectAuthV2Redis(config);
+    redis = await getProcessAuthV2Redis(config);
   } catch {
     throw new AuthV2RouteRuntimeError("auth_v2_runtime_unavailable");
   }
@@ -162,6 +161,5 @@ export async function getAuthV2RouteRuntime(): Promise<AuthV2RouteRuntime> {
     now,
     protocolFor,
     accountValidator,
-    close: redis.close,
   };
 }

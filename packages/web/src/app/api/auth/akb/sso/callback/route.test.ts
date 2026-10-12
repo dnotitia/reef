@@ -37,7 +37,6 @@ function setup(completeAuthorization: () => Promise<unknown>) {
     stateStore: {},
     store: { issue },
     now: () => 2_000_000,
-    close: vi.fn(async () => undefined),
   };
 }
 describe("SSO callback route", () => {

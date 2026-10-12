@@ -41,8 +41,6 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch {
     return new Response(null, { status: 401 });
-  } finally {
-    await runtime?.close();
   }
 }
 

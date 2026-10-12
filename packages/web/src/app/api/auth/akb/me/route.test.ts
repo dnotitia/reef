@@ -160,7 +160,6 @@ describe("GET /api/auth/akb/me", () => {
           throw new AuthV2RedisBackendError();
         },
       },
-      close: async () => undefined,
     };
 
     const res = await GET(makeRequest(`__reef_auth_v2=${"H".repeat(43)}`));
@@ -201,7 +200,6 @@ describe("GET /api/auth/akb/me", () => {
       protocolFor: () => {
         throw new Error("refresh protocol should not run without the lock");
       },
-      close: async () => undefined,
     };
 
     const response = GET(makeRequest(`__reef_auth_v2=${handle}`));

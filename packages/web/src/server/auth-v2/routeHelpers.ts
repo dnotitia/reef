@@ -83,8 +83,6 @@ export async function resolveAuthV2Credential(handle: string): Promise<string> {
       throw new AkbApiError({ status: 503, message: error.code });
     }
     throw error;
-  } finally {
-    await runtime?.close();
   }
 }
 

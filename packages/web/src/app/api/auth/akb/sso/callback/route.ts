@@ -98,8 +98,6 @@ export async function GET(request: Request): Promise<Response> {
         ? error.code
         : "sso_callback_failed",
     );
-  } finally {
-    await runtime?.close();
   }
 }
 function isAccountDenialError(
