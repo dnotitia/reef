@@ -378,33 +378,102 @@ export async function handleAkb(req, res, url, state) {
         return json(res, 409, { error: "vault contains retained resources" });
       }
       const replayed =
-        (mode === "install" || mode === "fresh") &&
-        vault.installation?.lifecycle === "active" &&
-        vault.installation.currentReleaseId === releaseId;
+        (mode === "install" &&
+          ((vault.installation?.lifecycle === "installing" &&
+            vault.installation.desiredReleaseId === releaseId) ||
+            (vault.installation?.lifecycle === "active" &&
+              vault.installation.currentReleaseId === releaseId))) ||
+        (mode === "fresh" &&
+          vault.installation?.lifecycle === "installing" &&
+          vault.installation.currentReleaseId === null &&
+          vault.installation.desiredReleaseId === releaseId);
+      if (replayed) {
+        return json(res, 200, {
+          ...installationWire(vault),
+          command_status: "already_applied",
+          replayed: true,
+        });
+      }
+      if (
+        (mode === "install" && vault.installation) ||
+        (mode === "fresh" && vault.installation?.lifecycle !== "uninstalled")
+      ) {
+        return json(res, 409, {
+          error: "installation command conflicts with state",
+        });
+      }
       const currentReleaseId =
         mode === "restore" ? vault.installation.currentReleaseId : releaseId;
-      if (!vault.installation) {
-        vault.installation = {
-          id: uuidFor(20000 + state.commitSeq),
-          appId,
-          currentReleaseId,
-          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
-          lifecycle: "active",
-        };
-      } else {
+      if (mode === "restore") {
         vault.installation = {
           ...vault.installation,
           appId,
           lifecycle: "active",
           currentReleaseId,
           currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          blockedReason: null,
+        };
+        return json(res, 202, {
+          ...installationWire(vault),
+          command_status: "accepted",
+          replayed: false,
+        });
+      }
+      if (!vault.installation) {
+        vault.installation = {
+          id: uuidFor(20000 + state.commitSeq),
+          appId,
+          currentReleaseId: null,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          desiredReleaseId: releaseId,
+          desiredReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          lifecycle: "installing",
+          blockedReason: null,
+        };
+      } else {
+        vault.installation = {
+          ...vault.installation,
+          appId,
+          lifecycle: "installing",
+          currentReleaseId: null,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          desiredReleaseId: releaseId,
+          desiredReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          blockedReason: null,
         };
       }
-      for (const table of REEF_INSTALLATION_TABLES) vault.tables.add(table);
-      return json(res, 200, {
+      const installationId = vault.installation.id;
+      const installState = state;
+      setTimeout(() => {
+        if (
+          vault.installation?.id !== installationId ||
+          vault.installation.lifecycle !== "installing"
+        ) {
+          return;
+        }
+        if (installState.installationExecutionFailures.delete(vault.name)) {
+          vault.installation = {
+            ...vault.installation,
+            lifecycle: "blocked",
+            blockedReason: "step_failed",
+          };
+          return;
+        }
+        vault.installation = {
+          ...vault.installation,
+          lifecycle: "active",
+          currentReleaseId: releaseId,
+          currentReleaseVersion: E2E_REEF_RELEASE_VERSION,
+          desiredReleaseId: undefined,
+          desiredReleaseVersion: undefined,
+          blockedReason: null,
+        };
+        for (const table of REEF_INSTALLATION_TABLES) vault.tables.add(table);
+      }, 300);
+      return json(res, 202, {
         ...installationWire(vault),
-        command_status: replayed ? "already_applied" : "accepted",
-        replayed,
+        command_status: "accepted",
+        replayed: false,
       });
     }
     if (req.method === "DELETE") {

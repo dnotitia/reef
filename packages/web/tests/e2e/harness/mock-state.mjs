@@ -217,6 +217,7 @@ export function createState(scenario) {
     workspaceInitFailureOperation: null,
     workspaceInitFailureRemaining: 0,
     workspaceInitFailureSuccessesBefore: null,
+    installationExecutionFailures: new Set(),
     issueUpdateFailures: new Map(),
     issueUpdateDelays: new Map(),
     issueUpdateHolds: new Map(),

@@ -515,6 +515,18 @@ export async function setWorkspaceInitializationControl(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setInstallationExecutionFailure(
+  request: APIRequestContext,
+  vault: string,
+  fail: boolean,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/installation-execution-control`,
+    { data: { vault, fail } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setIssueUpdateControl(
   request: APIRequestContext,
   controls: Array<{

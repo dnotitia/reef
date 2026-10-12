@@ -12,6 +12,21 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.17.6 - 2026-10-13
+
+### Fixed
+
+- **New Reef workspaces finish installation without a manual rollout.** AKB
+  installation commands now durably enqueue one schema job for the accepted
+  installation, and Reef waits for that job to become active before initializing
+  templates and workspace runbooks. A blocked job stays out of Ready.
+
+### Migration
+
+- Schema v4 and vault skill version 23 are unchanged. Existing v4 installations
+  on `0.17.5` use an explicit no-op transition; no table, data, or runbook
+  migration is required.
+
 ## v0.17.5 - 2026-10-12
 
 ### Changed

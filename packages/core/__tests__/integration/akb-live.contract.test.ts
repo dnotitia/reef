@@ -1615,26 +1615,26 @@ describeLiveContract("akb live contract smoke (REEF-056)", () => {
       releaseId: registeredRelease.id,
       mode: "install",
     });
-    const freshRequest = await rolloutApi.requestRollout({
-      appId: registeredApp.id,
-      releaseId: registeredRelease.id,
-      manifestChecksum: registeredRelease.manifestChecksum,
-      idempotencyKey: randomUUID(),
-    });
-    const freshApplied = await waitForAppliedRollout({
-      rollout: rolloutApi,
-      appId: registeredApp.id,
-      jobId: freshRequest.rollout.jobId,
-    });
-    expect(
-      freshApplied.targets.some((target) => target.vaultId === vaultId),
-    ).toBe(true);
-    rolloutEvidence.fresh_install_status = freshApplied.status;
     await waitForActiveInstallation({
       adapter,
       appId: registeredApp.id,
       vaultId,
     });
+    const freshInstallation = await readInstallation({
+      adapter,
+      appId: registeredApp.id,
+      vaultId,
+    });
+    expect(freshInstallation.lifecycle).toBe("active");
+    expect(freshInstallation.currentRelease?.id).toBe(registeredRelease.id);
+    expect(freshInstallation.currentRelease?.version).toBe(
+      registeredRelease.version,
+    );
+    await verifyRequiredTables({ adapter, vault, canManage: true });
+    rolloutEvidence.fresh_install_status = freshInstallation.lifecycle;
+    rolloutEvidence.fresh_install_release_id =
+      freshInstallation.currentRelease?.id;
+    rolloutEvidence.fresh_install_schema_verified = true;
 
     // Seed one issue through reef's REAL write path (doc PUT + reef_issues row).
     const issue = buildIssueMetadataFromCreateInput({

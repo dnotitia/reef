@@ -4,7 +4,7 @@ import {
   type APIRequestContext,
   type Locator,
 } from "@playwright/test";
-import { DEFAULT_CONFIG } from "@reef/core";
+import { DEFAULT_CONFIG, REEF_DESIRED_TABLES } from "@reef/core";
 import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates";
 import {
   E2E_MOCK_URL,
@@ -15,6 +15,7 @@ import {
   signInAsAlice,
   signInAsUser,
   setInstallationControl,
+  setInstallationExecutionFailure,
   setWorkspaceInitializationControl,
   waitForPasswordLogin,
   writeIndexedDbConfig,
@@ -207,10 +208,23 @@ test.describe("Hermetic onboarding flow", () => {
 
     await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
     await expect(page).toHaveURL(/\/onboarding$/);
+    const installResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-new/installation" &&
+        response.request().method() === "POST",
+    );
     await page
       .getByTestId("greenfield-approval-step")
       .getByTestId("installation-reef-new-approve")
       .click();
+    const installResponse = await installResponsePromise;
+    expect(installResponse.status()).toBe(202);
+    expect(await installResponse.json()).toMatchObject({
+      installation_status: "installing",
+      command_status: "accepted",
+      replayed: false,
+    });
     await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
     await expect(page.getByTestId("sidebar-workspace-trigger")).toContainText(
@@ -219,6 +233,7 @@ test.describe("Hermetic onboarding flow", () => {
 
     const state = await readFixtureState(request);
     const created = state.vaults.find((vault) => vault.name === "reef-new");
+    expect(created?.installation?.lifecycle).toBe("active");
     expect(created?.settings.project_prefix).toBe(
       DEFAULT_CONFIG.project_prefix,
     );
@@ -234,7 +249,27 @@ test.describe("Hermetic onboarding flow", () => {
       body: template.body,
     }));
     expect(created?.templates).toEqual(expectedTemplates);
-    expect(created?.tables).toContain("reef_issues");
+    expect(created?.templates).toHaveLength(6);
+    expect(created?.tables).toEqual(
+      REEF_DESIRED_TABLES.map(({ name }) => name),
+    );
+    const documentPaths = created?.documents.map(({ path }) => path) ?? [];
+    expect(documentPaths).toContain("overview/vault-skill.md");
+    expect(
+      documentPaths.filter((path) => path.startsWith("reef/runbooks/")),
+    ).toHaveLength(5);
+    expect(
+      created?.documents.find(
+        ({ path }) => path === "reef/runbooks/pm-model.md",
+      )?.content,
+    ).toContain("reef_issues");
+    const readyStatus = await page.request.get(
+      "/api/vaults/reef-new/installation",
+    );
+    expect(readyStatus.ok()).toBe(true);
+    expect(await readyStatus.json()).toMatchObject({
+      installation_status: "ready",
+    });
     expect(
       state.calls.some(
         (call) =>
@@ -300,6 +335,59 @@ test.describe("Hermetic onboarding flow", () => {
         description: "Saved description",
       },
     ]);
+  });
+
+  test("does not make a workspace ready when its installation execution fails", async ({
+    page,
+    request,
+  }) => {
+    await setInstallationExecutionFailure(request, "reef-failed", true);
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    await page.getByTestId("greenfield-vault-name-input").fill("reef-failed");
+    await page.getByTestId("greenfield-create-btn").click();
+    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+
+    const installResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/vaults/reef-failed/installation" &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByTestId("greenfield-approval-step")
+      .getByTestId("installation-reef-failed-approve")
+      .click();
+    const installResponse = await installResponsePromise;
+    expect(installResponse.status()).toBe(202);
+    expect(await installResponse.json()).toMatchObject({
+      installation_status: "installing",
+      command_status: "accepted",
+    });
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults.find((vault) => vault.name === "reef-failed")
+          ?.installation?.lifecycle;
+      })
+      .toBe("blocked");
+    await expect(page).toHaveURL(/\/onboarding$/);
+    const status = await page.request.get(
+      "/api/vaults/reef-failed/installation",
+    );
+    expect(status.ok()).toBe(true);
+    expect(await status.json()).toMatchObject({
+      installation_status: "blocked",
+    });
+
+    const failed = (await readFixtureState(request)).vaults.find(
+      (vault) => vault.name === "reef-failed",
+    );
+    expect(failed?.installation?.lifecycle).toBe("blocked");
+    expect(failed?.tables).toEqual([]);
+    expect(failed?.templates).toEqual([]);
+    expect(failed?.documents).toEqual([]);
   });
 
   test("creates a workspace as a non-admin and can create and read an issue", async ({
