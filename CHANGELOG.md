@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- Workspace initialization preserves a Guide or runbook created concurrently
+  after a missing-document read. Creation conflicts stop initialization without
+  overwriting the new document or stamping the current instruction version.
+
 ## v0.17.6 - 2026-10-13
 
 ### Fixed

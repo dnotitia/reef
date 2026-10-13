@@ -232,6 +232,9 @@ async function upsertDocument(
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;
     }
+    // A document created since the read must survive a creation conflict.
+    await putDocument(adapter, vault, doc);
+    return true;
   }
 
   try {

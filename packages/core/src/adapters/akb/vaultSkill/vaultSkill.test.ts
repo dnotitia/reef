@@ -532,6 +532,80 @@ describe("installReefVaultSkill", () => {
     });
     expect(calls).toHaveLength(3);
   });
+
+  it("preserves a Guide created after onboarding reads a missing document", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const rootPath = "overview/vault-skill.md";
+    const ownerContent = "# Owner policy\n\nKeep customer data private.";
+    const ownerGuide = {
+      ...documentResponse(docs[0], ownerContent),
+      title: "Owner Guide",
+      summary: "Owner policy",
+      tags: ["akb:skill", "policy:owner"],
+      current_commit: "owner-created-commit",
+    };
+    let rootGuide: typeof ownerGuide | null = null;
+    let readMissing = false;
+    const calls: FetchCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const call = { url, init };
+        calls.push(call);
+        const method = init?.method ?? "GET";
+        const path = new URL(url).pathname;
+        let status = 200;
+        let payload: unknown;
+        if (path === "/api/v1/tables/reef-new/sql") {
+          payload = { kind: "table_sql", result: "DELETE 0" };
+        } else if (path.endsWith(`/${rootPath}`) && method === "GET") {
+          if (!readMissing) {
+            readMissing = true;
+            rootGuide = { ...ownerGuide };
+            status = 404;
+            payload = { detail: "missing" };
+          } else {
+            payload = rootGuide;
+          }
+        } else if (path.endsWith(`/${rootPath}`) && method === "PATCH") {
+          rootGuide = { ...ownerGuide, ...bodyOf(call) };
+          payload = putResponse(rootPath);
+        } else if (path === "/api/v1/documents" && method === "POST") {
+          status = 409;
+          payload = { detail: "already exists" };
+        } else if (method === "GET") {
+          const doc = docs.find(({ path: docPath }) =>
+            path.endsWith(`/${docPath}`),
+          );
+          if (!doc) throw new Error(`Unexpected document request: ${url}`);
+          payload = documentResponse(doc);
+        } else {
+          throw new Error(`Unexpected AKB request: ${method} ${url}`);
+        }
+        return new Response(JSON.stringify(payload), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    await expect(
+      installReefVaultSkill({
+        adapter: makeAdapter(),
+        vault: "reef-new",
+        preserveExisting: true,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    expect(rootGuide).toEqual(ownerGuide);
+    expect(calls).toHaveLength(3);
+    expect(calls.some((call) => call.init?.method === "PATCH")).toBe(false);
+    expect(
+      calls
+        .filter((call) => call.url.includes("/tables/reef-new/sql"))
+        .some((call) => String(bodyOf(call).sql).startsWith("INSERT")),
+    ).toBe(false);
+  });
 });
 
 describe("getVaultSkillStatus", () => {
