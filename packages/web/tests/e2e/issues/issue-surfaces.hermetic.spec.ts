@@ -1138,6 +1138,7 @@ test.describe("Hermetic issue route surfaces", () => {
         expect(screenshot.byteLength).toBeGreaterThan(0);
       }
       await page.keyboard.press("Home");
+      await expect(first).toBeFocused();
       for (let step = 0; step < 30; step += 1) {
         if (
           await releaseColumn.evaluate(
@@ -1145,7 +1146,14 @@ test.describe("Hermetic issue route surfaces", () => {
           )
         )
           break;
+        const focusedTestId = await menu
+          .locator('[role^="menuitem"]:focus')
+          .getAttribute("data-testid");
+        if (!focusedTestId) {
+          throw new Error("Expected a focused Display menu item");
+        }
         await page.keyboard.press("ArrowDown");
+        await expect(menu.getByTestId(focusedTestId)).not.toBeFocused();
       }
       await expect(releaseColumn).toBeFocused();
       await expectFocusedItemVisible(releaseColumn);
