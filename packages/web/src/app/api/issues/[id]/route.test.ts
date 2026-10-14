@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const {
   mockAkbReadIssue,
   mockAkbUpdateIssue,
@@ -47,14 +25,13 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import {
   AuthError,
   ConflictError,
   type IssueMetadata,
   NotFoundError,
 } from "@reef/core";
-import { VALID_JWT } from "../../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../../__test-helpers__/jwt";
 import { DELETE, GET, PATCH } from "./route";
 
 const SAMPLE_ISSUE: IssueMetadata = {
@@ -66,13 +43,6 @@ const SAMPLE_ISSUE: IssueMetadata = {
   updated_at: "2026-05-01T00:00:00.000Z",
   updated_by: "alice",
 };
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 const params = (id: string) =>
   ({ params: Promise.resolve({ id }) }) as { params: Promise<{ id: string }> };
@@ -89,6 +59,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
@@ -290,6 +261,8 @@ describe("PATCH /api/issues/[id]", () => {
   });
 
   it("calls akbUpdateIssue and returns 200 with merged issue + content", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-13T00:00:00.000Z"));
     const updated = { ...SAMPLE_ISSUE, status: "in_progress" as const };
     mockAkbUpdateIssue.mockResolvedValueOnce({
       commit_hash: "def5678",
@@ -324,7 +297,7 @@ describe("PATCH /api/issues/[id]", () => {
     expect(callArgs.id).toBe("REEF-001");
     expect(callArgs.content).toBe("## body");
     // Route stamps updated_at on every patch so list ordering reacts.
-    expect(typeof callArgs.partial.updated_at).toBe("string");
+    expect(callArgs.partial.updated_at).toBe("2026-10-13T00:00:00.000Z");
     expect(callArgs.partial.updated_by).toBe("carol");
     expect(callArgs.partial.status).toBe("in_progress");
     expect(callArgs.partial.source).toBeUndefined();

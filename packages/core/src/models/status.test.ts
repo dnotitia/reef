@@ -155,12 +155,6 @@ describe("ACTIVE_STATUSES (REEF-109)", () => {
   it("is exactly the committed, in-flight lifecycle statuses", () => {
     expect([...ACTIVE_STATUSES]).toEqual(["todo", "in_progress", "in_review"]);
   });
-
-  it("excludes backlog and the resolved states", () => {
-    expect(ACTIVE_STATUSES).not.toContain("backlog");
-    expect(ACTIVE_STATUSES).not.toContain("done");
-    expect(ACTIVE_STATUSES).not.toContain("closed");
-  });
 });
 
 describe("isStaleResolved", () => {

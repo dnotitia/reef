@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const { mockListHistory, mockCreateAdapter } = vi.hoisted(() => ({
   mockListHistory: vi.fn(),
   mockCreateAdapter: vi.fn(),

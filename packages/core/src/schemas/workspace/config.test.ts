@@ -203,11 +203,10 @@ describe("MonitoredRepoSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects owner/name over 100 characters", () => {
-    const longName = "a".repeat(101);
+  it.each(["owner", "name"])("rejects %s over 100 characters", (field) => {
     const result = MonitoredRepoSchema.safeParse({
       ...validMonitoredRepo,
-      name: longName,
+      [field]: "a".repeat(101),
     });
     expect(result.success).toBe(false);
   });
@@ -327,6 +326,7 @@ describe("ConfigSchema (team-shared _reef/config.md in akb vault)", () => {
       expect(Object.keys(result.data)).toEqual(
         expect.arrayContaining(["project_prefix", "monitored_repos"]),
       );
+      expect(result.data).not.toHaveProperty("future_field");
     }
   });
 

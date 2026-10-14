@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const {
   mockListAttachments,
   mockUploadAttachment,
@@ -47,8 +25,7 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { VALID_JWT } from "../../../__test-helpers__/jwt";
+import { authedHeaders } from "../../../__test-helpers__/jwt";
 import { GET, POST } from "./route";
 
 const ATTACHMENT = {
@@ -65,10 +42,6 @@ const ATTACHMENT = {
   original_jira_attachment_id: null,
   meta: null,
 };
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 function params(id = "REEF-001") {
   return { params: Promise.resolve({ id }) };

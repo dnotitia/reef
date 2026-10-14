@@ -1061,6 +1061,9 @@ test.describe("Hermetic issue route surfaces", () => {
       }
       await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
       await setVisualTheme(page, menuCase.theme);
+      await expect(page.locator('[data-interaction-ready="true"]')).toHaveCount(
+        1,
+      );
       await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
 
       const trigger = page.getByTestId("display-options-trigger");
@@ -1080,21 +1083,37 @@ test.describe("Hermetic issue route surfaces", () => {
 
       const first = menu.getByTestId("show-archived-toggle");
       const second = menu.getByTestId("show-stale-toggle");
-      const last = menu.getByTestId("issue-list-column-release");
+      const releaseColumn = menu.getByTestId("issue-list-column-release");
+      const last = menu.locator('[role^="menuitem"]').last();
+      const expectFocusedItemVisible = async (
+        item: import("@playwright/test").Locator,
+      ) => {
+        await expect
+          .poll(() =>
+            item.evaluate((element) => {
+              const menu = element.closest('[role="menu"]');
+              if (!menu) return false;
+              const rect = element.getBoundingClientRect();
+              const viewport = menu.getBoundingClientRect();
+              return (
+                rect.top >= viewport.top - 1 &&
+                rect.bottom <= viewport.bottom + 1
+              );
+            }),
+          )
+          .toBe(true);
+      };
       await first.focus();
       await expect(first).toBeFocused();
       await page.keyboard.press("ArrowDown");
       await expect(second).toBeFocused();
       await page.keyboard.press("ArrowUp");
       await expect(first).toBeFocused();
-      await last.focus();
+      await page.keyboard.press("End");
       await expect(last).toBeFocused();
-      let scrolled = await readDisplayMenuGeometry(page);
+      await expectFocusedItemVisible(last);
+      const scrolled = await readDisplayMenuGeometry(page);
       if (scrolled.scrollHeight > scrolled.clientHeight) {
-        await menu.evaluate((element) => {
-          element.scrollTop = element.scrollHeight;
-        });
-        scrolled = await readDisplayMenuGeometry(page);
         expect(
           scrolled.scrollTop,
           `${menuCase.width}px menu internal scroll`,
@@ -1118,12 +1137,34 @@ test.describe("Hermetic issue route surfaces", () => {
         });
         expect(screenshot.byteLength).toBeGreaterThan(0);
       }
+      await page.keyboard.press("Home");
+      await expect(first).toBeFocused();
+      for (let step = 0; step < 30; step += 1) {
+        if (
+          await releaseColumn.evaluate(
+            (element) => element === document.activeElement,
+          )
+        )
+          break;
+        const focusedTestId = await menu
+          .locator('[role^="menuitem"]:focus')
+          .getAttribute("data-testid");
+        if (!focusedTestId) {
+          throw new Error("Expected a focused Display menu item");
+        }
+        await page.keyboard.press("ArrowDown");
+        await expect(menu.getByTestId(focusedTestId)).not.toBeFocused();
+      }
+      await expect(releaseColumn).toBeFocused();
+      await expectFocusedItemVisible(releaseColumn);
       await page.keyboard.press("Space");
       await expect(menu).toBeVisible();
       await page.keyboard.press("Home");
       await expect(first).toBeFocused();
+      await expectFocusedItemVisible(first);
       await page.keyboard.press("End");
-      await expect(menu.locator('[role^="menuitem"]').last()).toBeFocused();
+      await expect(last).toBeFocused();
+      await expectFocusedItemVisible(last);
       await page.keyboard.press("Escape");
       await expect(menu).toHaveCount(0);
 
@@ -1346,6 +1387,9 @@ test.describe("Hermetic issue route surfaces", () => {
       await page.setViewportSize(viewport);
       await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
       await expect(page.getByTestId("kanban-board-body")).toBeVisible();
+      const board = page.getByTestId("kanban-board-body");
+      await expect(board.locator("[data-group-by]").first()).toBeVisible();
+      await expect(board.getByTestId("kanban-card").first()).toBeVisible();
 
       const geometry = await page
         .getByTestId("kanban-board-body")
@@ -1396,12 +1440,14 @@ test.describe("Hermetic issue route surfaces", () => {
     await openExistingWorkspace(page);
 
     for (const viewport of [
-      { width: 320, height: 844 },
-      { width: 375, height: 844 },
-      { width: 414, height: 844 },
-      { width: 768, height: 844 },
-    ]) {
+      { width: 320, height: 844, theme: "light", backlogOnly: false },
+      { width: 375, height: 844, theme: "light", backlogOnly: false },
+      { width: 414, height: 844, theme: "light", backlogOnly: false },
+      { width: 768, height: 844, theme: "light", backlogOnly: false },
+      { width: 320, height: 844, theme: "dark", backlogOnly: true },
+    ] as const) {
       await page.setViewportSize(viewport);
+      if (viewport.theme === "dark") await setVisualTheme(page, "dark");
 
       for (const [scope, view] of [
         ["active", "board"],
@@ -1409,9 +1455,16 @@ test.describe("Hermetic issue route surfaces", () => {
         ["backlog", "list"],
         ["active", "timeline"],
       ] as const) {
+        if (viewport.backlogOnly && scope !== "backlog") continue;
         await page.goto(
           `/workspace/${REEF_E2E_VAULT}/issues?scope=${scope}&view=${view}`,
         );
+        await expect(
+          page.locator('[data-interaction-ready="true"]'),
+        ).toHaveCount(1);
+        if (viewport.theme === "dark") {
+          await expect(page.locator("html")).toHaveClass(/dark/);
+        }
         await expect(
           page.getByRole("textbox", { name: "Search issues" }),
         ).toBeVisible();
@@ -1430,6 +1483,14 @@ test.describe("Hermetic issue route surfaces", () => {
           ),
         ).toHaveCount(1);
         if (scope === "backlog") {
+          await expect(page.getByTestId("filter-bar")).toHaveAttribute(
+            "role",
+            "region",
+          );
+          await expect(
+            page.getByTestId("severity-dropdown-trigger"),
+          ).toBeVisible();
+          await expect(page.getByTestId("sort-control-trigger")).toBeVisible();
           const filterGeometry = await page
             .getByTestId("filter-bar")
             .evaluate((element) => {
@@ -1608,74 +1669,6 @@ test.describe("Hermetic issue route surfaces", () => {
         ).toBe(false);
       }
     }
-  });
-
-  test("wraps Backlog filters inside a 320px dark viewport", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 320, height: 844 });
-    await openExistingWorkspace(page);
-    await writeIndexedDbConfig(page, "theme", "dark");
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.evaluate(() => {
-      window.localStorage.setItem("reef.theme", "dark");
-    });
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
-    );
-    await expect(page.locator("html")).toHaveClass(/dark/);
-    await expect(page.getByTestId("backlog-table")).toBeVisible();
-
-    const filterBar = page.getByTestId("filter-bar");
-    await expect(filterBar).toHaveAttribute("role", "region");
-    await expect(page.getByTestId("severity-dropdown-trigger")).toBeVisible();
-    await expect(page.getByTestId("sort-control-trigger")).toBeVisible();
-
-    const geometry = await filterBar.evaluate((element) => {
-      const root = element as HTMLElement;
-      const rootRect = root.getBoundingClientRect();
-      const controlSelectors = [
-        '[data-testid="severity-dropdown-trigger"]',
-        '[data-testid="sort-control"]',
-      ];
-      const controls = controlSelectors.map((selector) => {
-        const control = root.querySelector<HTMLElement>(selector);
-        const rect = control?.getBoundingClientRect();
-        return {
-          right: rect?.right ?? Number.POSITIVE_INFINITY,
-          bottom: rect?.bottom ?? Number.NEGATIVE_INFINITY,
-          visible: Boolean(rect && rect.width > 0 && rect.height > 0),
-        };
-      });
-      const dataScrollport = document.querySelector<HTMLElement>(
-        '[data-testid="backlog-scroll-container"]',
-      );
-      return {
-        flexWrap: getComputedStyle(root).flexWrap,
-        filterOverflow: root.scrollWidth > root.clientWidth + 1,
-        documentOverflow:
-          document.documentElement.scrollWidth >
-          document.documentElement.clientWidth,
-        controlsContained: controls.every(
-          (control) =>
-            control.visible &&
-            control.right <= rootRect.right + 1 &&
-            control.right >= rootRect.left - 1 &&
-            control.bottom <= rootRect.bottom + 1,
-        ),
-        dataScrollportPreserved:
-          dataScrollport !== null &&
-          dataScrollport.getAttribute("role") === "region" &&
-          dataScrollport.tabIndex === 0 &&
-          dataScrollport.scrollWidth > dataScrollport.clientWidth,
-      };
-    });
-
-    expect(geometry.flexWrap).toBe("wrap");
-    expect(geometry.filterOverflow).toBe(false);
-    expect(geometry.documentOverflow).toBe(false);
-    expect(geometry.controlsContained).toBe(true);
-    expect(geometry.dataScrollportPreserved).toBe(true);
   });
 
   test("shows the direction tooltip on hover, focus, and after toggling", async ({
@@ -2560,7 +2553,7 @@ test.describe("Hermetic issue route surfaces", () => {
     ).toHaveValue(body);
   });
 
-  test("creates a sub-issue from Sub-issues with inherited defaults and optimistic child list update", async ({
+  test("creates a sub-issue from Sub-issues with inherited defaults and child list refresh after creation", async ({
     page,
     request,
   }) => {

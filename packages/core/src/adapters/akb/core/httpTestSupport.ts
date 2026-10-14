@@ -1,37 +1,5 @@
-import { afterEach, beforeEach, vi } from "vitest";
-import { createAkbAdapter } from "../index";
-
-// ── OTel passthrough (mirrors github.test.ts) ────────────────────────────────
-type SpanMock = {
-  setAttribute: ReturnType<typeof vi.fn>;
-  addEvent: ReturnType<typeof vi.fn>;
-  recordException: ReturnType<typeof vi.fn>;
-  setStatus: ReturnType<typeof vi.fn>;
-  end: ReturnType<typeof vi.fn>;
-};
-
-vi.mock("@opentelemetry/api", () => ({
-  SpanStatusCode: { ERROR: 2, OK: 1, UNSET: 0 },
-  trace: {
-    getTracer: () => ({
-      startActiveSpan: vi.fn(
-        async (
-          _name: string,
-          fn: (span: SpanMock) => Promise<unknown>,
-        ): Promise<unknown> => {
-          const span: SpanMock = {
-            setAttribute: vi.fn(),
-            addEvent: vi.fn(),
-            recordException: vi.fn(),
-            setStatus: vi.fn(),
-            end: vi.fn(),
-          };
-          return fn(span);
-        },
-      ),
-    }),
-  },
-}));
+import { vi } from "vitest";
+import { createAkbAdapter } from "./http";
 
 // ── fetch mocking helpers ────────────────────────────────────────────────────
 
@@ -53,6 +21,7 @@ export function sqlRequestBody(call: FetchCall | undefined): SqlRequestBody {
 export interface FetchResponseSpec {
   status?: number;
   body?: unknown;
+  error?: unknown;
   rawBody?: BodyInit;
   headers?: HeadersInit;
   /** Set true for a body-less response (e.g. 204). */
@@ -71,6 +40,7 @@ export function setupFetch(responses: FetchResponseSpec[]): {
     if (!next) {
       throw new Error(`No mocked response for ${url}`);
     }
+    if (next.error !== undefined) throw next.error;
     const status = next.status ?? 200;
     if (next.rawBody !== undefined) {
       return new Response(next.rawBody, {

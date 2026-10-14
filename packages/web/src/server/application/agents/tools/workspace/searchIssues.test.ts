@@ -8,10 +8,7 @@ import {
   makeTestAkbAdapter,
   setupFetch,
 } from "../__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../__test-helpers__/otelMock";
 import { createSearchIssuesTool } from "./searchIssues";
-
-mockOpenTelemetry();
 
 const makeAdapter = makeTestAkbAdapter;
 
@@ -101,6 +98,7 @@ describe("createSearchIssuesTool", () => {
       labels: null,
       limit: 20,
     });
+    expect(SearchIssuesOutputSchema.safeParse(result).success).toBe(true);
 
     expect(result.issues.map((i) => i.id)).toEqual(["REEF-001"]);
     expect(result.issues[0]?.matched_section).toContain("Fix the login flow");
@@ -335,24 +333,6 @@ describe("createSearchIssuesTool", () => {
       limit: 20,
     });
     expect(result.issues).toHaveLength(ISSUES.length);
-  });
-
-  it("output validates against SearchIssuesOutputSchema", async () => {
-    setupFetch(issuesResponse(ISSUES));
-    const tool = createSearchIssuesTool({
-      adapter: makeAdapter(),
-      vault: "reef-acme",
-    });
-
-    const result = await callTool(tool, {
-      query: "",
-      status: null,
-      assigned_to: null,
-      labels: null,
-      limit: 20,
-    });
-
-    expect(SearchIssuesOutputSchema.safeParse(result).success).toBe(true);
   });
 
   it("queries the reef_issues table via the SQL endpoint", async () => {

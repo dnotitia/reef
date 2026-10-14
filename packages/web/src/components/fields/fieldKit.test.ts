@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AVATAR_BRAND, STATUS_COLORS, STATUS_TEXT_COLORS } from "./fieldKit";
+import { STATUS_COLORS, STATUS_TEXT_COLORS } from "./fieldKit";
 
 describe("issue semantic field mappings", () => {
   it("keeps status glyph and label roles separate from planning tokens", () => {
@@ -28,9 +28,5 @@ describe("issue semantic field mappings", () => {
         (value) => !value.includes("planning"),
       ),
     ).toBe(true);
-  });
-
-  it("uses the brand fill/on-fill pair for the current-user avatar", () => {
-    expect(AVATAR_BRAND).toBe("bg-brand-fill text-brand-on-fill");
   });
 });

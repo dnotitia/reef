@@ -33,8 +33,15 @@ vi.mock("@/server/auth-v2/runtime", () => ({
 
 import { GET } from "./route";
 
+const beginAuthorization = vi.fn(async () => ({
+  location: "https://idp.test/authorize?state=opaque",
+  state: "opaque",
+  browserBinding: "A".repeat(43),
+}));
+
 describe("SSO start route", () => {
   beforeEach(() => {
+    beginAuthorization.mockClear();
     runtimeRef.current = {
       contract: {
         auth_mode: "sso",
@@ -54,29 +61,41 @@ describe("SSO start route", () => {
         ],
       },
       protocolFor: () => ({
-        beginAuthorization: vi.fn(async () => ({
-          location: "https://idp.test/authorize?state=opaque",
-          state: "opaque",
-          browserBinding: "A".repeat(43),
-        })),
+        beginAuthorization,
       }),
     };
   });
 
-  it("starts the selected provider with a safe redirect", async () => {
-    const response = await GET(
-      new Request(
-        "https://reef.test/api/auth/akb/sso/start?provider=workforce&redirect=%2Fissues",
-      ),
-    );
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe(
-      "https://idp.test/authorize?state=opaque",
-    );
-    expect(response.headers.get("set-cookie")).toContain(
-      "__reef_auth_v2_state=workforce.",
-    );
-  });
+  it.each(["explicit", "only available"])(
+    "starts the %s provider with the requested safe redirect",
+    async (selection) => {
+      if (!runtimeRef.current) throw new Error("runtime missing");
+      if (selection === "only available") {
+        runtimeRef.current.contract.providers =
+          runtimeRef.current.contract.providers.slice(0, 1);
+      }
+      const providerQuery =
+        selection === "explicit" ? "&provider=workforce" : "";
+      const response = await GET(
+        new Request(
+          `https://reef.test/api/auth/akb/sso/start?redirect=%2Fissues${providerQuery}`,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "https://idp.test/authorize?state=opaque",
+      );
+      expect(
+        response.headers
+          .getSetCookie()
+          .find((value) => value.startsWith("__reef_auth_v2_state="))
+          ?.split(";")[0],
+      ).toBe(`__reef_auth_v2_state=workforce.${"A".repeat(43)}`);
+      expect(beginAuthorization).toHaveBeenCalledWith(
+        expect.objectContaining({ redirectPath: "/issues" }),
+      );
+    },
+  );
 
   it("requires an explicit provider when several are available", async () => {
     const response = await GET(
@@ -85,17 +104,5 @@ describe("SSO start route", () => {
     expect(response.headers.get("location")).toBe(
       "/login?sso_error=provider_required",
     );
-  });
-
-  it("selects the only available provider without a provider query", async () => {
-    if (!runtimeRef.current) throw new Error("runtime missing");
-    runtimeRef.current.contract.providers =
-      runtimeRef.current.contract.providers.slice(0, 1);
-    const response = await GET(
-      new Request(
-        "https://reef.test/api/auth/akb/sso/start?redirect=%2Fissues",
-      ),
-    );
-    expect(response.status).toBe(302);
   });
 });

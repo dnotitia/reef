@@ -52,6 +52,7 @@ function vaultsResponse(
   vaults: Array<{
     name: string;
     installation_active: boolean | null;
+    role?: "owner" | "reader";
   }>,
 ) {
   return new Response(
@@ -60,7 +61,7 @@ function vaultsResponse(
         name: v.name,
         description: null,
         status: "active",
-        role: "owner",
+        role: v.role ?? "owner",
         created_at: null,
         installation_active: v.installation_active,
       })),
@@ -205,16 +206,27 @@ describe("ActiveWorkspaceSection", () => {
     expect(useViewStore.getState().createWorkspaceDialogOpen).toBe(true);
   });
 
-  it("shows the create entry point regardless of role and without gating", async () => {
-    // Creating a workspace makes a new vault — it is not an edit to the active
-    // one — so a read viewer should still reach it. The section takes no
-    // canEdit prop, so the button is consistently present and enabled (akb makes the
-    // final create-permission call) (REEF-147).
-    render(wrap(<ActiveWorkspaceSection />));
+  it.each(["owner", "reader"] as const)(
+    "shows the create entry point for %s without gating",
+    async (role) => {
+      mockApiFetch.mockResolvedValue(
+        vaultsResponse([
+          { name: "reef-acme", installation_active: true, role },
+        ]),
+      );
+      // Creating a workspace makes a new vault — it is not an edit to the active
+      // one — so a read viewer should still reach it. The section takes no
+      // canEdit prop, so the button is consistently present and enabled (akb makes the
+      // final create-permission call) (REEF-147).
+      render(wrap(<ActiveWorkspaceSection />));
 
-    const createButton = await screen.findByTestId("active-workspace-create");
-    expect(createButton).toBeEnabled();
-  });
+      await screen.findByTestId("active-vault-trigger");
+      const createButton = await screen.findByTestId("active-workspace-create");
+      expect(createButton).toBeEnabled();
+      fireEvent.click(createButton);
+      expect(useViewStore.getState().createWorkspaceDialogOpen).toBe(true);
+    },
+  );
 
   it("renders its heading at group weight, not the muted uppercase leaf style (REEF-174)", async () => {
     // The scope selector should not read smaller than the group it governs: it

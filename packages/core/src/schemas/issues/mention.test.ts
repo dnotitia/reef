@@ -91,8 +91,8 @@ describe("issue body mention projection", () => {
   it("does not project mentions in parser-owned markdown regions", () => {
     expect(
       buildResolvedMentionRecipients(
-        "`@bob` [@bob](https://example.test) mail bob@example.test\n\n@bob",
-        ["bob"],
+        "`@alice` [@charlie](https://example.test) mail sender+@dana.test\n\n@bob",
+        ["alice", "bob", "charlie", "dana"],
       ),
     ).toEqual(["bob"]);
   });

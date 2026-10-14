@@ -1,15 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthError, type AkbAdapter } from "@reef/core";
 
-const { listVaults, getMe, listInventory, readActive, readStatus } = vi.hoisted(
-  () => ({
-    listVaults: vi.fn(),
-    getMe: vi.fn(),
-    listInventory: vi.fn(),
-    readActive: vi.fn(),
-    readStatus: vi.fn(),
-  }),
-);
+const { listVaults, getMe, listInventory, readActive } = vi.hoisted(() => ({
+  listVaults: vi.fn(),
+  getMe: vi.fn(),
+  listInventory: vi.fn(),
+  readActive: vi.fn(),
+}));
 vi.mock("@reef/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@reef/core")>()),
   akbListVaults: listVaults,
@@ -18,7 +15,6 @@ vi.mock("@reef/core", async (importOriginal) => ({
 }));
 vi.mock("@/server/adapters/workspaceInstallation", () => ({
   readWorkspaceInstallationActive: readActive,
-  readWorkspaceInstallationStatus: readStatus,
 }));
 vi.mock("@/server/adapters/installationTarget", () => ({
   readInstallationTarget: () => ({
@@ -47,12 +43,6 @@ beforeEach(() => {
   readActive.mockImplementation(async ({ vault }) => {
     return vault.id === "active";
   });
-  readStatus.mockImplementation(async ({ vault }) => {
-    if (vault.id === "protected") throw denied();
-    return {
-      installation_status: vault.id === "active" ? "ready" : "not_installed",
-    };
-  });
 });
 
 describe("personal active workspace discovery", () => {
@@ -60,7 +50,6 @@ describe("personal active workspace discovery", () => {
     await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([
       "reef-test",
     ]);
-    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("filters all accessible vaults using one authoritative admin inventory read", async () => {
@@ -74,12 +63,12 @@ describe("personal active workspace discovery", () => {
     listInventory.mockResolvedValue(
       manyVaults.slice(0, 27).map((vault) => ({ vaultId: vault.id })),
     );
-    readStatus.mockResolvedValue({ installation_status: "ready" });
     const ready = await listActiveWorkspaces({ adapter });
-    expect(ready).toHaveLength(27);
+    expect(ready).toEqual(
+      Array.from({ length: 27 }, (_, index) => `vault-${index}`).sort(),
+    );
     expect(listInventory).toHaveBeenCalledTimes(1);
     expect(readActive).not.toHaveBeenCalled();
-    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("propagates a resource denial during ordinary discovery instead of returning partial work", async () => {
@@ -87,7 +76,6 @@ describe("personal active workspace discovery", () => {
     await expect(listActiveWorkspaces({ adapter })).rejects.toMatchObject({
       context: { status: 403, code: "permission_denied" },
     });
-    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("does not fall back to per-vault reads when admin inventory fails", async () => {
@@ -96,13 +84,11 @@ describe("personal active workspace discovery", () => {
     listInventory.mockRejectedValue(error);
     await expect(listActiveWorkspaces({ adapter })).rejects.toBe(error);
     expect(readActive).not.toHaveBeenCalled();
-    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it("skips unknown availability without inspecting workspace tables or initialization", async () => {
     readActive.mockResolvedValue(null);
     await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([]);
-    expect(readStatus).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -115,7 +101,6 @@ describe("personal active workspace discovery", () => {
     async ({ status, code }) => {
       const error = new AuthError({ origin: "akb", status, code });
       readActive.mockRejectedValue(error);
-      readStatus.mockRejectedValue(error);
       await expect(listActiveWorkspaces({ adapter })).rejects.toBe(error);
     },
   );

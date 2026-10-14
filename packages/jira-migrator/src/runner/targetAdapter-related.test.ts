@@ -1,13 +1,5 @@
-import {
-  AkbApiError,
-  type AkbReadIssueResult,
-  type AkbUpdateIssueResult,
-  ConflictError,
-  NotFoundError,
-  type Release,
-} from "@reef/core";
+import { type AkbReadIssueResult, NotFoundError } from "@reef/core";
 import { describe, expect, it, vi } from "vitest";
-import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraPlanningAction } from "../planning/entities.js";
 import { createAkbJiraMigrationTarget } from "./targetAdapter.js";
 

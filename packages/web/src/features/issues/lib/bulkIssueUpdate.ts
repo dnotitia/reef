@@ -48,12 +48,7 @@ export function buildBulkIssuePatch(
   switch (operation.kind) {
     case "status": {
       if (issue.status === operation.value) return null;
-      const patch = buildStatusPatch(
-        issue,
-        operation.value,
-        undefined,
-        operation.closedReason,
-      );
+      const patch = buildStatusPatch(operation.value, operation.closedReason);
       return operation.value === "backlog"
         ? { ...patch, sprint_id: null }
         : patch;

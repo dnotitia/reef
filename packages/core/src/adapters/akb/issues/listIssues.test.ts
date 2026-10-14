@@ -1,16 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import { IssueListQuerySchema } from "../../../schemas/issues/requests";
-import {
-  makeIssueQueryResponse,
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
+import { makeIssueQueryResponse } from "./issueFixtures";
 import { decodeCursor, encodeCursor } from "../core/shared";
 import { listIssueRelations, listIssues } from "./issues";
-
-mockOpenTelemetry();
 
 function capturedSql(calls: { init: RequestInit | undefined }[]): string {
   const body = calls[0]?.init?.body;
@@ -28,7 +22,7 @@ describe("listIssues → SQL", () => {
   it("issues a bare SELECT * with no WHERE/ORDER when unfiltered", async () => {
     const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     const res = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
     });
     expect(res.issues).toEqual([]);
@@ -43,7 +37,7 @@ describe("listIssues → SQL", () => {
       sort_order: "asc",
     });
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query,
     });
@@ -60,7 +54,7 @@ describe("listIssues → SQL", () => {
     const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     const query = IssueListQuerySchema.parse({ status: ["todo"] });
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query,
     });
@@ -71,7 +65,7 @@ describe("listIssues → SQL", () => {
   it("pushes the date-range predicate into the paginated server query", async () => {
     const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         date_range: {
@@ -97,7 +91,7 @@ describe("listIssues → SQL", () => {
   it("pushes a created-at timestamp range into an unpaginated server query", async () => {
     const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         date_range: {
@@ -121,7 +115,7 @@ describe("listIssues → SQL", () => {
   it("pushes a nullable date-only range into the paginated server query", async () => {
     const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         date_range: {
@@ -180,7 +174,7 @@ describe("listIssues pagination", () => {
 
     const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
     const firstPage = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         sort_field: "title",
@@ -208,7 +202,7 @@ describe("listIssues pagination", () => {
       { body: makeIssueQueryResponse(rows.slice(100)) },
     ]);
     const secondPage = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         sort_field: "title",
@@ -242,7 +236,7 @@ describe("listIssues pagination", () => {
       limit: 2,
     });
     const res = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query,
     });
@@ -258,7 +252,7 @@ describe("listIssues pagination", () => {
     ]);
     const query = IssueListQuerySchema.parse({ limit: 50 });
     const res = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query,
     });
@@ -279,7 +273,7 @@ describe("listIssues pagination", () => {
       cursor,
     });
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query,
     });
@@ -324,7 +318,7 @@ describe("listIssues pagination", () => {
 
       const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
       const firstPage = await listIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         query: IssueListQuerySchema.parse({
           sort_field: field,
@@ -346,7 +340,7 @@ describe("listIssues pagination", () => {
         { body: makeIssueQueryResponse(rows.slice(2)) },
       ]);
       const secondPage = await listIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         query: IssueListQuerySchema.parse({
           sort_field: field,
@@ -387,7 +381,7 @@ describe("listIssues pagination", () => {
     ];
     const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
     const firstPage = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({ limit: 1 }),
     });
@@ -399,7 +393,7 @@ describe("listIssues pagination", () => {
       { body: makeIssueQueryResponse(rows.slice(1)) },
     ]);
     const secondPage = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         limit: 1,
@@ -428,7 +422,7 @@ describe("listIssues pagination", () => {
     );
     const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         status: ["todo"],
@@ -474,7 +468,7 @@ describe("listIssues pagination", () => {
     ];
     const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
     const firstPage = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         sort_field: "reef_id",
@@ -500,7 +494,7 @@ describe("listIssues pagination", () => {
       { body: makeIssueQueryResponse(rows.slice(100)) },
     ]);
     const secondPage = await listIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       query: IssueListQuerySchema.parse({
         sort_field: "reef_id",
@@ -551,7 +545,7 @@ describe("listIssues pagination", () => {
 
       const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
       const firstPage = await listIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         query: IssueListQuerySchema.parse({
           sort_field: field,
@@ -572,7 +566,7 @@ describe("listIssues pagination", () => {
         { body: makeIssueQueryResponse(rows.slice(100)) },
       ]);
       const secondPage = await listIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         query: IssueListQuerySchema.parse({
           sort_field: field,
@@ -640,10 +634,7 @@ describe("listIssueRelations", () => {
         },
       },
     ]);
-    const relations = await listIssueRelations(
-      makeTestAkbAdapter(),
-      "reef-acme",
-    );
+    const relations = await listIssueRelations(makeAdapter(), "reef-acme");
     expect(capturedSql(calls)).toBe(
       `SELECT "reef_id", "status", "depends_on", "issue_type", "parent_id", "title", "rank" FROM reef_issues`,
     );
@@ -675,10 +666,7 @@ describe("listIssueRelations", () => {
         body: { error: 'relation "vt_reef-acme__reef_issues" does not exist' },
       },
     ]);
-    const relations = await listIssueRelations(
-      makeTestAkbAdapter(),
-      "reef-acme",
-    );
+    const relations = await listIssueRelations(makeAdapter(), "reef-acme");
     expect(relations).toEqual([]);
   });
 });

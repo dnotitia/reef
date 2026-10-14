@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateSuggestions } from "./enrichIssue";
+import { validateSuggestions } from "./enrichIssue/validation";
 import { baseContext } from "./enrichIssue.testSupport";
 
 describe("validateSuggestions", () => {
@@ -23,7 +23,7 @@ describe("validateSuggestions", () => {
       { context: baseContext },
     );
     expect(out).toHaveLength(1);
-    expect(out[0]?.field).toBe("priority");
+    expect(out[0]).toMatchObject({ field: "priority", value: "high" });
   });
 
   it("dedupes by field — first valid suggestion wins", () => {
@@ -45,10 +45,7 @@ describe("validateSuggestions", () => {
       { context: baseContext },
     );
     expect(out).toHaveLength(1);
-    expect(out[0]?.field).toBe("labels");
-    if (out[0]?.field === "labels") {
-      expect(out[0].value).toEqual(["one"]);
-    }
+    expect(out[0]).toMatchObject({ field: "labels", value: ["one"] });
   });
 
   it("filters depends_on to ids that exist in context", () => {
@@ -64,9 +61,7 @@ describe("validateSuggestions", () => {
       { context: baseContext },
     );
     expect(out).toHaveLength(1);
-    if (out[0]?.field === "depends_on") {
-      expect(out[0].value).toEqual(["REEF-002"]);
-    }
+    expect(out[0]).toMatchObject({ field: "depends_on", value: ["REEF-002"] });
   });
 
   it("drops depends_on entirely when no ids match", () => {
@@ -97,14 +92,18 @@ describe("validateSuggestions", () => {
       { context: baseContext },
     );
     expect(out).toHaveLength(1);
-    if (out[0]?.field === "blocks") {
-      expect(out[0].value).toEqual(["REEF-002"]);
-    }
+    expect(out[0]).toMatchObject({ field: "blocks", value: ["REEF-002"] });
   });
 
   it("grounds parent_id and related_to against known issues", () => {
     const out = validateSuggestions(
       [
+        {
+          field: "parent_id",
+          value: "REEF-999",
+          reasoning: "Hallucinated parent.",
+          confidence: 0.8,
+        },
         {
           field: "parent_id",
           value: "REEF-002",
@@ -117,20 +116,12 @@ describe("validateSuggestions", () => {
           reasoning: "Only one relation is present in context.",
           confidence: 0.8,
         },
-        {
-          field: "parent_id",
-          value: "REEF-999",
-          reasoning: "Hallucinated duplicate parent.",
-          confidence: 0.8,
-        },
       ],
       { context: baseContext },
     );
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({ field: "parent_id", value: "REEF-002" });
-    if (out[1]?.field === "related_to") {
-      expect(out[1].value).toEqual(["REEF-002"]);
-    }
+    expect(out[1]).toMatchObject({ field: "related_to", value: ["REEF-002"] });
   });
 
   it("drops start_date and due_date suggestions that are not valid dates", () => {
@@ -167,13 +158,10 @@ describe("validateSuggestions", () => {
       { context: baseContext },
     );
     expect(out).toHaveLength(1);
-    if (out[0]?.field === "labels") {
-      expect(out[0].value).toEqual([
-        "bug",
-        "totally-made-up-label",
-        "enhancement",
-      ]);
-    }
+    expect(out[0]).toMatchObject({
+      field: "labels",
+      value: ["bug", "totally-made-up-label", "enhancement"],
+    });
   });
 
   it("drops the labels suggestion entirely when all labels are blank", () => {
@@ -204,9 +192,10 @@ describe("validateSuggestions", () => {
       { context: baseContext },
     );
     expect(out).toHaveLength(1);
-    if (out[0]?.field === "labels") {
-      expect(out[0].value).toEqual(["one", "two", "three", "four", "five"]);
-    }
+    expect(out[0]).toMatchObject({
+      field: "labels",
+      value: ["one", "two", "three", "four", "five"],
+    });
   });
 
   it("filters planning IDs to those in the planning catalog", () => {

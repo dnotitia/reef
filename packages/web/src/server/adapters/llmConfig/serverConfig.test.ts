@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ServerLlmConfigError,
-  createServerLlmAdapter,
   getRequiredServerLlmConfig,
   resolveServerLlmConfig,
 } from "./serverConfig";
@@ -50,8 +49,13 @@ describe("server LLM config", () => {
       { REEF_LLM_API_KEY: "fixture" },
       { REEF_LLM_BASE_URL: "https://llm.example.test/v1" },
       { REEF_LLM_MODEL: "model-a" },
+      { REEF_LLM_API_KEY: "fixture", REEF_LLM_MODEL: "model-a" },
       {
         REEF_LLM_API_KEY: "fixture",
+        REEF_LLM_BASE_URL: "https://llm.example.test/v1",
+      },
+      {
+        REEF_LLM_BASE_URL: "https://llm.example.test/v1",
         REEF_LLM_MODEL: "model-a",
       },
     ]) {
@@ -74,13 +78,6 @@ describe("server LLM config", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected invalid config");
     expect(result.issues).toContain("base_url must use http or https");
-  });
-
-  it("creates the common request policy without provider knowledge", () => {
-    const config = getRequiredServerLlmConfig(enabledEnv);
-    const adapter = createServerLlmAdapter(config);
-
-    expect(adapter.maxRetries).toBe(0);
   });
 
   it("throws when a caller requires a disabled LLM capability", () => {

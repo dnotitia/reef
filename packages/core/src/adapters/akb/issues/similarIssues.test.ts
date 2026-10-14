@@ -1,18 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SchemaValidationError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import {
-  makeIssueQueryResponse,
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
+import { makeIssueQueryResponse } from "./issueFixtures";
 import {
   DEFAULT_SIMILAR_ISSUE_MIN_SCORE,
   searchSimilarIssues,
 } from "./similarIssues";
-
-mockOpenTelemetry();
 
 function makeIssue(overrides: Partial<IssueMetadata>): IssueMetadata {
   return {
@@ -75,7 +69,7 @@ describe("searchSimilarIssues", () => {
     ]);
 
     const result = await searchSimilarIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-acme",
       title: "duplicate draft warning",
     });
@@ -114,7 +108,7 @@ describe("searchSimilarIssues", () => {
 
     await expect(
       searchSimilarIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         title: "duplicate draft warning",
       }),
@@ -126,7 +120,7 @@ describe("searchSimilarIssues", () => {
 
     await expect(
       searchSimilarIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         title: "ab",
       }),
@@ -139,7 +133,7 @@ describe("searchSimilarIssues", () => {
 
     await expect(
       searchSimilarIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: "reef-acme",
         title: "a\0",
       }),

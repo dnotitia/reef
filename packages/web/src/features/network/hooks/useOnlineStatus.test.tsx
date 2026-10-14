@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOnlineStatus } from "./useOnlineStatus";
 
 function setOnLine(value: boolean) {
@@ -47,14 +47,21 @@ describe("useOnlineStatus", () => {
   });
 
   it("detaches its window listeners on unmount", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
     const { unmount } = renderHook(() => useOnlineStatus());
+    const subscriptions = add.mock.calls.filter(
+      ([name]) => name === "online" || name === "offline",
+    );
+    expect(subscriptions.map(([name]) => name).sort()).toEqual([
+      "offline",
+      "online",
+    ]);
     unmount();
-    // After unmount, dispatching events should not throw and (since no state
-    // change can happen) leaves React state alone. Implicit assertion: no
-    // "update on unmounted component" warning is emitted by React.
-    expect(() => {
-      setOnLine(false);
-      window.dispatchEvent(new Event("offline"));
-    }).not.toThrow();
+    for (const [name, listener] of subscriptions) {
+      expect(remove).toHaveBeenCalledWith(name, listener);
+    }
+    add.mockRestore();
+    remove.mockRestore();
   });
 });

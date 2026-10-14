@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -86,7 +87,6 @@ const state = {
   mutationLog: [],
   issues: new Map(),
   relations: new Map(),
-  externalRefs: new Map(),
 };
 const targetStateSha256 = () =>
   createHash("sha256")
@@ -96,9 +96,6 @@ const targetStateSha256 = () =>
           left.localeCompare(right),
         ),
         relations: [...state.relations].sort(([left], [right]) =>
-          left.localeCompare(right),
-        ),
-        externalRefs: [...state.externalRefs].sort(([left], [right]) =>
           left.localeCompare(right),
         ),
         mutationLog: state.mutationLog,
@@ -232,6 +229,108 @@ const sqlNullableStringValue = (statement, column) => {
   );
   if (!match) return undefined;
   return match[1] === "NULL" ? null : (match[2]?.replaceAll("''", "'") ?? "");
+};
+const issueInsertFields = (entry) => {
+  const match = /INSERT INTO reef_issues \(([^)]+)\) SELECT (.+?) FROM\b/u.exec(
+    entry.body?.sql ?? "",
+  );
+  if (!match) return null;
+  const columns = match[1]
+    .split(/\s*,\s*/u)
+    .map((column) => column.replaceAll('"', ""));
+  const values = match[2].split(/\s*,\s*/u);
+  return Object.fromEntries(
+    columns.map((column, index) => {
+      const parameter = /^\$(\d+)(?:::json)?$/u.exec(values[index]);
+      return [
+        column,
+        parameter ? entry.body.params[Number(parameter[1]) - 1] : null,
+      ];
+    }),
+  );
+};
+const issueWireProjection = (fields) => ({
+  title: fields.title,
+  status: fields.status,
+  issue_type: fields.issue_type,
+  labels: fields.labels === null ? null : JSON.parse(fields.labels),
+  owner:
+    fields.meta === null
+      ? null
+      : JSON.parse(fields.meta).custom_fields?.jira_migration?.owner,
+});
+const assertIssueWireValues = () => {
+  const expectedIssues = [
+    {
+      id: "REEF-1",
+      title: "ALPHA migration contract",
+      status: "in_progress",
+      issue_type: "task",
+      labels: ["contract"],
+      owner: {
+        jira_cloud_id: "cloud-contract",
+        project_key: "ALPHA",
+        issue_id: "10001",
+        issue_key: "ALPHA-1",
+      },
+    },
+    {
+      id: "REEF-2",
+      title: "BETA migration contract",
+      status: "in_progress",
+      issue_type: "task",
+      labels: ["contract"],
+      owner: {
+        jira_cloud_id: "cloud-contract",
+        project_key: "BETA",
+        issue_id: "20001",
+        issue_key: "BETA-2",
+      },
+    },
+  ];
+  for (const { id, ...expected } of expectedIssues) {
+    const insert = state.akbRequests
+      .map(issueInsertFields)
+      .find((fields) => fields?.reef_id === id);
+    assert.ok(insert, `issue INSERT missing: ${id}`);
+    assert.deepEqual(
+      issueWireProjection(insert),
+      expected,
+      `issue INSERT projection: ${id}`,
+    );
+    const updates = state.akbRequests.filter(
+      (entry) =>
+        /^(?:UPDATE reef_issues|WITH upd AS \(UPDATE reef_issues)/u.test(
+          entry.sql ?? "",
+        ) && /"?reef_id"? = '(REEF-\d+)'/u.exec(entry.sql)?.[1] === id,
+    );
+    assert.ok(updates.length > 0, `issue UPDATE missing: ${id}`);
+    for (const { sql } of updates) {
+      assert.deepEqual(
+        issueWireProjection(
+          Object.fromEntries(
+            ["title", "status", "issue_type", "labels", "meta"].map(
+              (column) => [column, sqlStringValue(sql, column)],
+            ),
+          ),
+        ),
+        expected,
+        `issue UPDATE projection: ${id}`,
+      );
+    }
+    const document = state.akbRequests.find(
+      (entry) =>
+        entry.method === "POST" &&
+        entry.path === "/akb/api/v1/documents" &&
+        entry.body?.title === id,
+    )?.body;
+    assert.ok(document, `issue document POST missing: ${id}`);
+    assert.deepEqual(
+      { title: document.title, summary: document.summary, tags: document.tags },
+      { title: id, summary: expected.title, tags: ["contract"] },
+      `issue document projection: ${id}`,
+    );
+  }
 };
 const applyIssueSqlUpdate = (statement, id) => {
   const current = state.issues.get(id) ?? {
@@ -406,7 +505,10 @@ const server = createServer(async (request, response) => {
   ) {
     const { sql, params } = await readBody(request);
     const statement = renderSqlParams(sql, params);
-    state.akbRequests.at(-1).sql = statement;
+    Object.assign(state.akbRequests.at(-1), {
+      sql: statement,
+      body: { sql, params },
+    });
     if (statement.includes("FROM reef_settings")) {
       return respond(
         response,
@@ -520,6 +622,7 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname === "/akb/api/v1/documents" && request.method === "POST") {
     const body = await readBody(request);
+    state.akbRequests.at(-1).body = body;
     const id = body.title;
     const current = state.issues.get(id);
     if (!current) return respond(response, { error: "row_missing" }, 404);
@@ -565,89 +668,6 @@ const server = createServer(async (request, response) => {
       tags: stored.issue.labels ?? [],
       content: stored.content,
     });
-  }
-  if (url.pathname === "/akb/preflight")
-    return respond(response, {
-      actor: "contract-operator",
-      vault: "reef-contract",
-      planning: { releases: [], sprints: [], milestones: [] },
-    });
-  if (url.pathname === "/akb/reserve") {
-    const { count } = await readBody(request);
-    return respond(
-      response,
-      Array.from(
-        { length: count },
-        (_, index) => `REEF-${String(index + 1).padStart(3, "0")}`,
-      ),
-    );
-  }
-  if (url.pathname === "/akb/issues" && request.method === "POST") {
-    const body = await readBody(request);
-    state.mutationLog.push(`issue:${body.action}:${body.issue.id}`);
-    state.issues.set(body.issue.id, {
-      issue: body.issue,
-      content: body.content,
-    });
-    return respond(response, {
-      reefId: body.issue.id,
-      documentUri: `akb://reef-contract/coll/issues/doc/${body.issue.id.toLowerCase()}.md`,
-      commitHash: `commit-${body.issue.id}`,
-    });
-  }
-  if (url.pathname.startsWith("/akb/issues/")) {
-    const id = decodeURIComponent(url.pathname.slice("/akb/issues/".length));
-    const stored = state.issues.get(id);
-    if (!stored) return respond(response, { error: "not_found" }, 404);
-    return respond(response, {
-      issue: stored?.issue,
-      content: stored?.content ?? "",
-      commit_hash: `commit-${id}`,
-    });
-  }
-  if (url.pathname === "/akb/relations" && request.method === "PUT") {
-    const body = await readBody(request);
-    state.mutationLog.push(`relation:${body.idempotencyKey}`);
-    state.relations.set(body.idempotencyKey, {
-      sourceReefId: body.sourceReefId,
-      targetReefId: body.targetReefId,
-      relation: body.relation,
-      inverseRelation: body.inverseRelation,
-    });
-    return respond(response, { ok: true });
-  }
-  if (url.pathname.startsWith("/akb/relations/")) {
-    const key = decodeURIComponent(
-      url.pathname.slice("/akb/relations/".length),
-    );
-    if (request.method === "DELETE") {
-      state.relations.delete(key);
-      return respond(response, { ok: true });
-    }
-    return respond(response, state.relations.get(key) ?? null);
-  }
-  if (url.pathname === "/akb/external-refs" && request.method === "GET") {
-    const prefix = url.searchParams.get("prefix") ?? "";
-    return respond(
-      response,
-      [...state.externalRefs.keys()].filter((key) => key.startsWith(prefix)),
-    );
-  }
-  if (url.pathname.startsWith("/akb/external-refs/")) {
-    const key = decodeURIComponent(
-      url.pathname.slice("/akb/external-refs/".length),
-    );
-    return respond(response, state.externalRefs.get(key) ?? null);
-  }
-  if (url.pathname === "/akb/external-refs" && request.method === "PUT") {
-    const body = await readBody(request);
-    state.mutationLog.push(`external-ref:${body.idempotencyKey}`);
-    state.externalRefs.set(body.idempotencyKey, {
-      reefId: body.reefId,
-      ref: body.ref,
-      provenance: body.provenance,
-    });
-    return respond(response, { ok: true });
   }
   return respond(response, { error: "not_found" }, 404);
 });
@@ -773,6 +793,7 @@ try {
   const beforeRerun = state.mutationLog.length;
   const rerun = await run(applyConfig);
   if (rerun.code !== 0 || !rerun.result?.ok) throw new Error("rerun_failed");
+  assertIssueWireValues();
   const reportBytes = await readFile(baseConfig.artifacts.reportPath);
   const reportJson = JSON.parse(reportBytes);
   const commentContract = dry.result.comment_contract;
@@ -792,6 +813,7 @@ try {
     ),
     comment_mentions: commentContract,
     projects: ["ALPHA", "BETA"],
+    issue_wire_values_verified: true,
     before,
     dry_run: {
       ...afterDry,

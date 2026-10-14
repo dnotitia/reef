@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the theme hook so each test can drive React state directly.
@@ -50,13 +51,18 @@ describe("PreferencesSection", () => {
     await waitFor(() => expect(setThemeMock).toHaveBeenCalledWith("dark"));
   });
 
-  it("supports keyboard activation (Enter / Space)", async () => {
-    render(<PreferencesSection />);
-    const light = screen.getByTestId("theme-option-light");
-    light.focus();
-    fireEvent.click(light); // jsdom's default button activation behavior
-    await waitFor(() => expect(setThemeMock).toHaveBeenCalledWith("light"));
-  });
+  it.each(["{Enter}", " "])(
+    "supports keyboard activation with %j",
+    async (key) => {
+      render(<PreferencesSection />);
+      const light = screen.getByTestId("theme-option-light");
+      const user = userEvent.setup();
+      await user.tab();
+      expect(light).toHaveFocus();
+      await user.keyboard(key);
+      await waitFor(() => expect(setThemeMock).toHaveBeenCalledWith("light"));
+    },
+  );
 
   it("renders a single Appearance heading at level 3 (REEF-151)", () => {
     render(<PreferencesSection />);

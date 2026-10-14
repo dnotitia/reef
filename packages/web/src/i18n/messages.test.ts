@@ -76,17 +76,14 @@ describe("loadMessages", () => {
     expect(ko.fields.planning.releaseStatus.released).toBe("릴리스됨");
   });
 
-  it("a key absent from ko falls back to the en value", () => {
-    const ko = loadMessages("ko") as Record<string, unknown>;
-    // Synthesize a base-locale key and confirm the merge would retain it: each
-    // en key is present in the merged ko output (no holes reach the provider).
-    const merged = deepMerge(
-      { ...en, baseOnly: "english-only" },
-      { settings: { preferences: { language: { heading: "언어" } } } },
-    ) as Record<string, unknown>;
-    expect(merged.baseOnly).toBe("english-only");
-    // And the real ko catalog carries the full en structure (no missing nodes).
-    expect(Object.keys(ko)).toEqual(expect.arrayContaining(Object.keys(en)));
+  it("resolves every en leaf in the merged ko catalog", () => {
+    const base = loadMessages("en") as CatalogNode;
+    const localized = loadMessages("ko") as CatalogNode;
+    for (const keyPath of leafKeyPaths(base)) {
+      expect(leafValue(localized, keyPath), keyPath).toEqual(
+        expect.any(String),
+      );
+    }
   });
 
   it("keeps global search result groups aligned across locales", () => {

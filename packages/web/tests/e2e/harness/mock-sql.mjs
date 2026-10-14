@@ -272,7 +272,7 @@ export function handlePersonalNotificationsSql(
     compareStrings(left.workspace, right.workspace) ||
     compareStrings(right.id, left.id);
   rows.sort(compareNotifications);
-  const limit = Number(sql.match(/state_rank\s*<=\s*(\d+)/i)?.[1] ?? 100);
+  const limit = Number(sql.match(/state_rank\s*<=\s*(\d+)/i)?.[1] ?? Infinity);
   const rankedCounts = new Map();
   const visible = rows.filter((notification) => {
     const count = rankedCounts.get(notification.state) ?? 0;
@@ -875,7 +875,7 @@ export function handleSql(state, vault, sql, username) {
       /body\s+ilike\s+'((?:''|[^'])+)'/i,
     );
     const literal = decodeEscapedLikePattern(pattern ?? "");
-    const limit = Number(normalized.match(/\blimit\s+(\d+)/i)?.[1] ?? 10);
+    const limit = Number(normalized.match(/\blimit\s+(\d+)\s*$/i)?.[1] ?? 10);
     const matching = vault.comments
       .filter((comment) =>
         comment.body.toLowerCase().includes(literal.toLowerCase()),
@@ -893,12 +893,37 @@ export function handleSql(state, vault, sql, username) {
       seenIssues.add(comment.reef_id);
       latestPerIssue.push(comment);
     }
-    const rows = latestPerIssue.slice(0, limit).map((comment) => ({
-      id: comment.id,
-      reef_id: comment.reef_id,
-      body: comment.body,
-      created_at: comment.meta?.created_at ?? null,
-    }));
+    // Only the supported ranked query selects one comment per issue before
+    // LIMIT. A flat query returns raw rows, as PostgreSQL would.
+    const ranked =
+      /row_number\(\)\s+over\s*\(\s*partition by reef_id\s+order by meta->>'created_at' desc, id asc\s*\) as issue_rank/i.test(
+        normalized,
+      ) && /where issue_rank\s*=\s*1/i.test(normalized);
+    if (ranked) {
+      // Query literals can contain "LIMIT" without being a SQL clause. The
+      // supported ranked statement only limits after its outer rank/order.
+      const shape = normalized.replace(/'(?:''|[^'])*'/g, "''");
+      const outerLimit = shape.match(
+        /where issue_rank\s*=\s*1\s+order by created_at desc,\s*id asc\s+(limit\s+\d+)\s*$/i,
+      );
+      const firstLimit = shape.match(/\blimit\s+\d+/i);
+      if (
+        !outerLimit ||
+        !firstLimit ||
+        firstLimit.index !==
+          (outerLimit.index ?? 0) + outerLimit[0].lastIndexOf(outerLimit[1])
+      ) {
+        return unsupportedSql();
+      }
+    }
+    const rows = (ranked ? latestPerIssue : matching)
+      .slice(0, limit)
+      .map((comment) => ({
+        id: comment.id,
+        reef_id: comment.reef_id,
+        body: comment.body,
+        created_at: comment.meta?.created_at ?? null,
+      }));
     return tableQuery(["id", "reef_id", "body", "created_at"], rows);
   }
   if (lower.startsWith("select * from reef_comments")) {

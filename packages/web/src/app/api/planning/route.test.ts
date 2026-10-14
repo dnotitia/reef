@@ -32,9 +32,8 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { AuthError, ConflictError, SchemaValidationError } from "@reef/core";
-import { VALID_JWT } from "../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../__test-helpers__/jwt";
 import { GET } from "./route";
 import {
   DELETE as DELETE_SPRINT,
@@ -51,13 +50,6 @@ const SPRINT = {
   goal: "Stabilize onboarding",
   capacity_points: 40,
 };
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 const params = (id: string) =>
   ({ params: Promise.resolve({ id }) }) as { params: Promise<{ id: string }> };

@@ -244,15 +244,6 @@ describe("MultiSelectCombobox", () => {
     );
   });
 
-  it("renders each option's data-testid from the shared option field", async () => {
-    const user = userEvent.setup();
-    render(<Harness />);
-
-    await user.click(screen.getByTestId("fruit-trigger"));
-    expect(screen.getByTestId("opt-apple")).toBeTruthy();
-    expect(screen.getByTestId("opt-cherry")).toBeTruthy();
-  });
-
   it("keeps the selection summary in the trigger's accessible name (no static aria-label) — AC3", async () => {
     const user = userEvent.setup();
     render(<Harness />);

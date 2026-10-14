@@ -1,6 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createQueryWrapper } from "@/test-support/query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -29,17 +29,6 @@ const VAULTS: EnrichedVaultSummary[] = [
   },
 ];
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useVaults", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,7 +40,7 @@ describe("useVaults", () => {
     );
 
     const { result } = renderHook(() => useVaults(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -67,7 +56,7 @@ describe("useVaults", () => {
     );
 
     const { result } = renderHook(() => useVaults(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -81,7 +70,7 @@ describe("useVaults", () => {
     );
 
     const { result } = renderHook(() => useVaults(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -107,7 +96,7 @@ describe("useVaults", () => {
     );
 
     const { result } = renderHook(() => useVaults(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));

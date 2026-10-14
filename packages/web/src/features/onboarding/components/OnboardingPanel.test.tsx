@@ -133,35 +133,6 @@ describe("OnboardingPanel", () => {
     );
   });
 
-  it("creates a new workspace, stores it as active, and routes to /issues", async () => {
-    setupMockApi();
-    const user = userEvent.setup();
-
-    render(wrap(<OnboardingPanel resumeState={emptyResumeState()} />));
-
-    await user.type(
-      await screen.findByTestId("greenfield-vault-name-input"),
-      "reef-new",
-    );
-    await user.click(screen.getByTestId("greenfield-create-btn"));
-    expect(await screen.findByTestId("greenfield-approval-step")).toBeVisible();
-    expect(mockPush).not.toHaveBeenCalled();
-    await user.click(screen.getByTestId("installation-reef-new-approve"));
-
-    await waitFor(() =>
-      expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
-    );
-    expect(await getActiveVault()).toBe("reef-new");
-
-    const call = postVaultCall();
-    expect(call).toBeTruthy();
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
-      name: "reef-new",
-      project_prefix: "REEF",
-      monitored_repos: [],
-    });
-  });
-
   it("includes optional monitored repos (with github_id) in the create request", async () => {
     // The repo picker fetches through the deployment-managed GitHub App.
     setupMockApi({

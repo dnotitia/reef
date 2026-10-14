@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/auth-v2/redisRuntime", () => ({
   connectAuthV2Redis: vi.fn(async () => ({
@@ -13,8 +13,11 @@ vi.mock("@/server/auth-v2/readiness", () => ({
 }));
 
 import { GET } from "./route";
+import { connectAuthV2Redis } from "@/server/auth-v2/redisRuntime";
+import { checkAuthV2Readiness } from "@/server/auth-v2/readiness";
 
 describe("GET /api/readyz", () => {
+  beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.unstubAllEnvs());
 
   it("reports local mode ready without Redis", async () => {
@@ -26,6 +29,8 @@ describe("GET /api/readyz", () => {
       status: "ok",
       auth_mode: "local",
     });
+    expect(connectAuthV2Redis).not.toHaveBeenCalled();
+    expect(checkAuthV2Readiness).not.toHaveBeenCalled();
   });
 
   it("reports SSO readiness without exposing configuration or secrets", async () => {

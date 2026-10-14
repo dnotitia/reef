@@ -26,14 +26,9 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { AkbApiError, AuthError, type VaultSkillStatus } from "@reef/core";
-import { VALID_JWT } from "../../../__test-helpers__/jwt";
+import { authedHeaders } from "../../../__test-helpers__/jwt";
 import { GET, POST } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 function ctx(vault: string) {
   return { params: Promise.resolve({ vault }) };
@@ -184,11 +179,8 @@ describe("POST /api/vaults/[vault]/skill", () => {
     expect(mockAkbInstallReefVaultSkill).not.toHaveBeenCalled();
   });
 
-  it("surfaces a reader's upstream rejection as an auth failure and skips the post-install read", async () => {
-    // The guard read succeeds (vault not newer), then the installer's write is
-    // rejected for a reader. The adapter folds akb 401/403 into one AuthError,
-    // so the route returns a 401-class response, not a distinct 403. The UI's
-    // canWrite gate is what actually keeps readers off this path.
+  it("translates an untyped installation AuthError to 401 and skips the post-install read", async () => {
+    // The guard read succeeds, then installation fails without an AKB origin/status.
     mockAkbGetVaultSkillStatus.mockResolvedValueOnce(OUTDATED_STATUS);
     mockAkbInstallReefVaultSkill.mockRejectedValueOnce(
       new AuthError({ message: "Requires 'writer' role" }),

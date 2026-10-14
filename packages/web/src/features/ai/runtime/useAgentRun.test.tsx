@@ -111,6 +111,10 @@ describe("useAgentRun", () => {
 
     expect(result.current.state.phase).toBe("completed");
     expect(fetch).toHaveBeenCalledTimes(2);
+    const [url, init] = fetch.mock.calls[1] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/agents/runs");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual(REQUEST);
   });
 
   it("aborts the active request when cancelled", async () => {

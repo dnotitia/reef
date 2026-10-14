@@ -326,19 +326,58 @@ describe("TimelineBody", () => {
     expect(planningAttempts).toBe(2);
   });
 
-  it("recomputes the quarter overlay without requesting the catalog again", async () => {
+  it("recomputes visible planning overlays on quarter navigation without fetching the catalog again", async () => {
+    const catalog: PlanningCatalog = {
+      ...planningCatalog,
+      milestones: [
+        ...planningCatalog.milestones,
+        {
+          id: "00000000-0000-4000-8000-000000000004",
+          name: "Q3 milestone",
+          status: "open",
+          target_date: "2026-07-15",
+          description: "",
+        },
+      ],
+    };
+    mockApiFetch.mockImplementation(async (url) => {
+      const path = String(url);
+      if (path.startsWith("/api/planning")) return Response.json(catalog);
+      if (path.startsWith("/api/vault-members"))
+        return Response.json({ users: [] });
+      if (path.startsWith("/api/issues/relations"))
+        return Response.json({ relations: [] });
+      return Response.json({ issues });
+    });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(wrap(<TimelineBody vault="reef-acme" />));
-
     await screen.findByTestId("timeline-planning-marker-count-2026-06-15");
+    expect(
+      screen.getByText("Q2 2026", { selector: "span" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("timeline-planning-marker-stack-2026-07-15"),
+    ).toBeNull();
     const planningRequests = () =>
-      mockApiFetch.mock.calls.filter((call) =>
-        String(call[0]).startsWith("/api/planning"),
+      mockApiFetch.mock.calls.filter(([url]) =>
+        String(url).startsWith("/api/planning"),
       ).length;
     expect(planningRequests()).toBe(1);
-
     await user.click(screen.getByRole("button", { name: /next quarter/i }));
-
+    expect(
+      screen.getByText("Q3 2026", { selector: "span" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("timeline-planning-marker-stack-2026-06-15"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId(
+        "timeline-planning-sprint-00000000-0000-4000-8000-000000000001",
+      ),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("timeline-planning-marker-stack-2026-07-15"),
+    ).toHaveAttribute("aria-label", expect.stringContaining("Q3 milestone"));
     expect(planningRequests()).toBe(1);
   });
 

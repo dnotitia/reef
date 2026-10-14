@@ -144,16 +144,18 @@ describe("EnrichmentRequestSchema", () => {
   });
 
   it("requires issueId, vault, and draft", () => {
-    expect(EnrichmentRequestSchema.safeParse({}).success).toBe(false);
-    expect(
-      EnrichmentRequestSchema.safeParse({ issueId: "REEF-001" }).success,
-    ).toBe(false);
-    expect(
-      EnrichmentRequestSchema.safeParse({
-        issueId: "REEF-001",
-        vault: "reef-acme",
-      }).success,
-    ).toBe(false);
+    const request = {
+      issueId: "REEF-001",
+      vault: "reef-acme",
+      draft: { fields: { title: "Fix login" }, content: "" },
+    };
+    expect(EnrichmentRequestSchema.safeParse(request).success).toBe(true);
+    for (const field of ["issueId", "vault", "draft"] as const) {
+      const { [field]: _omitted, ...incomplete } = request;
+      expect(EnrichmentRequestSchema.safeParse(incomplete).success, field).toBe(
+        false,
+      );
+    }
   });
 
   it("rejects malformed vault ids", () => {

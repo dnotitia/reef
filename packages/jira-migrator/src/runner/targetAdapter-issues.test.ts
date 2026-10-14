@@ -1,8 +1,6 @@
 import {
-  AkbApiError,
   type AkbReadIssueResult,
   type AkbUpdateIssueResult,
-  ConflictError,
   NotFoundError,
   type Release,
 } from "@reef/core";
@@ -10,29 +8,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraPlanningAction } from "../planning/entities.js";
 import { createAkbJiraMigrationTarget } from "./targetAdapter.js";
-
-const sidecarForTest = (issue: AkbReadIssueResult["issue"]) => {
-  const customFields =
-    issue.custom_fields &&
-    typeof issue.custom_fields === "object" &&
-    !Array.isArray(issue.custom_fields)
-      ? (issue.custom_fields as Record<string, unknown>)
-      : {};
-  const migration =
-    customFields.jira_migration &&
-    typeof customFields.jira_migration === "object" &&
-    !Array.isArray(customFields.jira_migration)
-      ? (customFields.jira_migration as Record<string, unknown>)
-      : {};
-  return {
-    relations: Array.isArray(migration.relations)
-      ? (migration.relations as Array<{ idempotencyKey: string }>)
-      : [],
-    externalRefs: Array.isArray(migration.external_refs)
-      ? (migration.external_refs as Array<{ idempotencyKey: string }>)
-      : [],
-  };
-};
 
 const releaseAction: JiraPlanningAction = {
   classification: "create",

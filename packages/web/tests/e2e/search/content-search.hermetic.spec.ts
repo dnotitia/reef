@@ -9,6 +9,26 @@ import {
 const inputSelector = '[data-testid="global-search-input"]';
 const contentItemSelector = '[data-testid="global-search-content-item"]';
 
+async function settleContentSearch(
+  page: import("@playwright/test").Page,
+  query: string,
+  expectedStatus = 200,
+) {
+  const response = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === "/api/issues/search-content" &&
+      url.searchParams.get("q") === query
+    );
+  });
+  await page.locator(inputSelector).fill(query);
+  const result = await response;
+  expect(result.status()).toBe(expectedStatus);
+  const body = await result.json();
+  await expect(page.getByRole("listbox")).toHaveAttribute("aria-busy", "false");
+  return body;
+}
+
 test.describe("Global body and comment search (REEF-347)", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -198,10 +218,17 @@ test.describe("Global body and comment search (REEF-347)", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.keyboard.press("Control+K");
-    await page.locator(inputSelector).fill("REEF-001");
+    const content = await settleContentSearch(page, "REEF-001");
+    expect(content.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reef_id: "REEF-001", source: "body" }),
+      ]),
+    );
 
     const metadata = page.locator('[data-testid="global-search-item"]');
+    await expect(metadata).toHaveCount(2);
     await expect(metadata.first()).toHaveAttribute("data-issue-id", "REEF-001");
+    await expect(metadata.nth(1)).toHaveAttribute("data-issue-id", "REEF-199");
     await expect(
       page.locator(`${contentItemSelector}[data-issue-id="REEF-001"]`),
     ).toHaveCount(0);
@@ -224,35 +251,94 @@ test.describe("Global body and comment search (REEF-347)", () => {
 
   test("guards rapid query changes and includes content in the teal busy state", async ({
     page,
-    request,
   }) => {
     await openExistingWorkspace(page);
-    await setContentSearchMode(request, "healthy", 700);
     await page.keyboard.press("Control+K");
+    // UI-only delivery control: real Reef routes and upstream payloads run.
+    const releases = new Map<string, () => Promise<void>>();
+    await page.route(
+      (url) => url.pathname === "/api/issues/search-content",
+      async (route) => {
+        const response = await route.fetch();
+        const query =
+          new URL(route.request().url()).searchParams.get("q") ?? "";
+        await new Promise<void>((resolve) =>
+          releases.set(query, async () => {
+            await route.fulfill({ response });
+            resolve();
+          }),
+        );
+      },
+    );
     const input = page.locator(inputSelector);
-    const firstRequest = page.waitForRequest((request) => {
-      const url = new URL(request.url());
-      return (
-        url.pathname === "/api/issues/search-content" &&
-        url.searchParams.get("q") === "한국어 본문 전용"
-      );
-    });
     await input.fill("한국어 본문 전용");
-    await firstRequest;
+    await expect.poll(() => releases.has("한국어 본문 전용")).toBe(true);
+    await page.evaluate(() => {
+      const state = window as Window & { __staleContentSeen?: boolean };
+      state.__staleContentSeen = false;
+      new MutationObserver(() => {
+        if (
+          document.querySelector<HTMLInputElement>(
+            '[data-testid="global-search-input"]',
+          )?.value === "comment-only lighthouse" &&
+          document.querySelector(
+            '[data-testid="global-search-content-item"][data-issue-id="REEF-002"]',
+          )
+        )
+          state.__staleContentSeen = true;
+      }).observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      });
+    });
     await input.fill("comment-only lighthouse");
-
+    await expect.poll(() => releases.has("comment-only lighthouse")).toBe(true);
     await expect(page.getByTestId("search-progress-bar")).toBeVisible();
     await expect(page.getByRole("listbox")).toHaveAttribute(
       "aria-busy",
       "true",
     );
     await expect(page.getByRole("dialog")).toHaveAttribute("aria-busy", "true");
-    await expect(
-      page.locator(`${contentItemSelector}[data-issue-id="REEF-002"]`),
-    ).toHaveCount(0);
+    const latest = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).searchParams.get("q") ===
+          "comment-only lighthouse" &&
+        new URL(response.url()).pathname === "/api/issues/search-content",
+    );
+    await releases.get("comment-only lighthouse")?.();
+    expect((await latest).status()).toBe(200);
     await expect(
       page.locator(`${contentItemSelector}[data-issue-id="REEF-003"]`),
     ).toBeVisible();
+    const old = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).searchParams.get("q") === "한국어 본문 전용" &&
+        new URL(response.url()).pathname === "/api/issues/search-content",
+    );
+    await releases.get("한국어 본문 전용")?.();
+    await (await old).finished();
+    await expect(page.getByRole("listbox")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect(
+      page.locator(`${contentItemSelector}[data-issue-id="REEF-002"]`),
+    ).toHaveCount(0);
+    await expect(page.locator(contentItemSelector)).toHaveCount(1);
+    expect(
+      await page.evaluate(
+        () =>
+          (window as Window & { __staleContentSeen?: boolean })
+            .__staleContentSeen,
+      ),
+    ).toBe(false);
   });
 
   test("expands 10 to 20 while retaining rows and stops when exhausted", async ({
@@ -362,7 +448,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
     await openExistingWorkspace(page);
     await setContentSearchMode(request, "degraded");
     await page.keyboard.press("Control+K");
-    await page.locator(inputSelector).fill("Initial issue Alpha");
+    await settleContentSearch(page, "Initial issue Alpha", 502);
     await expect(
       page.locator(
         '[data-testid="global-search-item"][data-issue-id="REEF-001"]',
@@ -382,7 +468,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
       page.locator(`${contentItemSelector}[data-source="comment"]`),
     ).toHaveCount(0);
 
-    await page.locator(inputSelector).fill("comment-only lighthouse");
+    await settleContentSearch(page, "comment-only lighthouse");
     await expect(page.locator(contentItemSelector)).toHaveCount(0);
     await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
   });

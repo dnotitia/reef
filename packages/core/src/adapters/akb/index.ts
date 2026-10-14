@@ -114,7 +114,6 @@ export {
 export {
   listIssueAttachments,
   uploadIssueAttachment,
-  createIssueAttachmentRecord,
   downloadIssueAttachment,
   downloadIssueAttachmentByFileUri,
   type DownloadIssueAttachmentParams,

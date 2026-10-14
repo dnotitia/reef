@@ -29,14 +29,9 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { AuthError } from "@reef/core";
-import { VALID_JWT } from "../../../__test-helpers__/jwt";
+import { authedHeaders } from "../../../__test-helpers__/jwt";
 import { GET, POST } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 function ctx(vault = "reef-acme") {
   return { params: Promise.resolve({ vault }) };
@@ -159,7 +154,7 @@ describe("POST /api/vaults/[vault]/members", () => {
     expect(res.status).toBe(400);
   });
 
-  it("folds an akb admin-floor rejection (403) into 401", async () => {
+  it("translates an untyped AuthError to 401", async () => {
     mockGrantVaultMember.mockRejectedValueOnce(new AuthError({}));
     const req = new Request("http://localhost/api/vaults/reef-acme/members", {
       method: "POST",

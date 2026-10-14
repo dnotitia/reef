@@ -1,9 +1,12 @@
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
 import { reportsQueryKey } from "@/features/reports/lib/queryKey";
 import type { IssueListItem } from "@reef/core";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { act, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { purgeAll, upsertIssues } from "../../stores/issueEntityStore";
 import { useIssueSelectionStore } from "../../stores/useIssueSelectionStore";
@@ -31,12 +34,6 @@ const issues: IssueListItem[] = ["REEF-001", "REEF-002", "REEF-003"].map(
     updated_by: "alice",
   }),
 );
-
-function wrapper(queryClient: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-}
 
 describe("useBulkUpdateIssues", () => {
   beforeEach(() => {
@@ -70,15 +67,13 @@ describe("useBulkUpdateIssues", () => {
       );
     });
 
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-test"], issues);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     for (const issue of issues)
       useIssueSelectionStore.getState().toggle(issue.id);
     const { result } = renderHook(() => useBulkUpdateIssues("reef-test"), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     let runResult: Awaited<ReturnType<typeof result.current.run>> | undefined;
@@ -116,11 +111,9 @@ describe("useBulkUpdateIssues", () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: "missing" }), { status: 404 }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     const { result } = renderHook(() => useBulkUpdateIssues("reef-test"), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
     useIssueSelectionStore.getState().toggle("REEF-001");
     useIssueSelectionStore.getState().toggle("REEF-404");
@@ -169,12 +162,10 @@ describe("useBulkUpdateIssues", () => {
       );
     });
 
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-test"], issues);
     const { result } = renderHook(() => useBulkUpdateIssues("reef-test"), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

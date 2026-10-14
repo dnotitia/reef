@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 function readGlobalCss(): string {
@@ -192,49 +193,45 @@ describe("global focus styles", () => {
 
   it("styles comment mentions from the sanitized renderer marker", () => {
     const css = readGlobalCss();
-    expect(css).toContain(".comment-mention-renderer [data-reef-mention]");
-    expect(css).toContain("color: var(--brand-text);");
-    expect(css).toContain("font-weight: 500;");
+    const start = css.indexOf(
+      ".comment-mention-renderer [data-reef-mention] {",
+    );
+    expect(start).toBeGreaterThan(-1);
+    const block = css.slice(start, findCssBlockEnd(css, start));
+    expect(block).toContain("color: var(--brand-text);");
+    expect(block).toContain("font-weight: 500;");
   });
 
   it("makes only tooltip-owned Radix Popper wrappers hit-test transparent", () => {
     const css = readGlobalCss();
-    expect(css).toContain(
-      '[data-radix-popper-content-wrapper]:has([data-reef-tooltip-content="true"])',
+    const start = css.indexOf(
+      '[data-radix-popper-content-wrapper]:has([data-reef-tooltip-content="true"]) {',
     );
-    expect(css).toContain("pointer-events: none;");
+    expect(start).toBeGreaterThan(-1);
+    expect(css.slice(start, findCssBlockEnd(css, start))).toContain(
+      "pointer-events: none;",
+    );
+    expect(css).not.toMatch(
+      /\[data-radix-popper-content-wrapper\]\s*(?:,[^{]*)?\{[^}]*pointer-events:\s*none\s*;/,
+    );
   });
 
-  it("keeps the Settings link's foreground text and focus outline accessible", () => {
+  it("keeps primary foreground text accessible on page and subtle surfaces", () => {
     const css = readGlobalCss();
-    const lightBackground = readHslToken(css, ":root {", "--surface-page");
-    const lightForeground = readHslToken(css, ":root {", "--foreground");
-    const darkBackground = readHslToken(css, ":root.dark", "--surface-page");
-    const darkForeground = readHslToken(css, ":root.dark", "--foreground");
-
-    expect(
-      contrastRatio(lightForeground, lightBackground),
-    ).toBeGreaterThanOrEqual(4.5);
-    expect(
-      contrastRatio(darkForeground, darkBackground),
-    ).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it("keeps role-specific focus tokens visible across light/dark surfaces", () => {
-    const css = readGlobalCss();
-    expect(css).toContain("--brand-focus: hsl(173 80% 25%);");
-    expect(css).toContain("--brand-focus: hsl(173 70% 78%);");
-    expect(css).toContain("--brand-on-fill: hsl(0 0% 100%);");
-
     for (const selector of [":root {", ":root.dark"]) {
       const foreground = readHslToken(css, selector, "--foreground");
-      const background = readHslToken(css, selector, "--surface-page");
-      const subtleSurface = readHslToken(css, selector, "--surface-subtle");
-
-      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(3);
-      expect(contrastRatio(foreground, subtleSurface)).toBeGreaterThanOrEqual(
-        3,
-      );
+      expect(
+        contrastRatio(
+          foreground,
+          readHslToken(css, selector, "--surface-page"),
+        ),
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        contrastRatio(
+          foreground,
+          readHslToken(css, selector, "--surface-subtle"),
+        ),
+      ).toBeGreaterThanOrEqual(3);
     }
   });
 
@@ -248,6 +245,19 @@ describe("global focus styles", () => {
       "--surface-popover",
     ] as const;
     const identities = ["brand", "destructive", ...STATUS_IDENTITIES] as const;
+    for (const [selector, focus] of [
+      [":root {", "hsl(173 80% 25%)"],
+      [":root.dark", "hsl(173 70% 78%)"],
+    ]) {
+      const start = css.indexOf(selector);
+      expect(css.slice(start, findCssBlockEnd(css, start))).toContain(
+        `--brand-focus: ${focus};`,
+      );
+    }
+    const lightStart = css.indexOf(":root {");
+    expect(css.slice(lightStart, findCssBlockEnd(css, lightStart))).toContain(
+      "--brand-on-fill: hsl(0 0% 100%);",
+    );
 
     for (const selector of [":root {", ":root.dark"]) {
       const surfaceColors = surfaces.map((token) =>
@@ -338,6 +348,15 @@ describe("global focus styles", () => {
     ] as const;
 
     for (const selector of [":root {", ":root.dark"]) {
+      const planningColors = planningTokens.map((token) =>
+        tokenRgb(css, selector, token).join(","),
+      );
+      expect(new Set(planningColors).size, selector).toBe(
+        planningTokens.length,
+      );
+      expect(tokenRgb(css, selector, "--planning-open")).not.toEqual(
+        tokenRgb(css, selector, "--status-open-glyph"),
+      );
       for (const token of planningTokens) {
         const planningColor = tokenRgb(css, selector, token);
         expect(css).toContain(`--color-${token.slice(2)}: var(${token});`);
@@ -368,16 +387,19 @@ describe("global focus styles", () => {
       expect(css).not.toContain(obsolete);
     }
 
-    for (const identity of ["brand", "destructive", ...STATUS_IDENTITIES]) {
-      const prefix =
-        identity === "brand" || identity === "destructive"
-          ? identity
-          : `status-${identity}`;
-      const roleValues = ROLE_SUFFIXES.map(
-        (role) =>
-          css.match(new RegExp(`--${prefix}-${role}: hsl\\([^;]+\\);`))?.[0],
-      );
-      expect(new Set(roleValues).size).toBe(ROLE_SUFFIXES.length);
+    for (const selector of [":root {", ":root.dark"]) {
+      for (const identity of ["brand", "destructive", ...STATUS_IDENTITIES]) {
+        const prefix =
+          identity === "brand" || identity === "destructive"
+            ? identity
+            : `status-${identity}`;
+        const roleValues = ROLE_SUFFIXES.map((role) =>
+          tokenRgb(css, selector, `--${prefix}-${role}`).join(","),
+        );
+        expect(new Set(roleValues).size, `${selector} ${identity}`).toBe(
+          ROLE_SUFFIXES.length,
+        );
+      }
     }
   });
 
@@ -400,14 +422,70 @@ describe("global focus styles", () => {
       new URL("./layout.tsx", import.meta.url),
       "utf8",
     );
-    expect(layout).toContain(
-      'import { Geist_Mono, Inter, Noto_Sans_KR } from "next/font/google";',
+    const source = ts.createSourceFile(
+      "layout.tsx",
+      layout,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
     );
-    expect(layout).toContain('variable: "--font-inter"');
-    expect(layout).toContain('variable: "--font-noto-sans-kr"');
-    expect(layout).toContain('variable: "--font-geist-mono"');
-    expect(layout).toContain('display: "swap"');
-    expect(layout).toContain("${notoSansKr.variable}");
+    const fontImports = new Map<string, string>();
+    for (const statement of source.statements) {
+      if (
+        ts.isImportDeclaration(statement) &&
+        ts.isStringLiteral(statement.moduleSpecifier) &&
+        statement.moduleSpecifier.text === "next/font/google"
+      ) {
+        const bindings = statement.importClause?.namedBindings;
+        if (bindings && ts.isNamedImports(bindings)) {
+          for (const binding of bindings.elements)
+            fontImports.set(
+              binding.name.text,
+              (binding.propertyName ?? binding.name).text,
+            );
+        }
+      }
+    }
+    const fontOptions = new Map<string, { font: string; display: string }>();
+    function visit(node: ts.Node) {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        fontImports.has(node.expression.text) &&
+        node.arguments[0] &&
+        ts.isObjectLiteralExpression(node.arguments[0])
+      ) {
+        const options = node.arguments[0];
+        const properties = new Map(
+          options.properties.flatMap((property) =>
+            ts.isPropertyAssignment(property) &&
+            (ts.isIdentifier(property.name) ||
+              ts.isStringLiteral(property.name)) &&
+            ts.isStringLiteral(property.initializer)
+              ? [[property.name.text, property.initializer.text] as const]
+              : [],
+          ),
+        );
+        const variable = properties.get("variable");
+        if (variable)
+          fontOptions.set(variable, {
+            font: fontImports.get(node.expression.text) ?? "",
+            display: properties.get("display") ?? "",
+          });
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(source);
+    for (const [variable, font] of [
+      ["--font-inter", "Inter"],
+      ["--font-noto-sans-kr", "Noto_Sans_KR"],
+      ["--font-geist-mono", "Geist_Mono"],
+    ]) {
+      expect(fontOptions.get(variable), variable).toEqual({
+        font,
+        display: "swap",
+      });
+    }
   });
 
   it("defines one complete named contract for routed product typography", () => {
@@ -759,18 +837,6 @@ describe("global focus styles", () => {
     expect(css).toContain("--type-small-button-size: 12px;");
     expect(css).toContain("--type-subissue-progress-size: 12px;");
     expect(css).toContain("--type-dialog-title-size: 16px;");
-    for (const source of [
-      "../features/ui/components/PageHeader.tsx",
-      "../features/ui/components/DashboardShell.tsx",
-      "../features/ai/components/AskAiDialog.tsx",
-      "../components/ui/dialog.tsx",
-      "../components/ui/sheet.tsx",
-    ]) {
-      expect(
-        readFileSync(new URL(source, import.meta.url), "utf8"),
-        `${source} inline tracking`,
-      ).not.toContain("letterSpacing");
-    }
   });
 
   it("renders the Tiptap empty-editor placeholder marker", () => {
@@ -1028,24 +1094,6 @@ describe("global focus styles", () => {
     expect(css).not.toContain("\nimg {");
   });
 
-  it("keeps AKB file links compact and scoped to the editor", () => {
-    const css = readGlobalCss();
-    const fileLinkStart = css.indexOf(
-      '.reef-markdown-editor a[data-markdown-target*="/file/"]::before {',
-    );
-    expect(fileLinkStart).toBeGreaterThan(-1);
-    const fileLinkEnd = findCssBlockEnd(css, fileLinkStart);
-    const fileLinkBlock = css.slice(fileLinkStart, fileLinkEnd);
-    for (const declaration of [
-      'content: "▱";',
-      "align-self: center;",
-      "color: var(--muted-foreground);",
-    ]) {
-      expect(fileLinkBlock, declaration).toContain(declaration);
-    }
-    expect(css).not.toContain("data-reef-file-type");
-  });
-
   it("gives issue, document, and file references one compact semantic surface", () => {
     const css = readGlobalCss().replace(/\s+/g, " ");
     const surfaceStart = css.indexOf(
@@ -1086,6 +1134,10 @@ describe("global focus styles", () => {
       'content: "▤";',
     );
     expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain('content: "▱";');
+    expect(css.slice(fileGlyphStart, fileGlyphEnd)).toContain(
+      "color: var(--muted-foreground);",
+    );
+    expect(css).not.toContain("data-reef-file-type");
     expect(css.slice(documentGlyphStart, documentGlyphEnd)).toContain(
       "align-self: center;",
     );

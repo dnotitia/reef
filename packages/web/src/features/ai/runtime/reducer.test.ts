@@ -85,7 +85,17 @@ describe("agentRunReducer", () => {
       );
 
     const state = replay();
-    expect(state).toEqual(replay());
+    expect(state).toMatchObject({
+      run_id: "run-1",
+      task_id: "issue.enrichment",
+      seq: 5,
+      run_status: "completed",
+      started_at: "2026-06-04T00:00:00.000Z",
+      updated_at: "2026-06-04T00:00:05.000Z",
+      completed_at: "2026-06-04T00:00:05.000Z",
+      artifact_ids: ["artifact-1"],
+      error: null,
+    });
     expect(state.phase).toBe("completed");
     expect(state.text).toBe("Hello ");
     expect(state.progress.stages.enrich?.status).toBe("running");
@@ -93,6 +103,17 @@ describe("agentRunReducer", () => {
     expect(state.artifact_order).toEqual(["artifact-1"]);
     expect(state.artifacts["artifact-1"]).toMatchObject({
       type: "field_suggestion",
+      payload: {
+        issue_id: "REEF-001",
+        suggestions: [
+          {
+            field: "title",
+            value: "Create stream client",
+            reasoning: "The issue needs a web runtime.",
+            confidence: 0.9,
+          },
+        ],
+      },
     });
   });
 

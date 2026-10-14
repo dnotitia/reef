@@ -252,7 +252,10 @@ describe("GlobalSearchDialog", () => {
   });
 
   it("starts the Closed reason handoff before closing the palette", async () => {
-    const runClosed = vi.fn();
+    const paletteStatesAtHandoff: boolean[] = [];
+    const runClosed = vi.fn(() => {
+      paletteStatesAtHandoff.push(useGlobalSearchStore.getState().isOpen);
+    });
     const target: CommandIssueTarget = {
       issueId: "REEF-001",
       title: "Fix login bug",
@@ -287,6 +290,7 @@ describe("GlobalSearchDialog", () => {
     fireEvent.click(screen.getByTestId("command-action"));
 
     expect(runClosed).toHaveBeenCalledOnce();
+    expect(paletteStatesAtHandoff).toEqual([true]);
     expect(useGlobalSearchStore.getState().isOpen).toBe(false);
   });
 
@@ -528,6 +532,12 @@ describe("GlobalSearchDialog", () => {
     const user = userEvent.setup();
     await user.type(screen.getByTestId("global-search-input"), "REEF-001");
 
+    await waitFor(() =>
+      expect(useIssueListMock).toHaveBeenLastCalledWith(
+        "reef-acme",
+        expect.objectContaining({ q: "REEF-001" }),
+      ),
+    );
     const [mention] = await screen.findAllByTestId("global-search-item");
     expect(mention?.getAttribute("data-issue-id")).toBe("REEF-200");
     await user.click(mention as HTMLElement);
@@ -536,12 +546,9 @@ describe("GlobalSearchDialog", () => {
   });
 
   it("blocks selecting a stale row until the current query's results settle", async () => {
-    // Placeholder rows (a mention of the id, not the id itself) are shown while
-    // the exact-id query is still in flight. They render for feedback, but a
-    // click/Enter should not navigate until the real result settles; otherwise a
-    // fast pick lands on the wrong issue.
+    // The noncanonical query isolates placeholder selection from the exact-id guard.
     useIssueListMock.mockReturnValue({
-      data: [makeIssue("REEF-200", "Follow-up to REEF-001")],
+      data: [makeIssue("REEF-200", "Follow-up to login")],
       isLoading: false,
       isFetching: true,
       isPlaceholderData: true,
@@ -550,8 +557,14 @@ describe("GlobalSearchDialog", () => {
     useGlobalSearchStore.setState({ isOpen: true });
     renderDialog();
     const user = userEvent.setup();
-    await user.type(screen.getByTestId("global-search-input"), "REEF-001");
+    await user.type(screen.getByTestId("global-search-input"), "login");
 
+    await waitFor(() =>
+      expect(useIssueListMock).toHaveBeenLastCalledWith(
+        "reef-acme",
+        expect.objectContaining({ q: "login" }),
+      ),
+    );
     const [stale] = await screen.findAllByTestId("global-search-item");
     expect(stale?.getAttribute("data-issue-id")).toBe("REEF-200");
     await user.click(stale as HTMLElement);
@@ -634,18 +647,6 @@ describe("GlobalSearchDialog", () => {
         "REEF-001",
       ]);
     });
-  });
-
-  it("shows a loading state while the first results resolve", () => {
-    useIssueListMock.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isError: false,
-    });
-    useGlobalSearchStore.setState({ isOpen: true });
-    renderDialog();
-    expect(screen.getByText("Searching…")).toBeInTheDocument();
-    expect(screen.queryByTestId("global-search-item")).toBeNull();
   });
 
   it("shows an error state with an explicit retry when the server query fails", async () => {
@@ -736,6 +737,7 @@ describe("GlobalSearchDialog", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("Searching…");
+    expect(screen.queryByTestId("global-search-item")).toBeNull();
   });
 
   it("suppresses the dialog's inherited close button", () => {
@@ -1036,42 +1038,48 @@ describe("GlobalSearchDialog", () => {
     );
   });
 
-  it("hides stale or failed content without changing metadata usability", async () => {
-    useIssueContentSearchMock.mockReturnValue({
-      data: {
-        query: "query-a",
-        limit: 10,
-        results: [
-          {
-            reef_id: "REEF-347",
-            title: "Stale",
-            snippet: "query-a",
-            source: "body",
-            score: 0.5,
-            match_id: "body:stale",
-          },
-        ],
-        has_more: false,
-      },
-      isError: true,
-      isFetching: false,
-    });
-    useGlobalSearchStore.setState({ isOpen: true });
-    renderDialog();
-    const user = userEvent.setup();
-    await user.type(screen.getByTestId("global-search-input"), "login");
-    await waitFor(() =>
-      expect(useIssueListMock).toHaveBeenCalledWith(
-        "reef-acme",
-        expect.objectContaining({ q: "login" }),
-      ),
-    );
-    expect(screen.queryByTestId("global-search-content-item")).toBeNull();
-    await user.click(screen.getByTestId("global-search-item"));
-    expect(pushMock).toHaveBeenCalledWith(
-      "/workspace/reef-acme/issues/REEF-001",
-    );
-  });
+  it.each([
+    { query: "query-a", isError: false, reason: "stale" },
+    { query: "login", isError: true, reason: "failed" },
+  ])(
+    "hides $reason content without changing metadata usability",
+    async ({ query, isError }) => {
+      useIssueContentSearchMock.mockReturnValue({
+        data: {
+          query,
+          limit: 10,
+          results: [
+            {
+              reef_id: "REEF-347",
+              title: "Stale",
+              snippet: "query-a",
+              source: "body",
+              score: 0.5,
+              match_id: "body:stale",
+            },
+          ],
+          has_more: false,
+        },
+        isError,
+        isFetching: false,
+      });
+      useGlobalSearchStore.setState({ isOpen: true });
+      renderDialog();
+      const user = userEvent.setup();
+      await user.type(screen.getByTestId("global-search-input"), "login");
+      await waitFor(() =>
+        expect(useIssueListMock).toHaveBeenCalledWith(
+          "reef-acme",
+          expect.objectContaining({ q: "login" }),
+        ),
+      );
+      expect(screen.queryByTestId("global-search-content-item")).toBeNull();
+      await user.click(screen.getByTestId("global-search-item"));
+      expect(pushMock).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues/REEF-001",
+      );
+    },
+  );
 
   it("includes content fetches in progress, aria-busy, and live status", async () => {
     useIssueContentSearchMock.mockImplementation((query: string) => ({

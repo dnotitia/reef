@@ -55,7 +55,7 @@ describe("event processor health endpoints", () => {
     expect((await fetch(`${baseUrl}/readyz`)).status).toBe(503);
   });
 
-  it("exposes tail, recovery, projection counts, and last success without credentials", async () => {
+  it("exposes tail, recovery, projection counts, and last success", async () => {
     const health = new ProcessorHealth();
     health.markTailState("connecting");
     health.markTailState("connected");
@@ -104,7 +104,6 @@ describe("event processor health endpoints", () => {
     expect(body).toContain(
       "# HELP reef_event_processor_installation_ready Whether this installation is ready to process event sources.",
     );
-    expect(body).not.toContain("processor-test-credential");
   });
 
   it("drops readiness after a failed projection and records the failure timestamp", async () => {

@@ -279,12 +279,13 @@ describe("computeReorderedRanks — AC2 bounded writes / never the whole backlog
     ];
     // Move C between A and B (its midpoint between lo and hi is unrepresentable).
     const updates = computeReorderedRanks(list, 2, 1);
-    // The tail row is does not part of the re-space.
+    expect(updates).toEqual([
+      { id: "A", rank: 1000 },
+      { id: "C", rank: 2000 },
+      { id: "B", rank: 3000 },
+    ]);
+    expect(applyAndOrder(list, updates)).toEqual(["A", "C", "B", "D"]);
+    // The tail row is not part of the re-space.
     expect(updates.some((u) => u.id === "D")).toBe(false);
-    // Curated rows get clean sparse ranks again.
-    for (const u of updates) {
-      expect(Number.isInteger(u.rank)).toBe(true);
-      expect(u.rank).toBeGreaterThanOrEqual(RANK_STEP);
-    }
   });
 });

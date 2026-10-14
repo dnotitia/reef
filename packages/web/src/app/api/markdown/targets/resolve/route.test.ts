@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const { mockResolveMarkdownTarget, mockCreateAkbAdapter } = vi.hoisted(() => ({
   mockResolveMarkdownTarget: vi.fn(),
   mockCreateAkbAdapter: vi.fn(),
@@ -38,16 +16,8 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { VALID_JWT } from "../../../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../../../__test-helpers__/jwt";
 import { POST } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 beforeEach(() => {
   vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
@@ -83,12 +53,15 @@ describe("POST /api/markdown/targets/resolve", () => {
     });
   });
 
-  it("rejects malformed targets before invoking the AKB resolver", async () => {
+  it("rejects unknown request fields before invoking the AKB resolver", async () => {
     const response = await POST(
       new Request("http://localhost/api/markdown/targets/resolve?vault=v", {
         method: "POST",
         headers: authedHeaders(),
-        body: JSON.stringify({ target: "akb://v/table/nope", extra: true }),
+        body: JSON.stringify({
+          target: "akb://v/coll/research/doc/report.md",
+          extra: true,
+        }),
       }),
     );
 

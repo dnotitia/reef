@@ -20,3 +20,7 @@
 - Keep prompts, tool descriptors, and use cases separated under `prompts/`,
   `tools/`, and their feature modules. Shared framework code is limited to the
   typed lifecycle/event seam used by both live tasks.
+
+- Prompt grounding, privacy, and byte contracts live beside the concrete prompt
+  builders. Assert SDK input validation through each registered `inputSchema`;
+  direct `execute` tests own tool I/O and output behavior.

@@ -364,7 +364,7 @@ async function captureFocusEvidence(
   testInfo: TestInfo,
   name: string,
   hitTarget: { x: number; y: number; width: number; height: number },
-): Promise<FocusPixelEvidence> {
+): Promise<void> {
   const screenshotPath = testInfo.outputPath(`${name}.png`);
   const screenshot = await page.screenshot({
     animations: "disabled",
@@ -379,7 +379,6 @@ async function captureFocusEvidence(
     expect(evidence.edges[edge].hits).toBeGreaterThanOrEqual(2);
   }
   await testInfo.attach(name, { path: screenshotPath });
-  return evidence;
 }
 
 const CHECKBOX_FOCUS_VIEWPORTS = [
@@ -399,8 +398,14 @@ function assertTitlePageOrder(
       titles[index] ?? "",
     );
     const directedTitleOrder = order === "asc" ? titleOrder : -titleOrder;
+    const previousNumber = readTicketNumber(ids[index - 1] ?? "");
+    const currentNumber = readTicketNumber(ids[index] ?? "");
     const tieOrder =
-      ids[index - 1] === ids[index] ? 0 : ids[index - 1] < ids[index] ? 1 : -1;
+      previousNumber === currentNumber
+        ? 0
+        : previousNumber > currentNumber
+          ? -1
+          : 1;
     expect(directedTitleOrder || tieOrder).toBeLessThanOrEqual(0);
   }
 }
@@ -488,14 +493,12 @@ test.describe("large issue list virtualization", () => {
       expect(hitBox).not.toBeNull();
       if (!hitBox) throw new Error("Missing selection checkbox hit target");
 
-      const selectedEvidence = await captureFocusEvidence(
+      await captureFocusEvidence(
         page,
         testInfo,
         `list-${viewport.name}-selected-checkbox-focus`,
         hitBox,
       );
-      expect(selectedEvidence.edges.left.hits).toBeGreaterThanOrEqual(2);
-      expect(selectedEvidence.edges.right.hits).toBeGreaterThanOrEqual(2);
 
       await page.keyboard.press("Space");
       await expect(row).not.toHaveAttribute("aria-selected", "true");
@@ -508,14 +511,12 @@ test.describe("large issue list virtualization", () => {
       if (!unselectedHitBox) {
         throw new Error("Missing unselected selection checkbox hit target");
       }
-      const unselectedEvidence = await captureFocusEvidence(
+      await captureFocusEvidence(
         page,
         testInfo,
         `list-${viewport.name}-unselected-checkbox-focus`,
         unselectedHitBox,
       );
-      expect(unselectedEvidence.edges.top.hits).toBeGreaterThanOrEqual(2);
-      expect(unselectedEvidence.edges.bottom.hits).toBeGreaterThanOrEqual(2);
 
       const otherRow = page.locator('[data-issue-id="REEF-1198"]');
       await otherRow.focus();
@@ -630,7 +631,7 @@ test.describe("large issue list virtualization", () => {
       );
       expect(duplicateTitleIds).toEqual(
         order === "asc"
-          ? ["REEF-0002", "REEF-0001"]
+          ? ["REEF-1000", "REEF-999", "REEF-0002", "REEF-0001"]
           : ["REEF-0004", "REEF-0003"],
       );
 
@@ -876,7 +877,16 @@ test.describe("large issue list virtualization", () => {
     ).toBeVisible();
 
     await setIssueListFailure(request, false);
+    const retryResponse = waitForIssueListPage(page, true);
     await page.getByRole("button", { name: "Retry" }).click();
+    const retriedPage = await readIssueListPage(await retryResponse);
+    expect(retriedPage.ids).toHaveLength(100);
+    expect(retriedPage.ids[0]).toBe("REEF-1106");
+    await expect(
+      page.getByText("More issues could not be loaded."),
+    ).toHaveCount(0);
+    await expect(page.locator('[data-issue-id="REEF-1107"]')).toBeVisible();
+    await expect(page.locator('[data-issue-id="REEF-1106"]')).toBeVisible();
     await expect
       .poll(
         () =>

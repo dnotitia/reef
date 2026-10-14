@@ -50,6 +50,7 @@ describe("POST /api/auth/akb/login", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
@@ -70,12 +71,18 @@ describe("POST /api/auth/akb/login", () => {
     const body = (await res.json()) as { user: unknown };
     expect(body).toEqual({ user: VALID_USER });
 
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toMatch(/__reef_session=/);
-    expect(setCookie).toContain("__reef_auth_v2=");
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).toContain("SameSite=Lax");
-    expect(setCookie).toContain("Path=/");
+    const sessionCookie = res.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__reef_session="));
+    expect(sessionCookie?.split(";")[0]).toBe(`__reef_session=${VALID_JWT}`);
+    expect(sessionCookie?.split("; ")).toContain("HttpOnly");
+    expect(sessionCookie?.split("; ")).toContain("SameSite=Lax");
+    expect(sessionCookie?.split("; ")).toContain("Path=/");
+    const ssoCookie = res.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__reef_auth_v2="));
+    expect(ssoCookie?.split(";")[0]).toBe("__reef_auth_v2=");
+    expect(ssoCookie?.split("; ")).toContain("Max-Age=0");
 
     // body should not leak the JWT
     expect(JSON.stringify(body)).not.toContain(VALID_JWT);
@@ -134,10 +141,13 @@ describe("POST /api/auth/akb/login", () => {
 
       expect(res.status).toBe(status);
       expect((await res.json()).error).toMatch(message);
-      const setCookie = res.headers.get("set-cookie") ?? "";
-      expect(setCookie).toContain("__reef_session=");
-      expect(setCookie).toContain("__reef_auth_v2=");
-      expect(setCookie).toContain("Max-Age=0");
+      for (const name of ["__reef_session", "__reef_auth_v2"]) {
+        const cookie = res.headers
+          .getSetCookie()
+          .find((value) => value.startsWith(`${name}=`));
+        expect(cookie?.split(";")[0]).toBe(`${name}=`);
+        expect(cookie?.split("; ")).toContain("Max-Age=0");
+      }
       expect(res.headers.get("cache-control")).toBe("no-store");
     },
   );
@@ -191,6 +201,8 @@ describe("POST /api/auth/akb/login", () => {
   });
 
   it("Set-Cookie Max-Age is capped at 24h even if JWT exp is further out", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-13T00:00:00.000Z"));
     const farJwt = makeJwt({
       exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
     });
@@ -202,9 +214,11 @@ describe("POST /api/auth/akb/login", () => {
     const res = await POST(
       makeLoginRequest({ username: "alice", password: "p" }),
     );
-    const setCookie = res.headers.get("set-cookie") ?? "";
-    const match = /Max-Age=(\d+)/.exec(setCookie);
-    expect(match).toBeTruthy();
-    expect(Number(match?.[1])).toBeLessThanOrEqual(60 * 60 * 24);
+    expect(res.status).toBe(200);
+    const cookie = res.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("__reef_session="));
+    expect(cookie?.split(";")[0]).toBe(`__reef_session=${farJwt}`);
+    expect(cookie?.split("; ")).toContain("Max-Age=86400");
   });
 });

@@ -47,12 +47,8 @@ import {
   DEFAULT_CONFIG,
   type VaultSummary,
 } from "@reef/core";
-import { VALID_JWT, makeJwt } from "../__test-helpers__/jwt";
+import { makeJwt, authedHeaders } from "../__test-helpers__/jwt";
 import { GET, POST } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 const SAMPLE_VAULTS: VaultSummary[] = [
   {

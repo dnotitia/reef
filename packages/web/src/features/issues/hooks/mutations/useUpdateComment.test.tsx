@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -14,14 +17,6 @@ import { commentsKey } from "../queries/useComments";
 import { useUpdateComment } from "./useUpdateComment";
 
 const mockApiFetch = vi.mocked(apiFetch);
-
-function wrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 const COMMENT_ID = "11111111-1111-4111-8111-111111111111";
 const BEFORE = {
@@ -45,13 +40,11 @@ describe("useUpdateComment", () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ comment: AFTER }), { status: 200 }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(commentsKey("reef-acme", "REEF-001"), [BEFORE]);
 
     const { result } = renderHook(() => useUpdateComment(), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

@@ -79,7 +79,10 @@ describe("runSql", () => {
 
     await runSql(makeAdapter(), "reef-sample", sql, params.params);
 
-    expect(sqlRequestBody(calls[0])).toEqual({ sql, params: values });
+    expect(sqlRequestBody(calls[0])).toEqual({
+      sql: "SELECT $1, $2, $3, $4, $5",
+      params: values,
+    });
     expect(sqlRequestBody(calls[0]).sql).not.toContain("it's");
   });
 

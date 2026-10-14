@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -47,14 +50,6 @@ const COMMENTS = [
   },
 ];
 
-function wrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useDeleteComment", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -65,14 +60,12 @@ describe("useDeleteComment", () => {
         { status: 200 },
       ),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(commentsKey("reef-acme", "REEF-001"), COMMENTS);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useDeleteComment(), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -100,13 +93,11 @@ describe("useDeleteComment", () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: "nope" }), { status: 500 }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(commentsKey("reef-acme", "REEF-001"), COMMENTS);
 
     const { result } = renderHook(() => useDeleteComment(), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

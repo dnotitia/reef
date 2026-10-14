@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   defaultIssueGroupBy,
   issueGroupByOptions,
-  normalizeIssueGroupByParam,
   parseIssueGroupBy,
   serializeIssueGroupBy,
 } from "./groupBy";
@@ -30,9 +29,6 @@ describe("issue group URL codec", () => {
     expect(parseIssueGroupBy("invalid", "active", "list")).toBe("none");
     expect(parseIssueGroupBy("label", "active", "timeline")).toBe("none");
     expect(parseIssueGroupBy("status", "backlog", "board")).toBe("priority");
-    expect(normalizeIssueGroupByParam("invalid", "active", "board")).toBe(
-      "status",
-    );
   });
 
   it("normalizes Epic to the existing defaults outside Active Board/List", () => {

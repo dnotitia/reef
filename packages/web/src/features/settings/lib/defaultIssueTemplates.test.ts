@@ -20,11 +20,6 @@ describe("DEFAULT_ISSUE_TEMPLATES", () => {
     expect([...byName.keys()].sort()).toEqual([...ISSUE_TYPE_OPTIONS].sort());
   });
 
-  it("drops the legacy non-type templates feature and tech-debt", () => {
-    expect(byName.has("feature")).toBe(false);
-    expect(byName.has("tech-debt")).toBe(false);
-  });
-
   // AC1: default_labels seed the matching kind label (task carries none — it is
   // a weak label axis and reef does not tag plain tasks).
   it("seeds the kind label via default_labels", () => {

@@ -33,16 +33,8 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { VALID_JWT } from "../../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../../__test-helpers__/jwt";
 import { POST } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 function reorderRequest(
   body: unknown,

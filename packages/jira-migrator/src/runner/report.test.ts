@@ -62,20 +62,21 @@ describe("Jira runner report", () => {
       terminal_count: 2,
       balanced: true,
     });
-    expect(() =>
-      buildJiraRunnerReport({
-        ...report(),
-        planSha256: "a".repeat(64),
-        terminalClassifications: [
-          {
-            phase: "issues",
-            source_key: "issue:cloud-1:1:1",
-            action: "create",
-          },
-        ],
-        inputCount: 2,
-      } as never),
-    ).toThrow(expect.objectContaining({ code: "report_conservation_failed" }));
+    for (const terminalClassifications of [
+      [{ phase: "issues", source_key: "issue:cloud-1:1:1", action: "create" }],
+      [
+        { phase: "issues", source_key: "issue:cloud-1:1:1", action: "create" },
+        { phase: "issues", source_key: "issue:cloud-1:1:1", action: "skip" },
+      ],
+    ] satisfies Array<
+      Parameters<typeof buildJiraRunnerReport>[0]["terminalClassifications"]
+    >) {
+      expect(() =>
+        buildJiraRunnerReport({ ...reportInput(), terminalClassifications }),
+      ).toThrow(
+        expect.objectContaining({ code: "report_conservation_failed" }),
+      );
+    }
   });
 
   it("counts failed entities marked retryable", () => {

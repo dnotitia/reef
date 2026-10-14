@@ -1,18 +1,20 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConflictError } from "../../../errors";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   REEF_VAULT_SKILL_VERSION,
   buildReefVaultSkillDocuments,
-  createAkbAdapter,
   getVaultSkillStatus,
   hasReefVaultSkillDocuments,
   installReefVaultSkill,
 } from "../index";
 import { rootSkillContent } from "./content/rootSkill";
-
-mockOpenTelemetry();
+import {
+  type FetchCall,
+  type FetchResponseSpec,
+  makeAdapter,
+  setupFetch,
+} from "../core/httpTestSupport";
 
 function defaultRootGuide(vault: string): string {
   return readFileSync(
@@ -24,16 +26,6 @@ function defaultRootGuide(vault: string): string {
   )
     .replace("{{vault}}", vault)
     .trimEnd();
-}
-
-interface FetchCall {
-  url: string;
-  init: RequestInit | undefined;
-}
-
-interface FetchResponseSpec {
-  status?: number;
-  body?: unknown;
 }
 
 function putResponse(path: string) {
@@ -60,31 +52,6 @@ function documentResponse(
     tags: doc.tags,
     content,
   };
-}
-
-function setupFetch(responses: FetchResponseSpec[]): FetchCall[] {
-  const calls: FetchCall[] = [];
-  const queue = [...responses];
-  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    calls.push({ url, init });
-    const next = queue.shift();
-    if (!next) {
-      throw new Error(`No mocked response for ${url}`);
-    }
-    return new Response(JSON.stringify(next.body ?? {}), {
-      status: next.status ?? 200,
-      headers: { "content-type": "application/json" },
-    });
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return calls;
-}
-
-function makeAdapter() {
-  return createAkbAdapter({
-    baseUrl: "https://akb.test",
-    credential: "jwt.example.token",
-  });
 }
 
 function bodyOf(
@@ -123,9 +90,9 @@ describe("installReefVaultSkill", () => {
     vi.unstubAllGlobals();
   });
 
-  it("patches the root skill and runbook documents idempotently", async () => {
+  it("updates managed documents before stamping the current skill version", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       ...docs.map((doc) => ({ body: putResponse(doc.path) })),
       ...stampResponses(),
     ]);
@@ -150,17 +117,6 @@ describe("installReefVaultSkill", () => {
     expect(bodyOf(calls[1])).toMatchObject({
       type: "reference",
     });
-  });
-
-  it("stamps the current skill version after the documents land", async () => {
-    const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
-      ...docs.map((doc) => ({ body: putResponse(doc.path) })),
-      ...stampResponses(),
-    ]);
-
-    await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
-
     // The stamp runs last so a partial document failure leaves the old version.
     const del = calls[6];
     const insert = calls[7];
@@ -187,7 +143,7 @@ describe("installReefVaultSkill", () => {
 
   it("preserves existing skill documents during brownfield onboarding", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { body: { kind: "table_sql", result: "DELETE 1" } },
       ...docs.map((doc) => ({ body: documentResponse(doc) })),
       ...stampResponses(),
@@ -301,7 +257,7 @@ describe("installReefVaultSkill", () => {
 
   it("does not stamp the current version over a preserved stale document", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { body: { kind: "table_sql", result: "DELETE 1" } },
       ...docs.map((doc, index) => ({
         body: documentResponse(
@@ -330,7 +286,7 @@ describe("installReefVaultSkill", () => {
 
   it("creates a document when PATCH returns 404", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { status: 404, body: { detail: "missing" } },
       { body: putResponse(docs[0].path) },
       ...docs.slice(1).map((doc) => ({ body: putResponse(doc.path) })),
@@ -352,7 +308,7 @@ describe("installReefVaultSkill", () => {
 
   it("retries PATCH when POST races with an existing document", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { status: 404, body: { detail: "missing" } },
       { status: 409, body: { detail: "already exists" } },
       { body: putResponse(docs[0].path) },
@@ -397,7 +353,7 @@ describe("installReefVaultSkill", () => {
       content: mergedContent.slice(0, -1),
       current_commit: "merged-guide-commit",
     };
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { body: { kind: "table_sql", result: "DELETE 1" } },
       { body: rootGuide },
       ...docs.slice(1).map((doc) => ({
@@ -461,7 +417,7 @@ describe("installReefVaultSkill", () => {
       content: duplicatedGuide,
       current_commit: "duplicate-guide-commit",
     };
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { body: { kind: "table_sql", result: "DELETE 1" } },
       { body: rootGuide },
       ...docs.slice(1).map((doc) => ({ body: documentResponse(doc) })),
@@ -510,7 +466,7 @@ describe("installReefVaultSkill", () => {
         "# reef-new Guide\n\n> Edit this document to describe how agents should write into this vault.\n> Until you do, it acts as the AKB-default template — agents fall back to\n> general AKB conventions (browse before write, no inline secrets, etc.).\n",
       current_commit: "read-guide-commit",
     };
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { body: { kind: "table_sql", result: "DELETE 1" } },
       { body: stockGuide },
       { status: 409, body: { detail: "document commit has changed" } },
@@ -614,7 +570,7 @@ describe("getVaultSkillStatus", () => {
   });
 
   it("reports up to date when the stamp matches the current version", async () => {
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       statusQueryResponse({
         version: REEF_VAULT_SKILL_VERSION,
         synced_at: "2026-06-09T00:00:00.000Z",
@@ -724,7 +680,7 @@ describe("hasReefVaultSkillDocuments", () => {
 
   it("accepts existing user-customized skill documents without reading the version stamp", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch(
+    const { calls } = setupFetch(
       docs.map((doc) => ({ body: documentResponse(doc, "USER CUSTOMIZED") })),
     );
 
@@ -738,7 +694,7 @@ describe("hasReefVaultSkillDocuments", () => {
 
   it("returns false when a managed skill document is missing", async () => {
     const [first, second] = buildReefVaultSkillDocuments("reef-new");
-    const calls = setupFetch([
+    const { calls } = setupFetch([
       { body: documentResponse(first) },
       { status: 404, body: { detail: "missing" } },
     ]);

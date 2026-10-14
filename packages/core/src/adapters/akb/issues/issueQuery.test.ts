@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueListQuerySchema } from "../../../schemas/issues/requests";
-import {
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
 import {
   buildIssueOrderBy,
   buildIssueWhere,
@@ -609,7 +606,7 @@ describe("countIssuesByColumn", () => {
         },
       },
     ]);
-    const counts = await countIssuesByColumn(makeTestAkbAdapter(), "reef-acme");
+    const counts = await countIssuesByColumn(makeAdapter(), "reef-acme");
     expect(counts).toEqual({ todo: 12, in_progress: 3 });
   });
 
@@ -619,7 +616,7 @@ describe("countIssuesByColumn", () => {
         body: { error: 'relation "vt_reef-acme__reef_issues" does not exist' },
       },
     ]);
-    const counts = await countIssuesByColumn(makeTestAkbAdapter(), "reef-acme");
+    const counts = await countIssuesByColumn(makeAdapter(), "reef-acme");
     expect(counts).toEqual({});
   });
 });

@@ -1,11 +1,10 @@
-import { apiFetch } from "@/lib/apiClient";
 import {
-  QueryClient,
-  QueryClientProvider,
-  focusManager,
-} from "@tanstack/react-query";
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+import { apiFetch } from "@/lib/apiClient";
+import { focusManager } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -21,20 +20,6 @@ import {
 
 const mockApiFetch = vi.mocked(apiFetch);
 
-function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-}
-
-function wrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useIssueSubscription", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -45,11 +30,11 @@ describe("useIssueSubscription", () => {
     mockApiFetch.mockResolvedValueOnce(
       Response.json({ state: "watching" }, { status: 200 }),
     );
-    const queryClient = makeQueryClient();
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(
       () => useIssueSubscription("REEF-001", "reef-e2e"),
-      { wrapper: wrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) },
     );
 
     await waitFor(() => expect(result.current.data).toBe("watching"));
@@ -72,11 +57,11 @@ describe("useIssueSubscription", () => {
       .mockResolvedValueOnce(
         Response.json({ state: "muted" }, { status: 200 }),
       );
-    const queryClient = makeQueryClient();
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(
       () => useIssueSubscription("REEF-001", "reef-e2e"),
-      { wrapper: wrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) },
     );
     await waitFor(() => expect(result.current.data).toBe("unwatched"));
 

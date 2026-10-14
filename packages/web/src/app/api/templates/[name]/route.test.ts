@@ -29,22 +29,14 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import {
   AuthError,
   NotFoundError,
   SchemaValidationError,
   type Template,
 } from "@reef/core";
-import { VALID_JWT } from "../../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../../__test-helpers__/jwt";
 import { DELETE, GET, PUT } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 const SAMPLE_TEMPLATE: Template = {
   name: "bug",

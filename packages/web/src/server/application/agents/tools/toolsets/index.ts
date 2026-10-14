@@ -7,7 +7,6 @@ import {
   createDevReadFileTool,
   createSearchCodeTool,
 } from "../repo";
-import { suggestLabelsTool, suggestPriorityTool } from "../suggestion";
 import {
   createListAssigneesTool,
   createReadIssueTool,
@@ -53,7 +52,6 @@ export interface IssueAuthoringToolsetParams {
   adapter: AkbAdapter;
   vault: string;
   includeAssignees?: boolean;
-  includeSuggestions?: boolean;
 }
 
 export function createWorkspaceReadToolset({
@@ -111,7 +109,6 @@ export function createIssueAuthoringToolset({
   adapter,
   vault,
   includeAssignees = false,
-  includeSuggestions = false,
 }: IssueAuthoringToolsetParams) {
   return {
     search_issues: createSearchIssuesTool({ adapter, vault }),
@@ -121,18 +118,5 @@ export function createIssueAuthoringToolset({
     ...(includeAssignees
       ? { list_assignees: createListAssigneesTool({ adapter, vault }) }
       : {}),
-    ...(includeSuggestions
-      ? {
-          suggest_labels: suggestLabelsTool,
-          suggest_priority: suggestPriorityTool,
-        }
-      : {}),
-  };
-}
-
-export function createSuggestionToolset() {
-  return {
-    suggest_labels: suggestLabelsTool,
-    suggest_priority: suggestPriorityTool,
   };
 }

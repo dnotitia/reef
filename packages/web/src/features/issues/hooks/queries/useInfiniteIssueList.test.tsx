@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -24,18 +27,6 @@ const issue = (id: string): IssueListItem => ({
   updated_at: "2026-05-01T00:00:00.000Z",
   updated_by: "alice",
 });
-
-function createWrapper(
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  }),
-) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 describe("useInfiniteIssueList", () => {
   beforeEach(() => {
@@ -65,7 +56,7 @@ describe("useInfiniteIssueList", () => {
           sort_field: "priority",
           sort_order: "desc",
         }),
-      { wrapper: createWrapper() },
+      { wrapper: createQueryWrapper() },
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -94,15 +85,13 @@ describe("useInfiniteIssueList", () => {
       sort_field: "priority",
       sort_order: "desc",
     } as const;
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     mockApiFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ issues: [] }), { status: 200 }),
     );
 
     const first = renderHook(() => useInfiniteIssueList("reef-acme", query), {
-      wrapper: createWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
     await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
     first.unmount();
@@ -113,7 +102,7 @@ describe("useInfiniteIssueList", () => {
       }),
     );
     const second = renderHook(() => useInfiniteIssueList("reef-acme", query), {
-      wrapper: createWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
     await waitFor(() => expect(second.result.current.isError).toBe(true));
 

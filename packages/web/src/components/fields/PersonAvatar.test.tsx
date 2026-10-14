@@ -26,6 +26,7 @@ describe("PersonAvatar", () => {
     );
     const cls = container.firstElementChild?.getAttribute("class") ?? "";
     expect(cls).toContain("bg-brand-fill");
+    expect(screen.getByRole("img")).toHaveClass("text-brand-on-fill");
     expect(/\bbg-av-\d\b/.test(cls)).toBe(false);
     expect(screen.getByRole("img")).toHaveTextContent("홍");
   });

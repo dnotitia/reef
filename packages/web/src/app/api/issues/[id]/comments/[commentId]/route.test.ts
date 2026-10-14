@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const {
   mockUpdateComment,
   mockDeleteComment,
@@ -47,9 +25,8 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { NotFoundError } from "@reef/core";
-import { VALID_JWT } from "../../../../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../../../../__test-helpers__/jwt";
 import { DELETE, PATCH } from "./route";
 
 const COMMENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -61,13 +38,6 @@ const COMMENT = {
   created_at: "2026-06-18T01:00:00.000Z",
   edited_at: "2026-06-18T05:00:00.000Z",
 };
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 function params(id = "REEF-001", commentId = COMMENT_ID) {
   return { params: Promise.resolve({ id, commentId }) };

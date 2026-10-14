@@ -10,7 +10,6 @@ import {
   SAMPLE_BODY,
   SAMPLE_ISSUE,
   SchemaValidationError,
-  createAkbAdapter,
   makeAdapter,
   makeDocumentResponse,
   makeIssueRow,
@@ -40,25 +39,6 @@ function subscriptionRow(subscriber: string, source: "assignee") {
     meta: null,
   };
 }
-
-describe("createAkbAdapter", () => {
-  it("returns an adapter exposing a request function", () => {
-    const adapter = makeAdapter();
-    expect(typeof adapter.request).toBe("function");
-  });
-
-  it("two calls with the same jwt produce distinct request closures", () => {
-    const a1 = createAkbAdapter({
-      baseUrl: "https://akb.test",
-      credential: "x",
-    });
-    const a2 = createAkbAdapter({
-      baseUrl: "https://akb.test",
-      credential: "x",
-    });
-    expect(a1.request).not.toBe(a2.request);
-  });
-});
 
 // ── readIssue ────────────────────────────────────────────────────────────────
 

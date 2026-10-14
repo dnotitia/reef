@@ -4,15 +4,12 @@ import { buildSubscriptionKey } from "../../../schemas/notifications";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   type FetchCall,
-  makeIssueQueryResponse,
-  makeTestAkbAdapter,
+  makeAdapter,
   setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+} from "../core/httpTestSupport";
+import { makeIssueQueryResponse } from "./issueFixtures";
 import { makeSqlQueryResponse } from "../core/akb.testSupport";
 import { reorderIssue } from "./issues";
-
-mockOpenTelemetry();
 
 const VAULT = "reef-acme";
 
@@ -114,7 +111,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     const result = await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-003",
@@ -152,7 +149,7 @@ describe("reorderIssue (REEF-570)", () => {
 
     await expect(
       reorderIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         scope: "active",
         issueId: "REEF-003",
@@ -193,7 +190,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-001",
@@ -271,7 +268,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     const result = await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-001",
@@ -357,7 +354,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     const result = await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-003",
@@ -421,7 +418,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-001",
@@ -476,7 +473,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-003",
@@ -527,7 +524,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-003",
@@ -600,7 +597,7 @@ describe("reorderIssue (REEF-570)", () => {
     ]);
 
     await reorderIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       scope: "active",
       issueId: "REEF-003",

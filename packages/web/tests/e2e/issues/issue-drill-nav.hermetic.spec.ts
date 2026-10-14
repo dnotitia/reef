@@ -776,7 +776,23 @@ test.describe("Direct detail first relationship move", () => {
     if (waitForDelayedRead) {
       await waitForIssueReadPending(request, SHORT_CHILD);
     }
-    await page.waitForTimeout(250);
+    // Observe the same transition window without assuming a minimum RAF rate.
+    // Under load, 250ms may contain only a few frames; wait until the recorder
+    // has actually sampled that interval before reading its evidence.
+    await page.waitForFunction(() => {
+      const trace = (
+        window as Window & {
+          __reef649IssueDrillTrace?: IssueDrillTraceState;
+        }
+      ).__reef649IssueDrillTrace;
+      const clickAt = trace?.clickAt;
+      if (!trace || clickAt == null) return false;
+      const frames = trace.frames.filter((frame) => frame.time >= clickAt);
+      return (
+        frames.length > 1 &&
+        (frames.at(-1)?.time ?? 0) - (frames[0]?.time ?? 0) >= 250
+      );
+    });
     const pendingTrace = await page.evaluate(() => {
       const trace = (
         window as Window & {
@@ -792,7 +808,10 @@ test.describe("Direct detail first relationship move", () => {
       (frame) =>
         pendingTrace.clickAt !== null && frame.time >= pendingTrace.clickAt,
     );
-    expect(pendingFrames.length).toBeGreaterThan(4);
+    expect(pendingFrames.length).toBeGreaterThan(1);
+    expect(
+      (pendingFrames.at(-1)?.time ?? 0) - (pendingFrames[0]?.time ?? 0),
+    ).toBeGreaterThanOrEqual(250);
     expect(
       pendingFrames.every(
         (frame) => frame.activePanels.length === 1 && frame.activeDialogs === 1,

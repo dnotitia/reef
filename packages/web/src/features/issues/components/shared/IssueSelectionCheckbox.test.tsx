@@ -72,13 +72,17 @@ describe("IssueSelectionCheckbox", () => {
 
   it("toggles from both Enter and Space without bubbling to the row", async () => {
     const onChange = vi.fn();
+    const parentClick = vi.fn();
+    const parentKeyDown = vi.fn();
     const user = userEvent.setup();
     render(
-      <IssueSelectionCheckbox
-        checked={false}
-        label="Select REEF-101"
-        onChange={onChange}
-      />,
+      <div onClick={parentClick} onKeyDown={parentKeyDown}>
+        <IssueSelectionCheckbox
+          checked={false}
+          label="Select REEF-101"
+          onChange={onChange}
+        />
+      </div>,
     );
 
     const checkbox = screen.getByRole("checkbox", {
@@ -89,5 +93,7 @@ describe("IssueSelectionCheckbox", () => {
     await user.keyboard(" ");
 
     expect(onChange).toHaveBeenCalledTimes(2);
+    expect(parentClick).not.toHaveBeenCalled();
+    expect(parentKeyDown).not.toHaveBeenCalled();
   });
 });

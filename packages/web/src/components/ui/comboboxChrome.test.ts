@@ -14,7 +14,6 @@ import {
  */
 describe("comboboxChrome focus contract (REEF-226)", () => {
   const chrome = {
-    CBX_SEARCH,
     CBX_TRIGGER_FIELD,
     CBX_TRIGGER_BUTTON,
     CBX_TRIGGER_CHIP,
@@ -22,7 +21,6 @@ describe("comboboxChrome focus contract (REEF-226)", () => {
 
   for (const [name, value] of Object.entries(chrome)) {
     it(`${name} keys its ring off focus-visible, never bare focus`, () => {
-      if (name === "CBX_SEARCH") return;
       expect(value).toContain("focus-visible:ring-2");
       expect(value).toContain("focus-visible:ring-brand-focus");
       // `focus:` (followed by `:`) would also trigger on mouse click — the bug.

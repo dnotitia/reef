@@ -221,7 +221,11 @@ describe("IssueListTable", () => {
     await screen.findByText("Blank name");
     expect(screen.getAllByText("alice")).toHaveLength(1);
     expect(screen.getAllByText("missing-user")).toHaveLength(1);
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    const unassignedRow = screen.getByText("Unassigned").closest("tr");
+    expect(unassignedRow).not.toBeNull();
+    expect(
+      unassignedRow?.querySelector('[data-column-key="assignee"]'),
+    ).toHaveTextContent("—");
   });
 
   it("requests the first 100-issue page and renders the rows", async () => {

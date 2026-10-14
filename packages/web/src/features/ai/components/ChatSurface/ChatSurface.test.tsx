@@ -1,12 +1,11 @@
 import type { ChatAssistantTurn, ChatTurn } from "@/features/ai/chat/chatTypes";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
-import type { ChangeEventHandler, ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-// ai-elements primitives lean on streamdown / radix scroll-area / textarea
-// auto-sizing — none of which add value here. Stub them down to the surface
-// area ChatSurface actually exercises (role, prop wiring, submit forwarding).
+// Keep the conversation renderer light while exercising the real composer
+// primitives, including their successful-submit reset behavior.
 vi.mock("@/components/ai-elements/conversation", () => ({
   Conversation: ({ children }: { children: ReactNode }) => (
     <div data-testid="conversation">{children}</div>
@@ -35,66 +34,6 @@ vi.mock("@/components/ai-elements/message", () => ({
 vi.mock("./ChatMarkdown", () => ({
   ChatMarkdown: ({ children }: { children: string }) => (
     <div data-testid="assistant-markdown">{children}</div>
-  ),
-}));
-
-vi.mock("@/components/ai-elements/prompt-input", () => ({
-  PromptInput: ({
-    children,
-    onSubmit,
-  }: {
-    children: ReactNode;
-    onSubmit: (m: { text: string; files: never[] }) => void | Promise<void>;
-  }) => (
-    <form
-      data-testid="prompt-input"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const textarea =
-          e.currentTarget.querySelector<HTMLTextAreaElement>("textarea");
-        const text = textarea?.value ?? "";
-        void onSubmit({ text, files: [] });
-      }}
-    >
-      {children}
-    </form>
-  ),
-  PromptInputBody: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  PromptInputFooter: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  PromptInputSubmit: ({
-    "data-testid": testId,
-    disabled,
-  }: {
-    "data-testid"?: string;
-    disabled?: boolean;
-  }) => (
-    <button
-      type="submit"
-      data-testid={testId ?? "prompt-input-submit"}
-      disabled={disabled}
-    />
-  ),
-  PromptInputTextarea: ({
-    onChange,
-    placeholder,
-    disabled,
-    "data-testid": testId,
-  }: {
-    onChange?: ChangeEventHandler<HTMLTextAreaElement>;
-    placeholder?: string;
-    disabled?: boolean;
-    "data-testid"?: string;
-  }) => (
-    <textarea
-      data-testid={testId ?? "prompt-input-textarea"}
-      onChange={onChange}
-      placeholder={placeholder}
-      disabled={disabled}
-    />
   ),
 }));
 
@@ -168,14 +107,18 @@ describe("ChatSurface", () => {
     renderSurface({ sendMessage, inputTestId: "surface-input" });
     const textarea = screen.getByTestId("surface-input") as HTMLTextAreaElement;
     textarea.value = "  ping  ";
-    fireEvent.submit(screen.getByTestId("prompt-input"));
+    fireEvent.submit(
+      screen.getByRole("textbox").closest("form") as HTMLFormElement,
+    );
     expect(sendMessage).toHaveBeenCalledWith({ text: "ping" });
   });
 
   it("ignores empty submissions", () => {
     const sendMessage = vi.fn();
     renderSurface({ sendMessage });
-    fireEvent.submit(screen.getByTestId("prompt-input"));
+    fireEvent.submit(
+      screen.getByRole("textbox").closest("form") as HTMLFormElement,
+    );
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
@@ -206,10 +149,15 @@ describe("ChatSurface", () => {
 
     fireEvent.change(input, { target: { value: "ping" } });
     expect(submit).toBeEnabled();
-    fireEvent.submit(screen.getByTestId("prompt-input"));
+    fireEvent.submit(
+      screen.getByRole("textbox").closest("form") as HTMLFormElement,
+    );
 
     expect(sendMessage).toHaveBeenCalledWith({ text: "ping" });
-    await vi.waitFor(() => expect(submit).toBeDisabled());
+    await vi.waitFor(() => {
+      expect(input).toHaveValue("");
+      expect(submit).toBeDisabled();
+    });
   });
 
   it("surfaces an assistant turn error via role=alert", () => {

@@ -10,10 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  PLANNING_ITEM_PANEL_CLASS,
-  PlanningItemCombobox,
-} from "./PlanningItemCombobox";
+import { PlanningItemCombobox } from "./PlanningItemCombobox";
 
 const SPRINT_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -152,7 +149,7 @@ describe("PlanningItemCombobox", () => {
     fireEvent.click(screen.getByTestId("sprint-combo"));
 
     const panel = screen.getByRole("listbox").closest('[role="dialog"]');
-    expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
+    expect(panel).toHaveClass("min-w-[min(20rem,90vw)]");
   });
 
   it("reveals an overflowing planning name on trigger hover and active option", async () => {

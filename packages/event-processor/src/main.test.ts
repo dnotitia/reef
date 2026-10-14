@@ -35,6 +35,9 @@ describe("processor shutdown drain", () => {
       finish = resolve;
     });
     const draining = waitForDrain(running, 100);
+    await expect(
+      Promise.race([draining, Promise.resolve("pending")]),
+    ).resolves.toBe("pending");
     finish();
 
     await expect(draining).resolves.toBe(true);

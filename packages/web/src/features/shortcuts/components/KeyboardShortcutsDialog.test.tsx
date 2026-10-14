@@ -33,7 +33,7 @@ describe("KeyboardShortcutsDialog", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lists every declared shortcut when open", () => {
+  it("lists the palette, shortcuts, new issue, and Ask AI entries when open", () => {
     useShortcutsStore.setState({ isOpen: true });
     render(<KeyboardShortcutsDialog />);
     const rows = screen.getAllByTestId("shortcut-row");

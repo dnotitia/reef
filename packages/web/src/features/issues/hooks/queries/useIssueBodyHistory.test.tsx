@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createQueryWrapper } from "@/test-support/query";
+import { QueryClient } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   issueBodyHistoryKey,
@@ -14,14 +14,6 @@ vi.stubGlobal("fetch", fetchMock);
 afterEach(() => {
   fetchMock.mockReset();
 });
-
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <QueryClientProvider client={new QueryClient()}>
-      {children}
-    </QueryClientProvider>
-  );
-}
 
 describe("useIssueBodyHistory", () => {
   it("loads the separate history route", async () => {
@@ -45,7 +37,7 @@ describe("useIssueBodyHistory", () => {
 
     const { result } = renderHook(
       () => useIssueBodyHistory("REEF-127", "reef-sample"),
-      { wrapper },
+      { wrapper: createQueryWrapper(new QueryClient()) },
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

@@ -3,7 +3,6 @@ import { SchemaValidationError } from "../../../errors";
 import { downloadIssueAttachment } from "./attachments";
 import {
   REEF_ATTACHMENTS_TABLE,
-  createIssueAttachmentRecord,
   downloadIssueAttachmentByFileUri,
   listIssueAttachments,
   makeAdapter,
@@ -100,21 +99,38 @@ describe("listIssueAttachments", () => {
 
 describe("uploadIssueAttachment", () => {
   it("uploads bytes to AKB files, inserts metadata, and returns the row", async () => {
+    const input = {
+      reefId: "REEF'349\\한글🚀",
+      filename: "스크린샷 ' \\ 🚀.png",
+      mimeType: "application/x-reef-audit",
+      author: "홍길동'\\🚀",
+      source: "jira_import" as const,
+      inline: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      originalJiraAttachmentId: "source-'42\\한글",
+      meta: {
+        source: "jira",
+        jira_idempotency_key: "attachment:cloud-'1\\한글:source-42",
+        description: "O'Reilly \\ 한글 🚀",
+        nested: { value: "작은따옴표 ' \\ 이모지 🚀" },
+      },
+    };
+    const fileUri = "akb://reef-sample/issues/file/file-'1\\한글🚀";
     const { calls } = setupFetch([
-      { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
+      { body: makeSqlQueryResponse([{ reef_id: input.reefId }], ["reef_id"]) },
       { body: makeSqlQueryResponse([], ATTACHMENT_ROW_COLUMNS) },
       {
         body: {
-          uri: "akb://reef-sample/issues/file/file-1",
+          uri: fileUri,
           upload_url: "https://s3.test/presigned-put",
         },
       },
       { empty: true },
       {
         body: {
-          uri: "akb://reef-sample/issues/file/file-1",
-          name: "screenshot.png",
-          mime_type: "image/png",
+          uri: fileUri,
+          name: input.filename,
+          mime_type: input.mimeType,
           size_bytes: 4,
         },
       },
@@ -122,13 +138,15 @@ describe("uploadIssueAttachment", () => {
         body: makeSqlQueryResponse(
           [
             makeAttachmentRow({
+              reef_id: input.reefId,
+              file_uri: fileUri,
+              filename: input.filename,
+              mime_type: input.mimeType,
               size_bytes: 4,
-              source: "jira_import",
-              original_jira_attachment_id: "source-42",
-              meta: {
-                source: "jira",
-                created_at: "2026-01-01T00:00:00.000Z",
-              },
+              author: input.author,
+              source: input.source,
+              original_jira_attachment_id: input.originalJiraAttachmentId,
+              meta: { ...input.meta, created_at: input.createdAt },
             }),
           ],
           ATTACHMENT_ROW_COLUMNS,
@@ -140,49 +158,49 @@ describe("uploadIssueAttachment", () => {
     const attachment = await uploadIssueAttachment({
       adapter: makeAdapter(),
       vault: "reef-sample",
-      reefId: "REEF-349",
-      filename: "screenshot.png",
-      mimeType: "image/png",
+      ...input,
       bytes: new Uint8Array([1, 2, 3, 4]),
-      author: "alice",
-      source: "jira_import",
-      inline: true,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      originalJiraAttachmentId: "source-42",
-      meta: {
-        source: "jira",
-        jira_idempotency_key: "attachment:cloud-1:source-42",
-      },
     });
 
     expect(attachment).toMatchObject({
       id: "att-1",
-      file_uri: "akb://reef-sample/issues/file/file-1",
+      reef_id: input.reefId,
+      file_uri: fileUri,
+      filename: input.filename,
+      mime_type: input.mimeType,
+      author: input.author,
+      original_jira_attachment_id: input.originalJiraAttachmentId,
+      created_at: input.createdAt,
+      meta: input.meta,
       size_bytes: 4,
     });
     expect(calls[2]?.url).toContain(
       "https://akb.test/api/v1/files/reef-sample/upload?",
     );
-    expect(calls[2]?.url).toContain("filename=screenshot.png");
+    expect(new URL(calls[2].url).searchParams.get("filename")).toBe(
+      input.filename,
+    );
     expect(calls[2]?.url).toContain("content_hash=");
     expect(calls[3]).toMatchObject({
       url: "https://s3.test/presigned-put",
       init: {
         method: "PUT",
-        headers: { "Content-Type": "image/png" },
+        headers: { "Content-Type": input.mimeType },
         redirect: "error",
       },
     });
-    expect(calls[4]?.url).toContain(
-      "https://akb.test/api/v1/files/reef-sample/file-1/confirm?",
+    expect(new URL(calls[4].url).pathname).toBe(
+      "/api/v1/files/reef-sample/file-'1%5C%ED%95%9C%EA%B8%80%F0%9F%9A%80/confirm",
     );
     const issueLookup = sqlRequestBody(calls[0]);
     expect(issueLookup.sql).toContain("WHERE reef_id = $1");
-    expect(issueLookup.params).toEqual(["REEF-349"]);
+    expect(issueLookup.params).toEqual([input.reefId]);
     const idempotencyLookup = sqlRequestBody(calls[1]);
     expect(idempotencyLookup.sql).toContain("= $1");
-    expect(idempotencyLookup.sql).not.toContain("attachment:cloud-1:source-42");
-    expect(idempotencyLookup.params).toEqual(["attachment:cloud-1:source-42"]);
+    expect(idempotencyLookup.sql).not.toContain(
+      input.meta.jira_idempotency_key,
+    );
+    expect(idempotencyLookup.params).toEqual([input.meta.jira_idempotency_key]);
     const insertBody = sqlRequestBody(calls[5]);
     const insertSql = insertBody.sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`);
@@ -196,26 +214,27 @@ describe("uploadIssueAttachment", () => {
     expect(insertSql).toContain("$10::jsonb");
     expect(insertSql).toContain("hashtextextended($11, 0)");
     expect(insertSql).toContain("= $11");
-    expect(insertSql).not.toContain("REEF-349");
-    expect(insertSql).not.toContain("akb://reef-sample/issues/file/file-1");
-    expect(insertSql).not.toContain("source-42");
+    expect(insertSql).not.toContain(input.reefId);
+    expect(insertSql).not.toContain(fileUri);
+    expect(insertSql).not.toContain(input.filename);
+    expect(insertSql).not.toContain(input.mimeType);
+    expect(insertSql).not.toContain(input.author);
+    expect(insertSql).not.toContain(input.originalJiraAttachmentId);
+    expect(insertSql).not.toContain(input.meta.description);
+    expect(insertSql).not.toContain(input.meta.nested.value);
     expect(insertSql).not.toContain('"created_at":"');
     expect(insertBody.params).toEqual([
-      "REEF-349",
-      "akb://reef-sample/issues/file/file-1",
-      "screenshot.png",
-      "image/png",
+      input.reefId,
+      fileUri,
+      input.filename,
+      input.mimeType,
       4,
-      "alice",
-      "jira_import",
+      input.author,
+      input.source,
       true,
-      "source-42",
-      JSON.stringify({
-        source: "jira",
-        jira_idempotency_key: "attachment:cloud-1:source-42",
-        created_at: "2026-01-01T00:00:00.000Z",
-      }),
-      "attachment:cloud-1:source-42",
+      input.originalJiraAttachmentId,
+      JSON.stringify({ ...input.meta, created_at: input.createdAt }),
+      input.meta.jira_idempotency_key,
     ]);
     const activityBody = sqlRequestBody(calls[6]);
     expect(activityBody.sql).toContain(
@@ -282,12 +301,18 @@ describe("uploadIssueAttachment", () => {
         },
       }),
     ).resolves.toMatchObject({ id: "att-1" });
+    expect(calls).toHaveLength(4);
     expect(
-      calls.some(
-        (call) =>
-          call.url.endsWith("/api/v1/files") && call.init?.method === "POST",
-      ),
-    ).toBe(false);
+      calls.map(({ url, init }) => [
+        new URL(url).pathname,
+        init?.method ?? "GET",
+      ]),
+    ).toEqual([
+      ["/api/v1/tables/reef-sample/sql", "POST"],
+      ["/api/v1/tables/reef-sample/sql", "POST"],
+      ["/api/v1/files/reef-sample/file-1/download", "GET"],
+      ["/presigned-get", "GET"],
+    ]);
   });
 
   it("treats canonically equivalent Unicode filenames as idempotent", async () => {
@@ -344,12 +369,18 @@ describe("uploadIssueAttachment", () => {
         },
       }),
     ).resolves.toMatchObject({ id: "att-1", filename: "évidence.png" });
+    expect(calls).toHaveLength(4);
     expect(
-      calls.some(
-        (call) =>
-          call.url.endsWith("/api/v1/files") && call.init?.method === "POST",
-      ),
-    ).toBe(false);
+      calls.map(({ url, init }) => [
+        new URL(url).pathname,
+        init?.method ?? "GET",
+      ]),
+    ).toEqual([
+      ["/api/v1/tables/reef-sample/sql", "POST"],
+      ["/api/v1/tables/reef-sample/sql", "POST"],
+      ["/api/v1/files/reef-sample/file-1/download", "GET"],
+      ["/presigned-get", "GET"],
+    ]);
   });
 
   it("deletes the uploaded file when the single-statement claim reuses another row", async () => {
@@ -434,95 +465,6 @@ describe("uploadIssueAttachment", () => {
           call.init?.method === "DELETE",
       ),
     ).toBeDefined();
-  });
-});
-
-describe("createIssueAttachmentRecord", () => {
-  it("inserts Jira-imported metadata without uploading bytes", async () => {
-    const input = {
-      reef_id: "REEF'349\\한글🚀",
-      file_uri: "akb://reef-sample/issues/file/file-'1\\한글🚀",
-      filename: "스크린샷 ' \\ 🚀.png",
-      mime_type: "application/x-'\\한글",
-      size_bytes: 1234,
-      author: "홍길동'\\🚀",
-      created_at: "2026-07-09T01:00:00.000Z",
-      source: "jira_import" as const,
-      inline: true,
-      original_jira_attachment_id: "10001'\\한글",
-      meta: {
-        description: "O'Reilly \\ 한글 🚀",
-        nested: { value: "작은따옴표 ' \\ 이모지 🚀" },
-      },
-    };
-    const { calls } = setupFetch([
-      {
-        body: makeSqlQueryResponse([{ reef_id: input.reef_id }], ["reef_id"]),
-      },
-      {
-        body: makeSqlQueryResponse(
-          [
-            makeAttachmentRow({
-              reef_id: input.reef_id,
-              file_uri: input.file_uri,
-              filename: input.filename,
-              mime_type: input.mime_type,
-              created_at: "2026-07-10T01:00:00.000Z",
-              author: input.author,
-              source: input.source,
-              inline: input.inline,
-              original_jira_attachment_id: input.original_jira_attachment_id,
-              size_bytes: input.size_bytes,
-              meta: { ...input.meta, created_at: input.created_at },
-            }),
-          ],
-          ATTACHMENT_ROW_COLUMNS,
-        ),
-      },
-    ]);
-
-    const attachment = await createIssueAttachmentRecord(
-      makeAdapter(),
-      "reef-sample",
-      input,
-    );
-
-    expect(calls.some((call) => call.url.endsWith("/api/v1/files"))).toBe(
-      false,
-    );
-    const insertBody = sqlRequestBody(calls[1]);
-    const sql = insertBody.sql;
-    const insertColumns = sql.slice(0, sql.indexOf(" VALUES "));
-    expect(insertColumns).not.toContain('"created_at"');
-    expect(sql).toContain("$10::jsonb");
-    expect(sql).not.toContain(input.reef_id);
-    expect(sql).not.toContain(input.file_uri);
-    expect(sql).not.toContain(input.filename);
-    expect(sql).not.toContain(input.mime_type);
-    expect(sql).not.toContain(input.author);
-    expect(sql).not.toContain(input.original_jira_attachment_id);
-    expect(insertBody.params).toEqual([
-      input.reef_id,
-      input.file_uri,
-      input.filename,
-      input.mime_type,
-      input.size_bytes,
-      input.author,
-      input.source,
-      true,
-      input.original_jira_attachment_id,
-      JSON.stringify({ ...input.meta, created_at: input.created_at }),
-    ]);
-    expect(attachment.created_at).toBe("2026-07-09T01:00:00.000Z");
-    expect(attachment).toMatchObject({
-      reef_id: input.reef_id,
-      file_uri: input.file_uri,
-      filename: input.filename,
-      mime_type: input.mime_type,
-      author: input.author,
-      original_jira_attachment_id: input.original_jira_attachment_id,
-      meta: input.meta,
-    });
   });
 });
 
@@ -641,7 +583,10 @@ describe("attachment SQL input validation", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("rejects NUL metadata before any AKB request", async () => {
+  it.each([
+    { name: "NUL", meta: { caption: "bad\0value" } },
+    { name: "non-serializable", meta: { callback: () => "not-json" } },
+  ])("rejects $name metadata before any AKB request", async ({ meta }) => {
     const { calls } = setupFetch([]);
 
     await expect(
@@ -654,27 +599,7 @@ describe("attachment SQL input validation", () => {
         bytes: new Uint8Array([1]),
         author: "alice",
         source: "issue_body",
-        meta: { caption: "bad\0value" },
-      }),
-    ).rejects.toBeInstanceOf(SchemaValidationError);
-    expect(calls).toHaveLength(0);
-  });
-
-  it("rejects non-serializable metadata before any AKB request", async () => {
-    const { calls } = setupFetch([]);
-
-    await expect(
-      createIssueAttachmentRecord(makeAdapter(), "reef-sample", {
-        reef_id: "REEF-349",
-        file_uri: "akb://reef-sample/issues/file/file-1",
-        filename: "screenshot.png",
-        mime_type: "image/png",
-        size_bytes: 1,
-        author: "alice",
-        created_at: "2026-07-09T01:00:00.000Z",
-        source: "issue_body",
-        inline: false,
-        meta: { callback: () => "not-json" },
+        meta,
       }),
     ).rejects.toBeInstanceOf(SchemaValidationError);
     expect(calls).toHaveLength(0);

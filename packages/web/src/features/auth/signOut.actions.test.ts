@@ -25,9 +25,21 @@ beforeEach(() => {
 
 describe("signOutOfWorkspace", () => {
   it("POSTs logout, then wipes akb-scoped browser state", async () => {
-    mockApiFetch.mockResolvedValue(new Response(null, { status: 204 }));
-
-    await expect(signOutOfWorkspace()).resolves.toEqual({});
+    const logout = Promise.withResolvers<Response>();
+    const wipe = Promise.withResolvers<void>();
+    mockApiFetch.mockReturnValueOnce(logout.promise);
+    mockWipe.mockReturnValueOnce(wipe.promise);
+    let finished = false;
+    const signingOut = signOutOfWorkspace().then((result) => {
+      finished = true;
+      return result;
+    });
+    expect(mockWipe).not.toHaveBeenCalled();
+    logout.resolve(new Response(null, { status: 204 }));
+    await vi.waitFor(() => expect(mockWipe).toHaveBeenCalledOnce());
+    expect(finished).toBe(false);
+    wipe.resolve();
+    await expect(signingOut).resolves.toEqual({});
 
     expect(mockApiFetch).toHaveBeenCalledWith("/api/auth/akb/logout", {
       method: "POST",

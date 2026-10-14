@@ -3,15 +3,16 @@ import { AkbApiError, ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   type FetchCall,
-  makeIssueQueryResponse,
-  makeTestAkbAdapter,
+  makeAdapter,
   setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+} from "../core/httpTestSupport";
+import {
+  makeDocumentResponse,
+  makeIssueQueryResponse,
+  makePutResponse,
+} from "./issueFixtures";
 import { makeSqlQueryResponse } from "../core/sqlTestSupport";
-import { claimIssueId, updateIssue, writeIssue } from "./issues";
-
-mockOpenTelemetry();
+import { updateIssue } from "./issues";
 
 const VAULT = "reef-acme";
 
@@ -32,60 +33,15 @@ function makeIssue(over: Partial<IssueMetadata> = {}): IssueMetadata {
   };
 }
 
-function makeMigrationIssue(over: Partial<IssueMetadata> = {}): IssueMetadata {
-  return makeIssue({
-    custom_fields: {
-      jira_migration: {
-        owner: { jira_cloud_id: "cloud-1", issue_id: "10001" },
-      },
-    },
-    ...over,
-  });
-}
-
-function makeReservation(issue: IssueMetadata): IssueMetadata {
-  return {
-    ...issue,
-    archived_at: issue.updated_at,
-    parent_id: undefined,
-    depends_on: [],
-    related_to: [],
-    blocks: [],
-    custom_fields: {
-      ...issue.custom_fields,
-      jira_migration: {
-        ...((issue.custom_fields?.jira_migration as Record<string, unknown>) ??
-          {}),
-        reservation: true,
-      },
-    },
-  };
-}
-
 function rowsForIssue(issue: IssueMetadata): unknown {
-  const response = makeIssueQueryResponse([issue]) as {
-    items: Array<Record<string, unknown>>;
-  };
-  response.items[0] = {
-    ...response.items[0],
+  return makeIssueQueryResponse([issue], {
     document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
-    parent_id: issue.parent_id ?? null,
-    related_to: issue.related_to ?? [],
-    meta: {
-      author: issue.created_by,
-      last_editor: issue.updated_by,
-      source: issue.source ?? null,
-      last_status_change: issue.last_status_change ?? null,
-      mention_recipients: issue.mention_recipients ?? null,
-      custom_fields: issue.custom_fields,
-    },
-  };
-  return response;
+  });
 }
 
 /** The `GET /documents/{vault}/{path}` payload `readIssue` reads for the body. */
 function docGetResponse(content: string): unknown {
-  return {
+  return makeDocumentResponse({
     uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
     vault: VAULT,
     path: "issues/reef-001.md",
@@ -96,17 +52,17 @@ function docGetResponse(content: string): unknown {
     current_commit: "commit-old",
     tags: ["bug"],
     content,
-  };
+  });
 }
 
 /** The `PATCH /documents/...` (or POST) put-response envelope. */
 function putResponse(commit: string): unknown {
-  return {
+  return makePutResponse({
     uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
     vault: VAULT,
     path: "issues/reef-001.md",
     commit_hash: commit,
-  };
+  });
 }
 
 const ROW_UPDATE_OK = { kind: "table_sql", result: "UPDATE 1" };
@@ -139,7 +95,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     const err = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -172,7 +128,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     const err = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: { priority: "high" }, // row field → docDirty=false
@@ -196,7 +152,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: { rank: 1500 },
@@ -222,7 +178,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     const err = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -255,7 +211,7 @@ describe("updateIssue → row-update compensation", () => {
 
     await expect(
       updateIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         id: "REEF-001",
         partial: {},
@@ -278,7 +234,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     const res = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -314,7 +270,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     const result = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -371,7 +327,7 @@ describe("updateIssue → row-update compensation", () => {
     ]);
 
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -401,7 +357,7 @@ describe("updateIssue → row-update compensation", () => {
 
     await expect(
       updateIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         id: "REEF-001",
         partial: {},
@@ -446,7 +402,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     ]);
 
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -468,7 +424,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     ]);
 
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -486,7 +442,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     ]);
 
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: { priority: "high" }, // docDirty=false
@@ -506,7 +462,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     ]);
 
     const err = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: {},
@@ -536,7 +492,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
 
     await expect(
       updateIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         id: "REEF-001",
         partial: { priority: "high" },

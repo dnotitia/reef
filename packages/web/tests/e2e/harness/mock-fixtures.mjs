@@ -564,7 +564,7 @@ function workspaceRecoveryCurrentStampVault(name) {
   const vault = workspaceRecoveryVault(name);
   vault.tables = new Set(["reef_settings"]);
   vault.settings.set("vault_skill", {
-    version: 22,
+    version: REEF_VAULT_SKILL_VERSION,
     synced_at: "2026-06-20T00:00:00.000Z",
   });
   return vault;
@@ -1421,6 +1421,21 @@ function configuredCaughtUpVault(name) {
 
 function contentSearchVault(name) {
   const vault = configuredVault(name);
+  // Raw collisions exercise exact-ID ordering and metadata/content dedupe.
+  vault.issues.push(
+    issueRow({
+      id: "REEF-199",
+      title: "A reference to REEF-001",
+      status: "todo",
+      priority: "low",
+    }),
+  );
+  seedIssueDocument(
+    vault,
+    "REEF-001",
+    "REEF-001 Alpha description from fixture.",
+  );
+  seedIssueDocument(vault, "REEF-199", "Notes referring to REEF-001.");
   seedIssueDocument(
     vault,
     "REEF-002",
@@ -1546,7 +1561,7 @@ function largeVault(name) {
       ? "Sparse residual match"
       : index === 4 || index === 600 || index === 1_200
         ? `${titlePrefixes[index % titlePrefixes.length]} ${String(index + 1).padStart(4, "0")} — ${"variable-height Board sample title segment ".repeat(6)}`
-        : index < 2
+        : index < 2 || index === 998 || index === 999
           ? "! Symbol duplicate"
           : index < 4
             ? "힣 duplicate"

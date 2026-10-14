@@ -328,12 +328,12 @@ export function IssueQuickEditAnchor({
       return;
     }
     closeQuickEdit();
-    commitPatch(buildStatusPatch(issue, next));
+    commitPatch(buildStatusPatch(next));
   }
 
   function confirmClose(reason: ClosedReason) {
     setPendingClose(false);
-    commitPatch(buildStatusPatch(issue, "closed", undefined, reason));
+    commitPatch(buildStatusPatch("closed", reason));
   }
 
   const anchor =

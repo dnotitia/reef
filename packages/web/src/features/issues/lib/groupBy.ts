@@ -35,14 +35,6 @@ export function parseIssueGroupBy(
   return value as IssueGroupBy;
 }
 
-export function normalizeIssueGroupByParam(
-  value: string | null | undefined,
-  scope: IssueScope,
-  view: IssueWorkspaceView,
-): string {
-  return parseIssueGroupBy(value, scope, view);
-}
-
 export function serializeIssueGroupBy(value: IssueGroupBy): string {
   return value;
 }

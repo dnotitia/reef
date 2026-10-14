@@ -11,41 +11,27 @@ import {
 import { expectCursorAtPointer } from "../harness/cursor";
 
 async function copySelection(page: Page, locator: Locator): Promise<void> {
-  const selectedText = await locator.evaluate((element) => {
-    const selection = window.getSelection();
-    if (!selection) throw new Error("Browser selection API is unavailable");
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    return selection.toString();
-  });
-  expect(selectedText.trim()).not.toBe("");
-  await page.evaluate(() => {
-    const browserWindow = window as Window & {
-      __reefCopySelection?: string | null;
-    };
-    browserWindow.__reefCopySelection = null;
-    document.addEventListener(
-      "copy",
-      () => {
-        browserWindow.__reefCopySelection =
-          window.getSelection()?.toString() ?? "";
-      },
-      { once: true },
-    );
-  });
-  const copySucceeded = await page.evaluate(() => document.execCommand("copy"));
-  expect(copySucceeded).toBe(true);
+  // Reset both calls independently: an earlier successful copy must not make
+  // a later no-op copy pass with the same text already in the clipboard.
+  const sentinel = "Reef E2E clipboard sentinel";
+  expect(
+    await page.evaluate(async (value) => {
+      await navigator.clipboard.writeText(value);
+      return navigator.clipboard.readText();
+    }, sentinel),
+  ).toBe(sentinel);
+  // Triple-click selects the paragraph through native pointer input. This must
+  // still fail if the rendered content becomes unselectable.
+  await locator.click({ clickCount: 3 });
+  expect(
+    await page.evaluate(() => window.getSelection()?.toString().trim()),
+  ).toBe("Finish the hermetic E2E spine.");
+  await page.keyboard.press(
+    process.platform === "darwin" ? "Meta+C" : "Control+C",
+  );
   await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as Window & { __reefCopySelection?: string | null })
-            .__reefCopySelection,
-      ),
-    )
-    .toBe(selectedText);
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toMatch(/^Finish the hermetic E2E spine\.\s*$/);
 }
 
 function sprintNames(
@@ -1116,7 +1102,15 @@ test.describe("Hermetic planning workflow", () => {
     await expect(loading).toHaveCount(0);
     await expect(error).toHaveAttribute("role", "alert");
     await expect(error.getByText("Couldn't load planning.")).toBeVisible();
-    await expect(page.getByTestId("planning-empty-sprints")).toHaveCount(0);
+    for (const section of [
+      "currentSprint",
+      "upcomingMilestones",
+      "upcomingReleases",
+    ]) {
+      await expect(
+        page.getByTestId(`planning-overview-empty-${section}`),
+      ).toHaveCount(0);
+    }
 
     await setPlanningCatalogFailure(request, false);
     await error.getByRole("button", { name: "Retry" }).click();
@@ -1236,7 +1230,14 @@ test.describe("Hermetic planning workflow", () => {
       ?.sprints.find((candidate) => candidate.status === "active");
     expect(sprint).toBeDefined();
 
-    await page.goto(
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+    await page
+      .getByRole("link", {
+        name: "Open Launch Readiness Sprint sprint details",
+        exact: true,
+      })
+      .click();
+    await expect(page).toHaveURL(
       `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
     );
     await expect(page.getByTestId("sprint-detail-header")).toBeVisible();
@@ -1255,6 +1256,12 @@ test.describe("Hermetic planning workflow", () => {
     );
     await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
 
+    await expect(
+      page.locator('[data-testid="kanban-card"][data-issue-id="REEF-101"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid="kanban-card"][data-issue-id="REEF-103"]'),
+    ).toHaveCount(0);
     await page.getByTestId("view-switcher-list").click();
     await expect(page).toHaveURL(
       new RegExp(
@@ -1262,8 +1269,11 @@ test.describe("Hermetic planning workflow", () => {
       ),
     );
     await expect(
-      page.locator('[data-testid="issue-list-row"]').first(),
+      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-101"]'),
     ).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-103"]'),
+    ).toHaveCount(0);
 
     await page
       .getByTestId("sprint-filter-locked")

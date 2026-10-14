@@ -81,23 +81,3 @@ export function createGitHubAdapter({
     listRepoLabels: (params) => listRepoLabels({ rest, ...params }),
   };
 }
-
-export interface ListLabelsForRepoParams {
-  adapter: GitHubAdapter;
-  owner: string;
-  repo: string;
-}
-
-/**
- * Lists labels defined on a repository.
- *
- * Retained as the stable helper used by enrichment while the adapter owns the
- * underlying GitHub read and error normalization.
- */
-export async function listLabelsForRepo({
-  adapter,
-  owner,
-  repo,
-}: ListLabelsForRepoParams): Promise<RepoLabel[]> {
-  return adapter.listRepoLabels({ owner, repo });
-}

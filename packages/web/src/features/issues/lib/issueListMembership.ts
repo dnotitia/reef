@@ -32,18 +32,14 @@ const LIST_MEMBERSHIP_KEYS = [
 ] as const satisfies readonly (keyof IssueUpdatePatch)[];
 
 /**
- * The list-membership keys actually present in `patch`. Drives both the boolean
- * gate below and the narrowed invalidation predicate (REEF-323), which refetches
+ * The list-membership keys actually present in `patch`. Drives the narrowed
+ * invalidation predicate (REEF-323), which refetches
  * just the variants these keys can affect rather than every list variant.
  */
 export function changedListMembershipKeys(
   patch: IssueUpdatePatch,
 ): (keyof IssueUpdatePatch)[] {
   return LIST_MEMBERSHIP_KEYS.filter((key) => key in patch);
-}
-
-export function patchAffectsListMembership(patch: IssueUpdatePatch): boolean {
-  return changedListMembershipKeys(patch).length > 0;
 }
 
 /**

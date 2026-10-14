@@ -11,6 +11,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -27,7 +28,7 @@ const ALLOWED_REPOS = [
 ];
 
 // ─── OTEL Mock ────────────────────────────────────────────────────────────────
-// Reuse exact mock shape from github.test.ts — passthrough with spy functions.
+// Capture the tool span independently of the provider span.
 type SpanMock = {
   setAttribute: ReturnType<typeof vi.fn>;
   addEvent: ReturnType<typeof vi.fn>;
@@ -36,13 +37,17 @@ type SpanMock = {
   end: ReturnType<typeof vi.fn>;
 };
 
+const capturedSpans = vi.hoisted(
+  () => [] as Array<{ name: string; span: SpanMock }>,
+);
+
 vi.mock("@opentelemetry/api", () => ({
   SpanStatusCode: { ERROR: 2, OK: 1, UNSET: 0 },
   trace: {
     getTracer: () => ({
       startActiveSpan: vi.fn(
         async (
-          _name: string,
+          name: string,
           fn: (span: SpanMock) => Promise<unknown>,
         ): Promise<unknown> => {
           const span: SpanMock = {
@@ -52,6 +57,7 @@ vi.mock("@opentelemetry/api", () => ({
             setStatus: vi.fn(),
             end: vi.fn(),
           };
+          capturedSpans.push({ name, span });
           return fn(span);
         },
       ),
@@ -96,22 +102,20 @@ const successHandler = http.get(SEARCH_CODE_URL, () => {
 const server = setupServer(successHandler);
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeEach(() => {
+  capturedSpans.length = 0;
+});
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("createSearchCodeTool", () => {
-  it("returns a tool object with execute function", () => {
-    const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
-    expect(toolObj).toHaveProperty("inputSchema");
-    expect(typeof toolObj.execute).toBe("function");
-  });
-
   it("success: returns correctly-shaped results with path, line, and snippet", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
     const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
+
+    expect(toolObj).toHaveProperty("inputSchema");
 
     const result = await callTool(toolObj, {
       query: "const x",
@@ -119,6 +123,12 @@ describe("createSearchCodeTool", () => {
       repo: "repo",
       maxResults: 10,
     });
+    const toolSpans = capturedSpans.filter(
+      (entry) => entry.name === "reef.tool.search_code",
+    );
+    expect(toolSpans).toHaveLength(1);
+    expect(toolSpans[0].span.setStatus).toHaveBeenCalledWith({ code: 1 });
+    expect(toolSpans[0].span.end).toHaveBeenCalledTimes(1);
 
     expect(result).toEqual({
       results: [
@@ -348,23 +358,5 @@ describe("createSearchCodeTool", () => {
         maxResults: 10,
       }),
     ).rejects.toBeInstanceOf(GitHubApiError);
-  });
-
-  it("OTEL span is started and ended on success", async () => {
-    // The vi.mock for @opentelemetry/api uses a passthrough spy. Because startActiveSpan
-    // is called, the span's end() should be called in the finally block.
-    // We verify by checking the mock was called without throwing.
-    const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
-
-    // Should not throw — OTEL span lifecycle is managed by the tool execute body
-    await expect(
-      callTool(toolObj, {
-        query: "const x",
-        owner: "owner",
-        repo: "repo",
-        maxResults: 10,
-      }),
-    ).resolves.toBeDefined();
   });
 });

@@ -3,9 +3,6 @@
 import { cn } from "@/lib/utils";
 import { AccountMenu } from "./AccountMenu";
 
-export { deriveIdentity } from "./SidebarAccountIdentity";
-export { releaseNotesUrl } from "./AccountMenu";
-
 interface SidebarAccountProps {
   appVersion: string;
   collapsed: boolean;

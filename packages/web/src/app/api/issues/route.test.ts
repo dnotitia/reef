@@ -47,7 +47,6 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import {
   AkbApiError,
   AuthError,
@@ -56,7 +55,7 @@ import {
   NotFoundError,
   SchemaValidationError,
 } from "@reef/core";
-import { VALID_JWT } from "../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../__test-helpers__/jwt";
 import { GET, POST } from "./route";
 
 const SAMPLE_ISSUE: IssueMetadata = {
@@ -81,13 +80,6 @@ function makeWrittenIssue(id: string): IssueMetadata {
     updated_by: "carol",
     source: "user:create_issue",
     mention_recipients: [],
-  };
-}
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
   };
 }
 

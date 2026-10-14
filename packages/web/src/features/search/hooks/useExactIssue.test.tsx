@@ -1,6 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createQueryWrapper } from "@/test-support/query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -28,17 +28,6 @@ const SAMPLE: IssueListItem = {
   updated_by: "alice",
 };
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useExactIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,7 +42,7 @@ describe("useExactIssue", () => {
     const { result } = renderHook(
       () => useExactIssue("REEF-001", "reef-acme"),
       {
-        wrapper: createWrapper(),
+        wrapper: createQueryWrapper(),
       },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -72,7 +61,7 @@ describe("useExactIssue", () => {
     const { result } = renderHook(
       () => useExactIssue("REEF-999", "reef-acme"),
       {
-        wrapper: createWrapper(),
+        wrapper: createQueryWrapper(),
       },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -96,7 +85,7 @@ describe("useExactIssue", () => {
         ),
       ),
     );
-    const wrapper = createWrapper();
+    const wrapper = createQueryWrapper();
     const a = renderHook(() => useExactIssue("REEF-001", "a"), { wrapper });
     await waitFor(() => expect(a.result.current.data?.title).toBe("A"));
     const b = renderHook(() => useExactIssue("REEF-001", "b"), { wrapper });
@@ -105,9 +94,12 @@ describe("useExactIssue", () => {
     expect(mockApiFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("is disabled when id or vault is empty", () => {
-    const { result } = renderHook(() => useExactIssue("", "reef-acme"), {
-      wrapper: createWrapper(),
+  it.each([
+    ["", "reef-acme"],
+    ["REEF-001", ""],
+  ])("is disabled for id=%j and vault=%j", (id, vault) => {
+    const { result } = renderHook(() => useExactIssue(id, vault), {
+      wrapper: createQueryWrapper(),
     });
     expect(result.current.fetchStatus).toBe("idle");
     expect(mockApiFetch).not.toHaveBeenCalled();

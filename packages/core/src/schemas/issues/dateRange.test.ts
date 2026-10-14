@@ -167,29 +167,45 @@ describe("issue date range module", () => {
   it("keeps the range value shape when another registry field is added", () => {
     const registry = {
       ...ISSUE_DATE_FIELD_REGISTRY,
-      created_at: {
-        id: "created_at",
-        label: "Created",
+      resolved_at: {
+        id: "resolved_at",
+        label: "Resolved",
         storage: "timestamp" as const,
         nullable: false,
-        column: "created_at",
+        column: "resolved_at",
       },
     };
-    const range = { field: "created_at", from: "2026-06-01", to: "2026-06-01" };
+    const range = {
+      field: "resolved_at",
+      from: "2026-06-01",
+      to: "2026-06-01",
+    };
+    expect(validateIssueDateRange(range)).toMatchObject({
+      valid: false,
+      field: "unsupported_field",
+    });
     expect(validateIssueDateRange(range, registry).valid).toBe(true);
     expect(toIssueDateRangeQuery(range, "UTC", registry)).toEqual({
-      field: "created_at",
+      field: "resolved_at",
       from: "2026-06-01T00:00:00.000Z",
       to: "2026-06-02T00:00:00.000Z",
     });
     expect(
       matchesIssueDateRange(
-        { created_at: "2026-06-01T12:00:00.000Z" },
+        { resolved_at: "2026-06-01T12:00:00.000Z" },
         range,
         "UTC",
         registry,
       ),
     ).toBe(true);
+    expect(
+      matchesIssueDateRange(
+        { resolved_at: "2026-06-02T00:00:00.000Z" },
+        range,
+        "UTC",
+        registry,
+      ),
+    ).toBe(false);
   });
 
   it("rejects an unregistered field at the query boundary", () => {

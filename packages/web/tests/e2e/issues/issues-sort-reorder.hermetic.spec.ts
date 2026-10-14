@@ -714,6 +714,23 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
       '[data-group-by="status"][data-group-value="in_progress"]',
     );
     await expect(todo).toBeVisible();
+    const reorderWrites: Request[] = [];
+    const separateIssueWrites: Request[] = [];
+    page.on("request", (browserRequest) => {
+      const pathname = new URL(browserRequest.url()).pathname;
+      if (
+        browserRequest.method() === "POST" &&
+        pathname === "/api/issues/reorder"
+      ) {
+        reorderWrites.push(browserRequest);
+      }
+      if (
+        browserRequest.method() === "PATCH" &&
+        pathname === "/api/issues/REEF-103"
+      ) {
+        separateIssueWrites.push(browserRequest);
+      }
+    });
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -739,6 +756,18 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect
       .poll(() => boardIssueIds(inProgress))
       .toEqual(["REEF-105", "REEF-104", "REEF-103"]);
+    await expect(
+      inProgress
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Add saved filters" }),
+    ).not.toHaveAttribute("data-reorder-state", "pending");
+    await expect(todo.locator('[data-issue-id="REEF-103"]')).toHaveCount(0);
+    expect(reorderWrites).toHaveLength(1);
+    expect(reorderWrites[0]?.postDataJSON()).toMatchObject({
+      issue_id: "REEF-103",
+      group: { field: "status", value: "in_progress" },
+    });
+    expect(separateIssueWrites).toHaveLength(0);
     await page.reload();
     await expect(
       inProgress

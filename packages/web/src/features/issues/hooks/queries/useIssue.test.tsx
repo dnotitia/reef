@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -28,17 +31,6 @@ const SAMPLE_ISSUE: IssueMetadata = {
   updated_by: "alice",
 };
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,7 +45,7 @@ describe("useIssue", () => {
     );
 
     const { result } = renderHook(() => useIssue("REEF-001", "reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -68,7 +60,7 @@ describe("useIssue", () => {
 
   it("is disabled when id is empty", () => {
     const { result } = renderHook(() => useIssue("", "reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
     expect(result.current.fetchStatus).toBe("idle");
     expect(mockApiFetch).not.toHaveBeenCalled();
@@ -76,7 +68,7 @@ describe("useIssue", () => {
 
   it("is disabled when vault is empty", () => {
     const { result } = renderHook(() => useIssue("REEF-001", ""), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
     expect(result.current.fetchStatus).toBe("idle");
     expect(mockApiFetch).not.toHaveBeenCalled();
@@ -90,7 +82,7 @@ describe("useIssue", () => {
     );
 
     const { result } = renderHook(() => useIssue("REEF-999", "reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -98,9 +90,7 @@ describe("useIssue", () => {
   });
 
   it("revalidates on mount even when the cached value is still fresh (REEF-227)", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     // Seed a FRESH cache entry (inside the 30s staleTime window). Without
     // refetchOnMount:"consistently" this would be served with no network call; the
     // card would show this (possibly stale-vs-external) copy.
@@ -120,13 +110,7 @@ describe("useIssue", () => {
       ),
     );
 
-    function Wrapper({ children }: { children: ReactNode }) {
-      return (
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      );
-    }
+    const Wrapper = createQueryWrapper(queryClient);
     const { result } = renderHook(() => useIssue("REEF-001", "reef-acme"), {
       wrapper: Wrapper,
     });

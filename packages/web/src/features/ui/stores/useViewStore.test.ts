@@ -14,19 +14,8 @@ describe("useViewStore", () => {
   });
 
   it("initial state: sidebar is expanded", () => {
-    const collapsed = useViewStore.getState().sidebarCollapsed;
+    const collapsed = useViewStore.getInitialState().sidebarCollapsed;
     expect(collapsed).toBe(false);
-  });
-
-  it("toggleSidebar collapses when expanded", () => {
-    useViewStore.getState().toggleSidebar();
-    expect(useViewStore.getState().sidebarCollapsed).toBe(true);
-  });
-
-  it("toggleSidebar expands when collapsed", () => {
-    useViewStore.setState({ sidebarCollapsed: true });
-    useViewStore.getState().toggleSidebar();
-    expect(useViewStore.getState().sidebarCollapsed).toBe(false);
   });
 
   it("toggleSidebar toggles multiple times correctly", () => {
@@ -35,13 +24,6 @@ describe("useViewStore", () => {
     expect(useViewStore.getState().sidebarCollapsed).toBe(true);
     useViewStore.getState().toggleSidebar();
     expect(useViewStore.getState().sidebarCollapsed).toBe(false);
-  });
-
-  it("granular selector: can select sidebarCollapsed without subscribing to whole store", () => {
-    useViewStore.getState().toggleSidebar();
-    // Granular selector pattern — does not useViewStore() with no args
-    const collapsed = useViewStore.getState().sidebarCollapsed;
-    expect(collapsed).toBe(true);
   });
 
   it("openNewIssueDialog flips newIssueDialogOpen to true", () => {

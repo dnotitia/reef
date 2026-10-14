@@ -11,6 +11,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -27,7 +28,7 @@ import {
 const ALLOWED_REPOS = [{ owner: "owner", repo: "repo" }];
 
 // ─── OTEL Mock ────────────────────────────────────────────────────────────────
-// Reuse exact mock shape from github.test.ts — passthrough with spy functions.
+// Capture the tool span independently of the provider span.
 type SpanMock = {
   setAttribute: ReturnType<typeof vi.fn>;
   addEvent: ReturnType<typeof vi.fn>;
@@ -36,13 +37,17 @@ type SpanMock = {
   end: ReturnType<typeof vi.fn>;
 };
 
+const capturedSpans = vi.hoisted(
+  () => [] as Array<{ name: string; span: SpanMock }>,
+);
+
 vi.mock("@opentelemetry/api", () => ({
   SpanStatusCode: { ERROR: 2, OK: 1, UNSET: 0 },
   trace: {
     getTracer: () => ({
       startActiveSpan: vi.fn(
         async (
-          _name: string,
+          name: string,
           fn: (span: SpanMock) => Promise<unknown>,
         ): Promise<unknown> => {
           const span: SpanMock = {
@@ -52,6 +57,7 @@ vi.mock("@opentelemetry/api", () => ({
             setStatus: vi.fn(),
             end: vi.fn(),
           };
+          capturedSpans.push({ name, span });
           return fn(span);
         },
       ),
@@ -99,22 +105,20 @@ const server = setupServer(
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeEach(() => {
+  capturedSpans.length = 0;
+});
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("createDevReadFileTool", () => {
-  it("returns a tool object with execute function", () => {
-    const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
-    expect(toolObj).toHaveProperty("inputSchema");
-    expect(typeof toolObj.execute).toBe("function");
-  });
-
   it("success: returns full content, path, and truncated: false", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
     const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
+
+    expect(toolObj).toHaveProperty("inputSchema");
 
     const result = await callTool(toolObj, {
       owner: "owner",
@@ -124,6 +128,12 @@ describe("createDevReadFileTool", () => {
       startLine: null,
       endLine: null,
     });
+    const toolSpans = capturedSpans.filter(
+      (entry) => entry.name === "reef.tool.dev_read_file",
+    );
+    expect(toolSpans).toHaveLength(1);
+    expect(toolSpans[0].span.setStatus).toHaveBeenCalledWith({ code: 1 });
+    expect(toolSpans[0].span.end).toHaveBeenCalledTimes(1);
 
     expect(result.content).toBe(FILE_CONTENT);
     expect(result.path).toBe("src/main.ts");
@@ -352,21 +362,5 @@ describe("createDevReadFileTool", () => {
 
     expect(result.content).toBe("line1\nline2");
     expect(result.truncated).toBe(true);
-  });
-
-  it("OTEL span is started and ended on success", async () => {
-    const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
-
-    await expect(
-      callTool(toolObj, {
-        owner: "owner",
-        repo: "repo",
-        path: "src/main.ts",
-        ref: null,
-        startLine: null,
-        endLine: null,
-      }),
-    ).resolves.toBeDefined();
   });
 });

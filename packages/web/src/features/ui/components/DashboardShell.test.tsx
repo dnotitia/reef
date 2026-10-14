@@ -304,20 +304,6 @@ describe("DashboardShell", () => {
     );
   });
 
-  it("renders the retained navigation links", () => {
-    render(
-      wrap(
-        <DashboardShell appVersion="0.0.0">
-          <div>children</div>
-        </DashboardShell>,
-      ),
-    );
-    expect(screen.getByRole("link", { name: "Issues" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
-  });
-
   it("keeps pre-hydration navigation out of the accessibility tree", () => {
     hydrationState.ready = false;
     render(

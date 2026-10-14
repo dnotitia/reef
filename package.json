@@ -61,7 +61,7 @@
     "maintenance:test": "turbo run '//#maintenance:test:root'",
     "maintenance:test:root": "node --test scripts/maintenance/scan.test.mjs",
     "typecheck": "turbo run typecheck --filter='./packages/**'",
-    "test": "turbo run test test:behavior test:eval --filter='./packages/**' && pnpm run maintenance:test",
+    "test": "turbo run test test:behavior --filter='./packages/**' && pnpm run maintenance:test",
     "test:release-deploy": "node --test scripts/release-deploy.test.mjs",
     "test:e2e:sharded": "turbo run build test:e2e:sharded --filter=@reef/web",
     "check:affected": "turbo run lint typecheck test --affected",

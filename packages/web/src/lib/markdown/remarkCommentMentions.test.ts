@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { fromMarkdown } from "mdast-util-from-markdown";
 import { describe, expect, it } from "vitest";
 import { remarkCommentMentions } from "./remarkCommentMentions";
 
@@ -64,28 +65,29 @@ describe("remarkCommentMentions", () => {
 
   it("keeps unknown, escaped, email, code, and link text unstyled", () => {
     const source =
-      "@alice \\@alice alice@example.com `@alice` [@alice](https://x)";
-    const out = run(
-      "",
-      ["alice"],
-      [
-        { type: "inlineCode", value: "@alice" },
-        {
-          type: "link",
-          url: "https://x",
-          children: [{ type: "text", value: "@alice" }],
-        },
-        { type: "text", value: "@unknown" },
-        positionedText(source),
-      ],
-    );
-
-    expect(out[0]).toEqual({ type: "inlineCode", value: "@alice" });
-    expect(out[1]?.type).toBe("link");
-    expect(out[2]?.value).toBe("@unknown");
-    expect(out.some((node) => node.data?.hProperties?.dataReefMention)).toBe(
-      false,
-    );
+      "@alice \\@alice @unknown alice@example.com `@alice` [@alice](https://x)";
+    const tree = fromMarkdown(source);
+    remarkCommentMentions({
+      knownUsernames: new Set(["alice", "example.com"]),
+    })(tree, { value: source });
+    const paragraph = tree.children[0];
+    expect(paragraph?.type).toBe("paragraph");
+    if (paragraph?.type !== "paragraph") throw new Error("expected paragraph");
+    expect(paragraph.children).toEqual([
+      expect.objectContaining({
+        type: "strong",
+        data: { hName: "span", hProperties: { dataReefMention: "alice" } },
+        children: [{ type: "text", value: "@alice" }],
+      }),
+      { type: "text", value: " @alice @unknown alice@example.com " },
+      expect.objectContaining({ type: "inlineCode", value: "@alice" }),
+      { type: "text", value: " " },
+      expect.objectContaining({
+        type: "link",
+        url: "https://x",
+        children: [expect.objectContaining({ type: "text", value: "@alice" })],
+      }),
+    ]);
   });
 
   it("does not create links or nested interactive nodes", () => {

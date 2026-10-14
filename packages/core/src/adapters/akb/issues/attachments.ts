@@ -469,38 +469,6 @@ export async function uploadIssueAttachment(
   );
 }
 
-export async function createIssueAttachmentRecord(
-  adapter: AkbAdapter,
-  vault: string,
-  input: IssueAttachmentCreateInput,
-): Promise<IssueAttachment> {
-  return withSpan(
-    "akb.create_issue_attachment_record",
-    { vault, reef_id: input.reef_id },
-    async () => {
-      validateAttachmentSqlInput({
-        reefId: input.reef_id,
-        fileUri: input.file_uri,
-        filename: input.filename,
-        mimeType: input.mime_type,
-        sizeBytes: input.size_bytes,
-        author: input.author,
-        source: input.source,
-        inline: input.inline ?? false,
-        originalJiraAttachmentId: input.original_jira_attachment_id ?? null,
-        createdAt: input.created_at,
-        meta: input.meta ?? null,
-      });
-      await assertIssueExists(adapter, vault, input.reef_id);
-      const attachment = await insertAttachmentRow(adapter, vault, input);
-      await appendAttachmentAddedEvent(adapter, vault, attachment).catch(
-        () => {},
-      );
-      return attachment;
-    },
-  );
-}
-
 export async function downloadIssueAttachment(
   params: DownloadIssueAttachmentParams,
 ): Promise<DownloadIssueAttachmentResult> {

@@ -141,5 +141,11 @@ describe("CreateWorkspaceDialog", () => {
       expect(useViewStore.getState().createWorkspaceDialogOpen).toBe(false),
     );
     expect(mockPush).not.toHaveBeenCalled();
+    expect(
+      mockApiFetch.mock.calls.filter(
+        ([url, init]) =>
+          String(url) === "/api/vaults" && init?.method === "POST",
+      ),
+    ).toEqual([]);
   });
 });

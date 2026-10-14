@@ -158,9 +158,11 @@ describe("IssuesWorkspaceSkeleton", () => {
 
     // Placeholder bars are decorative — aria-hidden individually — while the
     // fixed toolbar labels and board headings stay available.
-    expect(
-      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
-    ).not.toBeNull();
+    const decorativeBars = container.querySelectorAll(".reef-shimmer");
+    expect(decorativeBars.length).toBeGreaterThan(0);
+    for (const bar of decorativeBars) {
+      expect(bar.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
     expect(
       screen
         .getByTestId("issues-skeleton-toolbar")

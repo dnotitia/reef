@@ -8,7 +8,7 @@ import type { ChatIssueContext, WorkspaceSummary } from "@reef/core";
  * leaves generous room under the model context window alongside the summary and
  * the conversation.
  */
-export const CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT = 6000;
+const CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT = 6000;
 
 /**
  * Delimiters that fence the untrusted issue body inside the system prompt so the
@@ -195,10 +195,9 @@ function renderIssueContext(context: ChatIssueContext): string {
 
 /**
  * Truncate `text` to at most `limit` characters, reporting whether a cut
- * happened so the caller can mark it. Exported for direct unit testing of the
- * truncation contract.
+ * happened so the caller can mark it.
  */
-export function truncateForContext(
+function truncateForContext(
   text: string,
   limit: number,
 ): { text: string; truncated: boolean } {

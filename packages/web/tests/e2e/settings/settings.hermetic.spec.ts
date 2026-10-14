@@ -40,16 +40,43 @@ test.describe("Hermetic settings workflows", () => {
       const selector = page.getByTestId("active-vault-trigger");
       await expect(selector).toBeVisible();
       await selector.focus();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Tab");
+      await expect(selector).toBeFocused();
       const geometry = await selector.evaluate((element) => {
         const node = element as HTMLElement;
         const rect = node.getBoundingClientRect();
         const styles = getComputedStyle(node);
         const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0;
         const outlineOffset = Number.parseFloat(styles.outlineOffset) || 0;
-        const outline = outlineWidth + outlineOffset;
+        const outline =
+          styles.outlineStyle === "none" ? 0 : outlineWidth + outlineOffset;
+        const shadows = styles.boxShadow
+          .split(/,(?![^()]*\))/)
+          .filter(
+            (shadow) =>
+              !shadow.includes("inset") &&
+              !/rgba\([^)]*,\s*0\)|\/\s*0\)/.test(shadow),
+          );
+        const shadowExtent = Math.max(
+          0,
+          ...shadows.map((shadow) => {
+            const pixels = [...shadow.matchAll(/(-?[\d.]+)px/g)].map((match) =>
+              Number(match[1]),
+            );
+            return pixels.length >= 4
+              ? Math.max(Math.abs(pixels[0]), Math.abs(pixels[1])) +
+                  pixels[2] +
+                  pixels[3]
+              : 0;
+          }),
+        );
+        const focusExtent = Math.max(outline, shadowExtent);
         return {
-          left: rect.left - outline,
-          right: rect.right + outline,
+          focusVisible: node.matches(":focus-visible"),
+          focusExtent,
+          left: rect.left - focusExtent,
+          right: rect.right + focusExtent,
           viewportWidth: window.innerWidth,
           documentOverflow:
             document.documentElement.scrollWidth >
@@ -57,6 +84,11 @@ test.describe("Hermetic settings workflows", () => {
         };
       });
 
+      expect(geometry.focusVisible).toBe(true);
+      expect(
+        geometry.focusExtent,
+        `${viewport.width}px painted focus`,
+      ).toBeGreaterThan(0);
       expect(geometry.left, `${viewport.width}px left`).toBeGreaterThanOrEqual(
         -1,
       );
@@ -137,6 +169,9 @@ test.describe("Hermetic settings workflows", () => {
       0,
     );
     await expect(page.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
+    await expect(page.getByTestId("save-token-btn")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/settings\/preferences$/);
+    await expect(page.getByTestId("akb-login-form")).toHaveCount(0);
 
     await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
@@ -275,6 +310,18 @@ test.describe("Hermetic settings workflows", () => {
     await expect(
       main.locator('[data-testid="templates-row-e2e-template"]'),
     ).toContainText("E2E Template Edited");
+    await expect
+      .poll(async () => reefVault(await readFixtureState(request)).templates)
+      .toContainEqual(
+        expect.objectContaining({
+          name: "e2e-template",
+          label: "E2E Template Edited",
+        }),
+      );
+    await page.reload();
+    await expect(main.getByTestId("templates-row-e2e-template")).toContainText(
+      "E2E Template Edited",
+    );
 
     page.once("dialog", (dialog) => dialog.accept());
     await main.locator('[data-testid="templates-delete-e2e-template"]').click();
@@ -378,24 +425,5 @@ test.describe("Hermetic settings workflows", () => {
       main.locator('[data-testid="settings-group-deployment"]'),
     ).toBeVisible();
     await expect(main.getByText("AI Configuration")).toBeVisible();
-  });
-
-  test("does not expose browser GitHub token controls in preferences (REEF-244)", async ({
-    page,
-  }) => {
-    await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/settings/preferences");
-
-    await expect(
-      page.getByRole("main").locator('[data-testid="settings-group-personal"]'),
-    ).toBeVisible();
-    await expect(page.getByLabel("GitHub Personal Access Token")).toHaveCount(
-      0,
-    );
-    const main = page.getByRole("main");
-    await expect(main.locator('[data-testid="save-token-btn"]')).toHaveCount(0);
-    await expect(main.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
-    await expect(page).toHaveURL(/\/settings\/preferences$/);
-    await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
   });
 });

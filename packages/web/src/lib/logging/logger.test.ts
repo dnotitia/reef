@@ -81,6 +81,7 @@ describe("logger.info — credential header redaction (config-level)", () => {
         headers: {
           Authorization: `Bearer ${FAKE_GITHUB_TOKEN}`,
           Cookie: "session=secret-value",
+          COOKIE: "session=uppercase-secret",
           "Content-Type": "application/json",
         },
       },
@@ -90,10 +91,12 @@ describe("logger.info — credential header redaction (config-level)", () => {
     const combined = capture.sink.join("");
     expect(combined).not.toContain(FAKE_GITHUB_TOKEN);
     expect(combined).not.toContain("session=secret-value");
+    expect(combined).not.toContain("session=uppercase-secret");
     const [line] = logLines(capture.sink);
     const headers = line.headers as Record<string, string>;
     expect(headers.Authorization).toBe("[REDACTED]");
     expect(headers.Cookie).toBe("[REDACTED]");
+    expect(headers.COOKIE).toBe("[REDACTED]");
     expect(headers["Content-Type"]).toBe("application/json");
   });
 
@@ -147,32 +150,41 @@ describe("logger.error — safe direct use (config-level error serializer)", () 
     capture.restore();
   });
 
-  it("does not serialize nested error properties that may carry credentials", () => {
-    // Octokit RequestError-shaped object: a credential rides on a nested
-    // `request.headers.authorization` that top-level header redaction does not see.
-    // The config `serializers.err` projects to name/message/stack just, so a
-    // raw `logger.error({ err })` call is safe — no facade required.
-    const err = Object.assign(new Error("Bad credentials"), {
-      status: 401,
-      request: {
-        headers: { authorization: `token ${FAKE_GITHUB_TOKEN}` },
-      },
-      response: { data: { token: FAKE_GITHUB_TOKEN } },
-    });
+  it.each([
+    ["without an upstream status", {}, {}],
+    ["with upstream status 401", { status: 401 }, { status: 401 }],
+  ] as const)(
+    "does not serialize nested error properties that may carry credentials (%s)",
+    (_caseName, statusProperties, expectedStatus) => {
+      // Octokit RequestError-shaped object: a credential rides on a nested
+      // `request.headers.authorization` that top-level header redaction does not see.
+      // The config `serializers.err` projects to name/message/stack just, so a
+      // raw `logger.error({ err })` call is safe — no facade required.
+      const err = Object.assign(new Error("Bad credentials"), {
+        ...statusProperties,
+        request: {
+          headers: { authorization: `token ${FAKE_GITHUB_TOKEN}` },
+        },
+        response: { data: { token: FAKE_GITHUB_TOKEN } },
+      });
 
-    logger.error({ err, route: "GET /api/repos" }, "list_repos failed");
+      logger.error({ err, route: "GET /api/repos" }, "list_repos failed");
 
-    const combined = capture.sink.join("");
-    expect(combined).not.toContain(FAKE_GITHUB_TOKEN);
-    const [line] = logLines(capture.sink);
-    expect(line.msg).toBe("list_repos failed");
-    expect((line.err as Record<string, unknown>).message).toBe(
-      "Bad credentials",
-    );
-    expect(line.route).toBe("GET /api/repos");
-    expect(line.level).toBe(50);
-    expect(line.time as string).toMatch(ISO_8601);
-  });
+      const combined = capture.sink.join("");
+      expect(combined).not.toContain(FAKE_GITHUB_TOKEN);
+      const [line] = logLines(capture.sink);
+      expect(line.msg).toBe("list_repos failed");
+      expect(line.err).toEqual({
+        type: "Error",
+        message: "Bad credentials",
+        stack: expect.any(String),
+        ...expectedStatus,
+      });
+      expect(line.route).toBe("GET /api/repos");
+      expect(line.level).toBe(50);
+      expect(line.time as string).toMatch(ISO_8601);
+    },
+  );
 
   it("serializes a non-Error value safely", () => {
     logger.error({ err: "string error value" }, "Unexpected failure");
@@ -193,47 +205,6 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
   it("emits no transport (raw JSON) outside development", () => {
     expect(buildLoggerOptions("production").transport).toBeUndefined();
     expect(buildLoggerOptions("test").transport).toBeUndefined();
-  });
-
-  it("censors credential headers case-insensitively via the headers serializer", () => {
-    const headersSerializer = (
-      buildLoggerOptions("production").serializers as {
-        headers: (h: unknown) => Record<string, string>;
-      }
-    ).headers;
-
-    const out = headersSerializer({
-      Authorization: "Bearer x",
-      COOKIE: "y",
-      "x-reef-llm": "z",
-      "content-type": "application/json",
-    });
-
-    expect(out.Authorization).toBe("[REDACTED]");
-    expect(out.COOKIE).toBe("[REDACTED]");
-    expect(out["x-reef-llm"]).toBe("[REDACTED]");
-    expect(out["content-type"]).toBe("application/json");
-  });
-
-  it("serializes errors to a type/message/stack allowlist, dropping nested props", () => {
-    const errSerializer = (
-      buildLoggerOptions("production").serializers as {
-        err: (e: unknown) => Record<string, unknown>;
-      }
-    ).err;
-
-    const out = errSerializer(
-      Object.assign(new Error("boom"), {
-        request: { headers: { authorization: "secret-token" } },
-      }),
-    );
-
-    expect(out).toEqual({
-      type: "Error",
-      message: "boom",
-      stack: expect.any(String),
-    });
-    expect(JSON.stringify(out)).not.toContain("secret-token");
   });
 
   it("preserves the upstream status of a typed reef API error, not its detail (REEF-271)", async () => {

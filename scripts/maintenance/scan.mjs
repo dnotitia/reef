@@ -530,8 +530,6 @@ const DUPLICATE_SCAN_IGNORES = [
   "packages/core/src/adapters/akb/vaultSkill/vaultSkill.test.ts",
   "packages/web/src/server/application/agents/tools/repo/devReadFile.test.ts",
   "packages/web/src/server/application/agents/tools/repo/searchCode.test.ts",
-  "packages/web/src/server/application/agents/tools/suggestion/suggestLabels.test.ts",
-  "packages/web/src/server/application/agents/tools/suggestion/suggestPriority.test.ts",
   "packages/web/src/app/api/issues/reorder/route.test.ts",
   "packages/web/src/app/api/issues/route.test.ts",
   "packages/web/src/features/issues/components/backlog/BacklogView.test.tsx",

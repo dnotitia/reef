@@ -1,4 +1,3 @@
-import { mockOpenTelemetry } from "@/server/application/agents/tools/__test-helpers__/otelMock";
 import { AuthError, GitHubApiError, NotFoundError } from "@reef/core";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -11,9 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { createGitHubAdapter, listLabelsForRepo } from "./githubAdapter";
-
-mockOpenTelemetry();
+import { createGitHubAdapter } from "./githubAdapter";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -278,14 +275,13 @@ describe("listInstallationRepositories", () => {
   });
 });
 
-// ─── listLabelsForRepo ────────────────────────────────────────────────────────
+// ─── listRepoLabels ────────────────────────────────────────────────────────
 
-describe("listLabelsForRepo", () => {
+describe("listRepoLabels", () => {
   it("returns RepoLabel[] on happy path", async () => {
     const adapter = createGitHubAdapter({ token: "test" });
 
-    const result = await listLabelsForRepo({
-      adapter,
+    const result = await adapter.listRepoLabels({
       owner: "owner",
       repo: "repo",
     });
@@ -309,8 +305,7 @@ describe("listLabelsForRepo", () => {
     );
     const adapter = createGitHubAdapter({ token: "test" });
 
-    const result = await listLabelsForRepo({
-      adapter,
+    const result = await adapter.listRepoLabels({
       owner: "owner",
       repo: "repo",
     });
@@ -328,8 +323,7 @@ describe("listLabelsForRepo", () => {
     );
     const adapter = createGitHubAdapter({ token: "test" });
 
-    const result = await listLabelsForRepo({
-      adapter,
+    const result = await adapter.listRepoLabels({
       owner: "owner",
       repo: "repo",
     });
@@ -346,7 +340,7 @@ describe("listLabelsForRepo", () => {
     const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
-      listLabelsForRepo({ adapter, owner: "missing", repo: "repo" }),
+      adapter.listRepoLabels({ owner: "missing", repo: "repo" }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
@@ -359,7 +353,7 @@ describe("listLabelsForRepo", () => {
     const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
-      listLabelsForRepo({ adapter, owner: "owner", repo: "repo" }),
+      adapter.listRepoLabels({ owner: "owner", repo: "repo" }),
     ).rejects.toBeInstanceOf(AuthError);
   });
 
@@ -372,7 +366,7 @@ describe("listLabelsForRepo", () => {
     const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
-      listLabelsForRepo({ adapter, owner: "owner", repo: "repo" }),
+      adapter.listRepoLabels({ owner: "owner", repo: "repo" }),
     ).rejects.toBeInstanceOf(GitHubApiError);
   });
 });

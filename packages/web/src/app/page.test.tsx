@@ -48,11 +48,6 @@ describe("apps/web root page", () => {
     expect(status.className).toContain("sr-only");
   });
 
-  it("still runs the root redirect gate", () => {
-    render(<RootPage />);
-    expect(useAuthRedirect).toHaveBeenCalledWith("root");
-  });
-
   it.each(["pending", "redirecting"] as const)(
     "keeps the board app shell while workspace resume is %s",
     (status) => {

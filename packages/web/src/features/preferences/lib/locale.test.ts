@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LOCALE_COOKIE_MAX_AGE_SECONDS, applyLocale } from "./locale";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyLocale } from "./locale";
 
 function clearCookies() {
   for (const pair of document.cookie.split(";")) {
@@ -31,6 +31,11 @@ describe("applyLocale", () => {
   });
 
   it("persists the cookie for roughly a year (long-lived preference)", () => {
-    expect(LOCALE_COOKIE_MAX_AGE_SECONDS).toBe(60 * 60 * 24 * 365);
+    const cookie = vi.spyOn(document, "cookie", "set");
+    applyLocale("ko");
+    expect(cookie).toHaveBeenCalledWith(
+      "NEXT_LOCALE=ko; Path=/; Max-Age=31536000; SameSite=Lax",
+    );
+    cookie.mockRestore();
   });
 });

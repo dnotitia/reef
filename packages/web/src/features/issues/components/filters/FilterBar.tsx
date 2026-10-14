@@ -49,14 +49,14 @@ import type { IssueScope } from "../../lib/viewMode";
  * enough width for display name + `@login`. Keep the opened panel readable and
  * viewport-bounded while the shared combobox remains non-portaled (REEF-134/269).
  */
-export const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
+const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
 
 /**
  * Shared width policy for Milestone and Labels: hug the selected value, keep an
  * empty field readable, and cap long values before they push the bar wide
  * (REEF-269). Multi-select facets use chip triggers instead.
  */
-export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
+const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
 
 /**
  * Wrapper for the single-select Milestone value field. The width token lives on
@@ -64,7 +64,7 @@ export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
  * REEF-246; this wrapper provides the relative box and a viewport cap so the
  * field can wrap without overflowing the bar.
  */
-export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
+const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
 /**
  * Static multi-select facet options. Status remains dynamic because board and

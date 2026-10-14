@@ -1,7 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
-import { toIssueDateRangeQuery } from "@reef/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IssueFilter } from "../stores/useIssueStore";
 import {
   buildIssueQuery,
@@ -14,6 +13,14 @@ import {
 const DEFAULT_SORT = { sort_field: "priority", sort_order: "desc" } as const;
 
 describe("buildIssueQuery", () => {
+  beforeEach(() => {
+    const options = new Intl.DateTimeFormat().resolvedOptions();
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
+      ...options,
+      timeZone: "Asia/Seoul",
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
   it("maps an explicitly selected Manual mode to rank order", () => {
     expect(buildIssueQuery({ orderingMode: "manual" })).toEqual({
       sort_field: "rank",
@@ -38,35 +45,33 @@ describe("buildIssueQuery", () => {
       from: "2026-06-01",
       to: "2026-06-02",
     };
-    const normalized = toIssueDateRangeQuery(dateRange);
     expect(
       buildIssueQuery({
         dateRange,
       }),
     ).toMatchObject({
-      date_field: normalized?.field,
-      date_from: normalized?.from,
-      date_to: normalized?.to,
+      date_field: "updated_at",
+      date_from: "2026-05-31T15:00:00.000Z",
+      date_to: "2026-06-02T15:00:00.000Z",
       ...DEFAULT_SORT,
     });
   });
 
-  it.each(["created_at", "start_date", "due_date"] as const)(
+  it.each([
+    ["created_at", "2026-05-31T15:00:00.000Z", "2026-06-01T15:00:00.000Z"],
+    ["start_date", "2026-06-01", "2026-06-02"],
+    ["due_date", "2026-06-01", "2026-06-02"],
+  ] as const)(
     "normalizes a complete %s range for the server",
-    (field) => {
-      const normalized = toIssueDateRangeQuery({
-        field,
-        from: "2026-06-01",
-        to: "2026-06-01",
-      });
+    (field, from, to) => {
       expect(
         buildIssueQuery({
           dateRange: { field, from: "2026-06-01", to: "2026-06-01" },
         }),
       ).toMatchObject({
         date_field: field,
-        date_from: normalized?.from,
-        date_to: normalized?.to,
+        date_from: from,
+        date_to: to,
         ...DEFAULT_SORT,
       });
     },

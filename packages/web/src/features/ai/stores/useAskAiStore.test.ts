@@ -13,8 +13,8 @@ describe("useAskAiStore", () => {
   });
 
   it("starts closed with zero seen messages", () => {
-    expect(useAskAiStore.getState().isOpen).toBe(false);
-    expect(useAskAiStore.getState().seenMessageCount).toBe(0);
+    expect(useAskAiStore.getInitialState().isOpen).toBe(false);
+    expect(useAskAiStore.getInitialState().seenMessageCount).toBe(0);
   });
 
   it("open() and close() flip isOpen", () => {
@@ -40,7 +40,7 @@ describe("useAskAiStore", () => {
   });
 
   it("starts with no issue context", () => {
-    expect(useAskAiStore.getState().issueContext).toBeNull();
+    expect(useAskAiStore.getInitialState().issueContext).toBeNull();
   });
 
   it("setIssueContext() sets and clears the grounded issue", () => {

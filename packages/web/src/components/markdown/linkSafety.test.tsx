@@ -62,12 +62,15 @@ describe("linkSafetyConfig", () => {
   });
 
   it("opens the link (confirm) then dismisses on Open link", () => {
-    const { onConfirm, onClose } = renderModal();
+    const receipts: string[] = [];
+    renderModal({
+      onConfirm: () => receipts.push("confirm"),
+      onClose: () => receipts.push("close"),
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Open link" }));
 
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(receipts).toEqual(["confirm", "close"]);
   });
 
   it("dismisses without opening the link on Cancel", () => {

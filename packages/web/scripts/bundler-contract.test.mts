@@ -19,27 +19,16 @@ function findBundlerOverrides(source: string) {
 }
 
 describe("Next.js bundler contract", () => {
-  it("uses the default bundler across every web entrypoint", async () => {
+  it("keeps the default dev port and bundler across web entrypoints", async () => {
     const sources = await Promise.all(
       ENTRYPOINTS.map((entrypoint) =>
         readFile(resolve(PACKAGE_ROOT, entrypoint), "utf8"),
       ),
     );
 
-    expect(JSON.parse(sources[0]).scripts).toMatchObject({
-      dev: "next dev -p 7333",
-      build: "node scripts/build.mjs",
-    });
-    expect(sources[1]).toContain("next dev -p");
-    expect(sources[2]).toContain('"exec", "next", "dev", "-p"');
-    expect(sources[3]).toMatch(/"exec",\s*"turbo",\s*"run",\s*"build"/u);
-    expect(sources[4]).toMatch(
-      /require\.resolve\("next\/dist\/bin\/next"\),\s*"build"/u,
+    expect(JSON.parse(sources[0]).scripts.dev).toMatch(
+      /(?:^|\s)(?:-p|--port)(?:\s+|=)7333(?:\s|$)/u,
     );
-    expect(sources.slice(1).flatMap(findBundlerOverrides)).toEqual([]);
-  });
-
-  it.each(BUNDLER_OVERRIDES)("detects an explicit %s override", (flag) => {
-    expect(findBundlerOverrides(`next build ${flag}`)).toEqual([flag]);
+    expect(sources.flatMap(findBundlerOverrides)).toEqual([]);
   });
 });

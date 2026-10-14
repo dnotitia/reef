@@ -3,6 +3,7 @@ import "fake-indexeddb/auto";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setConfigValue } from "../../../lib/storage/config";
 import { db } from "../../../lib/storage/db";
 import { useThemeStore } from "../stores/useThemeStore";
 import { useTheme } from "./useTheme";
@@ -84,13 +85,19 @@ describe("useTheme", () => {
   });
 
   it("reflects store hydration in every instance", async () => {
-    const { result } = renderHook(() => useTheme());
-    expect(result.current.theme).toBeNull();
+    await setConfigValue("theme", "dark");
+    const settings = renderHook(() => useTheme());
+    const menu = renderHook(() => useTheme());
+    expect(settings.result.current.theme).toBeNull();
+    expect(menu.result.current.theme).toBeNull();
 
     await act(async () => {
-      await useThemeStore.getState().setTheme("system");
+      await useThemeStore.getState().hydrate();
     });
 
-    await waitFor(() => expect(result.current.theme).toBe("system"));
+    await waitFor(() => {
+      expect(settings.result.current.theme).toBe("dark");
+      expect(menu.result.current.theme).toBe("dark");
+    });
   });
 });

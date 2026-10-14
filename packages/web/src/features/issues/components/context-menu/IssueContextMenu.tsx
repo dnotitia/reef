@@ -165,12 +165,12 @@ export function IssueContextMenu({
       setPendingClose(true);
       return;
     }
-    commitPatch(buildStatusPatch(issue, nextStatus));
+    commitPatch(buildStatusPatch(nextStatus));
   }
 
   function confirmClose(reason: ClosedReason) {
     setPendingClose(false);
-    commitPatch(buildStatusPatch(issue, "closed", undefined, reason));
+    commitPatch(buildStatusPatch("closed", reason));
   }
 
   function commitAssignee(value: string) {

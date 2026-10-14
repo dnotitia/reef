@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockApiFetch } = vi.hoisted(() => ({
@@ -14,23 +17,13 @@ vi.mock("@/lib/apiClient", () => ({
 
 import { useUpdateProjectConfig } from "./useProjectConfig";
 
-function makeWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useUpdateProjectConfig", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("primes and invalidates the vault config query after a successful patch", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const config = {
       project_prefix: "REEF",
@@ -44,7 +37,7 @@ describe("useUpdateProjectConfig", () => {
     );
 
     const { result } = renderHook(() => useUpdateProjectConfig("reef-e2e"), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

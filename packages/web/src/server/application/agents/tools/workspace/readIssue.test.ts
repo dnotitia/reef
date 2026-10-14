@@ -1,6 +1,7 @@
 import { AuthError, NotFoundError } from "@reef/core";
 import { ReadIssueOutputSchema } from "@reef/core";
 import type { IssueMetadata } from "@reef/core";
+import { asSchema } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { callTool } from "../__test-helpers__/callTool";
 import {
@@ -8,10 +9,7 @@ import {
   makeTestAkbAdapter,
   setupFetch,
 } from "../__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../__test-helpers__/otelMock";
 import { createReadIssueTool } from "./readIssue";
-
-mockOpenTelemetry();
 
 const makeAdapter = makeTestAkbAdapter;
 
@@ -93,13 +91,20 @@ describe("createReadIssueTool", () => {
     expect(result.issue.depends_on).toEqual(["REEF-002"]);
     expect(result.issue.blocks).toEqual(["REEF-003"]);
     expect(result.content).toContain("Repro");
+    expect(ReadIssueOutputSchema.safeParse(result).success).toBe(true);
   });
 
   it("does not expose detail-only metadata fields to the model", async () => {
-    setupFetch([
-      { body: makeDocumentResponse() },
-      { body: makeIssueQueryResponse([SAMPLE_ISSUE]) },
-    ]);
+    const response = makeIssueQueryResponse([SAMPLE_ISSUE]) as {
+      items: Array<{ meta: Record<string, unknown> }>;
+    };
+    response.items[0].meta.external_refs = [
+      { type: "url", url: "https://example.com/private-external-ref-sentinel" },
+    ];
+    response.items[0].meta.custom_fields = {
+      sensitive_note: "private-custom-field-sentinel",
+    };
+    setupFetch([{ body: makeDocumentResponse() }, { body: response }]);
     const tool = createReadIssueTool({
       adapter: makeAdapter(),
       vault: "reef-acme",
@@ -112,9 +117,15 @@ describe("createReadIssueTool", () => {
     expect(result.issue).not.toHaveProperty("source");
     expect(result.issue).not.toHaveProperty("external_refs");
     expect(result.issue).not.toHaveProperty("custom_fields");
+    expect(JSON.stringify(result)).not.toContain(
+      "private-external-ref-sentinel",
+    );
+    expect(JSON.stringify(result)).not.toContain(
+      "private-custom-field-sentinel",
+    );
   });
 
-  it("nulls absent optional fields (priority, assigned_to) in output", async () => {
+  it("omits absent optional fields (priority, assigned_to) in output", async () => {
     const minimalIssue: IssueMetadata = {
       id: "REEF-002",
       title: "Plain issue",
@@ -140,21 +151,6 @@ describe("createReadIssueTool", () => {
     expect(result.issue.labels).toBeUndefined();
     expect(result.issue.depends_on).toBeUndefined();
     expect(result.issue.blocks).toBeUndefined();
-  });
-
-  it("output validates against ReadIssueOutputSchema", async () => {
-    setupFetch([
-      { body: makeDocumentResponse() },
-      { body: makeIssueQueryResponse([SAMPLE_ISSUE]) },
-    ]);
-    const tool = createReadIssueTool({
-      adapter: makeAdapter(),
-      vault: "reef-acme",
-    });
-
-    const result = await callTool(tool, { id: "REEF-001" });
-
-    expect(ReadIssueOutputSchema.safeParse(result).success).toBe(true);
   });
 
   it("accepts a Jira-compatible numeric project prefix", async () => {
@@ -198,37 +194,24 @@ describe("createReadIssueTool", () => {
     );
   });
 
-  it("rejects ids that do not match PREFIX-NUMBER", async () => {
-    setupFetch([]); // no fetch should happen
-    const tool = createReadIssueTool({
-      adapter: makeAdapter(),
-      vault: "reef-acme",
-    });
-
-    // The AI SDK runs the inputSchema before execute; bad ids surface as a
-    // Zod validation throw from callTool's execute path. `as does not` bypasses
-    // the typed input so we can probe the schema guard.
-    await expect(
-      callTool(tool, { id: "../etc/passwd" } as never),
-    ).rejects.toThrow();
-    await expect(callTool(tool, { id: "reef-001" } as never)).rejects.toThrow();
-  });
-
-  it("vault is closure-bound — input id cannot smuggle a vault path", async () => {
-    const { calls } = setupFetch([
-      { body: makeDocumentResponse() },
-      { body: makeIssueQueryResponse([SAMPLE_ISSUE]) },
-    ]);
-    const tool = createReadIssueTool({
-      adapter: makeAdapter(),
-      vault: "reef-acme",
-    });
-
-    // Regex rejects anything but PREFIX-NUMBER, so the URL is consistently
-    // /documents/reef-acme/{normalized id}. Verify path component.
-    await callTool(tool, { id: "REEF-001" });
-    expect(calls[0].url).toBe(
-      "https://akb.test/api/v1/documents/reef-acme/issues/reef-001.md",
-    );
-  });
+  it.each([
+    { id: "../etc/passwd", valid: false },
+    { id: "reef-001", valid: false },
+    { id: "other/REEF-001", valid: false },
+    { id: "REEF-001", valid: true },
+    { id: "SAASV31-001", valid: true },
+  ])(
+    "registered SDK input schema accepts $id: $valid",
+    async ({ id, valid }) => {
+      const tool = createReadIssueTool({
+        adapter: makeAdapter(),
+        vault: "reef-acme",
+      });
+      const validate = asSchema(tool.inputSchema).validate;
+      if (!validate)
+        throw new Error("read_issue descriptor has no input validator");
+      const result = await validate({ id });
+      expect(result.success).toBe(valid);
+    },
+  );
 });

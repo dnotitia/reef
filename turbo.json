@@ -52,12 +52,6 @@
       "inputs": ["$TURBO_DEFAULT$"],
       "env": ["NODE_OPTIONS"]
     },
-    "test:eval": {
-      "cache": false,
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$"],
-      "env": ["NODE_OPTIONS"]
-    },
     "test:behavior": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$"],

@@ -19,13 +19,14 @@ describe("notification and subscription contracts", () => {
         sourceType: "issue_activity",
         sourceRef: "REEF-1:status_change",
       }),
-    ).toBe(
-      buildNotificationKey({
-        recipient: "kim",
-        sourceType: "issue_activity",
-        sourceRef: "REEF-1:status_change",
+    ).toBe("notification:3:kim:14:issue_activity:20:REEF-1:status_change");
+    expect(
+      buildSubscriptionKey({
+        reefId: "REEF-1",
+        subscriber: "kim",
+        source: "manual",
       }),
-    );
+    ).toBe("subscription:6:REEF-1:3:kim:6:manual");
     expect(
       buildNotificationKey({
         recipient: "ki",
@@ -55,16 +56,29 @@ describe("notification and subscription contracts", () => {
   });
 
   it("rejects invalid boundary data before it reaches an adapter", () => {
+    const notification = {
+      recipient: "kim",
+      reefId: "REEF-1",
+      sourceType: "issue_activity",
+      sourceRef: "ref",
+      eventType: "status_change",
+      actor: "lee",
+      occurredAt: "2026-07-28T00:00:00.000Z",
+    };
+    expect(NotificationCreateInputSchema.safeParse(notification).success).toBe(
+      true,
+    );
     expect(NotificationStateSchema.safeParse("seen").success).toBe(false);
     expect(SubscriptionSourceSchema.safeParse("imported").success).toBe(false);
     expect(
       NotificationCreateInputSchema.safeParse({
+        ...notification,
         recipient: "",
-        reefId: "REEF-1",
-        sourceType: "issue_activity",
-        sourceRef: "ref",
-        eventType: "status_change",
-        actor: "kim",
+      }).success,
+    ).toBe(false);
+    expect(
+      NotificationCreateInputSchema.safeParse({
+        ...notification,
         occurredAt: "not-a-date",
       }).success,
     ).toBe(false);

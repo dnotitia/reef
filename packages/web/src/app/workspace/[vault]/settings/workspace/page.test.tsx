@@ -75,7 +75,7 @@ describe("Workspace › General settings page (REEF-183)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the editable access badge for a writer", () => {
+  it("shows the editable access badge for an owner", () => {
     render(<WorkspaceGeneralPage />);
     expect(screen.getByTestId("access-badge-editable")).toBeInTheDocument();
   });

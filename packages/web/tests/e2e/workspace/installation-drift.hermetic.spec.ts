@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
+  E2E_REEF_APP_ID,
   E2E_REEF_OLD_SCHEMA_FINGERPRINT,
   E2E_REEF_RELEASE_VERSION,
   E2E_REEF_SCHEMA_FINGERPRINT,
@@ -56,6 +57,7 @@ test.describe("installation drift and readiness guidance", () => {
     page,
     request,
   }) => {
+    await resetFixture(request, "configured_multi");
     await setInstallationControl(request, {
       memberLookup: "forbidden",
       detailLookup: "healthy",
@@ -75,6 +77,17 @@ test.describe("installation drift and readiness guidance", () => {
     );
     expect(workspace.installation_active).toBe(true);
     expect(workspace).not.toHaveProperty("installation");
+    const state = await readFixtureState(request);
+    const vaultId = state.vaults.find((vault) => vault.name === "reef-e2e")?.id;
+    const managementPath = `/akb/api/v1/apps/${E2E_REEF_APP_ID}/installations/${vaultId}`;
+    expect(
+      state.calls.some(
+        (call) => call.method === "GET" && call.path === managementPath,
+      ),
+    ).toBe(true);
+    expect(
+      state.calls.some((call) => call.path === `${managementPath}/active`),
+    ).toBe(false);
   });
 
   test("an active workspace stays usable while owner details show observed drift", async ({
@@ -369,8 +382,10 @@ test.describe("installation drift and readiness guidance", () => {
 
     await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
+    await page.getByTestId("access-denied-workspace-reef-zeta").click();
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/);
     await expect(
-      page.getByTestId("access-denied-workspace-reef-zeta"),
+      page.getByRole("heading", { name: "Issues", exact: true }),
     ).toBeVisible();
 
     await context.clearCookies();
@@ -568,8 +583,15 @@ test.describe("installation drift and readiness guidance", () => {
                 .filter((vault) =>
                   ["reef-e2e", "reef-zeta"].includes(vault.name),
                 )
-                .every((vault) => vault.installation_active !== true),
-            ).toBe(true);
+                .map(({ name, installation_active }) => ({
+                  name,
+                  installation_active,
+                }))
+                .sort((left, right) => left.name.localeCompare(right.name)),
+            ).toEqual([
+              { name: "reef-e2e", installation_active: false },
+              { name: "reef-zeta", installation_active: false },
+            ]);
             await setInstallationControl(request, {
               vault: "reef-e2e",
               lifecycle: "blocked",

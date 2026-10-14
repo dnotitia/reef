@@ -109,6 +109,7 @@ describe("companion OIDC protocol", () => {
       ],
       mcp_oauth: { enabled: false },
     };
+    let exchangedVerifier: string | null = null;
     let transaction:
       | {
           code_verifier: string;
@@ -150,6 +151,7 @@ describe("companion OIDC protocol", () => {
       fetch: async (_input, init) => {
         const params = new URLSearchParams(String(init?.body ?? ""));
         expect(params.get("grant_type")).toBe("authorization_code");
+        exchangedVerifier = params.get("code_verifier");
         const accessToken = await new SignJWT({
           aud: runtime.audience,
           sub: "subject-1",
@@ -204,6 +206,13 @@ describe("companion OIDC protocol", () => {
       "S256",
     );
 
+    expect(transaction?.code_verifier).toMatch(/^[A-Za-z0-9_-]{64}$/u);
+    expect(authorization.searchParams.get("code_challenge")).toBe(
+      createHash("sha256")
+        .update(transaction?.code_verifier ?? "", "ascii")
+        .digest("base64url"),
+    );
+
     const completed = await protocol.completeAuthorization({
       stateStore,
       code: "one-time-code",
@@ -214,6 +223,7 @@ describe("companion OIDC protocol", () => {
         account: { id: "u-1", username: "alice" },
       }),
     });
+    expect(exchangedVerifier).toBe(transaction?.code_verifier);
     expect(completed.subject).toBe("subject-1");
     expect(completed.account.username).toBe("alice");
   });

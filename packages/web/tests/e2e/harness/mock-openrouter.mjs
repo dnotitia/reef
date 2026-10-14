@@ -12,10 +12,15 @@ export async function handleOpenRouter(req, res) {
     const body = await readJson(req);
     if (body?.stream === true) {
       const created = Math.floor(new Date(NOW).getTime() / 1000);
-      if (isToolLoopResultTurn(body)) {
-        await streamOpenRouterChunks(res, finalToolLoopChunks(created), {
-          delayBeforeTextDeltaMs: 250,
-        });
+      const toolLoopResult = readToolLoopResult(body);
+      if (toolLoopResult) {
+        await streamOpenRouterChunks(
+          res,
+          finalToolLoopChunks(created, toolLoopResult),
+          {
+            delayBeforeTextDeltaMs: 250,
+          },
+        );
         return;
       }
       if (isToolLoopPromptTurn(body)) {
@@ -149,7 +154,7 @@ function initialToolLoopChunks(created) {
           function: {
             name: "search_issues",
             arguments: JSON.stringify({
-              query: "Initial issue Alpha",
+              query: "Alpha",
               status: null,
               assigned_to: null,
               labels: null,
@@ -175,9 +180,15 @@ function initialToolLoopChunks(created) {
   ];
 }
 
-function finalToolLoopChunks(created) {
+function finalToolLoopChunks(created, result) {
+  const issue = result.issues?.[0];
+  const document = result.documents?.[0];
   const text =
-    "I found REEF-001 from the issue search and the Spec overview document as supporting context.";
+    typeof issue?.id === "string" &&
+    typeof issue?.title === "string" &&
+    typeof document?.title === "string"
+      ? `I found ${issue.id} (${issue.title}) from the issue search and the ${document.title} document as supporting context.`
+      : "The issue and document searches did not both return supporting results.";
   return [
     chatCompletionChunk("chatcmpl-e2e-tools-final", created, {
       role: "assistant",
@@ -277,12 +288,21 @@ function isToolLoopPromptTurn(body) {
     .includes(TOOL_LOOP_E2E_PROMPT);
 }
 
-function isToolLoopResultTurn(body) {
+function readToolLoopResult(body) {
   const currentTurn = latestUserTurnMessages(body?.messages ?? body?.input);
-  return (
-    hasFunctionCallOutput(currentTurn, TOOL_LOOP_SEARCH_ISSUES_CALL_ID) ||
-    hasFunctionCallOutput(currentTurn, TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID)
+  const issues = findFunctionCallOutput(
+    currentTurn,
+    TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
   );
+  const documents = findFunctionCallOutput(
+    currentTurn,
+    TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
+  );
+  if (!issues && !documents) return null;
+  return {
+    issues: Array.isArray(issues?.issues) ? issues.issues : [],
+    documents: Array.isArray(documents?.documents) ? documents.documents : [],
+  };
 }
 
 function issueQuestionId(body) {
@@ -359,16 +379,24 @@ function parseToolOutput(value) {
   return value && typeof value === "object" ? value : null;
 }
 
-function hasFunctionCallOutput(value, callId) {
+function findFunctionCallOutput(value, callId) {
   if (Array.isArray(value)) {
-    return value.some((item) => hasFunctionCallOutput(item, callId));
+    for (const item of value) {
+      const output = findFunctionCallOutput(item, callId);
+      if (output) return output;
+    }
+    return null;
   }
-  if (!value || typeof value !== "object") return false;
-  if (value.type === "function_call_output" && value.call_id === callId) {
-    return true;
+  if (!value || typeof value !== "object") return null;
+  if (
+    (value.type === "function_call_output" && value.call_id === callId) ||
+    (value.role === "tool" && value.tool_call_id === callId)
+  ) {
+    return parseToolOutput(value.content ?? value.output) ?? {};
   }
-  if (value.role === "tool" && value.tool_call_id === callId) return true;
-  return Object.values(value).some((item) =>
-    hasFunctionCallOutput(item, callId),
-  );
+  for (const item of Object.values(value)) {
+    const output = findFunctionCallOutput(item, callId);
+    if (output) return output;
+  }
+  return null;
 }

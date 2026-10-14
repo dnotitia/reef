@@ -8,23 +8,33 @@ import { conversationalPlaybookContent } from "./conversationalPlaybook";
 // directive should stay present in the playbook.
 describe("conversational playbook — authoring language (REEF-136)", () => {
   const content = conversationalPlaybookContent();
+  const authoringLanguage =
+    content.split("## Authoring language\n")[1]?.split("\n## ")[0] ?? "";
 
   it("tells the agent to read the authoring_language setting at runtime", () => {
-    expect(content).toContain("authoring_language");
-    expect(content).toContain("reef_settings");
-    expect(content).toMatch(/SELECT value FROM reef_settings WHERE key = /);
+    expect(authoringLanguage).toContain("authoring_language");
+    expect(authoringLanguage).toContain("reef_settings");
+    expect(authoringLanguage).toMatch(
+      /SELECT value FROM reef_settings WHERE key = /,
+    );
   });
 
   it("specifies the set / unset behavior (configured language, else match existing)", () => {
-    expect(content).toContain("## Authoring language");
-    // Falls back to existing issues when no default is configured.
-    expect(content.toLowerCase()).toContain(
-      "match the language of the existing",
+    expect(authoringLanguage).toContain(
+      "If the row is set, write the prose you generate -- issue titles, bodies, and any rationale -- in that language.",
+    );
+    expect(authoringLanguage).toContain(
+      "If the row is missing, there is no default: match the language of the existing issues instead.",
     );
   });
 
   it("keeps symbols untranslated", () => {
-    expect(content).toMatch(/keep reef ids|enum values|code identifiers/i);
+    expect(authoringLanguage).toContain("translate prose only");
+    expect(authoringLanguage).toContain("keep reef ids");
+    expect(authoringLanguage).toContain("enum values");
+    expect(authoringLanguage).toContain("labels");
+    expect(authoringLanguage).toContain("code identifiers");
+    expect(authoringLanguage).toContain("URLs exactly as they are");
   });
 });
 

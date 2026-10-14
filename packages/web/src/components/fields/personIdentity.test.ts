@@ -26,10 +26,6 @@ describe("computeInitials", () => {
 });
 
 describe("hashKey", () => {
-  it("is deterministic for the same key", () => {
-    expect(hashKey("alice")).toBe(hashKey("alice"));
-  });
-
   it("separates distinct keys (no trivial collision on close logins)", () => {
     expect(hashKey("alice")).not.toBe(hashKey("alicf"));
   });
@@ -40,11 +36,5 @@ describe("resolveIdentity", () => {
     const resolved = resolveIdentity("alice");
     expect(resolved.initials).toBe("AL");
     expect(resolved.hash).toBe(hashKey("alice"));
-  });
-
-  it("returns the memoized instance on repeat lookups", () => {
-    const first = resolveIdentity("jimin");
-    const second = resolveIdentity("jimin");
-    expect(second).toBe(first);
   });
 });

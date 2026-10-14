@@ -23,7 +23,7 @@ describe("IssueRefsEditor", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("renders http and https implementation URLs as links", () => {
+  it("renders HTTPS implementation URLs as links", () => {
     render(
       <IssueRefsEditor
         externalRefs={[]}

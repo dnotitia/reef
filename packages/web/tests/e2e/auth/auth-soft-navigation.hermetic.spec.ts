@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   openExistingWorkspace,
+  readFixtureState,
   readIndexedDbConfig,
   resetFixture,
   releaseAuthProbe,
@@ -381,6 +382,8 @@ test.describe("auth soft navigation", () => {
       await setAuthControl(request, { probeDelayMs: 1_200 });
       await page.locator(`a[href="${PLANNING_PATH}"]`).click();
       await page.waitForURL((url) => url.pathname === PLANNING_PATH);
+      await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+      await expectPersistentShell(page);
       await expect(
         page.getByRole("heading", { name: "Planning" }),
       ).toBeVisible();
@@ -407,7 +410,7 @@ test.describe("auth soft navigation", () => {
     }
   });
 
-  test("converges an externally revoked established session on focus revalidation", async ({
+  test("preserves browser-local workspace context across passive expiry and same-account login", async ({
     page,
     request,
   }) => {
@@ -433,13 +436,32 @@ test.describe("auth soft navigation", () => {
     try {
       await openExistingWorkspace(page);
       await expect(page.getByTestId("kanban-board")).toBeVisible();
+      await expect
+        .poll(() => readIndexedDbConfig(page, "vault"))
+        .toBe("reef-e2e");
+      await writeIndexedDbConfig(
+        page,
+        "workspace_favorites",
+        JSON.stringify({ version: 1, favorites: ["reef-e2e"] }),
+      );
+      await writeIndexedDbConfig(
+        page,
+        "filter:reef-e2e",
+        JSON.stringify({ version: 1, filter: { status: ["todo"] } }),
+      );
+      await page.evaluate(() => {
+        window.localStorage.setItem(
+          "REACT_QUERY_OFFLINE_CACHE",
+          JSON.stringify({ account: "protected-data" }),
+        );
+      });
 
-      const initialProbe = page.waitForResponse(
+      const activeProbe = page.waitForResponse(
         (response) =>
           isAuthProbeRequest(response.request()) && response.status() === 200,
       );
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      await initialProbe;
+      await activeProbe;
       await expect
         .poll(() =>
           [...pendingProtectedRequests].map((pendingRequest) => {
@@ -452,113 +474,42 @@ test.describe("auth soft navigation", () => {
         .toEqual([]);
 
       await setAuthControl(request, { session: "revoked" });
-
       const probe = page.waitForRequest(isAuthProbeRequest);
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await probe;
       await expectLogin(page, ISSUES_PATH);
+
+      await expect
+        .poll(() => readIndexedDbConfig(page, "vault"))
+        .toBe("reef-e2e");
+      await expect
+        .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
+        .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
+      await expect
+        .poll(() => readIndexedDbConfig(page, "filter:reef-e2e"))
+        .toBe(JSON.stringify({ version: 1, filter: { status: ["todo"] } }));
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            localStorage.getItem("REACT_QUERY_OFFLINE_CACHE"),
+          ),
+        )
+        .toBeNull();
+
+      await setAuthControl(request, { session: "active" });
+      await signInAsAlice(page);
+      await page.goto(ISSUES_PATH);
+      await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect
+        .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
+        .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
     } finally {
       page.off("request", trackProtectedRequest);
       page.off("requestfinished", settleProtectedRequest);
       page.off("requestfailed", settleProtectedRequest);
     }
-  });
-
-  test("preserves browser-local workspace context across passive expiry and same-account login", async ({
-    page,
-    request,
-  }) => {
-    const pendingProtectedRequests = new Set<
-      import("@playwright/test").Request
-    >();
-    const trackProtectedRequest = (
-      protectedRequest: import("@playwright/test").Request,
-    ) => {
-      if (isProtectedApiRequest(protectedRequest)) {
-        pendingProtectedRequests.add(protectedRequest);
-      }
-    };
-    const settleProtectedRequest = (
-      protectedRequest: import("@playwright/test").Request,
-    ) => {
-      pendingProtectedRequests.delete(protectedRequest);
-    };
-    page.on("request", trackProtectedRequest);
-    page.on("requestfinished", settleProtectedRequest);
-    page.on("requestfailed", settleProtectedRequest);
-
-    await openExistingWorkspace(page);
-    await expect(page.getByTestId("kanban-board")).toBeVisible();
-    await expect
-      .poll(() => readIndexedDbConfig(page, "vault"))
-      .toBe("reef-e2e");
-    await writeIndexedDbConfig(
-      page,
-      "workspace_favorites",
-      JSON.stringify({ version: 1, favorites: ["reef-e2e"] }),
-    );
-    await writeIndexedDbConfig(
-      page,
-      "filter:reef-e2e",
-      JSON.stringify({ version: 1, filter: { status: ["todo"] } }),
-    );
-    await page.evaluate(() => {
-      window.localStorage.setItem(
-        "REACT_QUERY_OFFLINE_CACHE",
-        JSON.stringify({ account: "protected-data" }),
-      );
-    });
-
-    const activeProbe = page.waitForResponse(
-      (response) =>
-        isAuthProbeRequest(response.request()) && response.status() === 200,
-    );
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await activeProbe;
-    await expect
-      .poll(() =>
-        [...pendingProtectedRequests].map((pendingRequest) => {
-          const route = new URL(pendingRequest.url()).pathname
-            .replace(/\/REEF-[A-Z0-9-]+/gi, "/:issue")
-            .replace(/\/reef-[a-z0-9-]+/gi, "/:workspace");
-          return `${pendingRequest.method()} ${route}`;
-        }),
-      )
-      .toEqual([]);
-    page.off("request", trackProtectedRequest);
-    page.off("requestfinished", settleProtectedRequest);
-    page.off("requestfailed", settleProtectedRequest);
-
-    await setAuthControl(request, { session: "revoked" });
-    const probe = page.waitForRequest(isAuthProbeRequest);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await probe;
-    await expectLogin(page, ISSUES_PATH);
-
-    await expect
-      .poll(() => readIndexedDbConfig(page, "vault"))
-      .toBe("reef-e2e");
-    await expect
-      .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
-      .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
-    await expect
-      .poll(() => readIndexedDbConfig(page, "filter:reef-e2e"))
-      .toBe(JSON.stringify({ version: 1, filter: { status: ["todo"] } }));
-    await expect
-      .poll(() =>
-        page.evaluate(() => localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")),
-      )
-      .toBeNull();
-
-    await setAuthControl(request, { session: "active" });
-    await signInAsAlice(page);
-    await page.goto(ISSUES_PATH);
-    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect
-      .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
-      .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
   });
 
   test("preserves an established workspace through a bounded auth probe timeout and retry", async ({
@@ -703,40 +654,6 @@ test.describe("auth soft navigation", () => {
     await expect(page.getByTestId("kanban-board")).toBeVisible({
       timeout: 15_000,
     });
-  });
-
-  test("keeps a valid slow destination in the protected shell until page data completes", async ({
-    page,
-    request,
-  }) => {
-    await openExistingWorkspace(page);
-    await setAuthControl(request, { probeDelayMs: 1_200 });
-
-    let authProbeCount = 0;
-    const countAuthProbe = (request: import("@playwright/test").Request) => {
-      if (isAuthProbeRequest(request)) authProbeCount += 1;
-    };
-    page.on("request", countAuthProbe);
-
-    try {
-      await Promise.all([
-        page.waitForURL((url) => url.pathname === PLANNING_PATH),
-        page.locator(`a[href="${PLANNING_PATH}"]`).click(),
-      ]);
-      await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
-      await expectPersistentShell(page);
-      await expect(
-        page.locator('[data-testid="auth-revalidation-status"]'),
-      ).toHaveCount(0);
-      expect(authProbeCount).toBe(0);
-      await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible(
-        {
-          timeout: 15_000,
-        },
-      );
-    } finally {
-      page.off("request", countAuthProbe);
-    }
   });
 
   test("keeps destination chrome during a hard-navigation auth probe", async ({
@@ -983,7 +900,7 @@ test.describe("auth soft navigation", () => {
           sort.getBoundingClientRect().right
         );
       });
-      expect(pendingSortGap).toBeLessThanOrEqual(1);
+      expect(Math.abs(pendingSortGap)).toBeLessThanOrEqual(1);
       await expect(page.getByTestId("backlog-table-skeleton")).toBeVisible();
       await expect(
         page.locator(
@@ -1542,26 +1459,30 @@ test.describe("auth soft navigation", () => {
     await expect(page.getByTestId("sidebar-brand-name")).toHaveCount(0);
   });
 
-  test("ignores a late probe result after an immediate invalidation", async ({
+  test("aborts a pending probe and leaves the workspace on immediate invalidation", async ({
     page,
     request,
   }) => {
     await openExistingWorkspace(page);
-    await setAuthControl(request, {
-      probeDelayMs: 6_000,
-      probeDelayOnce: true,
-    });
-
-    const delayedProbe = page.waitForRequest(isAuthProbeRequest);
+    await setAuthControl(request, { probeHold: true });
+    const pendingProbe = page.waitForRequest(isAuthProbeRequest);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await delayedProbe;
-
+    const probe = await pendingProbe;
+    await expect
+      .poll(async () => (await readFixtureState(request)).auth_probe_pending)
+      .toBeGreaterThan(0);
+    await expectPersistentShell(page);
+    const aborted = page.waitForEvent(
+      "requestfailed",
+      (failed) => failed === probe,
+    );
     await page.evaluate(() =>
       window.dispatchEvent(new Event("reef:auth-changed")),
     );
+    await aborted;
     await expectLogin(page, ISSUES_PATH);
-
-    await page.waitForTimeout(6_200);
+    await expect(page.getByTestId("akb-login-form")).toBeVisible();
+    await releaseAuthProbe(request);
     await expect(page).toHaveURL(/\/login(?:\?|$)/);
   });
 
@@ -1570,20 +1491,41 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
+    await page.goto(`${WORKSPACE}/settings/workspace/members`);
+    await expect(page.getByTestId("members-section")).toBeVisible();
+    const prefs = await readIndexedDbConfig(page, "vault");
+    const cookieBefore = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "__reef_session",
+    );
+    expect(cookieBefore).toBeDefined();
     await setAuthControl(request, { protectedResponse: "forbidden" });
-
-    const resourceResponse = await page.evaluate(async () => {
-      const response = await fetch("/api/users/search?vault=reef-e2e&q=alice", {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      return {
-        invalidated: response.headers.get("X-Reef-Auth-Invalidated"),
-        status: response.status,
-      };
+    const resourceResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/users/search" &&
+        url.searchParams.get("q") === "alice"
+      );
     });
-    expect(resourceResponse).toEqual({ invalidated: null, status: 403 });
-    await expect(page).toHaveURL(new RegExp(`${ISSUES_PATH}$`));
+    await page
+      .getByTestId("member-directory-combobox")
+      .getByRole("button")
+      .click();
+    await page.getByPlaceholder("Search users…").fill("alice");
+    const forbidden = await resourceResponse;
+    expect(forbidden.status()).toBe(403);
+    expect(forbidden.headers()["x-reef-auth-invalidated"]).toBeUndefined();
+    await expect(
+      page.getByText("Couldn't search the directory.", { exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(`${WORKSPACE}/settings/workspace/members`);
+    await expectPersistentShell(page);
+    expect(await readIndexedDbConfig(page, "vault")).toBe(prefs);
+    expect(
+      (await page.context().cookies()).find(
+        (cookie) => cookie.name === "__reef_session",
+      ),
+    ).toEqual(cookieBefore);
 
     await setAkbAccountDenial(request, "membership_required");
     await page.reload();

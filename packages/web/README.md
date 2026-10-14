@@ -117,7 +117,6 @@ refresh, logout, and account contract.
 | `src/server/` | Server-only provider adapters, credential resolution, agent application code, and prompts/tools. |
 | `src/providers/` | App-level providers such as TanStack Query persistence. |
 | `tests/e2e/` | Playwright e2e tests. |
-| `tests/evals/` | LLM prompt and agent evals. |
 
 ## State and persistence
 
@@ -159,7 +158,6 @@ pnpm --filter @reef/web run test
 pnpm --filter @reef/web run test:e2e
 pnpm --filter @reef/web run test:e2e:sharded
 pnpm --filter @reef/web run dev:e2e
-pnpm --filter @reef/web run test:eval
 pnpm --filter @reef/web run build
 ```
 

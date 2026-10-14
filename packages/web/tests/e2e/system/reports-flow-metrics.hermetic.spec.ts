@@ -54,6 +54,9 @@ test.describe("Hermetic Reports flow metrics", () => {
 
     await page.goto("/workspace/reef-e2e/reports");
 
+    await expect(page.getByTestId("reports-page")).toBeVisible();
+    await expect(page.getByTestId("report-scope-bar")).toBeVisible();
+    await expect(page.getByText("Workflow", { exact: true })).toBeVisible();
     const card = page.getByTestId("report-card-flow-metrics");
     await expect(card).toBeVisible();
     await expect(card.getByTestId("flow-metrics-chart")).toBeVisible();

@@ -262,18 +262,6 @@ function stateFromReadiness(
   };
 }
 
-/** Read readiness without initializing or otherwise changing the workspace. */
-export async function readWorkspaceInstallationStatus(params: {
-  adapter: AkbAdapter;
-  vault: VaultSummary;
-}): Promise<WorkspaceInstallationState> {
-  const inspection = await inspectWorkspaceReadiness(params);
-  if ("status" in inspection) {
-    return { installation_status: inspection.status };
-  }
-  return stateFromReadiness(inspection.readiness, inspection.canManage);
-}
-
 /** Read AKB's canonical state and initialize Reef data only after it is active. */
 export async function readWorkspaceInstallationState(params: {
   adapter: AkbAdapter;

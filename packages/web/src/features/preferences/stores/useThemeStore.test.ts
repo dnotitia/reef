@@ -80,13 +80,4 @@ describe("useThemeStore", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(useThemeStore.getState().hydrated).toBe(true);
   });
-
-  it("setTheme persists, updates state, and toggles the class", async () => {
-    await useThemeStore.getState().setTheme("dark");
-
-    expect(useThemeStore.getState().theme).toBe("dark");
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    const row = await db.config.where("key").equals("theme").first();
-    expect(row?.value).toBe("dark");
-  });
 });

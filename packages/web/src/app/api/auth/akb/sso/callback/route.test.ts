@@ -80,7 +80,13 @@ describe("SSO callback route", () => {
         absolute_expires_at: 2_000_000 + 86_400,
       }),
     );
-    expect(response.headers.get("set-cookie")).toContain("Max-Age=86400");
+    const sessionCookie = response.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("__reef_auth_v2="));
+    expect(sessionCookie?.split("; ")).toContain("Max-Age=86400");
+    expect(sessionCookie?.split("; ")).toContain("HttpOnly");
+    expect(sessionCookie?.split("; ")).toContain("SameSite=Lax");
+    expect(sessionCookie?.split("; ")).toContain("Path=/");
   });
 
   it("clears auth state on account denial", async () => {
@@ -104,5 +110,17 @@ describe("SSO callback route", () => {
       "/login?sso_error=membership_required",
     );
     expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
+    for (const name of [
+      "__reef_session",
+      "__reef_auth_v2",
+      "__reef_auth_v2_state",
+    ]) {
+      const cookie = response.headers
+        .getSetCookie()
+        .find((value) => value.startsWith(`${name}=`));
+      expect(cookie?.split(";")[0]).toBe(`${name}=`);
+      expect(cookie?.split("; ")).toContain("Max-Age=0");
+    }
+    expect(runtimeRef.issue).not.toHaveBeenCalled();
   });
 });

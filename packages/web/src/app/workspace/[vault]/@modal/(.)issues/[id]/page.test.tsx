@@ -67,22 +67,6 @@ describe("Intercepting route — /(dashboard)/@modal/(.)issues/[id]", () => {
     useIssueNavStack.getState().clear();
   });
 
-  it("module exports a default React component", () => {
-    // The intercepting route page is a thin wrapper that unwraps `params`
-    // via React's `use()` and delegates to IssueDetailSheet (covered by its
-    // own tests). React 19's `use()` inside a vitest renderHook env does not
-    // re-render after the Promise resolves the same way the runtime does, so
-    // the most reliable assertion here is the module shape itself.
-    expect(typeof IssueModalPage).toBe("function");
-  });
-
-  it("uses the shared IssueDetailSheet (import surface check)", async () => {
-    // Importing the page should not throw; the dependency on
-    // IssueDetailSheet is preserved through the akb pivot.
-    const mod = await import("./page");
-    expect(typeof mod.default).toBe("function");
-  });
-
   it("passes the route workspace to the shared detail sheet", () => {
     mockUsePathname.mockReturnValue("/workspace/reef-e2e/issues/REEF-001");
 

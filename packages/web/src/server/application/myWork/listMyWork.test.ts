@@ -4,12 +4,10 @@ const {
   mockAkbListMyWorkIssues,
   mockAkbListVaults,
   mockReadWorkspaceInstallationActive,
-  mockReadWorkspaceInstallationStatus,
 } = vi.hoisted(() => ({
   mockAkbListMyWorkIssues: vi.fn(),
   mockAkbListVaults: vi.fn(),
   mockReadWorkspaceInstallationActive: vi.fn(),
-  mockReadWorkspaceInstallationStatus: vi.fn(),
 }));
 
 vi.mock("@reef/core", async () => {
@@ -25,7 +23,6 @@ vi.mock("@reef/core", async () => {
 
 vi.mock("@/server/adapters/workspaceInstallation", () => ({
   readWorkspaceInstallationActive: mockReadWorkspaceInstallationActive,
-  readWorkspaceInstallationStatus: mockReadWorkspaceInstallationStatus,
 }));
 
 vi.mock("@/server/adapters/installationTarget", () => ({
@@ -70,9 +67,6 @@ describe("listMyWork", () => {
     mockReadWorkspaceInstallationActive.mockImplementation(
       async ({ vault }) => vault.id !== "3",
     );
-    mockReadWorkspaceInstallationStatus
-      .mockReset()
-      .mockResolvedValue({ installation_status: "ready" });
     mockAkbListMyWorkIssues.mockResolvedValue({
       workspaces: [],
       issues: [],
@@ -88,7 +82,6 @@ describe("listMyWork", () => {
     const result = await listMyWork({ adapter, actor: "alice", query });
 
     expect(result.issues).toEqual([]);
-    expect(mockReadWorkspaceInstallationStatus).not.toHaveBeenCalled();
     expect(mockAkbListMyWorkIssues).toHaveBeenCalledTimes(1);
     expect(mockAkbListMyWorkIssues).toHaveBeenCalledWith({
       adapter,

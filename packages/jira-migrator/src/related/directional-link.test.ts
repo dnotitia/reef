@@ -9,8 +9,17 @@ describe("directional link canonicalization", () => {
       outwardRelation: "depends_on" as const,
       inwardRelation: "blocks" as const,
     };
+    const expected = {
+      sourceReefId: "REEF-1",
+      targetReefId: "REEF-2",
+      relation: "depends_on",
+      inverseRelation: "blocks",
+    };
     expect(
       canonicalizeJiraRelation(mapping, "outward", "REEF-1", "REEF-2"),
-    ).toEqual(canonicalizeJiraRelation(mapping, "inward", "REEF-2", "REEF-1"));
+    ).toEqual(expected);
+    expect(
+      canonicalizeJiraRelation(mapping, "inward", "REEF-2", "REEF-1"),
+    ).toEqual(expected);
   });
 });

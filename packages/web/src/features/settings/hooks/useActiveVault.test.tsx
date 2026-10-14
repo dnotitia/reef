@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockGetActiveVault, mockSetActiveVaultDexie, paramsRef } = vi.hoisted(
@@ -33,14 +36,6 @@ import {
   useSyncActiveVaultFromUrl,
 } from "./useActiveVault";
 
-function makeWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useActiveVault", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,12 +44,10 @@ describe("useActiveVault", () => {
 
   it("reads the active vault from Dexie via getActiveVault", async () => {
     mockGetActiveVault.mockResolvedValue("reef-acme");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.vault).toBe("reef-acme"));
@@ -63,12 +56,10 @@ describe("useActiveVault", () => {
 
   it('returns vault="" when Dexie has no value', async () => {
     mockGetActiveVault.mockResolvedValue("");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -77,12 +68,10 @@ describe("useActiveVault", () => {
 
   it("isLoading stays true while query is pending (covers persist-restoration window)", () => {
     mockGetActiveVault.mockReturnValue(new Promise(() => {})); // does not resolves
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     expect(result.current.isLoading).toBe(true);
@@ -90,13 +79,11 @@ describe("useActiveVault", () => {
 
   it("rechecks Dexie before exposing a restored active-vault cache", async () => {
     mockGetActiveVault.mockResolvedValue("reef-zeta");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["active-vault"], "reef-alpha");
 
     const { result } = renderHook(() => useActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     expect(result.current.isLoading).toBe(true);
@@ -108,12 +95,10 @@ describe("useActiveVault", () => {
   it("prefers the URL [vault] segment over the Dexie default (REEF-315)", async () => {
     paramsRef.current = { vault: "reef-url" };
     mockGetActiveVault.mockResolvedValue("reef-dexie");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     // The URL is known synchronously, so the URL vault wins immediately and is
@@ -125,12 +110,10 @@ describe("useActiveVault", () => {
   it("ignores a malformed URL vault and falls back to the Dexie default", async () => {
     paramsRef.current = { vault: "Bad_Vault" }; // uppercase → fails VAULT_NAME_RE
     mockGetActiveVault.mockResolvedValue("reef-dexie");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.vault).toBe("reef-dexie"));
@@ -146,12 +129,10 @@ describe("useSyncActiveVaultFromUrl (REEF-315)", () => {
   it("persists the URL vault to Dexie and primes the cache when it differs", async () => {
     mockGetActiveVault.mockResolvedValue("reef-old");
     mockSetActiveVaultDexie.mockResolvedValue(undefined);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     renderHook(() => useSyncActiveVaultFromUrl("reef-new"), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() =>
@@ -164,12 +145,10 @@ describe("useSyncActiveVaultFromUrl (REEF-315)", () => {
 
   it("does not rewrite Dexie when it already matches, but still primes the cache", async () => {
     mockGetActiveVault.mockResolvedValue("reef-same");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     renderHook(() => useSyncActiveVaultFromUrl("reef-same"), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() =>
@@ -178,21 +157,22 @@ describe("useSyncActiveVaultFromUrl (REEF-315)", () => {
     expect(mockSetActiveVaultDexie).not.toHaveBeenCalled();
   });
 
-  it("no-ops for an empty or malformed vault", async () => {
-    mockGetActiveVault.mockResolvedValue("reef-old");
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+  it.each(["", "Bad_Vault"])(
+    "no-ops for empty or malformed vault %j",
+    async (vault) => {
+      mockGetActiveVault.mockResolvedValue("reef-old");
+      const queryClient = createTestQueryClient();
 
-    renderHook(() => useSyncActiveVaultFromUrl(""), {
-      wrapper: makeWrapper(queryClient),
-    });
+      renderHook(() => useSyncActiveVaultFromUrl(vault), {
+        wrapper: createQueryWrapper(queryClient),
+      });
 
-    // Give any (incorrect) async write a chance to fire.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(mockSetActiveVaultDexie).not.toHaveBeenCalled();
-    expect(mockGetActiveVault).not.toHaveBeenCalled();
-  });
+      // Give any (incorrect) async write a chance to fire.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(mockSetActiveVaultDexie).not.toHaveBeenCalled();
+      expect(mockGetActiveVault).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("useSetActiveVault", () => {
@@ -202,12 +182,10 @@ describe("useSetActiveVault", () => {
 
   it("writes via setActiveVault and primes the active-vault cache", async () => {
     mockSetActiveVaultDexie.mockResolvedValue(undefined);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useSetActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -220,13 +198,11 @@ describe("useSetActiveVault", () => {
 
   it("invalidates config / issues / issue-templates on vault switch", async () => {
     mockSetActiveVaultDexie.mockResolvedValue(undefined);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useSetActiveVault(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

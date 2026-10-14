@@ -28,6 +28,28 @@ async function switchTo(
   ).toBeVisible({ timeout: 15_000 });
 }
 
+async function holdListNavigation(page: Page) {
+  let admitted = false;
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  // Hold the real Next RSC response, preserving its bytes and Reef API calls.
+  await page.route(
+    (url) =>
+      url.pathname === "/workspace/reef-e2e/issues" &&
+      url.searchParams.get("view") === "list" &&
+      url.searchParams.has("_rsc"),
+    async (route) => {
+      const response = await route.fetch();
+      admitted = true;
+      await gate;
+      await route.fulfill({ response });
+    },
+  );
+  return { wait: () => expect.poll(() => admitted).toBe(true), release };
+}
+
 test.describe("Hermetic issue view switching", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -65,7 +87,21 @@ test.describe("Hermetic issue view switching", () => {
       w.__skeletonObs = obs;
     });
 
-    await switchTo(page, "list");
+    const held = await holdListNavigation(page);
+    await page.getByTestId("view-switcher-list").click({ noWaitAfter: true });
+    await held.wait();
+    await expect(page.getByTestId("view-switcher")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await expect(page.getByTestId("issues-skeleton")).toHaveCount(0);
+    held.release();
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect(page.getByTestId("view-switcher")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
     await switchTo(page, "timeline");
     await page.locator('[data-testid="scope-switcher-backlog"]').click();
     await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
@@ -82,7 +118,7 @@ test.describe("Hermetic issue view switching", () => {
     // The switcher group carries its busy state for assistive tech (AC2).
     await expect(page.locator('[data-testid="view-switcher"]')).toHaveAttribute(
       "aria-busy",
-      /true|false/,
+      "false",
     );
   });
 
@@ -96,15 +132,37 @@ test.describe("Hermetic issue view switching", () => {
       page.locator('[data-testid="kanban-board"]').first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    // Fire three switches back-to-back without awaiting navigation between them;
-    // the interruptible transition must settle on the last scope/layout choice.
-    await page.locator('[data-testid="view-switcher-list"]').click();
-    await page.locator('[data-testid="view-switcher-timeline"]').click();
-    await page.locator('[data-testid="scope-switcher-backlog"]').click();
+    const held = await holdListNavigation(page);
+    await page.getByTestId("view-switcher-list").click({ noWaitAfter: true });
+    await held.wait();
+    await expect(page.getByTestId("view-switcher")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    await expect(page.getByTestId("kanban-board")).toBeVisible();
+    await page
+      .getByTestId("view-switcher-timeline")
+      .click({ noWaitAfter: true });
+    await page
+      .getByTestId("scope-switcher-backlog")
+      .click({ noWaitAfter: true });
+    held.release();
 
     await page.waitForURL(/scope=backlog&view=list/, { timeout: 10_000 });
-    await expect(
-      page.locator('[data-testid="backlog-table"]').first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("backlog-table")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("scope-switcher-backlog")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("view-switcher-list")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("view-switcher")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
   });
 });

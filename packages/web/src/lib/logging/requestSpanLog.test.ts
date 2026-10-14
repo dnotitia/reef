@@ -100,7 +100,7 @@ describe("requestCompletionFromSpan", () => {
     ).toBeNull();
   });
 
-  it("defaults a missing/non-numeric status to 0 and a missing method to empty", () => {
+  it("defaults a missing status to 0 and a missing method to empty", () => {
     const record = requestCompletionFromSpan(fakeSpan({ route: "/api/x" }));
     expect(record?.status).toBe(0);
     expect(record?.method).toBe("");
@@ -147,7 +147,7 @@ describe("RequestLogSpanProcessor", () => {
     restore();
   });
 
-  function responseLine(): Record<string, unknown> | undefined {
+  function responseLines(): Record<string, unknown>[] {
     return sink
       .join("")
       .split("\n")
@@ -160,7 +160,7 @@ describe("RequestLogSpanProcessor", () => {
           return null;
         }
       })
-      .find((o): o is Record<string, unknown> => o?.msg === "response");
+      .filter((o): o is Record<string, unknown> => o?.msg === "response");
   }
 
   it("emits one structured 'response' log for a matched /api span", async () => {
@@ -175,7 +175,9 @@ describe("RequestLogSpanProcessor", () => {
       }),
     );
 
-    const line = responseLine();
+    const lines = responseLines();
+    expect(lines).toHaveLength(1);
+    const [line] = lines;
     expect(line).toBeTruthy();
     expect(line?.method).toBe("POST");
     expect(line?.route).toBe("/api/issues");
@@ -191,7 +193,7 @@ describe("RequestLogSpanProcessor", () => {
     );
     await processor.logResponse(fakeSpan({ route: "/board" })); // page navigation
 
-    expect(responseLine()).toBeUndefined();
+    expect(responseLines()).toEqual([]);
   });
 
   it("promotes a slow request to WARN (REEF-271)", async () => {
@@ -205,7 +207,9 @@ describe("RequestLogSpanProcessor", () => {
       }),
     );
 
-    const line = responseLine();
+    const lines = responseLines();
+    expect(lines).toHaveLength(1);
+    const [line] = lines;
     expect(line?.duration_ms).toBe(2000);
     expect(line?.level).toBe(40);
   });

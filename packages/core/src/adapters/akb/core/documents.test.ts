@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
+import { makeAdapter, setupFetch } from "./httpTestSupport";
 import { SchemaValidationError } from "../../../errors";
 import { getAkbDocument, resolveDocumentTitles } from "./documents";
 
@@ -38,12 +35,12 @@ describe("getAkbDocument", () => {
     ]);
 
     await getAkbDocument({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-test",
       uri: firstUri,
     });
     await getAkbDocument({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-test",
       uri: secondUri,
     });
@@ -58,7 +55,7 @@ describe("getAkbDocument", () => {
 
   it("rejects malformed and cross-vault URIs before document I/O", async () => {
     const { calls } = setupFetch([]);
-    const adapter = makeTestAkbAdapter();
+    const adapter = makeAdapter();
     const repeatedMalformedMarkers = `akb://reef-test/coll/${"a/doc/".repeat(64)}a\n/doc/root.md`;
 
     for (const uri of [
@@ -92,7 +89,7 @@ describe("resolveDocumentTitles", () => {
     ]);
 
     const documents = await resolveDocumentTitles({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-test",
       uris: ["akb://reef-test/coll/research/doc/report.md"],
     });
@@ -113,7 +110,7 @@ describe("resolveDocumentTitles", () => {
     setupFetch([{ status: 404, body: { detail: "not found" } }]);
 
     const documents = await resolveDocumentTitles({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-test",
       uris: ["akb://reef-test/coll/research/doc/missing.md"],
     });
@@ -131,7 +128,7 @@ describe("resolveDocumentTitles", () => {
     const { calls } = setupFetch([]);
 
     const documents = await resolveDocumentTitles({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: "reef-test",
       uris: ["akb://other/coll/research/doc/report.md"],
     });

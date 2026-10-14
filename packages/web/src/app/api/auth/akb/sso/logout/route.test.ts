@@ -36,9 +36,15 @@ describe("SSO logout continuation", () => {
     );
   });
 
-  it("rejects a missing or mismatched one-time nonce", async () => {
+  it.each([
+    ["missing query", "", buildAuthV2LogoutCookie("expected")],
+    ["missing cookie", "?nonce=expected", ""],
+    ["mismatched", "?nonce=wrong", buildAuthV2LogoutCookie("expected")],
+  ])("rejects a %s one-time nonce", async (_name, query, cookie) => {
     const response = await GET(
-      new Request("https://reef.test/api/auth/akb/sso/logout?nonce=wrong"),
+      new Request(`https://reef.test/api/auth/akb/sso/logout${query}`, {
+        headers: { cookie },
+      }),
     );
     expect(response.status).toBe(403);
   });

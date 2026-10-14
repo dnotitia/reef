@@ -205,7 +205,7 @@ export function IssueDetailSidebar({
               }
               setStatus(next);
               if (issue) {
-                commit(buildStatusPatch(issue, next));
+                commit(buildStatusPatch(next));
               }
             }}
             options={STATUS_OPTIONS}

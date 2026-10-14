@@ -41,9 +41,11 @@ describe("rankIssueOptions", () => {
   });
 
   it("ranks ID matches above title matches", () => {
-    const results = rankIssueOptions(issues, "003");
-    // just REEF-003 matches in id; no title has "003".
-    expect(results.map((m) => m.issue.id)).toEqual(["REEF-003"]);
+    const results = rankIssueOptions(
+      [makeIssue({ id: "REEF-000", title: "003 title match" }), ...issues],
+      "003",
+    );
+    expect(results.map((m) => m.issue.id)).toEqual(["REEF-003", "REEF-000"]);
     expect(results[0]?.matchedField).toBe("id");
   });
 

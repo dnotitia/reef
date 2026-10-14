@@ -1,10 +1,6 @@
 import type { ChatIssueContext, WorkspaceSummary } from "@reef/core";
 import { describe, expect, it } from "vitest";
-import {
-  CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT,
-  buildWorkspaceChatSystemPrompt,
-  truncateForContext,
-} from "./workspaceChat";
+import { buildWorkspaceChatSystemPrompt } from "./workspaceChat";
 
 const summary: WorkspaceSummary = {
   vault: "reef-e2e",
@@ -94,20 +90,35 @@ describe("buildWorkspaceChatSystemPrompt", () => {
     expect(prompt).toContain("As a PM, I want the chat to know this issue.");
   });
 
-  it("truncates a body over the char limit and marks it", () => {
-    const longBody = "x".repeat(CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT + 500);
-    const prompt = buildWorkspaceChatSystemPrompt({
-      summary,
-      issueContext: { ...issueContext, body: longBody },
-    });
-    expect(prompt).toContain("(issue body truncated)");
-    // The full over-limit body should not appear verbatim.
-    expect(prompt).not.toContain(longBody);
-    // The rendered run of body chars is capped at the limit.
-    const longestXRun =
-      prompt.match(/x+/g)?.reduce((a, b) => Math.max(a, b.length), 0) ?? 0;
-    expect(longestXRun).toBeLessThanOrEqual(CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT);
-  });
+  it.each([
+    { name: "empty", body: "", expected: "(empty)", truncated: false },
+    { name: "short", body: "hello", expected: "hello", truncated: false },
+    {
+      name: "exact budget",
+      body: "x".repeat(6000),
+      expected: "x".repeat(6000),
+      truncated: false,
+    },
+    {
+      name: "over budget",
+      body: `${"x".repeat(6000)}tail`,
+      expected: "x".repeat(6000),
+      truncated: true,
+    },
+  ])(
+    "renders the $name body within the 6000-character budget",
+    ({ body, expected, truncated }) => {
+      const prompt = buildWorkspaceChatSystemPrompt({
+        summary,
+        issueContext: { ...issueContext, body },
+      });
+      const renderedBody = prompt
+        .split("<<<ISSUE_BODY\n")[1]
+        ?.split("\nISSUE_BODY>>>")[0];
+      expect(renderedBody).toBe(expected);
+      expect(prompt.includes("… (issue body truncated)")).toBe(truncated);
+    },
+  );
 
   it("marks grounding sections as untrusted reference data, not instructions (prompt injection)", () => {
     const prompt = buildWorkspaceChatSystemPrompt({ summary, issueContext });
@@ -161,12 +172,31 @@ describe("buildWorkspaceChatSystemPrompt", () => {
   });
 
   it("does not leak sensitive/internal issue fields (only the read_issue subset is rendered)", () => {
-    const prompt = buildWorkspaceChatSystemPrompt({ summary, issueContext });
-    // These are not part of ChatIssueContext at all — assert they do not appear.
-    expect(prompt).not.toContain("created_by");
-    expect(prompt).not.toContain("updated_by");
-    expect(prompt).not.toContain("watchers");
-    expect(prompt).not.toContain("Bearer");
+    const prompt = buildWorkspaceChatSystemPrompt({
+      summary,
+      issueContext: {
+        ...issueContext,
+        issue: {
+          ...issueContext.issue,
+          created_by: "private-author-sentinel",
+          updated_by: "private-editor-sentinel",
+          watchers: ["private-watcher-sentinel"],
+          credential: "Bearer private-token-sentinel",
+        },
+      } as ChatIssueContext,
+    });
+    for (const privateValue of [
+      "created_by",
+      "updated_by",
+      "watchers",
+      "credential",
+      "private-author-sentinel",
+      "private-editor-sentinel",
+      "private-watcher-sentinel",
+      "Bearer private-token-sentinel",
+    ]) {
+      expect(prompt).not.toContain(privateValue);
+    }
   });
 
   it("mentions repo grounding tools only when repo tools are wired", () => {
@@ -183,25 +213,5 @@ describe("buildWorkspaceChatSystemPrompt", () => {
     // The akb read tools are advertised.
     expect(withRepo).toContain("read_issue");
     expect(withoutRepo).toContain("read_issue");
-  });
-});
-
-describe("truncateForContext", () => {
-  it("passes short text through untouched", () => {
-    expect(truncateForContext("hello", 10)).toEqual({
-      text: "hello",
-      truncated: false,
-    });
-  });
-
-  it("cuts text over the limit and reports truncation", () => {
-    const result = truncateForContext("abcdef", 3);
-    expect(result.text).toBe("abc");
-    expect(result.truncated).toBe(true);
-  });
-
-  it("treats exactly-limit text as not truncated", () => {
-    const result = truncateForContext("abc", 3);
-    expect(result).toEqual({ text: "abc", truncated: false });
   });
 });

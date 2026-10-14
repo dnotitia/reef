@@ -148,7 +148,7 @@ describe("GET /api/auth/akb/me", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns a retryable 503 for an SSO Redis outage without invalidating", async () => {
+  it("returns 502 for an SSO Redis outage without invalidating", async () => {
     vi.stubEnv("REEF_AUTH_MODE", "sso");
     vi.stubEnv("REEF_KEYCLOAK_ISSUER", "https://idp.test/realms/reef");
     vi.stubEnv("REEF_KEYCLOAK_CLIENT_ID", "reef-web");
@@ -214,9 +214,12 @@ describe("GET /api/auth/akb/me", () => {
 });
 
 function expectClearedAuthCookies(res: Response) {
-  const setCookie = res.headers.get("set-cookie") ?? "";
-  expect(setCookie).toContain("__reef_session=");
-  expect(setCookie).toContain("__reef_auth_v2=");
-  expect(setCookie).toContain("Max-Age=0");
+  for (const name of ["__reef_session", "__reef_auth_v2"]) {
+    const cookie = res.headers
+      .getSetCookie()
+      .find((value) => value.startsWith(`${name}=`));
+    expect(cookie?.split(";")[0]).toBe(`${name}=`);
+    expect(cookie?.split("; ")).toContain("Max-Age=0");
+  }
   expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
 }

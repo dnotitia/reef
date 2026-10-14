@@ -137,11 +137,15 @@ describe("apiClient.fetch — browser request headers", () => {
   });
 
   it("keeps browser state for an ordinary permission denial", async () => {
+    const authBefore = getAuthCoordinatorSnapshot();
     mockFetch.mockResolvedValueOnce(mockResponse(403));
 
     await apiClient.fetch("/api/issues");
 
+    expect(getAuthCoordinatorSnapshot()).toEqual(authBefore);
+    expect(clearAuthenticatedBrowserState).not.toHaveBeenCalled();
     expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
+    expect(recordAkbAccountDenial).not.toHaveBeenCalled();
   });
 
   it("keeps browser state for a retryable auth dependency outage", async () => {
@@ -154,11 +158,15 @@ describe("apiClient.fetch — browser request headers", () => {
   });
 
   it("does not sign out on a first-visit plain 401", async () => {
+    const authBefore = getAuthCoordinatorSnapshot();
     mockFetch.mockResolvedValueOnce(mockResponse(401));
 
     await apiClient.fetch("/api/auth/akb/me");
 
+    expect(getAuthCoordinatorSnapshot()).toEqual(authBefore);
+    expect(clearAuthenticatedBrowserState).not.toHaveBeenCalled();
     expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
+    expect(recordAkbAccountDenial).not.toHaveBeenCalled();
   });
 
   it("does not invalidate an established session on a status-only 401", async () => {
@@ -172,7 +180,9 @@ describe("apiClient.fetch — browser request headers", () => {
     await apiClient.fetch("/api/issues");
 
     expect(getAuthCoordinatorSnapshot().status).toBe("active");
+    expect(clearAuthenticatedBrowserState).not.toHaveBeenCalled();
     expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
+    expect(recordAkbAccountDenial).not.toHaveBeenCalled();
   });
 
   it("preserves the account-denial response when browser cleanup fails", async () => {

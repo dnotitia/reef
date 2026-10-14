@@ -624,16 +624,26 @@ test.describe("Hermetic command palette", () => {
     await expect(page.getByTestId("close-issue-dialog")).toBeVisible();
     expect(patches).toHaveLength(0);
 
+    await page.getByTestId("closed-reason-select").click();
+    await page.getByRole("option", { name: /Duplicate/ }).click();
+    const closedResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/issues/REEF-001" &&
+        response.request().method() === "PATCH",
+    );
     await page.getByTestId("close-issue-confirm").click();
-    await expect
-      .poll(() =>
-        patches.some(
-          (body) =>
-            (body.update as { patch?: { status?: string } } | undefined)?.patch
-              ?.status === "closed",
-        ),
-      )
-      .toBe(true);
+    const response = await closedResponse;
+    expect(response.status()).toBe(200);
+    expect(response.request().postDataJSON()).toMatchObject({
+      update: { patch: { status: "closed", closed_reason: "duplicate" } },
+    });
+    const persisted = await page.request.get(
+      "/api/issues/REEF-001?vault=reef-e2e",
+    );
+    expect(persisted.status()).toBe(200);
+    expect(await persisted.json()).toMatchObject({
+      issue: { status: "closed", closed_reason: "duplicate" },
+    });
   });
 
   test("PATCHes priority and assignee through their existing mutation path", async ({

@@ -210,18 +210,6 @@ describe("Combobox", () => {
     expect(screen.queryByRole("option", { name: "Any fruit" })).toBeNull();
   });
 
-  it("marks the selected option with a check", async () => {
-    const user = userEvent.setup();
-    render(<Controlled />);
-
-    await user.click(screen.getByLabelText("Fruit"));
-    await user.click(screen.getByRole("option", { name: "Apple" }));
-    // Reopen and confirm the selected row carries a trailing check icon.
-    await user.click(screen.getByLabelText("Fruit"));
-    const appleRow = screen.getByRole("option", { name: "Apple" });
-    expect(appleRow.querySelector("svg")).not.toBeNull();
-  });
-
   it("draws the selected check in an absolute gutter, never an in-flow ml-auto item (REEF-144)", async () => {
     const user = userEvent.setup();
     render(<Controlled />);

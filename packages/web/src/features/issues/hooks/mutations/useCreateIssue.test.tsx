@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -30,14 +33,6 @@ const CREATED: IssueMetadata = {
   updated_by: "alice",
 };
 
-function makeWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useCreateIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,12 +43,10 @@ describe("useCreateIssue", () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ issue: CREATED }), { status: 201 }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useCreateIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     let returned:
@@ -83,13 +76,11 @@ describe("useCreateIssue", () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ issue: CREATED }), { status: 201 }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useCreateIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -112,16 +103,14 @@ describe("useCreateIssue", () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ issue: CREATED }), { status: 201 }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData<IssueListItem[]>(
       ["issues", "list", "reef-acme"],
       [],
     );
 
     const { result } = renderHook(() => useCreateIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -151,12 +140,10 @@ describe("useCreateIssue", () => {
         status: 422,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useCreateIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

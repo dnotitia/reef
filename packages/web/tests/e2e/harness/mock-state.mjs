@@ -383,6 +383,7 @@ export function publicState(state) {
   return {
     scenario: state.scenario,
     calls: state.calls,
+    auth_probe_pending: state.authProbeHoldCount,
     sql_calls: state.sqlCalls,
     notification: {
       roles: Object.fromEntries(state.notificationRoles),

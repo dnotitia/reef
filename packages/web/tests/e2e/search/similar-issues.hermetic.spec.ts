@@ -50,11 +50,9 @@ test.describe("Hermetic similar issue hints", () => {
     await expect(popup).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/);
     await popup.close();
 
-    await section.getByRole("button", { name: "Hide similar issues" }).click();
-    await expect(
-      page.locator('[data-testid="similar-issues-section"]'),
-    ).toHaveCount(0);
-
+    // Hints are advisory even while matches remain visible.
+    await expect(section).toBeVisible();
+    await expect(page.getByTestId("new-issue-submit")).toBeEnabled();
     await page.locator('[data-testid="new-issue-submit"]').click();
     await page.waitForURL(/\/issues\/REEF-004/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();

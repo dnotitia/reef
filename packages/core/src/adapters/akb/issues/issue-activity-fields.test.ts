@@ -233,8 +233,12 @@ describe("diffFieldActivityEvents (REEF-277)", () => {
   });
 
   it("emits nothing when a relation array is only reordered", () => {
-    // SAMPLE_ISSUE depends_on: ["REEF-002"] — same membership, no event.
-    expect(diff({ depends_on: ["REEF-002"] })).toEqual([]);
+    expect(
+      diff(
+        { depends_on: ["REEF-003", "REEF-002"] },
+        { depends_on: ["REEF-002", "REEF-003"] },
+      ),
+    ).toEqual([]);
   });
 
   it("emits one relation_change per moved dimension, labeled by relation", () => {

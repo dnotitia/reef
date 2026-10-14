@@ -25,12 +25,6 @@ describe("MyWorkPageSkeleton", () => {
     }
   });
 
-  it("exposes the body skeleton on its own for the page's in-flight branches", () => {
-    render(<MyWorkSkeleton />);
-
-    expect(screen.getByTestId("my-work-skeleton")).toBeInTheDocument();
-  });
-
   it("reserves the StageBar and the queue header so the body does not shift on hydration (REEF-258)", () => {
     render(<MyWorkSkeleton />);
     const root = screen.getByTestId("my-work-skeleton");

@@ -187,8 +187,9 @@ describe("IssueListRow", () => {
   it("shows dash for missing assignee", () => {
     const issue: IssueMetadata = { ...mockIssue, assigned_to: undefined };
     renderRow(issue);
-    const dashes = screen.getAllByText("—");
-    expect(dashes.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("issue-inline-edit-assignee")).toHaveTextContent(
+      "—",
+    );
   });
 
   it("renders row element", () => {

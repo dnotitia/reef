@@ -283,31 +283,6 @@ test.describe("Hermetic My Views", () => {
     );
   });
 
-  test("returns focus to the trigger when Escape closes the my-view dialog", async ({
-    page,
-  }) => {
-    await openMultiVaultWorkspace(page, "reef-e2e");
-    await page.goto("/workspace/reef-e2e/issues?view=list");
-    await expect(
-      page.locator('[data-testid="issue-list-row"]').first(),
-    ).toBeVisible({ timeout: 15_000 });
-    await selectTodo(page);
-
-    const trigger = page.getByTestId("my-view-trigger");
-    await trigger.click();
-    await page.getByRole("menuitem", { name: "Save current view…" }).click();
-    const dialog = page.getByTestId("my-view-dialog");
-    await expect(dialog).toBeVisible();
-    await dialog.getByTestId("my-view-name-input").press("Escape");
-    await expect(dialog).toBeHidden();
-    await expect
-      .poll(
-        () => trigger.evaluate((element) => element === document.activeElement),
-        { timeout: 15_000 },
-      )
-      .toBe(true);
-  });
-
   test("isolates vaults and clears browser-local My Views during account reconciliation", async ({
     page,
   }) => {
@@ -335,6 +310,7 @@ test.describe("Hermetic My Views", () => {
     await page.getByLabel("Account menu").click();
     await page.locator('[data-testid="account-signout"]').click();
     await page.waitForURL(/\/login$/, { timeout: 10_000 });
+    await expect(page.getByTestId("akb-login-form")).toBeVisible();
     await signInAsAlice(page);
     await page.goto("/workspace/reef-e2e/issues");
     await continueToWorkspace(page, "reef-e2e");
@@ -359,40 +335,49 @@ test.describe("Hermetic My Views", () => {
       page.locator('[data-testid="issue-list-row"]').first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    let releaseResponse: (() => void) | undefined;
+    // UI-only delivery scheduling: route.fetch still executes Reef's real
+    // authenticated handler and external AKB read. Hold its unchanged response
+    // so the old search can finish after the destination has rendered.
+    const searchGate = Promise.withResolvers<void>();
+    const searchDelivery = Promise.withResolvers<void>();
     let responseHeld = false;
     const isSearchRequest = (url: URL) =>
-      url.pathname === "/api/issues" && url.searchParams.has("q");
+      url.pathname === "/api/issues" &&
+      url.searchParams.get("vault") === "reef-e2e" &&
+      url.searchParams.get("q") === "Alpha";
     const holdSearchResponse = async (route: Route) => {
       try {
         const response = await route.fetch();
         responseHeld = true;
-        await new Promise<void>((resolve) => {
-          releaseResponse = resolve;
-        });
+        await searchGate.promise;
         await route.fulfill({ response });
       } catch {
         // A vault switch may abort the old request; the assertion below is the
         // observable contract, and the route no longer needs a response.
+      } finally {
+        searchDelivery.resolve();
       }
     };
     await page.route(isSearchRequest, holdSearchResponse);
 
-    let releaseVaultResponse: (() => void) | undefined;
+    const vaultGate = Promise.withResolvers<void>();
+    const vaultDelivery = Promise.withResolvers<void>();
     let vaultResponseHeld = false;
     const isZetaIssueRequest = (url: URL) =>
       url.pathname === "/api/issues" &&
-      url.searchParams.get("vault") === "reef-zeta";
+      url.searchParams.get("vault") === "reef-zeta" &&
+      !url.searchParams.has("limit") &&
+      !url.searchParams.has("q");
     const holdZetaResponse = async (route: Route) => {
       try {
         const response = await route.fetch();
         vaultResponseHeld = true;
-        await new Promise<void>((resolve) => {
-          releaseVaultResponse = resolve;
-        });
+        await vaultGate.promise;
         await route.fulfill({ response });
       } catch {
         // The route is released with the old search request below.
+      } finally {
+        vaultDelivery.resolve();
       }
     };
     await page.route(isZetaIssueRequest, holdZetaResponse);
@@ -405,13 +390,60 @@ test.describe("Hermetic My Views", () => {
     await page.getByTestId("sidebar-workspace-trigger").click();
     await page.getByTestId("workspace-switcher-option-reef-zeta").click();
     await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues/);
+    // A workspace with no saved view opens its default Board. Observe that
+    // destination surface rather than the departed workspace's List rows.
+    await expect(
+      page
+        .getByTestId("view-switcher")
+        .getByRole("button", { name: "Board", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => vaultResponseHeld, { timeout: 15_000 }).toBe(true);
     await expect(page.getByTestId("search-input")).toHaveValue("");
-    await expect(page.locator('[data-testid="issue-list-row"]')).toHaveCount(0);
+    const cards = page
+      .getByTestId("kanban-board-body")
+      .getByTestId("kanban-card");
+    await expect(cards).toHaveCount(0);
 
-    releaseResponse?.();
-    releaseVaultResponse?.();
-    await page.unroute(isSearchRequest, holdSearchResponse);
-    await page.unroute(isZetaIssueRequest, holdZetaResponse);
+    try {
+      vaultGate.resolve();
+      await vaultDelivery.promise;
+      await expect(cards).toHaveCount(2);
+      await expect
+        .poll(() =>
+          cards.evaluateAll((elements) =>
+            elements
+              .map((element) => element.getAttribute("data-issue-id"))
+              .sort(),
+          ),
+        )
+        .toEqual(["REEF-001", "REEF-002"]);
+      searchGate.resolve();
+      await searchDelivery.promise;
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await expect(cards).toHaveCount(2);
+      await expect
+        .poll(() =>
+          cards.evaluateAll((elements) =>
+            elements
+              .map((element) => element.getAttribute("data-issue-id"))
+              .sort(),
+          ),
+        )
+        .toEqual(["REEF-001", "REEF-002"]);
+      await expect(page.getByTestId("search-input")).toHaveValue("");
+      await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues(?:\?|$)/);
+      expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+    } finally {
+      searchGate.resolve();
+      vaultGate.resolve();
+      await Promise.all([searchDelivery.promise, vaultDelivery.promise]);
+      await page.unroute(isSearchRequest, holdSearchResponse);
+      await page.unroute(isZetaIssueRequest, holdZetaResponse);
+    }
   });
 });

@@ -1,4 +1,7 @@
-import type { EnrichmentUserPromptRequest } from "@reef/core";
+import {
+  EnrichmentFieldEnum,
+  type EnrichmentUserPromptRequest,
+} from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   buildEnrichmentSystemPrompt,
@@ -11,16 +14,15 @@ describe("buildEnrichmentSystemPrompt", () => {
     expect(prompt).toContain("suggestions");
   });
 
-  it("contains all valid field names", () => {
+  it("documents the complete schema field vocabulary in the rules", () => {
     const prompt = buildEnrichmentSystemPrompt();
-    expect(prompt).toContain("priority");
-    expect(prompt).toContain("assigned_to");
-    expect(prompt).toContain("labels");
-    expect(prompt).toContain("depends_on");
-    expect(prompt).toContain("blocks");
-    expect(prompt).toContain("title");
-    expect(prompt).toContain("content");
-    expect(prompt).toContain("external_refs");
+    const rule = prompt
+      .split("\n")
+      .find((line) => line.startsWith('1. "field" must be one of: '));
+    const fields = [...(rule?.matchAll(/"([^"\n]+)"/g) ?? [])]
+      .map((match) => match[1])
+      .slice(1);
+    expect(fields).toEqual(EnrichmentFieldEnum.options);
   });
 
   it("describes external_refs value shape", () => {
@@ -130,7 +132,12 @@ describe("buildEnrichmentUserPrompt", () => {
 
   it("shows no-context messages when context lists are empty", () => {
     const prompt = buildEnrichmentUserPrompt(baseRequest);
-    expect(prompt).toContain("(none)");
+    expect(prompt).toContain(
+      "Vault Label Context (reference only; new labels are allowed):\n  (none)\n",
+    );
+    expect(prompt).toContain("Current People Fields:\n  (none)\n");
+    expect(prompt).toContain("Issue Templates:\n  (none)\n");
+    expect(prompt).toContain("Planning Context: (unavailable)\n");
   });
 
   it("includes vault label, current people, template, and planning context lines", () => {
@@ -182,6 +189,6 @@ describe("buildEnrichmentUserPrompt", () => {
 
   it("ends with JSON instruction", () => {
     const prompt = buildEnrichmentUserPrompt(baseRequest);
-    expect(prompt).toContain("Return only the JSON object.");
+    expect(prompt.endsWith("Return only the JSON object.")).toBe(true);
   });
 });
