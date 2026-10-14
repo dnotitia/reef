@@ -1,7 +1,10 @@
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   personalNotificationsQueryKey,
@@ -30,19 +33,6 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 const mockedApiFetch = vi.mocked(apiFetch);
-
-function makeWrapper(
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  }),
-) {
-  function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  }
-  return { Wrapper, queryClient };
-}
 
 function makeNotification(
   index: number,
@@ -88,7 +78,8 @@ describe("useInboxNotifications", () => {
         { status: 200 },
       ),
     );
-    const { Wrapper, queryClient } = makeWrapper();
+    const queryClient = createTestQueryClient();
+    const Wrapper = createQueryWrapper(queryClient);
 
     const { result } = renderHook(() => useInboxNotifications(), {
       wrapper: Wrapper,
@@ -127,7 +118,7 @@ describe("useInboxNotifications", () => {
     );
 
     const { result } = renderHook(() => useUnreadNotificationCount(), {
-      wrapper: makeWrapper().Wrapper,
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current).toBe(100));
@@ -144,7 +135,7 @@ describe("useInboxNotifications", () => {
     );
 
     const { result } = renderHook(() => useUnreadNotificationCount(), {
-      wrapper: makeWrapper().Wrapper,
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(1));
@@ -161,9 +152,7 @@ describe("useInboxNotifications", () => {
       ...makeNotification(0, "unread", "reef-zeta"),
       notification_key: notificationKey,
     };
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(personalNotificationsQueryKey("alice"), [
       alpha,
       zeta,
@@ -174,7 +163,7 @@ describe("useInboxNotifications", () => {
         { status: 200 },
       ),
     );
-    const { Wrapper } = makeWrapper(queryClient);
+    const Wrapper = createQueryWrapper(queryClient);
     const { result } = renderHook(() => useUpdateNotificationState(), {
       wrapper: Wrapper,
     });
@@ -207,7 +196,7 @@ describe("useInboxNotifications", () => {
     );
 
     const { result } = renderHook(() => useInboxNotifications(), {
-      wrapper: makeWrapper().Wrapper,
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));

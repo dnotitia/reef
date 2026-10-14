@@ -455,7 +455,7 @@ test.describe("search debounce cadence (REEF-370)", () => {
           return;
         }
 
-        if (query !== "A" && query !== "Al") {
+        if (query !== "Beta" && query !== "Gamma") {
           await route.fulfill({ response });
           return;
         }
@@ -472,27 +472,62 @@ test.describe("search debounce cadence (REEF-370)", () => {
       },
     );
 
-    await input.fill("A");
-    await page.waitForTimeout(220);
-    await input.fill("Al");
-    await page.waitForTimeout(220);
-    await input.fill("Alpha");
-    await page.waitForTimeout(220);
+    await input.fill("Beta");
     await expect
-      .poll(() => latestResponseReleased, { timeout: 10_000 })
+      .poll(() => heldResponses.some((item) => item.query === "Beta"))
       .toBe(true);
-    await expect.poll(() => heldResponses.length, { timeout: 10_000 }).toBe(2);
+    await input.fill("Gamma");
+    await expect
+      .poll(() => heldResponses.some((item) => item.query === "Gamma"))
+      .toBe(true);
+    await input.fill("Alpha");
+    await expect.poll(() => latestResponseReleased).toBe(true);
+    await expect.poll(() => heldResponses.length).toBe(2);
 
     await expect(page).toHaveURL(/q=Alpha/);
     await expect(
       page.getByRole("button", { name: /Initial issue Alpha/ }).first(),
     ).toBeVisible();
 
-    for (const query of ["Al", "A"]) {
-      const response = heldResponses.find((item) => item.query === query);
-      if (!response) throw new Error(`missing held response for ${query}`);
-      await response.release();
+    const cards = page.getByTestId("kanban-card");
+    await expect(cards).toHaveCount(1);
+    await expect(cards).toHaveAttribute("data-issue-id", "REEF-001");
+    await page.evaluate(() => {
+      const state = window as Window & { __staleCardsSeen?: boolean };
+      state.__staleCardsSeen = false;
+      new MutationObserver(() => {
+        const ids = [
+          ...document.querySelectorAll('[data-testid="kanban-card"]'),
+        ].map((card) => card.getAttribute("data-issue-id"));
+        if (ids.length !== 1 || ids[0] !== "REEF-001")
+          state.__staleCardsSeen = true;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    for (const query of ["Gamma", "Beta"]) {
+      const held = heldResponses.find((item) => item.query === query);
+      if (!held) throw new Error(`missing held response for ${query}`);
+      const received = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/issues" &&
+          new URL(response.url()).searchParams.get("q") === query,
+      );
+      await held.release();
+      await (await received).finished();
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await expect(cards).toHaveCount(1);
+      await expect(cards).toHaveAttribute("data-issue-id", "REEF-001");
     }
+    expect(
+      await page.evaluate(
+        () =>
+          (window as Window & { __staleCardsSeen?: boolean }).__staleCardsSeen,
+      ),
+    ).toBe(false);
     await expect(input).toHaveValue("Alpha");
     await expect(page).toHaveURL(/q=Alpha/);
     await expect(

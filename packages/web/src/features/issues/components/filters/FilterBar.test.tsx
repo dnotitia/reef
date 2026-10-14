@@ -1,4 +1,3 @@
-import { PLANNING_ITEM_PANEL_CLASS } from "@/features/planning/components/PlanningItemCombobox";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { applyMyViewSnapshot } from "../../lib/myViewSnapshot";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,12 +12,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
-import {
-  FILTER_FIELD_CLASS,
-  FilterBar,
-  PLANNING_FILTER_WRAPPER_CLASS,
-  USER_FILTER_PANEL_CLASS,
-} from "./FilterBar";
+import { FilterBar } from "./FilterBar";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -298,7 +292,7 @@ describe("FilterBar", () => {
     expect(screen.queryByTestId("sort-control")).toBeNull();
   });
 
-  it("keeps Milestone a single-select value field with a readable panel; Sprint/Release are multi-select chips (REEF-267)", async () => {
+  it("keeps Milestone single-select without a none option and Sprint/Release multi-select (REEF-267)", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
@@ -340,20 +334,14 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("release-dropdown-trigger")).toBeTruthy();
     expect(screen.queryByTestId("sprint-input")).toBeNull();
 
-    // Milestone stays a single-select value field (multi-select out of scope,
-    // REEF-267): the wrapper keeps the planning wrapper class and the inner
-    // combobox the value-field width token.
-    expect(screen.getByTestId("milestone-filter").className).toContain(
-      PLANNING_FILTER_WRAPPER_CLASS,
-    );
-    expect(
-      screen.getByLabelText("Milestone").parentElement?.className,
-    ).toContain(FILTER_FIELD_CLASS);
-
-    // The opened Milestone panel keeps the readable planning floor.
+    // Milestone remains single-select and deliberately omits a none option.
+    // PlanningItemCombobox owns the shared panel-width contract.
     await user.click(screen.getByLabelText("Milestone"));
-    const panel = screen.getByRole("listbox").closest('[role="dialog"]');
-    expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
+    const listbox = screen.getByRole("listbox");
+    expect(listbox).toBeInTheDocument();
+    expect(listbox.closest('[role="dialog"]')).toHaveClass(
+      "min-w-[min(20rem,90vw)]",
+    );
     expect(screen.queryByText("Any milestone")).toBeNull();
     expect(screen.queryByText("No Milestone")).toBeNull();
   });
@@ -610,21 +598,15 @@ describe("FilterBar", () => {
     },
   );
 
-  it("shares the same readable user-panel width across both user filters (REEF-134)", () => {
-    // Both filters draw from one constant, so the Assignee/Requester dropdowns
-    // do not drift apart on width policy.
-    expect(USER_FILTER_PANEL_CLASS).toContain("min-w-[17rem]");
-  });
-
   // REEF-269/267: after Assignee · Requester · Sprint · Release became
   // multi-select chips, the remaining "value field" comboboxes are just Milestone
-  // and Labels, both still drawing their width from the single FILTER_FIELD_CLASS
-  // token. The token lives on each field's width-controlling element: the wrapper
+  // and Labels. Their readable floor and cap live on each field's width-
+  // controlling element: the wrapper
   // for the labels field, the inner combobox root (the trigger's parent) for
   // Milestone, matching REEF-246's fit-content placement. jsdom can not measure
   // pixels, so this is a class-contract regression guard; the real visual
   // alignment is checked in the hermetic runtime.
-  it("sizes the remaining value fields (Milestone, Labels) from the shared FILTER_FIELD_CLASS token (REEF-269/267)", () => {
+  it("keeps Milestone and Labels readable and capped as value fields (REEF-269/267)", () => {
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -633,14 +615,18 @@ describe("FilterBar", () => {
     renderFilterBar();
 
     // Labels field: the token is on the field wrapper.
-    expect(screen.getByTestId("labels-filter").className).toContain(
-      FILTER_FIELD_CLASS,
+    expect(screen.getByTestId("labels-filter")).toHaveClass(
+      "w-fit",
+      "min-w-[9rem]",
+      "max-w-[16rem]",
     );
     // Milestone (the one single-select planning field): the token is on the
     // inner combobox root (the trigger's parent), per REEF-246's placement.
-    expect(
-      screen.getByLabelText("Milestone").parentElement?.className,
-    ).toContain(FILTER_FIELD_CLASS);
+    expect(screen.getByLabelText("Milestone").parentElement).toHaveClass(
+      "w-fit",
+      "min-w-[9rem]",
+      "max-w-[16rem]",
+    );
   });
 
   // REEF-269/267: the multi-select facet chips are NOT value fields — they keep

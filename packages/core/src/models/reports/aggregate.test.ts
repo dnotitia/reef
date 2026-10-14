@@ -406,32 +406,21 @@ describe("computeAggregates — report filters", () => {
   });
 
   it("combines assignee, label, and planning filters", () => {
+    const matching = {
+      assigned_to: "alice",
+      labels: ["ui", "risk"],
+      sprint_id: "spr-1",
+      milestone_id: "mil-1",
+      release_id: "rel-1",
+    };
     const { filteredTotal, topAssignees, topLabels } = computeAggregates(
       [
-        makeIssue({
-          id: "REEF-001",
-          assigned_to: "alice",
-          labels: ["ui", "risk"],
-          sprint_id: "spr-1",
-          milestone_id: "mil-1",
-          release_id: "rel-1",
-        }),
-        makeIssue({
-          id: "REEF-002",
-          assigned_to: "alice",
-          labels: ["ui"],
-          sprint_id: "spr-2",
-          milestone_id: "mil-1",
-          release_id: "rel-1",
-        }),
-        makeIssue({
-          id: "REEF-003",
-          assigned_to: "bob",
-          labels: ["risk"],
-          sprint_id: "spr-1",
-          milestone_id: "mil-1",
-          release_id: "rel-1",
-        }),
+        makeIssue({ ...matching, id: "REEF-001" }),
+        makeIssue({ ...matching, id: "REEF-002", assigned_to: "bob" }),
+        makeIssue({ ...matching, id: "REEF-003", labels: ["ui"] }),
+        makeIssue({ ...matching, id: "REEF-004", sprint_id: "spr-2" }),
+        makeIssue({ ...matching, id: "REEF-005", milestone_id: "mil-2" }),
+        makeIssue({ ...matching, id: "REEF-006", release_id: "rel-2" }),
       ],
       {
         filters: {
@@ -624,7 +613,7 @@ describe("computeFlowMetrics", () => {
     expect(result.cycle.coveragePercent).toBeCloseTo(100 / 3);
   });
 
-  it("rejects reversed starts and ignores closed-only history", () => {
+  it("rejects reversed and malformed cycle starts", () => {
     const valid = makeIssue({
       id: "ISSUE-001",
       created_at: "2026-06-15T00:00:00.000Z",

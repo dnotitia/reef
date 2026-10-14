@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import en from "@/i18n/messages/en.json";
 import {
   APP_ACTION_CATALOG,
   COMMAND_PAGE_CATALOG,
@@ -13,9 +14,19 @@ describe("app action catalog", () => {
   it("keeps ids unique and every action localized", () => {
     const ids = APP_ACTION_CATALOG.map((action) => action.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(
-      APP_ACTION_CATALOG.every((action) => action.labelKey.length > 0),
-    ).toBe(true);
+    for (const action of APP_ACTION_CATALOG) {
+      const label = action.labelKey
+        .split(".")
+        .reduce<unknown>(
+          (value, key) =>
+            value && typeof value === "object"
+              ? (value as Record<string, unknown>)[key]
+              : undefined,
+          en.commands.actions,
+        );
+      expect(label, action.id).toEqual(expect.any(String));
+      expect((label as string).trim(), action.id).not.toBe("");
+    }
   });
 
   it("projects one catalog into palette, shortcuts, and cheatsheet", () => {

@@ -49,8 +49,16 @@ describe("issue list cache shapes", () => {
       issues.map((item) => ({ ...item, title: `Updated ${item.id}` })),
     ) as ReturnType<typeof infiniteData>;
 
-    expect(result.pages[0]?.issues[0]?.title).toBe("Updated REEF-001");
-    expect(result.pages[1]?.issues[1]?.id).toBe("REEF-003");
+    expect(
+      result.pages.map((page) => page.issues.map((item) => item.title)),
+    ).toEqual([
+      ["Updated REEF-001", "Updated REEF-002"],
+      ["Updated REEF-002", "Updated REEF-003"],
+    ]);
+    expect(result.pages.map((page) => page.next_cursor)).toEqual([
+      "c1",
+      undefined,
+    ]);
     expect(result.pageParams).toEqual([null, "c1"]);
   });
 
@@ -58,7 +66,7 @@ describe("issue list cache shapes", () => {
     const client = new QueryClient();
     const finiteKey = ["issues", "list", "reef-acme"] as const;
     const infiniteKey = issueListInfiniteKey("reef-acme", query);
-    client.setQueryData(finiteKey, [issue("REEF-001")]);
+    client.setQueryData(finiteKey, [issue("REEF-001"), issue("REEF-002")]);
     client.setQueryData(infiniteKey, infiniteData());
 
     const snapshots = updateIssueListCaches(client, "reef-acme", (item) =>
@@ -68,11 +76,18 @@ describe("issue list cache shapes", () => {
     expect(snapshots).toHaveLength(2);
     expect(client.getQueryData<IssueListItem[]>(finiteKey)).toEqual([
       issue("REEF-001"),
+      { ...issue("REEF-002"), status: "done" },
     ]);
+    const updatedInfinite =
+      client.getQueryData<ReturnType<typeof infiniteData>>(infiniteKey);
     expect(
-      client.getQueryData<ReturnType<typeof infiniteData>>(infiniteKey)
-        ?.pages[0]?.issues[1]?.status,
-    ).toBe("done");
+      updatedInfinite?.pages.map((page) =>
+        page.issues.map((item) => item.status),
+      ),
+    ).toEqual([
+      ["todo", "done"],
+      ["done", "todo"],
+    ]);
   });
 
   it("prepends a created issue only once to both cache shapes", () => {
@@ -80,16 +95,33 @@ describe("issue list cache shapes", () => {
     const finiteKey = ["issues", "list", "reef-acme"] as const;
     const infiniteKey = issueListInfiniteKey("reef-acme", query);
 
-    expect(
-      prependIssueToIssueListCache(finiteKey, [issue("REEF-001")], created),
-    ).toEqual([created, issue("REEF-001")]);
+    const finite = prependIssueToIssueListCache(
+      finiteKey,
+      [issue("REEF-001")],
+      created,
+    );
+    expect(prependIssueToIssueListCache(finiteKey, finite, created)).toEqual([
+      created,
+      issue("REEF-001"),
+    ]);
     const prepended = prependIssueToIssueListCache(
       infiniteKey,
       infiniteData(),
       created,
     ) as ReturnType<typeof infiniteData>;
-    expect(prepended.pages[0]?.issues[0]).toEqual(created);
-    expect(prepended.pages[1]?.issues).toHaveLength(2);
+    const twice = prependIssueToIssueListCache(
+      infiniteKey,
+      prepended,
+      created,
+    ) as ReturnType<typeof infiniteData>;
+    expect(
+      twice.pages.map((page) => page.issues.map((item) => item.id)),
+    ).toEqual([
+      ["REEF-004", "REEF-001", "REEF-002"],
+      ["REEF-002", "REEF-003"],
+    ]);
+    expect(twice.pageParams).toEqual([null, "c1"]);
+    expect(twice.pages[0]?.next_cursor).toBe("c1");
   });
 
   it("restores one failed issue without erasing a sibling optimistic update", () => {

@@ -1,14 +1,8 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AkbApiError, AuthError } from "../../../errors";
-import {
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
 import { getAuthConfig, getCurrentActor, getMe, login } from "./auth";
-
-mockOpenTelemetry();
 
 const BASE_URL = "https://akb.test";
 
@@ -174,7 +168,7 @@ describe("akb auth adapter", () => {
       account_kind: "human",
     };
     setupFetch([{ status: 200, body: profile }]);
-    await expect(getMe({ adapter: makeTestAkbAdapter() })).resolves.toEqual({
+    await expect(getMe({ adapter: makeAdapter() })).resolves.toEqual({
       profile,
     });
   });
@@ -183,7 +177,7 @@ describe("akb auth adapter", () => {
     setupFetch([{ status: 200, body: { user_id: "u-1", username: "alice" } }]);
     await expect(
       getCurrentActor({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         jwt: makeJwt({ username: "wrong" }),
       }),
     ).resolves.toEqual({ actor: "alice" });
@@ -193,7 +187,7 @@ describe("akb auth adapter", () => {
     setupFetch([{ status: 200, body: {} }]);
     await expect(
       getCurrentActor({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         jwt: makeJwt({ username: "alice" }),
       }),
     ).resolves.toEqual({ actor: "alice" });
@@ -201,7 +195,7 @@ describe("akb auth adapter", () => {
 
   it("keeps malformed me payloads non-fatal to the adapter boundary", async () => {
     setupFetch([{ status: 200, body: { username: 123 } }]);
-    await expect(getMe({ adapter: makeTestAkbAdapter() })).resolves.toEqual({
+    await expect(getMe({ adapter: makeAdapter() })).resolves.toEqual({
       profile: { username: 123 },
     });
   });

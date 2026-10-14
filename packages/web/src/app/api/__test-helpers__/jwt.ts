@@ -1,3 +1,5 @@
+import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
+
 /**
  * Build a JWT-shaped token (`header.payload.sig`) for Route Handler tests.
  *
@@ -31,3 +33,14 @@ export const EXPIRED_JWT = makeJwt({
   exp: Math.floor(Date.now() / 1000) - 60,
   sub: "u-1",
 });
+
+export function authedHeaders(): Record<string, string> {
+  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
+}
+
+export function jsonAuthedHeaders(): Record<string, string> {
+  return {
+    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
+    "content-type": "application/json",
+  };
+}

@@ -23,14 +23,9 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { AuthError } from "@reef/core";
-import { VALID_JWT } from "../../../../__test-helpers__/jwt";
+import { authedHeaders } from "../../../../__test-helpers__/jwt";
 import { DELETE } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 function ctx(vault = "reef-acme", user = "bob") {
   return { params: Promise.resolve({ vault, user }) };
@@ -106,7 +101,7 @@ describe("DELETE /api/vaults/[vault]/members/[user]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("folds an akb owner/admin guard (403) into 401", async () => {
+  it("translates an untyped AuthError to 401", async () => {
     mockRevokeVaultMember.mockRejectedValueOnce(new AuthError({}));
     const req = new Request(
       "http://localhost/api/vaults/reef-acme/members/alice",

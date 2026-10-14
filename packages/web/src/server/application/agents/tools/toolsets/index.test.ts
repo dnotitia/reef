@@ -2,12 +2,12 @@ import {
   type GitHubAdapter,
   createGitHubAdapter,
 } from "@/server/adapters/githubAdapter";
-import { describe, expect, it } from "vitest";
+import { SchemaValidationError } from "@reef/core";
+import { describe, expect, it, vi } from "vitest";
 import { makeTestAkbAdapter } from "../__test-helpers__/fetchMock";
 import {
   createIssueAuthoringToolset,
   createRepoReadToolset,
-  createSuggestionToolset,
   createWorkspaceReadToolset,
 } from "./index";
 
@@ -84,39 +84,37 @@ describe("agent toolsets", () => {
   });
 
   it("scopes unbound repo tools to the allowlist (rejects others) even when empty", async () => {
-    // Safe-by-default: with no repoContext the unbound tools consistently enforce the
-    // allowlist, so an empty allowlist rejects every repo rather than exposing
-    // an unbounded GitHub read (REEF-243).
-    const githubAdapter = {
-      searchCode: async () => {
-        throw new Error("unbounded GitHub read must not happen");
-      },
-    } as unknown as GitHubAdapter;
-
+    const searchCode = vi.fn().mockResolvedValue([]);
+    const readFile = vi
+      .fn()
+      .mockResolvedValue({ path: "file.txt", content: "" });
+    const githubAdapter = { searchCode, readFile } as unknown as GitHubAdapter;
     const toolset = createRepoReadToolset({ githubAdapter, allowedRepos: [] });
-    expect(Object.keys(toolset).sort()).toEqual([
-      "dev_read_file",
-      "search_code",
-    ]);
-
-    const searchCodeTool = toolset.search_code as unknown as {
-      execute?: (
-        input: {
-          query: string;
-          owner: string;
-          repo: string;
-          maxResults: number;
-        },
-        options: never,
-      ) => Promise<unknown>;
-    };
-    if (!searchCodeTool.execute) throw new Error("search_code has no execute");
+    if (!toolset.search_code.execute || !toolset.dev_read_file.execute) {
+      throw new Error("repo read tools must be executable");
+    }
+    const options = { toolCallId: "test", messages: [], context: {} };
     await expect(
-      searchCodeTool.execute(
+      toolset.search_code.execute(
         { query: "x", owner: "any", repo: "repo", maxResults: 10 },
-        undefined as never,
+        options,
       ),
-    ).rejects.toThrow();
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    await expect(
+      toolset.dev_read_file.execute(
+        {
+          owner: "any",
+          repo: "repo",
+          path: "file.txt",
+          ref: null,
+          startLine: null,
+          endLine: null,
+        },
+        options,
+      ),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(searchCode).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
   });
 
   it("executes repoRead tools against the server-selected repo context", async () => {
@@ -187,7 +185,7 @@ describe("agent toolsets", () => {
     });
   });
 
-  it("builds issueAuthoring and suggestion toolsets by purpose", () => {
+  it("builds the issueAuthoring catalog with optional assignee discovery", () => {
     const adapter = makeTestAkbAdapter();
 
     expect(
@@ -207,7 +205,6 @@ describe("agent toolsets", () => {
           adapter,
           vault: "reef-test",
           includeAssignees: true,
-          includeSuggestions: true,
         }),
       ).sort(),
     ).toEqual([
@@ -216,13 +213,6 @@ describe("agent toolsets", () => {
       "read_template",
       "search_documents",
       "search_issues",
-      "suggest_labels",
-      "suggest_priority",
-    ]);
-
-    expect(Object.keys(createSuggestionToolset()).sort()).toEqual([
-      "suggest_labels",
-      "suggest_priority",
     ]);
   });
 });

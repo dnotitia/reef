@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -32,14 +35,6 @@ const ISSUE: IssueMetadata = {
   updated_by: "alice",
 };
 
-function makeWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useArchiveIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,12 +46,10 @@ describe("useArchiveIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useArchiveIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -77,12 +70,10 @@ describe("useArchiveIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useArchiveIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

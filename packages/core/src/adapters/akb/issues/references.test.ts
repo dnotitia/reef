@@ -1,17 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotFoundError } from "../../../errors";
-import {
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
 import {
   addIssueReference,
   listIssueReferences,
   removeIssueReference,
 } from "./references";
-
-mockOpenTelemetry();
 
 const VAULT = "reef-acme";
 const ISSUE = "REEF-083";
@@ -41,7 +35,7 @@ describe("listIssueReferences", () => {
       },
     ]);
 
-    const refs = await listIssueReferences(makeTestAkbAdapter(), VAULT, ISSUE);
+    const refs = await listIssueReferences(makeAdapter(), VAULT, ISSUE);
 
     const url = new URL(calls[0].url);
     expect(url.pathname).toBe("/api/v1/relations");
@@ -79,7 +73,7 @@ describe("listIssueReferences", () => {
       },
     ]);
 
-    const refs = await listIssueReferences(makeTestAkbAdapter(), VAULT, ISSUE);
+    const refs = await listIssueReferences(makeAdapter(), VAULT, ISSUE);
     expect(refs).toHaveLength(1);
     expect(refs[0].uri).toBe(TARGET);
   });
@@ -101,7 +95,7 @@ describe("listIssueReferences", () => {
       },
     ]);
 
-    const refs = await listIssueReferences(makeTestAkbAdapter(), VAULT, ISSUE);
+    const refs = await listIssueReferences(makeAdapter(), VAULT, ISSUE);
     expect(refs[0].title).toBeNull();
   });
 });
@@ -110,7 +104,7 @@ describe("addIssueReference", () => {
   it("POSTs a references edge from the issue document to the target", async () => {
     const { calls } = setupFetch([{ body: {} }]);
 
-    await addIssueReference(makeTestAkbAdapter(), VAULT, ISSUE, TARGET);
+    await addIssueReference(makeAdapter(), VAULT, ISSUE, TARGET);
 
     expect(new URL(calls[0].url).pathname).toBe("/api/v1/relations");
     expect(calls[0].init?.method).toBe("POST");
@@ -125,7 +119,7 @@ describe("addIssueReference", () => {
     setupFetch([{ status: 404, body: { detail: "resource not found" } }]);
 
     await expect(
-      addIssueReference(makeTestAkbAdapter(), VAULT, ISSUE, TARGET),
+      addIssueReference(makeAdapter(), VAULT, ISSUE, TARGET),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
@@ -134,7 +128,7 @@ describe("removeIssueReference", () => {
   it("DELETEs with source/target/relation as query params, never a body", async () => {
     const { calls } = setupFetch([{ body: {} }]);
 
-    await removeIssueReference(makeTestAkbAdapter(), VAULT, ISSUE, TARGET);
+    await removeIssueReference(makeAdapter(), VAULT, ISSUE, TARGET);
 
     const url = new URL(calls[0].url);
     expect(url.pathname).toBe("/api/v1/relations");

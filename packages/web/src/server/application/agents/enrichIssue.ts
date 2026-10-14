@@ -126,8 +126,3 @@ export async function enrichIssue(
     }
   });
 }
-
-export {
-  parseEnrichmentResponse,
-  validateSuggestions,
-} from "./enrichIssue/validation";

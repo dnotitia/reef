@@ -135,7 +135,7 @@ describe("proxy — credential redaction", () => {
     expect(combined).not.toContain(FAKE_LLM_HEADER);
   });
 
-  it("never logs capitalized credential header values (case-insensitive)", () => {
+  it("never logs encoded LLM configuration or its embedded key", () => {
     const secretKey = "sk-super-secret";
     const encoded = Buffer.from(
       JSON.stringify({
@@ -347,30 +347,7 @@ describe("proxy — credential redaction", () => {
 });
 
 describe("proxy — CSP nonce scaffold", () => {
-  it("attaches an x-nonce header to the response for page navigations", () => {
-    const request = new NextRequest("https://reef.test/board", {
-      method: "GET",
-    });
-
-    const response = proxy(request);
-
-    const nonce = response.headers.get("x-nonce");
-    expect(nonce).toBeTruthy();
-    expect(typeof nonce).toBe("string");
-    expect(nonce?.length).toBeGreaterThan(0);
-  });
-
-  it("attaches an x-nonce header to /api/* responses as well", () => {
-    const request = new NextRequest("https://reef.test/api/issues?repo=o/r", {
-      method: "GET",
-    });
-
-    const response = proxy(request);
-
-    expect(response.headers.get("x-nonce")).toBeTruthy();
-  });
-
-  it("generates a different nonce for each request", () => {
+  it("generates a different nonce-bearing CSP for each request", () => {
     const r1 = proxy(
       new NextRequest("https://reef.test/board", { method: "GET" }),
     );
@@ -383,6 +360,11 @@ describe("proxy — CSP nonce scaffold", () => {
     expect(n1).toBeTruthy();
     expect(n2).toBeTruthy();
     expect(n1).not.toBe(n2);
+    const csp1 = r1.headers.get("Content-Security-Policy");
+    const csp2 = r2.headers.get("Content-Security-Policy");
+    expect(csp1).toContain(`'nonce-${n1}'`);
+    expect(csp2).toContain(`'nonce-${n2}'`);
+    expect(csp1).not.toBe(csp2);
   });
 });
 
@@ -400,24 +382,21 @@ describe("proxy — CSP nonce scaffold", () => {
  * block merge until resolved.
  */
 describe("proxy — CSP header audit", () => {
-  it("sets a Content-Security-Policy header on every response", () => {
-    const response = proxy(
-      new NextRequest("https://reef.test/board", { method: "GET" }),
-    );
-
-    const csp = response.headers.get("Content-Security-Policy");
-    expect(csp).toBeTruthy();
-    expect(typeof csp).toBe("string");
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
-  it("sets Content-Security-Policy on /api/* responses as well", () => {
+  it("pairs Content-Security-Policy and nonce on /api/* responses", () => {
     const response = proxy(
       new NextRequest("https://reef.test/api/issues?repo=o/r", {
         method: "GET",
       }),
     );
 
-    expect(response.headers.get("Content-Security-Policy")).toBeTruthy();
+    const nonce = response.headers.get("x-nonce");
+    const csp = response.headers.get("Content-Security-Policy");
+    expect(nonce).toBeTruthy();
+    expect(csp).toContain(`'nonce-${nonce}'`);
   });
 
   it("does NOT contain unsafe-inline in script-src (XSS regression gate)", () => {
@@ -465,18 +444,15 @@ describe("proxy — CSP header audit", () => {
     }
   });
 
-  it("does not emits 'unsafe-eval' in production (NODE_ENV guard)", () => {
-    // Vitest runs with NODE_ENV !== "development" by default; this test
-    // asserts the dev-mode escape hatch is NOT present outside development.
-    // If NODE_ENV is "development" locally, skip — the CI guard still covers
-    // protected branches where NODE_ENV is "test" or "production".
-    if (process.env.NODE_ENV === "development") return;
+  it("does not emit 'unsafe-eval' in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
 
     const response = proxy(
       new NextRequest("https://reef.test/board", { method: "GET" }),
     );
     const csp = response.headers.get("Content-Security-Policy") ?? "";
     const scriptSrcMatch = csp.match(/script-src\s+([^;]+)/);
+    expect(scriptSrcMatch).toBeTruthy();
     const scriptSrc = scriptSrcMatch?.[1] ?? "";
     expect(scriptSrc).not.toContain("unsafe-eval");
   });
@@ -508,6 +484,14 @@ describe("proxy — CSP header audit", () => {
     expect(override).toBeTruthy();
     expect(override).toContain("x-nonce");
     expect(override).toContain("content-security-policy");
+    const nonce = response.headers.get("x-nonce");
+    const csp = response.headers.get("Content-Security-Policy");
+    expect(nonce).toBeTruthy();
+    expect(csp).toBeTruthy();
+    expect(response.headers.get("x-middleware-request-x-nonce")).toBe(nonce);
+    expect(
+      response.headers.get("x-middleware-request-content-security-policy"),
+    ).toBe(csp);
   });
 
   it("includes form-action 'self' to prevent credential exfiltration via form hijack", () => {
@@ -549,9 +533,12 @@ describe("proxy — CSP header audit", () => {
     );
 
     const nonce = response.headers.get("x-nonce");
-    const csp = response.headers.get("Content-Security-Policy") ?? "";
+    const csp = response.headers.get("Content-Security-Policy");
 
     expect(nonce).toBeTruthy();
+    expect(typeof nonce).toBe("string");
+    expect(csp).toBeTruthy();
+    expect(typeof csp).toBe("string");
     // The CSP should include 'nonce-{nonce}' with quotes
     expect(csp).toContain(`'nonce-${nonce}'`);
   });
@@ -572,21 +559,6 @@ describe("proxy — CSP header audit", () => {
 
     const csp = response.headers.get("Content-Security-Policy") ?? "";
     expect(csp).toContain("base-uri 'self'");
-  });
-
-  it("emits a different nonce-bearing CSP for each request", () => {
-    const r1 = proxy(
-      new NextRequest("https://reef.test/board", { method: "GET" }),
-    );
-    const r2 = proxy(
-      new NextRequest("https://reef.test/board", { method: "GET" }),
-    );
-
-    const csp1 = r1.headers.get("Content-Security-Policy") ?? "";
-    const csp2 = r2.headers.get("Content-Security-Policy") ?? "";
-
-    // CSPs should differ because nonces differ
-    expect(csp1).not.toBe(csp2);
   });
 });
 

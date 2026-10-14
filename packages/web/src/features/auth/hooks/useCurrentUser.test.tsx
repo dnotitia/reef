@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -18,18 +21,6 @@ import {
 import { CURRENT_USER_QUERY_KEY, useCurrentUser } from "./useCurrentUser";
 
 const mockApiFetch = vi.mocked(apiFetch);
-
-function createWrapper(
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  }),
-) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -57,7 +48,7 @@ describe("useCurrentUser", () => {
     );
 
     const { result } = renderHook(() => useCurrentUser(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -74,7 +65,7 @@ describe("useCurrentUser", () => {
     mockApiFetch.mockResolvedValue(new Response(null, { status: 401 }));
 
     const { result } = renderHook(() => useCurrentUser(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -91,9 +82,7 @@ describe("useCurrentUser", () => {
       display_name: "Alice Example",
       email: "alice@example.com",
     };
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(CURRENT_USER_QUERY_KEY, profile);
     await queryClient.invalidateQueries({
       queryKey: CURRENT_USER_QUERY_KEY,
@@ -102,7 +91,7 @@ describe("useCurrentUser", () => {
     mockApiFetch.mockResolvedValue(new Response(null, { status: 401 }));
 
     const { result } = renderHook(() => useCurrentUser(), {
-      wrapper: createWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -120,7 +109,7 @@ describe("useCurrentUser", () => {
     );
 
     const { result } = renderHook(() => useCurrentUser(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -131,7 +120,7 @@ describe("useCurrentUser", () => {
     mockApiFetch.mockResolvedValue(new Response(null, { status: 500 }));
 
     const { result } = renderHook(() => useCurrentUser(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));

@@ -93,14 +93,17 @@ describe("GitHubApiError", () => {
     );
   });
 
-  it("toUserMessage() for 401/403 contains PM-vocabulary auth message", () => {
-    const msg = new GitHubApiError({
-      status: 401,
-      message: "",
-    }).toUserMessage();
-    assertNoPmViolations(msg);
-    expect(msg.toLowerCase()).toContain("authentication");
-  });
+  it.each([401, 403])(
+    "toUserMessage() for %i contains PM-vocabulary auth message",
+    (status) => {
+      const msg = new GitHubApiError({
+        status,
+        message: "",
+      }).toUserMessage();
+      assertNoPmViolations(msg);
+      expect(msg.toLowerCase()).toContain("authentication");
+    },
+  );
 
   it("toUserMessage() for 404 contains not-found message", () => {
     const msg = new GitHubApiError({
@@ -108,6 +111,7 @@ describe("GitHubApiError", () => {
       message: "",
     }).toUserMessage();
     assertNoPmViolations(msg);
+    expect(msg).toBe("The requested item could not be found.");
   });
 
   it("toUserMessage() for 409 contains save conflict message", () => {

@@ -133,6 +133,15 @@ describe("timelineLayout", () => {
             goal: "",
             capacity_points: null,
           },
+          {
+            id: "00000000-0000-4000-8000-000000000003",
+            name: "Outside Q2",
+            status: "planned",
+            start_date: "2026-07-01",
+            end_date: "2026-07-14",
+            goal: "",
+            capacity_points: null,
+          },
         ],
         milestones: [],
         releases: [],
@@ -141,7 +150,7 @@ describe("timelineLayout", () => {
       range,
     );
 
-    expect(overlay.sprintBands).toHaveLength(1);
+    expect(overlay.sprintBands.map((band) => band.name)).toEqual(["Q2 Sprint"]);
     expect(overlay.sprintBands[0]).toMatchObject({
       name: "Q2 Sprint",
       status: "active",
@@ -185,13 +194,31 @@ describe("timelineLayout", () => {
             released_at: null,
             notes: "",
           },
+          {
+            id: "00000000-0000-4000-8000-000000000014",
+            name: "Planned Q2 release",
+            status: "planned",
+            target_date: "2026-06-01",
+            released_at: null,
+            notes: "",
+          },
         ],
         rollover_resumes: [],
       } satisfies PlanningCatalog,
       range,
     );
 
-    expect(overlay.markerStacks).toHaveLength(1);
+    expect(overlay.markerStacks.map((stack) => stack.date.key)).toEqual([
+      "2026-05-15",
+      "2026-06-01",
+    ]);
+    expect(overlay.markerStacks[1]?.markers).toEqual([
+      expect.objectContaining({
+        kind: "release",
+        name: "Planned Q2 release",
+        date: { year: 2026, month: 6, day: 1, key: "2026-06-01" },
+      }),
+    ]);
     expect(overlay.markerStacks[0]).toMatchObject({
       date: { key: "2026-05-15" },
       dateIndex: 44,
@@ -221,13 +248,13 @@ describe("computeTargetScrollLeft", () => {
   });
 
   it("honors custom column and label widths", () => {
-    // 50 * 10 - (2000 - 200) * 0.5 = 500 - 900 -> floored to 0.
+    // 50 * 10 - (1000 - 200) * 0.5 = 100; no axis can hide behind the clamp.
     expect(
-      computeTargetScrollLeft(2000, 50, {
+      computeTargetScrollLeft(1000, 50, {
         dayWidth: 10,
         labelWidth: 200,
         anchorRatio: 0.5,
       }),
-    ).toBe(0);
+    ).toBe(100);
   });
 });

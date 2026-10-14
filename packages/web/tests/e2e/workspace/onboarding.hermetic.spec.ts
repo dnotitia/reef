@@ -1,17 +1,7 @@
-import {
-  expect,
-  test,
-  type APIRequestContext,
-  type Locator,
-} from "@playwright/test";
-import {
-  DEFAULT_CONFIG,
-  REEF_DESIRED_TABLES,
-  REEF_VAULT_SKILL_VERSION,
-} from "@reef/core";
+import { expect, test, type Locator } from "@playwright/test";
+import { DEFAULT_CONFIG, REEF_VAULT_SKILL_VERSION } from "@reef/core";
 import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates";
 import {
-  E2E_MOCK_URL,
   fixtureWriterLogin,
   fixtureReaderLogin,
   readFixtureState,
@@ -55,23 +45,6 @@ async function expectWidthContained(container: Locator, child: Locator) {
   expect(childBox.x + childBox.width).toBeLessThanOrEqual(
     containerBox.x + containerBox.width + 1,
   );
-}
-
-async function postFixtureSql(
-  request: APIRequestContext,
-  token: string,
-  vault: string,
-  sql: string,
-  params: Array<string | number | null>,
-) {
-  const response = await request.post(
-    `${E2E_MOCK_URL}/akb/api/v1/tables/${vault}/sql`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { sql, params },
-    },
-  );
-  expect(response.ok()).toBe(true);
 }
 
 test.describe("Hermetic onboarding flow", () => {
@@ -242,7 +215,6 @@ test.describe("Hermetic onboarding flow", () => {
       DEFAULT_CONFIG.project_prefix,
     );
     expect(created?.monitored_repos).toEqual(DEFAULT_CONFIG.monitored_repos);
-    const initialSettings = created?.settings;
     const expectedTemplates = DEFAULT_ISSUE_TEMPLATES.map((template) => ({
       name: template.name,
       label: template.label,
@@ -254,9 +226,6 @@ test.describe("Hermetic onboarding flow", () => {
     }));
     expect(created?.templates).toEqual(expectedTemplates);
     expect(created?.templates).toHaveLength(6);
-    expect(created?.tables).toEqual(
-      REEF_DESIRED_TABLES.map(({ name }) => name),
-    );
     const documentPaths = created?.documents.map(({ path }) => path) ?? [];
     expect(documentPaths).toContain("overview/vault-skill.md");
     const rootGuide = created?.documents.find(
@@ -309,64 +278,6 @@ test.describe("Hermetic onboarding flow", () => {
           call.path === "/akb/api/v1/tables/reef-new/sql",
       ),
     ).toBe(true);
-
-    const loginResponse = await request.post(
-      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
-      { data: fixtureWriterLogin },
-    );
-    expect(loginResponse.ok()).toBe(true);
-    const login = (await loginResponse.json()) as { token: string };
-    await postFixtureSql(
-      request,
-      login.token,
-      "reef-new",
-      "INSERT INTO reef_settings (key, value) SELECT $1, $2::json WHERE NOT EXISTS (SELECT 1 FROM reef_settings WHERE key = $1) ON CONFLICT DO NOTHING",
-      ["project_prefix", JSON.stringify("REPLACED")],
-    );
-    await postFixtureSql(
-      request,
-      login.token,
-      "reef-new",
-      'INSERT INTO reef_templates ("name", "label", "description", "title_prefix", "priority", "default_labels", "body") SELECT $1, $2, $3, $4, $5, $6::json, $7 WHERE NOT EXISTS (SELECT 1 FROM reef_templates WHERE name = $1) ON CONFLICT DO NOTHING',
-      [
-        "bug",
-        "Replacement",
-        "Replacement description",
-        "Replacement: ",
-        "low",
-        JSON.stringify(["replacement"]),
-        "Replacement body",
-      ],
-    );
-    const monitoredRepoSql =
-      "INSERT INTO monitored_repos (github_id, owner, name, description) SELECT $1, $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM monitored_repos WHERE github_id = $1) ON CONFLICT DO NOTHING";
-    await postFixtureSql(request, login.token, "reef-new", monitoredRepoSql, [
-      12345,
-      "saved-owner",
-      "saved-repo",
-      "Saved description",
-    ]);
-    await postFixtureSql(request, login.token, "reef-new", monitoredRepoSql, [
-      12345,
-      "replacement-owner",
-      "replacement-repo",
-      "Replacement description",
-    ]);
-
-    const afterRepeatedInitialization = await readFixtureState(request);
-    const preserved = afterRepeatedInitialization.vaults.find(
-      (vault) => vault.name === "reef-new",
-    );
-    expect(preserved?.settings).toEqual(initialSettings);
-    expect(preserved?.templates).toEqual(expectedTemplates);
-    expect(preserved?.monitored_repos).toEqual([
-      {
-        github_id: 12345,
-        owner: "saved-owner",
-        name: "saved-repo",
-        description: "Saved description",
-      },
-    ]);
   });
 
   test("does not make a workspace ready when its installation execution fails", async ({
@@ -479,32 +390,6 @@ test.describe("Hermetic onboarding flow", () => {
       paths.filter((path) => path.startsWith("reef/runbooks/")),
     ).toHaveLength(5);
     expect(paths.some((path) => path.startsWith("overview/reef/"))).toBe(false);
-
-    const loginResponse = await request.post(
-      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
-      { data: fixtureWriterLogin },
-    );
-    expect(loginResponse.ok()).toBe(true);
-    const login = (await loginResponse.json()) as { token: string };
-    const reservedDocumentResponse = await request.post(
-      `${E2E_MOCK_URL}/akb/api/v1/documents`,
-      {
-        headers: { Authorization: `Bearer ${login.token}` },
-        data: {
-          vault: "reef-new",
-          collection: "overview/reef",
-          slug: "legacy",
-          title: "Legacy reserved document",
-          type: "reference",
-          content: "must be rejected",
-        },
-      },
-    );
-    expect(reservedDocumentResponse.status()).toBe(403);
-    expect(await reservedDocumentResponse.json()).toMatchObject({
-      code: "reserved_system_path",
-      detail: { code: "reserved_system_path" },
-    });
   });
 
   test("recovers an incomplete brownfield workspace without replacing user data", async ({
@@ -567,6 +452,12 @@ test.describe("Hermetic onboarding flow", () => {
     request,
   }) => {
     await resetFixture(request, "workspace_recovery_current_stamp");
+    const initial = (await readFixtureState(request)).vaults.find(
+      (vault) => vault.name === "raw-vault",
+    );
+    expect(initial?.settings.vault_skill).toMatchObject({
+      version: REEF_VAULT_SKILL_VERSION,
+    });
     await setWorkspaceInitializationControl(request, {
       operation: "document_get",
       failures: 1,

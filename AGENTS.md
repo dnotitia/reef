@@ -154,6 +154,13 @@ metadata.
 
 - Co-locate unit tests beside their targets. Issue fixtures are plain objects
   validated against `IssueMetadataSchema` or derived schemas.
+- Test observable behavior at its production owner with independent expected
+  values. Start rejection cases from a valid fixture and invalidate one input
+  at a time; assert the intended error. Mock external I/O, and observe pending
+  work before asserting optimistic state or completion ordering.
+- Give each contract one primary test owner; another layer must protect a
+  distinct transport or lifecycle risk. Preserve its assertions in the keeper
+  before removing duplicate tests and their unused production seams.
 - During development, run the nearest package's relevant lint, typecheck, and
   tests so deterministic failures stay in the implementation feedback loop.
   Before opening or updating a PR, run the canonical non-E2E gate

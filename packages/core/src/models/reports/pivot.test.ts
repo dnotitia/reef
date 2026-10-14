@@ -71,15 +71,21 @@ describe("computePivot", () => {
     expectConsistentTotals(result);
   });
 
-  it("keeps absent priority and severity values in the None bucket", () => {
-    const result = computePivot(
-      [makeIssue({ id: "R1", priority: "critical" }), makeIssue({ id: "R2" })],
-      "priority",
-      "status",
-    );
-    expect(result.rows.map((axis) => axis.key)).toEqual(["critical", "\0none"]);
-    expect(pivotTotal(result.rowTotals, "\0none")).toBe(1);
-  });
+  it.each(["priority", "severity"] as const)(
+    "keeps absent %s values in the None bucket",
+    (field) => {
+      const result = computePivot(
+        [makeIssue({ id: "R1", [field]: "critical" }), makeIssue({ id: "R2" })],
+        field,
+        "status",
+      );
+      expect(result.rows.map((axis) => axis.key)).toEqual([
+        "critical",
+        "\0none",
+      ]);
+      expect(pivotTotal(result.rowTotals, "\0none")).toBe(1);
+    },
+  );
 
   it("ranks dynamic buckets and folds the tail into Other", () => {
     const issues = [

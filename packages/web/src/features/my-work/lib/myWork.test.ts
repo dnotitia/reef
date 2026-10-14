@@ -7,7 +7,6 @@ import {
   classifyDue,
   compareFocus,
   groupByStatus,
-  selectCurrentSprint,
 } from "./myWork";
 
 const NOW = Date.parse("2026-06-18T00:00:00.000Z");
@@ -239,32 +238,6 @@ describe("buildMyWork sprint remaining", () => {
       done: 1,
       total: 3,
     });
-  });
-});
-
-describe("selectCurrentSprint", () => {
-  it("returns the lone active sprint", () => {
-    expect(selectCurrentSprint([SPRINT])?.id).toBe("spr-1");
-  });
-
-  it("ignores planned and closed sprints", () => {
-    const planned: Sprint = { ...SPRINT, id: "spr-2", status: "planned" };
-    const closed: Sprint = { ...SPRINT, id: "spr-3", status: "closed" };
-    expect(selectCurrentSprint([planned, closed])).toBeNull();
-  });
-
-  it("breaks an active tie by most recent start_date, then highest id", () => {
-    const older: Sprint = { ...SPRINT, id: "spr-a", start_date: "2026-06-01" };
-    const newer: Sprint = { ...SPRINT, id: "spr-b", start_date: "2026-06-15" };
-    expect(selectCurrentSprint([older, newer])?.id).toBe("spr-b");
-
-    const tieLow: Sprint = { ...SPRINT, id: "spr-a", start_date: "2026-06-15" };
-    const tieHigh: Sprint = {
-      ...SPRINT,
-      id: "spr-z",
-      start_date: "2026-06-15",
-    };
-    expect(selectCurrentSprint([tieLow, tieHigh])?.id).toBe("spr-z");
   });
 });
 

@@ -109,17 +109,22 @@ describe("My View schema", () => {
   });
 
   it("drops obsolete or unsupported envelope versions without compatibility reads", () => {
-    expect(
-      normalizeMyViewEnvelope({
-        version: 99,
-        id: "old",
-        name: "Old",
-        nameKey: "old",
-        owner: "alice",
-        vault: "reef-acme",
-        payload: { status: ["todo"] },
-      }),
-    ).toBeNull();
+    const envelope = buildMyViewEnvelope({
+      id: "view-1",
+      name: "Triage",
+      owner: "alice",
+      vault: "reef-acme",
+      snapshot: {
+        filter: { status: ["todo"] },
+        scope: "active",
+        layout: "board",
+        grouping: "status",
+        ordering: { mode: "manual" },
+        display: {},
+      },
+    });
+    expect(normalizeMyViewEnvelope(envelope)).toEqual(envelope);
+    expect(normalizeMyViewEnvelope({ ...envelope, version: 99 })).toBeNull();
     expect(
       serializeMyViewSnapshot({
         filter: {},

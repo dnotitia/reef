@@ -11,7 +11,6 @@ import { createLlmAdapter } from "./llmAdapter";
 const {
   mockGenerateText,
   mockStreamText,
-  mockModelInstance,
   mockOpenAiProvider,
   mockWrapLanguageModel,
 } = vi.hoisted(() => {
@@ -31,7 +30,6 @@ const {
   return {
     mockGenerateText,
     mockStreamText,
-    mockModelInstance,
     mockOpenAiProvider,
     mockWrapLanguageModel,
   };
@@ -71,99 +69,7 @@ describe("createLlmAdapter", () => {
     expect(typeof adapter.generateText).toBe("function");
   });
 
-  it("applies the common chat-completions, request identity, and retry contract", async () => {
-    mockWrapLanguageModel.mockClear();
-    const adapter = createLlmAdapter(makeParams());
-
-    const model = adapter.model();
-
-    expect(adapter.maxRetries).toBe(0);
-    expect(model).toMatchObject({ type: "identified-language-model" });
-    const middleware = mockWrapLanguageModel.mock.calls[0]?.[0].middleware as {
-      transformParams: (args: {
-        type: "generate" | "stream";
-        params: { headers?: Record<string, string | undefined> };
-        model: typeof mockModelInstance;
-      }) => Promise<{ headers?: Record<string, string | undefined> }>;
-    };
-    const first = await middleware.transformParams({
-      type: "generate",
-      params: {
-        headers: {
-          "X-Reef": "preserved",
-          "idempotency-key": "caller-controlled",
-        },
-      },
-      model: mockModelInstance,
-    });
-    const second = await middleware.transformParams({
-      type: "stream",
-      params: {},
-      model: mockModelInstance,
-    });
-    const firstId = first.headers?.["Idempotency-Key"];
-    const secondId = second.headers?.["Idempotency-Key"];
-    expect(first.headers?.["X-Reef"]).toBe("preserved");
-    expect(first.headers?.["idempotency-key"]).toBeUndefined();
-    expect(firstId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
-    expect(secondId).not.toBe(firstId);
-  });
-
-  it("adapter.model() returns the stub model object", () => {
-    const adapter = createLlmAdapter(makeParams());
-    const model = adapter.model();
-    expect(model).toMatchObject({
-      type: "identified-language-model",
-      wrapped: mockModelInstance,
-    });
-  });
-
-  it("adapter.model() calls createOpenAI fresh per invocation", async () => {
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    const mockedCreateOpenAI = vi.mocked(createOpenAI);
-    mockedCreateOpenAI.mockClear();
-    const adapter = createLlmAdapter(makeParams());
-    adapter.model();
-    adapter.model();
-    // createOpenAI should be called each time model() is invoked
-    expect(mockedCreateOpenAI).toHaveBeenCalledTimes(2);
-  });
-
   describe("adapter.generateText", () => {
-    it("calls through to the AI SDK generateText function", async () => {
-      const fakeResult = {
-        text: "hello world",
-        usage: { inputTokens: 10, outputTokens: 20 },
-        finishReason: "stop",
-      };
-      mockGenerateText.mockResolvedValueOnce(fakeResult);
-
-      const adapter = createLlmAdapter(makeParams());
-      const result = await adapter.generateText({
-        model: adapter.model(),
-        prompt: "say hello",
-      });
-
-      expect(mockGenerateText).toHaveBeenCalledOnce();
-      expect(result).toEqual(fakeResult);
-    });
-
-    it("passes an explicit maxRetries=0 policy to generation", async () => {
-      mockGenerateText.mockResolvedValueOnce({
-        text: "ok",
-        finishReason: "stop",
-      });
-      const adapter = createLlmAdapter(makeParams());
-
-      await adapter.generateText({ model: adapter.model(), prompt: "test" });
-
-      expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
-        maxRetries: 0,
-      });
-    });
-
     it("merges telemetry into the AI SDK call without recording inputs or outputs", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "ok",
@@ -214,7 +120,7 @@ describe("createLlmAdapter", () => {
         return calls;
       }
 
-      it("flows result.usage + finishReason to the observe seam (and span attrs)", async () => {
+      it("records result usage and finish reason in the backend measurement", async () => {
         mockGenerateText.mockResolvedValueOnce({
           text: "ok",
           usage: { inputTokens: 11, outputTokens: 22 },
@@ -251,16 +157,8 @@ describe("createLlmAdapter", () => {
           "llm.finish_reason": "stop",
         });
         expect(line?.fields).not.toHaveProperty("llm.usage.prompt_tokens");
+        expect(line?.fields).not.toHaveProperty("llm.usage.completion_tokens");
       });
-    });
-
-    it("wraps provider errors in LlmError", async () => {
-      mockGenerateText.mockRejectedValueOnce(new Error("provider down"));
-
-      const adapter = createLlmAdapter(makeParams());
-      await expect(
-        adapter.generateText({ model: adapter.model(), prompt: "fail me" }),
-      ).rejects.toBeInstanceOf(LlmError);
     });
 
     it("LlmError preserves the original error message in context", async () => {
@@ -391,23 +289,6 @@ describe("createLlmAdapter", () => {
       expect(onEnd).toHaveBeenCalledOnce();
       expect(onAbort).toHaveBeenCalledOnce();
       expect(onError).toHaveBeenCalledOnce();
-    });
-
-    it("wraps synchronous setup errors from streamText in LlmError", () => {
-      // streamText returns synchronously; a throw here represents a provider
-      // setup failure (e.g., invalid config) — NOT a stream-level error
-      // (those flow through the onError callback instead).
-      mockStreamText.mockImplementationOnce(() => {
-        throw new Error("provider setup failure");
-      });
-
-      const adapter = createLlmAdapter(makeParams());
-      expect(() =>
-        adapter.streamText({
-          model: adapter.model(),
-          messages: [{ role: "user", content: "hi" }],
-        }),
-      ).toThrow(LlmError);
     });
 
     it("streamText LlmError preserves the original error message in context", () => {

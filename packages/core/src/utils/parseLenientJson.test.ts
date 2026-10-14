@@ -37,25 +37,17 @@ describe("parseLenientJson", () => {
     if (result.ok) expect(result.value).toEqual({ a: 1 });
   });
 
-  it("does not re-parse the brace slice when input is already pure JSON", () => {
-    // White-box check: a body that starts with `{` and ends with `}` should
-    // succeed on the FIRST candidate, before the brace-slice candidate is
-    // even built. We does not observe the loop directly, but if the slice were
-    // pushed and re-parsed it would still succeed — so cover the negative
-    // failure path: corrupt the inner JSON so candidate (1) fails AND
-    // candidate (3) does not rescue (because there's no different slice).
-    const result = parseLenientJson("{not-json}");
-    expect(result.ok).toBe(false);
-  });
-
   it("returns ok:false for empty input", () => {
     expect(parseLenientJson("").ok).toBe(false);
     expect(parseLenientJson("   ").ok).toBe(false);
   });
 
-  it("returns ok:false for unparseable input with the underlying error", () => {
-    const result = parseLenientJson("not json at all");
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toBeInstanceOf(Error);
-  });
+  it.each(["not json at all", "{not-json}"])(
+    "returns ok:false for unparseable input %s with the underlying error",
+    (input) => {
+      const result = parseLenientJson(input);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBeInstanceOf(Error);
+    },
+  );
 });

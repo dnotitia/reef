@@ -43,24 +43,48 @@ describe("retryOperation", () => {
     expect(sleep).toHaveBeenNthCalledWith(2, 200);
   });
 
-  it("does not blind-retry non-retryable or ambiguous mutations", async () => {
-    const operation = vi
-      .fn()
-      .mockRejectedValue(
-        Object.assign(new Error("ambiguous"), { retryable: true }),
-      );
+  it.each([
+    {
+      label: "non-retryable read",
+      retryable: false,
+      operationKind: "read" as const,
+      mutationPreconditionMaintained: false,
+    },
+    {
+      label: "non-retryable mutation",
+      retryable: false,
+      operationKind: "mutation" as const,
+      mutationPreconditionMaintained: true,
+    },
+    {
+      label: "ambiguous mutation",
+      retryable: true,
+      operationKind: "mutation" as const,
+      mutationPreconditionMaintained: false,
+    },
+  ])(
+    "does not blind-retry $label",
+    async ({ retryable, operationKind, mutationPreconditionMaintained }) => {
+      const error = Object.assign(new Error("operation rejected"), {
+        retryable,
+      });
+      const operation = vi.fn().mockRejectedValue(error);
+      const sleep = vi.fn(async () => undefined);
 
-    await expect(
-      retryOperation(operation, {
-        maxRetries: 3,
-        baseDelayMs: 1,
-        maxDelayMs: 10,
-        operationKind: "mutation",
-        mutationPreconditionMaintained: false,
-      }),
-    ).rejects.toThrow("ambiguous");
-    expect(operation).toHaveBeenCalledTimes(1);
-  });
+      await expect(
+        retryOperation(operation, {
+          maxRetries: 3,
+          baseDelayMs: 1,
+          maxDelayMs: 10,
+          operationKind,
+          mutationPreconditionMaintained,
+          sleep,
+        }),
+      ).rejects.toBe(error);
+      expect(operation).toHaveBeenCalledTimes(1);
+      expect(sleep).not.toHaveBeenCalled();
+    },
+  );
 
   it("clamps jitter to the configured retry maximum", async () => {
     const sleep = vi.fn(async () => undefined);

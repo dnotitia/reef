@@ -6,39 +6,10 @@ import {
   changedListMembershipKeys,
   listInvalidationPredicate,
   patchAffectsActivityTimeline,
-  patchAffectsListMembership,
   patchAffectsRelationGraph,
   rankReorderInvalidationPredicate,
   reorderListInvalidationPredicate,
 } from "./issueListMembership";
-
-describe("patchAffectsListMembership", () => {
-  it("is true for server facets and the sort field", () => {
-    const facets: IssueUpdatePatch[] = [
-      { status: "done" },
-      { priority: "high" },
-      { severity: "major" },
-      { issue_type: "bug" },
-      { assigned_to: "alice" },
-      { requester: "bob" },
-      { sprint_id: "spr-1" },
-      { milestone_id: "ms-1" },
-      { release_id: "rel-1" },
-      { archived_at: "2026-01-01T00:00:00.000Z" },
-    ];
-    for (const patch of facets) {
-      expect(patchAffectsListMembership(patch)).toBe(true);
-    }
-  });
-
-  it("is false for non-membership content edits", () => {
-    expect(patchAffectsListMembership({ title: "Renamed" })).toBe(false);
-    expect(patchAffectsListMembership({ due_date: "2026-02-02" })).toBe(false);
-    expect(patchAffectsListMembership({ labels: ["ui"] })).toBe(false);
-    expect(patchAffectsListMembership({ estimate_points: 3 })).toBe(false);
-    expect(patchAffectsListMembership({})).toBe(false);
-  });
-});
 
 describe("patchAffectsRelationGraph", () => {
   it("is true for status / depends_on / blocks", () => {
@@ -90,6 +61,22 @@ describe("patchAffectsActivityTimeline", () => {
 });
 
 describe("changedListMembershipKeys", () => {
+  it.each([
+    [{ status: "done" }, "status"],
+    [{ priority: "high" }, "priority"],
+    [{ severity: "major" }, "severity"],
+    [{ issue_type: "bug" }, "issue_type"],
+    [{ assigned_to: "alice" }, "assigned_to"],
+    [{ requester: "bob" }, "requester"],
+    [{ sprint_id: "spr-1" }, "sprint_id"],
+    [{ milestone_id: "ms-1" }, "milestone_id"],
+    [{ release_id: "rel-1" }, "release_id"],
+    [{ archived_at: "2026-01-01T00:00:00.000Z" }, "archived_at"],
+  ] satisfies Array<[IssueUpdatePatch, keyof IssueUpdatePatch]>)(
+    "returns the changed membership field for %j",
+    (patch, key) => expect(changedListMembershipKeys(patch)).toEqual([key]),
+  );
+
   it("returns only the membership keys present in the patch", () => {
     expect(changedListMembershipKeys({ status: "done", title: "x" })).toEqual([
       "status",
@@ -99,21 +86,18 @@ describe("changedListMembershipKeys", () => {
     ).toEqual(["priority", "assigned_to"]);
   });
 
-  it("is empty for a purely non-membership patch", () => {
-    expect(changedListMembershipKeys({ title: "x", labels: ["ui"] })).toEqual(
-      [],
-    );
-    expect(changedListMembershipKeys({})).toEqual([]);
-  });
-
-  it("stays in lockstep with the patchAffectsListMembership gate", () => {
-    expect(changedListMembershipKeys({ sprint_id: "s" }).length > 0).toBe(
-      patchAffectsListMembership({ sprint_id: "s" }),
-    );
-    expect(changedListMembershipKeys({ title: "x" }).length > 0).toBe(
-      patchAffectsListMembership({ title: "x" }),
-    );
-  });
+  it.each([
+    { title: "Renamed" },
+    { due_date: "2026-02-02" },
+    { labels: ["ui"] },
+    { estimate_points: 3 },
+    {},
+  ] satisfies IssueUpdatePatch[])(
+    "is empty for non-membership content edit %j",
+    (patch) => {
+      expect(changedListMembershipKeys(patch)).toEqual([]);
+    },
+  );
 });
 
 describe("listInvalidationPredicate", () => {

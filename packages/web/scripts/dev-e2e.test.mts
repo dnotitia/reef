@@ -79,125 +79,54 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/rejected scenario/);
   });
 
-  it("requires the fixture's browser login and workspace entrypoint contract", () => {
-    expect(
-      getClientReadinessInputs(
-        {
-          status: "ready",
-          fixture_login: {
-            username: "alice",
-            password: "fixture-password",
-            login_path: "/login?password=1",
-          },
-          tasks: {
-            chat: {
-              scenario: "configured",
-              start_path: "/workspace/reef-e2e/issues",
-            },
-            notifications_personal: {
-              scenario: "notifications_personal",
-              start_path: "/workspace/reef-e2e/inbox",
-            },
-          },
+  it("requires fixture login and selects the requested scenario's complete start path", () => {
+    const discovery = {
+      status: "ready",
+      fixture_login: {
+        username: "alice",
+        password: "fixture-password",
+        login_path: "/login?password=1",
+      },
+      tasks: {
+        chat: {
+          scenario: "configured",
+          start_path: "/workspace/reef-e2e/issues",
         },
-        "configured",
-      ),
-    ).toEqual({
-      username: "alice",
-      password: "fixture-password",
-      loginPath: "/login?password=1",
-      startPath: "/workspace/reef-e2e/issues",
-    });
-    expect(
-      getClientReadinessInputs(
-        {
-          status: "ready",
-          fixture_login: {
-            username: "alice",
-            password: "fixture-password",
-            login_path: "/login?password=1",
-          },
-          tasks: {
-            chat: {
-              scenario: "configured",
-              start_path: "/workspace/reef-e2e/issues",
-            },
-            notifications_personal: {
-              scenario: "notifications_personal",
-              start_path: "/workspace/reef-e2e/inbox",
-            },
-          },
+        notifications_personal: {
+          scenario: "notifications_personal",
+          start_path: "/workspace/reef-e2e/inbox",
         },
-        "notifications_personal",
-      ),
-    ).toMatchObject({ startPath: "/workspace/reef-e2e/inbox" });
+        issue_drill_navigation: {
+          scenario: "demo_board",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues?view=list",
+        },
+      },
+    };
+    for (const [scenario, expected] of [
+      ["configured", { startPath: "/workspace/reef-e2e/issues" }],
+      ["notifications_personal", { startPath: "/workspace/reef-e2e/inbox" }],
+      [
+        "demo_board",
+        {
+          startPath: "/workspace/reef-e2e/issues?view=list",
+          workspace: "reef-e2e",
+        },
+      ],
+    ] as const) {
+      expect(getClientReadinessInputs(discovery, scenario)).toEqual({
+        username: "alice",
+        password: "fixture-password",
+        loginPath: "/login?password=1",
+        ...expected,
+      });
+    }
     expect(() =>
       getClientReadinessInputs(
-        {
-          status: "ready",
-          fixture_login: { username: "alice" },
-          tasks: {
-            chat: {
-              scenario: "configured",
-              start_path: "/workspace/reef-e2e/issues",
-            },
-          },
-        },
+        { ...discovery, fixture_login: { username: "alice" } },
         "configured",
       ),
     ).toThrow(/fixture login password/);
-  });
-
-  it("resolves the planning overflow task start path", () => {
-    expect(
-      getClientReadinessInputs(
-        {
-          status: "ready",
-          fixture_login: {
-            username: "alice",
-            password: "fixture-password",
-            login_path: "/login?password=1",
-          },
-          tasks: {
-            planning_overflow: {
-              scenario: "planning_overflow",
-              start_path: "/workspace/reef-e2e/issues?view=list",
-            },
-          },
-        },
-        "planning_overflow",
-      ),
-    ).toMatchObject({
-      startPath: "/workspace/reef-e2e/issues?view=list",
-    });
-  });
-
-  it("resolves the demo board issue-drill entrypoint", () => {
-    expect(
-      getClientReadinessInputs(
-        {
-          status: "ready",
-          fixture_login: {
-            username: "alice",
-            password: "fixture-password",
-            login_path: "/login?password=1",
-          },
-          tasks: {
-            issue_drill_navigation: {
-              scenario: "demo_board",
-              workspace: "reef-e2e",
-              start_path: "/workspace/reef-e2e/issues?view=list",
-            },
-          },
-        },
-        "demo_board",
-      ),
-    ).toMatchObject({
-      username: "alice",
-      password: "fixture-password",
-      loginPath: "/login?password=1",
-      startPath: "/workspace/reef-e2e/issues?view=list",
-    });
   });
 
   function readinessPage({

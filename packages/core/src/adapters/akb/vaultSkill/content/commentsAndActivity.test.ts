@@ -19,7 +19,7 @@ describe("comments-and-activity runbook (REEF-252)", () => {
       );
     });
 
-    it("explains how to interpret the payload for every event_type", () => {
+    it("names the original lifecycle and issue-body mention event types", () => {
       for (const eventType of [
         "status_change",
         "assignee_change",

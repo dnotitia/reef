@@ -1,5 +1,5 @@
 import type { IssueMetadata } from "@reef/core";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   KanbanBoard,
@@ -65,18 +65,47 @@ describe("KanbanBoard backlog scope", () => {
     mockBacklogApi();
   });
 
-  it("renders the fixed Priority columns and preserves Rank order inside them", async () => {
+  it("renders fixed Priority columns and rank-sorts reverse-input cards inside one column", async () => {
+    const rows = [
+      BACKLOG_ISSUES[0],
+      { ...BACKLOG_ISSUES[1], rank: 3000 },
+      {
+        ...BACKLOG_ISSUES[1],
+        id: "REEF-103",
+        title: "Earlier high backlog item",
+        rank: 2000,
+      },
+    ];
+    mockApiFetch.mockImplementation(async (url) =>
+      Response.json(
+        String(url).startsWith("/api/issues?vault=reef-acme")
+          ? { issues: rows }
+          : {},
+      ),
+    );
     render(wrap(<KanbanBoard vault="reef-acme" scope="backlog" />));
-
+    await screen.findByText("Earlier high backlog item");
+    const columns = screen
+      .getByTestId("kanban-board-body")
+      .querySelectorAll('[data-group-by="priority"]');
     expect(
-      await screen.findByText("Critical backlog item"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("High backlog item")).toBeInTheDocument();
+      Array.from(
+        columns,
+        (column) =>
+          within(column as HTMLElement).getByRole("heading", { level: 3 })
+            .textContent,
+      ),
+    ).toEqual(["Critical", "High", "Medium", "Low", "None"]);
+    const highColumn = screen
+      .getByRole("heading", { name: "High", level: 3 })
+      .closest<HTMLElement>('[data-group-by="priority"]');
+    if (!highColumn) throw new Error("missing High column");
+    expect(
+      within(highColumn)
+        .getAllByTestId("kanban-card")
+        .map((card) => card.dataset.issueId),
+    ).toEqual(["REEF-103", "REEF-102"]);
     expect(screen.getByTestId("kanban-board")).toBeInTheDocument();
-    expect(screen.getByTestId("kanban-board-body")).toBeInTheDocument();
-    expect(
-      screen.getAllByText(/Critical|High|Medium|Low|None/).length,
-    ).toBeGreaterThan(0);
   });
 
   it("reorders Rank without a priority patch inside one Priority column", async () => {

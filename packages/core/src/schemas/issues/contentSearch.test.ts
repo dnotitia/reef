@@ -25,7 +25,7 @@ describe("IssueContentSearchRequestSchema", () => {
 });
 
 describe("IssueContentSearchResponseSchema", () => {
-  it("keeps source-specific scores and bounded snippets", () => {
+  it("keeps source-specific scores", () => {
     const parsed = IssueContentSearchResponseSchema.parse({
       results: [
         {

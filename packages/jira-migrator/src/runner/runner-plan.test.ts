@@ -1,78 +1,25 @@
-import {
-  chmod,
-  mkdtemp,
-  readFile,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { JiraMigratorConfig, NormalizedJiraIssue } from "../index.js";
+import { describe, expect, it } from "vitest";
+import type { JiraMigratorConfig } from "../index.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
-import { jiraIssueFixture } from "../jira/fixtures.js";
-import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
-import { mappedFingerprintForIssue } from "./decisions.js";
+import {
+  baseIssueReadbackMatches,
+  canRecoverApprovedPlanningCreate,
+  issueReadbackApprovalFingerprint,
+} from "./approval.js";
+import {
+  actionForRelatedReport,
+  inferRelationSourceProjectKey,
+  mappedFingerprintForIssue,
+} from "./decisions.js";
 import { scheduleIssuePlansForApply } from "./issueSchedule.js";
 import {
   actionForRelatedIssuePlan,
   assertRelatedOperationSubset,
   relatedPlanForApproval,
 } from "./plan.js";
-import {
-  actionForRelatedReport,
-  baseIssueReadbackMatches,
-  canRecoverApprovedPlanningCreate,
-  inferRelationSourceProjectKey,
-  issueReadbackApprovalFingerprint,
-  migrationScopeLockIdentity,
-  runJiraMigration,
-} from "./runner.js";
-import { JiraTargetConflictError } from "./targetAdapter.js";
+import { migrationScopeLockIdentity } from "./runner.js";
 
-let root: string | null = null;
-afterEach(async () => {
-  if (root) await rm(root, { recursive: true, force: true });
-  root = null;
-});
-
-const makeIssue = (
-  projectKey: string,
-  projectId: string,
-  issueId: string,
-  rank: string,
-): NormalizedJiraIssue =>
-  normalizeJiraIssue(
-    JiraIssueSchema.parse({
-      ...jiraIssueFixture,
-      id: issueId,
-      key: `${projectKey}-1`,
-      fields: {
-        ...jiraIssueFixture.fields,
-        project: {
-          ...jiraIssueFixture.fields.project,
-          id: projectId,
-          key: projectKey,
-          name: projectKey,
-        },
-        attachment: [],
-        customfield_rank: rank,
-        issuelinks: [],
-      },
-    }),
-  );
-
-const policy = {
-  statuses: [{ name: "In Progress", status: "in_progress" }],
-  issueTypes: [{ name: "Task", issueType: "task" }],
-  priorities: [],
-  fieldOverrides: {
-    story_points: "customfield_story_points",
-    start_date: "customfield_start_date",
-  },
-};
 describe("runJiraMigration", () => {
   it("schedules referenced issue creates first and blocks dependency cycles", () => {
     const issuePlan = (id: string, parentId?: string) =>

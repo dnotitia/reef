@@ -27,7 +27,6 @@ export {
   createAkbAdapter,
   createComment,
   deleteComment,
-  createIssueAttachmentRecord,
   createMilestone,
   createSprint,
   createVault,

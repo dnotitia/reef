@@ -166,7 +166,7 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.get(rootId)?.body).toBe("edited root");
   });
 
-  it("isolates orphan replies, size mismatches, and unknown links", async () => {
+  it("isolates orphan replies, unverifiable attachment visibility, and unknown links", async () => {
     const requests: string[] = [];
     const client = makeClient(requests, true);
     const state = makeTarget();

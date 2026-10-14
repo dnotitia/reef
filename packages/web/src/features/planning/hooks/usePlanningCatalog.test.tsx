@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { hydratedRef } = vi.hoisted(() => ({
@@ -21,8 +24,12 @@ vi.mock("@/lib/useHydrated", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
-import { reportsQueryKey } from "@/features/reports/lib/queryKey";
-import type { PlanningCatalog } from "@reef/core";
+import { useReports } from "@/features/reports/hooks/queries/useReports";
+import {
+  ReportRequestSchema,
+  type PlanningCatalog,
+  type ReportResponse,
+} from "@reef/core";
 import {
   useCreatePlanningItem,
   usePlanningCatalog,
@@ -47,20 +54,6 @@ const CATALOG: PlanningCatalog = {
   rollover_resumes: [],
 };
 
-function createQueryClient() {
-  return new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-}
-
-function createWrapper(queryClient = createQueryClient()) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("usePlanningCatalog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -73,7 +66,7 @@ describe("usePlanningCatalog", () => {
     );
 
     const { result } = renderHook(() => usePlanningCatalog("reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -92,23 +85,119 @@ describe("usePlanningCatalog", () => {
       goal: sprint.goal,
       capacity_points: sprint.capacity_points,
     };
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ item: sprint }), { status: 201 }),
+    const request = ReportRequestSchema.parse({ asOf: 1_780_272_000_000 });
+    const flow = {
+      completionWindowCount: 0,
+      measuredCount: 0,
+      coveragePercent: 0,
+      points: [],
+      percentiles: null,
+      sleDays: null,
+      lowSample: true,
+      outliers: [],
+    };
+    const report: ReportResponse = {
+      asOf: request.asOf,
+      issueCount: 0,
+      parentName: null,
+      availableDimensions: [],
+      rollupDimension: "milestone",
+      aggregates: {
+        filteredTotal: 0,
+        total: 0,
+        byStatus: [],
+        byPriority: [],
+        topAssignees: [],
+        topLabels: [],
+        kpis: {
+          active: 0,
+          inProgress: 0,
+          done: 0,
+          overdue: 0,
+          blocked: 0,
+          unassigned: 0,
+        },
+        byType: [],
+        bySeverity: [],
+        throughput: [],
+        netThroughput: [],
+        dueHealth: { overdue: 0, dueThisWeek: 0, upcoming: 0, noDueDate: 0 },
+        aging: { fresh: 0, recent: 0, stale: 0, stalled: 0 },
+        riskSummary: {
+          atRisk: 0,
+          overdue: 0,
+          stale: 0,
+          blocked: 0,
+          critical: 0,
+          netThroughput: 0,
+        },
+        riskMatrix: [],
+      },
+      flowMetrics: { cycle: flow, lead: flow },
+      flowMetricsUnavailable: false,
+      forecast: {
+        remaining: 0,
+        horizonWeeks: 12,
+        sampleWeeks: 0,
+        totalThroughput: 0,
+        productiveWeeks: 0,
+        lowConfidence: true,
+        insufficient: true,
+        completion: [],
+        byDate: [],
+      },
+      healthRollup: [],
+      pivot: {
+        rowField: "assignee",
+        colField: "status",
+        rows: [],
+        cols: [],
+        cells: [],
+        rowTotals: [],
+        colTotals: [],
+        grandTotal: 0,
+        max: 0,
+        rowsFolded: 0,
+        colsFolded: 0,
+      },
+    };
+    let created = false;
+    mockApiFetch.mockImplementation(async (url, init) => {
+      if (String(url) === "/api/planning/sprints" && init?.method === "POST") {
+        created = true;
+        return new Response(JSON.stringify({ item: sprint }), { status: 201 });
+      }
+      if (String(url).startsWith("/api/reports?")) {
+        return new Response(
+          JSON.stringify({
+            ...report,
+            availableDimensions: created ? ["sprint"] : [],
+          }),
+          { status: 200 },
+        );
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const queryClient = createTestQueryClient();
+    const { result } = renderHook(
+      () => ({
+        reports: useReports("reef-acme", request),
+        create: useCreatePlanningItem("reef-acme"),
+      }),
+      {
+        wrapper: createQueryWrapper(queryClient),
+      },
     );
-    const queryClient = createQueryClient();
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-    const { result } = renderHook(() => useCreatePlanningItem("reef-acme"), {
-      wrapper: createWrapper(queryClient),
-    });
-
+    await waitFor(() => expect(result.current.reports.isSuccess).toBe(true));
+    expect(result.current.reports.data?.availableDimensions).toEqual([]);
     await act(async () => {
-      await result.current.mutateAsync({ kind: "sprints", item: input });
+      await result.current.create.mutateAsync({ kind: "sprints", item: input });
     });
-
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: reportsQueryKey("reef-acme"),
-    });
+    await waitFor(() =>
+      expect(result.current.reports.data?.availableDimensions).toEqual([
+        "sprint",
+      ]),
+    );
   });
 
   it("keeps a catalog failure distinct and refetches to a successful catalog", async () => {
@@ -123,7 +212,7 @@ describe("usePlanningCatalog", () => {
       );
 
     const { result } = renderHook(() => usePlanningCatalog("reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -137,7 +226,7 @@ describe("usePlanningCatalog", () => {
 
   it("is disabled when vault is empty", () => {
     const { result } = renderHook(() => usePlanningCatalog(""), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     expect(result.current.fetchStatus).toBe("idle");
@@ -146,12 +235,12 @@ describe("usePlanningCatalog", () => {
 
   it("keeps restored cache hidden during the hydration render", () => {
     hydratedRef.current = false;
-    const queryClient = createQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["planning", "catalog", "reef-acme"], CATALOG);
 
     const { result, rerender } = renderHook(
       () => usePlanningCatalog("reef-acme"),
-      { wrapper: createWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) },
     );
 
     expect(result.current.data).toBeUndefined();
@@ -166,11 +255,11 @@ describe("usePlanningCatalog", () => {
   });
 
   it("reuses a fresh shared catalog cache without creating a duplicate request", async () => {
-    const queryClient = createQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["planning", "catalog", "reef-acme"], CATALOG);
 
     const { result } = renderHook(() => usePlanningCatalog("reef-acme"), {
-      wrapper: createWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

@@ -5,6 +5,8 @@ import type { Tool } from "ai";
  * `T | AsyncIterable<T>` union back to the synchronous result the reef tools
  * all return today. Also asserts that `execute` is defined (the SDK makes it
  * optional for provider-executed and needsApproval tools — reef's are local).
+ * This calls execute directly; registered input-schema validation is a separate
+ * SDK descriptor contract.
  */
 export async function callTool<TInput, TOutput>(
   tool: Tool<TInput, TOutput>,

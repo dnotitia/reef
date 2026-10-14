@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -61,28 +64,14 @@ const UPDATED: IssueMetadata = {
   updated_by: "alice",
 };
 
-function makeWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
-function makeTestQueryClient() {
-  return new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-}
-
 function renderUseUpdateIssue(
-  queryClient = makeTestQueryClient(),
+  queryClient = createTestQueryClient(),
   options?: Parameters<typeof useUpdateIssue>[0],
 ) {
   return {
     queryClient,
     ...renderHook(() => useUpdateIssue(options), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     }),
   };
 }
@@ -133,7 +122,7 @@ describe("useUpdateIssue", () => {
           status: 200,
         }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
@@ -195,7 +184,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderUseUpdateIssue(queryClient);
 
@@ -249,7 +238,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderUseUpdateIssue(queryClient);
@@ -315,7 +304,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderUseUpdateIssue(queryClient, {
       reconciliation: "deferred",
@@ -353,7 +342,7 @@ describe("useUpdateIssue", () => {
         { status: 200 },
       ),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderUseUpdateIssue(queryClient);
@@ -394,7 +383,7 @@ describe("useUpdateIssue", () => {
         { status: 200 },
       ),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderUseUpdateIssue(queryClient);
@@ -454,7 +443,7 @@ describe("useUpdateIssue", () => {
         { status: 200 },
       ),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderUseUpdateIssue(queryClient);
@@ -483,7 +472,7 @@ describe("useUpdateIssue", () => {
       }),
     );
 
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-acme"], [ORIGINAL]);
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
@@ -533,7 +522,7 @@ describe("useUpdateIssue", () => {
         status: 409,
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-acme"], [ORIGINAL]);
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
@@ -578,7 +567,7 @@ describe("useUpdateIssue", () => {
       });
     });
 
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-acme"], [issueA, issueB]);
     const { result } = renderUseUpdateIssue(queryClient);
 
@@ -642,15 +631,15 @@ describe("useUpdateIssue", () => {
         resolveResponse = resolve;
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const update = renderUseUpdateIssue(queryClient);
     const status = renderHook(
       () => useIssueUpdateState("reef-acme", "REEF-001"),
-      { wrapper: makeWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) },
     );
     const sibling = renderHook(
       () => useIssueUpdateState("reef-acme", "REEF-002"),
-      { wrapper: makeWrapper(queryClient) },
+      { wrapper: createQueryWrapper(queryClient) },
     );
 
     act(() => {
@@ -684,7 +673,7 @@ describe("useUpdateIssue", () => {
         resolveResponse = resolve;
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const { result } = renderUseUpdateIssue(queryClient);
 
     act(() => {
@@ -726,7 +715,7 @@ describe("useUpdateIssue", () => {
         status: 500,
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     const previousDetail = {
       issue: { ...ORIGINAL, assigned_to: "alice" },
       content: "old body",
@@ -774,7 +763,7 @@ describe("useUpdateIssue", () => {
         { status: 200 },
       ),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
       content: "old",
@@ -802,7 +791,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     // No detail cache seeded → no base commit to pin → last-write-wins.
 
     const { result } = renderUseUpdateIssue(queryClient);
@@ -828,7 +817,7 @@ describe("useUpdateIssue", () => {
         { status: 409 },
       ),
     );
-    const queryClient = makeTestQueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
       content: "old",

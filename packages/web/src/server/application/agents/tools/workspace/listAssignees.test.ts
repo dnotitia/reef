@@ -3,10 +3,7 @@ import { ListAssigneesOutputSchema } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { callTool } from "../__test-helpers__/callTool";
 import { makeTestAkbAdapter, setupFetch } from "../__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../__test-helpers__/otelMock";
 import { createListAssigneesTool } from "./listAssignees";
-
-mockOpenTelemetry();
 
 const makeAdapter = makeTestAkbAdapter;
 
@@ -33,6 +30,7 @@ describe("createListAssigneesTool", () => {
     });
 
     const result = await callTool(tool, { query: "" });
+    expect(ListAssigneesOutputSchema.safeParse(result).success).toBe(true);
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(
@@ -103,18 +101,6 @@ describe("createListAssigneesTool", () => {
     const result = await callTool(tool, { query: "user" });
 
     expect(result.assignees).toHaveLength(10);
-  });
-
-  it("output validates against ListAssigneesOutputSchema", async () => {
-    setupFetch([{ body: { members: SAMPLE_MEMBERS } }]);
-    const tool = createListAssigneesTool({
-      adapter: makeAdapter(),
-      vault: "reef-acme",
-    });
-
-    const result = await callTool(tool, { query: "" });
-
-    expect(ListAssigneesOutputSchema.safeParse(result).success).toBe(true);
   });
 
   it("propagates AuthError when akb returns 401", async () => {

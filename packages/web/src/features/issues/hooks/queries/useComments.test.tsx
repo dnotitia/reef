@@ -1,8 +1,11 @@
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
 import type { Comment } from "@reef/core";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commentsKey, useComments } from "./useComments";
 
@@ -13,14 +16,6 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 const mockApiFetch = vi.mocked(apiFetch);
-
-function wrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 const CACHED_COMMENT: Comment = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -50,12 +45,10 @@ describe("useComments", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useComments("REEF-001", "reef-acme"), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -65,22 +58,22 @@ describe("useComments", () => {
     );
   });
 
-  it("is disabled without an issue id or vault", () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+  it.each([
+    ["", "reef-acme"],
+    ["REEF-001", ""],
+  ])("is disabled for issue %j and vault %j", (issueId, vault) => {
+    const queryClient = createTestQueryClient();
+
+    const { result } = renderHook(() => useComments(issueId, vault), {
+      wrapper: createQueryWrapper(queryClient),
     });
 
-    renderHook(() => useComments("", ""), {
-      wrapper: wrapper(queryClient),
-    });
-
+    expect(result.current.fetchStatus).toBe("idle");
     expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
   it("revalidates a fresh persisted snapshot when the timeline mounts", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(commentsKey("reef-acme", "REEF-001"), [
       CACHED_COMMENT,
     ]);
@@ -91,7 +84,7 @@ describe("useComments", () => {
     );
 
     const { result } = renderHook(() => useComments("REEF-001", "reef-acme"), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     expect(result.current.data).toEqual([CACHED_COMMENT]);

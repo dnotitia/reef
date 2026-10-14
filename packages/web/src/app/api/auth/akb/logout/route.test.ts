@@ -18,10 +18,13 @@ describe("POST /api/auth/akb/logout", () => {
       new Request("http://localhost/api/auth/akb/logout", { method: "POST" }),
     );
     expect(response.status).toBe(204);
-    const cookies = response.headers.get("set-cookie") ?? "";
-    expect(cookies).toContain("__reef_session=");
-    expect(cookies).toContain("__reef_auth_v2=");
-    expect(cookies).toContain("Max-Age=0");
+    for (const name of ["__reef_session", "__reef_auth_v2"]) {
+      const cookie = response.headers
+        .getSetCookie()
+        .find((value) => value.startsWith(`${name}=`));
+      expect(cookie?.split(";")[0]).toBe(`${name}=`);
+      expect(cookie?.split("; ")).toContain("Max-Age=0");
+    }
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 

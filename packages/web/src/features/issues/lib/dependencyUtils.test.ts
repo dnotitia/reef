@@ -76,12 +76,14 @@ describe("isBlocking", () => {
     expect(isBlocking(issue, [issue, dependent])).toBe(true);
   });
 
-  it("returns false when all dependent issues are done", () => {
-    const issue = openIssue("A");
-    const doneDep = doneIssue("B");
-    // doneDep won't have depends_on but this tests the resolved status check
-    expect(isBlocking(issue, [issue, doneDep])).toBe(false);
-  });
+  it.each(["done", "closed"] as const)(
+    "ignores a %s dependent that still names this issue",
+    (status) => {
+      const issue = openIssue("A");
+      const resolved = { ...openIssue("B", ["A"]), status };
+      expect(isBlocking(issue, [issue, resolved])).toBe(false);
+    },
+  );
 
   it("does not count itself as a blocker", () => {
     const issue = openIssue("A", ["A"]);

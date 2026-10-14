@@ -501,13 +501,7 @@ async function main() {
       `build output contract is missing ${output}`,
     );
   }
-  for (const taskName of [
-    "typecheck",
-    "lint",
-    "test",
-    "test:eval",
-    "test:behavior",
-  ]) {
+  for (const taskName of ["typecheck", "lint", "test", "test:behavior"]) {
     assert(
       turboConfig.tasks[taskName]?.cache === false,
       `${taskName} must execute as a required verification instead of being restored from cache`,
@@ -530,7 +524,7 @@ async function main() {
   );
   taskById(workerOverride, "//#check:root");
   taskById(workerOverride, "@reef/web#test");
-  const testGraph = runTurboDry(["test", "test:behavior", "test:eval"], {
+  const testGraph = runTurboDry(["test", "test:behavior"], {
     filter: "./packages/**",
   });
   assert(

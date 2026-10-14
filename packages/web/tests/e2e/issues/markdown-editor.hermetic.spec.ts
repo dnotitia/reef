@@ -17,7 +17,6 @@ import {
   waitForMarkdownLinkSearchPending,
   writeIndexedDbConfig,
 } from "../harness/fixture";
-import { formatMentionToken } from "@reef/core";
 
 type ThemePreference = "light" | "dark" | "system";
 
@@ -1571,13 +1570,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       expect(commentSurface.counts).toMatchObject({
         headings: 3,
         paragraphs: expect.any(Number),
-        strong: expect.any(Number),
-        emphasis: expect.any(Number),
         links: expect.any(Number),
-        inlineCode: expect.any(Number),
-        strikethrough: expect.any(Number),
-        orderedLists: expect.any(Number),
-        unorderedLists: expect.any(Number),
         taskLists: 1,
         checkboxes: 3,
         checkedCheckboxes: 2,
@@ -1588,6 +1581,19 @@ test.describe("Hermetic Markdown editor fixture", () => {
         tables: 1,
         mentions: 1,
       });
+      for (const semantic of [
+        "strong",
+        "emphasis",
+        "inlineCode",
+        "strikethrough",
+        "orderedLists",
+        "unorderedLists",
+      ] as const) {
+        expect(
+          commentSurface.counts[semantic],
+          `${colorScheme} comment ${semantic}`,
+        ).toBeGreaterThan(0);
+      }
       expect(commentSurface.colors.body).toBe(commentSurface.colors.foreground);
       expect(commentSurface.colors.heading).toBe(
         commentSurface.colors.foreground,
@@ -2075,18 +2081,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .getByTestId("markdown-source-toggle")
       .getByRole("button")
       .click();
-    await expect(source).toHaveValue(
-      new RegExp(planUri.replaceAll("/", "\\/")),
-    );
-    await expect(source).toHaveValue(
-      new RegExp(customUri.replaceAll("/", "\\/")),
-    );
+    await expect(source).toHaveValue(authoredMarkdown);
     expect(await source.inputValue()).not.toContain(
       "https://akb.e2e.test/vault/",
     );
 
     const marker = "\n\nserialization boundary marker";
-    const persistedSource = `${await source.inputValue()}${marker}`;
+    const persistedSource = `${authoredMarkdown}${marker}`;
     const saveResponse = waitForIssueContentSave(
       page,
       "REEF-001",
@@ -2096,6 +2097,15 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.getByTestId("issue-title-input").click();
     const persistedResponse = await saveResponse;
     expect(persistedResponse.ok()).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === REEF_E2E_VAULT)
+          ?.documents.find((document) => document.path === "issues/reef-001.md")
+          ?.content;
+      })
+      .toBe(persistedSource);
 
     await page.reload();
     await expect(page.getByTestId("issue-detail")).toBeVisible();
@@ -2106,14 +2116,23 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const reopenedSource = page.locator(
       '[data-markdown-mode="source"] textarea',
     );
-    await expect(reopenedSource).toHaveValue(
-      new RegExp(planUri.replaceAll("/", "\\/")),
-    );
-    await expect(reopenedSource).toHaveValue(
-      new RegExp(customUri.replaceAll("/", "\\/")),
-    );
+    await expect(reopenedSource).toHaveValue(persistedSource);
     expect(await reopenedSource.inputValue()).not.toContain(
       "https://akb.e2e.test/vault/",
+    );
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    await expect(planLink).toHaveAttribute("data-markdown-target", planUri);
+    await expect(planLink).toHaveAttribute(
+      "href",
+      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
+    );
+    await expect(customLink).toHaveAttribute("data-markdown-target", customUri);
+    await expect(customLink).toHaveAttribute(
+      "href",
+      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Falpha-reference.md",
     );
   });
 
@@ -2362,6 +2381,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       name: "REEF-002",
       exact: true,
     });
+    await expect(comment).toHaveClass(/\bcomment-mention-renderer\b/u);
 
     await expect(bodyExternalLink).toHaveAttribute(
       "href",
@@ -2379,7 +2399,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
       );
       await expect(reference).toHaveAttribute("data-reference-kind", "issue");
       await expect(reference).toHaveAttribute("data-issue-id", "REEF-002");
+      await expect(reference).toHaveAttribute("target", "_blank");
+      await expect(reference).toHaveAttribute("translate", "no");
     }
+    await expect(comment).toContainText("unknown REEF-999");
+    await expect(
+      comment.getByRole("link", { name: "REEF-999", exact: true }),
+    ).toHaveCount(0);
 
     for (const link of [bodyExternalLink, commentExternalLink]) {
       const pageCount = page.context().pages().length;
@@ -2940,6 +2966,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
         .getByRole("option")
         .filter({ hasText: "Alpha reference" }),
     ).toBeVisible();
+    await expect(
+      listbox.getByRole("option").filter({ hasText: "Alpha reference" }),
+    ).toContainText(
+      "A normal vault document for inline reference suggestions.",
+    );
 
     const chooseWithKeyboard = async (option: Locator) => {
       const optionId = await option.getAttribute("id");
@@ -3250,26 +3281,31 @@ test.describe("Hermetic Markdown editor fixture", () => {
   }) => {
     await resetFixture(request, "markdown_mentions");
     const task = await readMarkdownFixtureTask(request, "markdown_mentions");
-    const usernames = [
-      "alice",
-      "Alice",
-      "한글42",
-      "Ada Lovelace",
-      "team@ops\\blue}",
-    ];
-    const mentionTokens = usernames.map(formatMentionToken);
+    const mentions = [
+      ["alice", "@alice"],
+      ["Alice", "@Alice"],
+      ["한글42", "@한글42"],
+      ["Ada Lovelace", "@{Ada Lovelace}"],
+      ["team@ops\\blue}", String.raw`@{team@ops\\blue\}}`],
+    ] as const;
+    const usernames = mentions.map(([username]) => username);
+    const mentionTokens = mentions.map(([, token]) => token);
+    const tokenByUsername = new Map<string, string>([
+      ...mentions,
+      ["missing-person", "@{missing-person}"],
+    ]);
     const expectedVisibleMentions = (
       available: readonly string[],
       unavailable: readonly string[] = [],
     ) => [
       ...available.map((username) => [
         username,
-        formatMentionToken(username),
+        tokenByUsername.get(username),
         "available",
       ]),
       ...unavailable.map((username) => [
         username,
-        formatMentionToken(username),
+        tokenByUsername.get(username),
         "unavailable",
       ]),
     ];
@@ -3527,6 +3563,21 @@ test.describe("Hermetic Markdown editor fixture", () => {
 
     const editor = page.locator(".reef-markdown-editor");
     const listbox = page.getByRole("listbox");
+    const readDocumentText = () =>
+      editor.evaluate((root) => {
+        const document = root.cloneNode(true) as HTMLElement;
+        document
+          .querySelectorAll("[data-markdown-image-message]")
+          .forEach((message) => message.remove());
+        return {
+          text: document.textContent ?? "",
+          imageAltTexts: Array.from(
+            document.querySelectorAll<HTMLImageElement>(
+              "img[data-markdown-image], img[data-markdown-target]",
+            ),
+          ).map((image) => image.getAttribute("alt")),
+        };
+      });
     await setMarkdownLinkSearchControl(request, {
       query: "alpha",
       delayMs: 700,
@@ -3559,8 +3610,13 @@ test.describe("Hermetic Markdown editor fixture", () => {
         .filter({ hasText: "Alpha reference" }),
     ).toHaveCount(0);
 
+    const resolvedBodyBeforeEscape = await readDocumentText();
     await editor.press("Escape");
     await expect(listbox).toHaveCount(0);
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(editor).toBeFocused();
+    await expect(editor).toHaveAttribute("aria-expanded", "false");
+    await expect.poll(readDocumentText).toEqual(resolvedBodyBeforeEscape);
     await setMarkdownLinkSearchControl(request, {
       query: "late",
       delayMs: 700,
@@ -3569,56 +3625,23 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await page.keyboard.type(" @late");
     await waitForMarkdownLinkSearchPending(request, "late");
     const bodyBeforeEscape = await editor.innerText();
+    const abortedSearch = page.waitForEvent("requestfailed", {
+      predicate: (request) => {
+        const url = new URL(request.url());
+        return (
+          url.pathname === "/api/documents/search" &&
+          url.searchParams.get("q") === "late"
+        );
+      },
+    });
     await editor.press("Escape");
+    expect((await abortedSearch).failure()?.errorText).toContain("ERR_ABORTED");
     await expect(listbox).toHaveCount(0);
     // Escape aborts the browser request; wait for the fixture's delayed search to drain.
     await waitForMarkdownLinkSearchIdle(request, "late");
     await expect(listbox).toHaveCount(0);
     expect(await editor.innerText()).toBe(bodyBeforeEscape);
     await expect(page.getByTestId("issue-detail")).toBeVisible();
-  });
-
-  test("keeps the issue detail open when Escape dismisses the @ menu", async ({
-    page,
-    request,
-  }) => {
-    const task = await readMarkdownFixtureTask(request);
-    await openExistingWorkspace(page);
-    await page.goto(task.start_path ?? "");
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-
-    const editor = page.locator(".reef-markdown-editor");
-    await editor.click();
-    await page.keyboard.press("Control+End");
-    await page.keyboard.press("Enter");
-    await page.keyboard.type("@");
-
-    const listbox = page.getByRole("listbox");
-    await expect(listbox).toBeVisible();
-    const readDocumentText = () =>
-      editor.evaluate((root) => {
-        const document = root.cloneNode(true) as HTMLElement;
-        document
-          .querySelectorAll("[data-markdown-image-message]")
-          .forEach((message) => message.remove());
-        return {
-          text: document.textContent ?? "",
-          imageAltTexts: Array.from(
-            document.querySelectorAll<HTMLImageElement>(
-              "img[data-markdown-image], img[data-markdown-target]",
-            ),
-          ).map((image) => image.getAttribute("alt")),
-        };
-      });
-    const bodyBeforeEscape = await readDocumentText();
-
-    await page.keyboard.press("Escape");
-
-    await expect(listbox).toHaveCount(0);
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await expect(editor).toBeFocused();
-    await expect(editor).toHaveAttribute("aria-expanded", "false");
-    await expect.poll(readDocumentText).toEqual(bodyBeforeEscape);
   });
 
   test("does not open the @ menu inside inline code", async ({

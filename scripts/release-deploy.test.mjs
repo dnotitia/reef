@@ -534,7 +534,7 @@ test("register-only returns a reusable result without rollout or Kubernetes muta
   }
 });
 
-test("register-only rejects a mutable image reference before any child or AKB call", async () => {
+test("register-only rejects a mutable image reference before image build or AKB calls", async () => {
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "reef-register-invalid-test-"),
   );
@@ -589,7 +589,10 @@ test("register-only rejects a mutable image reference before any child or AKB ca
       commands.filter(({ command }) => command === "docker").length,
       0,
     );
-    assert.equal(commands.at(-1)?.command, "git");
+    assert.equal(
+      commands.some(({ command }) => command === "kubectl"),
+      false,
+    );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -650,48 +653,59 @@ test("register-only rejects a build artifact from another source revision or pro
     path.join(os.tmpdir(), "reef-register-stale-test-"),
   );
   const buildArtifactPath = path.join(temporaryDirectory, "build.json");
-  const commands = [];
   try {
-    await writeFile(
-      buildArtifactPath,
-      `${JSON.stringify({
-        kind: "reef-build-artifact",
-        runtime_images: RUNTIME_IMAGES,
-        source_revision: "b".repeat(40),
-        version: "0.14.0",
-      })}\n`,
-    );
-    await assert.rejects(
-      runReleaseDeployment({
-        rootDir: path.resolve("."),
-        env: {
-          AKB_BACKEND_URL: "https://akb.example.test",
-          REEF_CONTROL_PLANE_TOKEN: TOKEN,
-        },
-        options: { mode: "register", build_artifact: buildArtifactPath },
-        runCommand: async (command, args, options) => {
-          commands.push({ command, args, options });
-          if (command === "pnpm")
-            return { exitCode: 0, stdout: "", stderr: "" };
-          if (command === "git" && args[0] === "status") {
-            return { exitCode: 0, stdout: "", stderr: "" };
-          }
-          if (command === "git" && args[0] === "rev-parse") {
-            return { exitCode: 0, stdout: `${"a".repeat(40)}\n`, stderr: "" };
-          }
-          throw new Error("unexpected command");
-        },
-        fetchImpl: async () => {
-          throw new Error("network must not be reached");
-        },
-        core,
-      }),
-      /does not match the current source and version/u,
-    );
-    assert.equal(
-      commands.some(({ command }) => command === "docker"),
-      false,
-    );
+    for (const invalidIdentity of [
+      { source_revision: "b".repeat(40), version: PRODUCT_VERSION },
+      { source_revision: "a".repeat(40), version: "0.14.0" },
+    ]) {
+      const commands = [];
+      let networkCalls = 0;
+      await writeFile(
+        buildArtifactPath,
+        `${JSON.stringify({
+          kind: "reef-build-artifact",
+          runtime_images: RUNTIME_IMAGES,
+          ...invalidIdentity,
+        })}\n`,
+      );
+      await assert.rejects(
+        runReleaseDeployment({
+          rootDir: path.resolve("."),
+          env: {
+            AKB_BACKEND_URL: "https://akb.example.test",
+            REEF_CONTROL_PLANE_TOKEN: TOKEN,
+          },
+          options: { mode: "register", build_artifact: buildArtifactPath },
+          runCommand: async (command, args, options) => {
+            commands.push({ command, args, options });
+            if (command === "pnpm")
+              return { exitCode: 0, stdout: "", stderr: "" };
+            if (command === "git" && args[0] === "status") {
+              return { exitCode: 0, stdout: "", stderr: "" };
+            }
+            if (command === "git" && args[0] === "rev-parse") {
+              return { exitCode: 0, stdout: `${"a".repeat(40)}\n`, stderr: "" };
+            }
+            throw new Error("unexpected command");
+          },
+          fetchImpl: async () => {
+            networkCalls += 1;
+            throw new Error("network must not be reached");
+          },
+          core,
+        }),
+        (error) =>
+          error?.stage === "artifact_validation" &&
+          /does not match the current source and version/u.test(error.message),
+      );
+      assert.equal(networkCalls, 0);
+      assert.equal(
+        commands.some(
+          ({ command }) => command === "docker" || command === "kubectl",
+        ),
+        false,
+      );
+    }
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -705,6 +719,8 @@ test("deploy observes AKB applied before applying the immutable Kubernetes revis
   const buildArtifactPath = path.join(temporaryDirectory, "build.json");
   const commands = [];
   const requests = [];
+  const events = [];
+  let observations = 0;
   const sourceRevision = "a".repeat(40);
   const requestKey = "66666666-6666-4666-8666-666666666666";
   const jobId = "77777777-7777-4777-8777-777777777777";
@@ -762,6 +778,7 @@ spec:
       return { exitCode: 0, stdout: "", stderr: "" };
     }
     if (command === "kubectl" && args[0] === "kustomize") {
+      events.push("kubernetes");
       return {
         exitCode: 0,
         stdout: `${kustomizeOutput}${EVENT_PROCESSOR_MANIFEST}`,
@@ -984,6 +1001,7 @@ spec:
       );
     }
     if (url.endsWith("/rollouts")) {
+      observations = 0;
       const persisted = JSON.parse(await readFile(receiptPath, "utf8"));
       assert.equal(
         persisted.request_key,
@@ -995,7 +1013,9 @@ spec:
       });
     }
     assert.ok(url.endsWith(`/rollouts/${jobId}`));
-    return new Response(JSON.stringify(rolloutBody("applied")), {
+    const status = ++observations === 1 ? "running" : "applied";
+    events.push(`rollout:${status}`);
+    return new Response(JSON.stringify(rolloutBody(status)), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -1022,6 +1042,11 @@ spec:
       core,
     });
 
+    assert.deepEqual(events, [
+      "rollout:running",
+      "rollout:applied",
+      "kubernetes",
+    ]);
     assert.equal(result.outcome, "deployed");
     assert.equal(result.rollout_status, "applied");
     assert.equal(result.deployment_status, "ready");
@@ -1048,7 +1073,7 @@ spec:
     assert.deepEqual(JSON.parse(await readFile(receiptPath, "utf8")), result);
     assert.equal(
       requests.filter(({ url }) => url.includes("/rollouts")).length,
-      2,
+      3,
     );
     assert.equal(
       commands.filter(
@@ -1092,6 +1117,11 @@ spec:
       fetchImpl,
       core,
     });
+    assert.deepEqual(events.slice(3), [
+      "rollout:running",
+      "rollout:applied",
+      "kubernetes",
+    ]);
     assert.equal(replayed.request_key, requestKey);
     assert.equal(
       commands.filter(({ command }) => command === "docker").length,
@@ -1143,6 +1173,11 @@ spec:
       fetchImpl,
       core,
     });
+    assert.deepEqual(events.slice(6), [
+      "rollout:running",
+      "rollout:applied",
+      "kubernetes",
+    ]);
     assert.equal(registeredReceiptDeployment.release_id, result.release_id);
     assert.equal(
       registeredReceiptDeployment.runtime_images.web.image_digest,
@@ -1569,6 +1604,9 @@ ${EVENT_PROCESSOR_MANIFEST}`,
   const fetchImpl = async (input, init = {}) => {
     const url = String(input);
     if (url.endsWith(`/rollouts/${sourceJobId}/resume`)) {
+      const sentKey = new Headers(init.headers).get("idempotency-key");
+      assert.equal(sentKey, resumeRequestKey);
+      assert.notEqual(sentKey, originalRequestKey);
       return new Response(
         JSON.stringify({
           job_id: resumedJobId,
@@ -1934,26 +1972,27 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
       }),
     (error) => error?.stage === "runtime_identity_mismatch",
   );
-  assert.throws(
-    () =>
-      assertKubernetesReadback({
-        deployment,
-        pods: {
-          items: [
-            {
-              ...terminatingPod,
-              metadata: { name: "reef-web-live-mismatch" },
-            },
-          ],
-        },
-        registration,
-        imageRepository: "registry.example/reef-web",
-        eventProcessorImageRepository: "registry.example/reef-event-processor",
-        eventProcessorDeployment,
-        eventProcessorPods,
-      }),
-    (error) => error?.stage === "runtime_identity_mismatch",
-  );
+  const wrongImagePod = structuredClone(livePod);
+  wrongImagePod.spec.containers[0].image =
+    "registry.example/reef-web@sha256:bad";
+  const notReadyPod = structuredClone(livePod);
+  notReadyPod.status.containerStatuses[0].ready = false;
+  for (const invalidPod of [wrongImagePod, notReadyPod]) {
+    assert.throws(
+      () =>
+        assertKubernetesReadback({
+          deployment,
+          pods: { items: [invalidPod] },
+          registration,
+          imageRepository: "registry.example/reef-web",
+          eventProcessorImageRepository:
+            "registry.example/reef-event-processor",
+          eventProcessorDeployment,
+          eventProcessorPods,
+        }),
+      (error) => error?.stage === "runtime_identity_mismatch",
+    );
+  }
   const mismatchedProcessorDeployment = structuredClone(
     eventProcessorDeployment,
   );

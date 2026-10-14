@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createJiraAccountMappingArtifact } from "../accounts/mapping.js";
 import { convertAdfToMarkdown } from "../content/adf.js";
 import { JIRA_MAX_ATTACHMENT_BUFFER_BYTES } from "../jira/client.js";
@@ -285,7 +285,7 @@ describe("Jira related-data import stage", () => {
 
   it("does not revoke a recovered attachment owned by another Jira cloud", async () => {
     const state = makeTarget();
-    await state.target.createAttachment({
+    const foreignAttachment = await state.target.createAttachment({
       idempotencyKey: "other-cloud-attachment",
       reefId: "REEF-1",
       filename: "sample.dat",
@@ -296,10 +296,18 @@ describe("Jira related-data import stage", () => {
       originalJiraAttachmentId: "30001",
       meta: { source: "jira", jira_cloud_id: "cloud-2" },
     });
-    await importJiraRelatedData({
+    const foreignReadback = state.attachments.get(foreignAttachment.file_uri);
+    if (!foreignReadback) throw new Error("expected foreign attachment");
+    const originalForeignReadback = structuredClone(foreignReadback);
+    const findAttachment = vi
+      .spyOn(state.target, "findAttachmentByJiraId")
+      .mockResolvedValue(foreignReadback);
+    const revokeAttachment = vi.spyOn(state.target, "revokeAttachment");
+    const result = await importJiraRelatedData({
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy: { maxBytes: 1024 },
       client: makeClient([]),
       target: state.target,
       ledger: createJiraMigrationLedger({
@@ -313,10 +321,19 @@ describe("Jira related-data import stage", () => {
       resolveIssueTarget: () => null,
       mode: "apply",
     });
-    expect(state.attachments.size).toBe(1);
-    expect([...state.attachments.values()][0]?.attachment.meta).toMatchObject({
-      jira_cloud_id: "cloud-2",
-    });
+    expect(findAttachment).toHaveBeenCalledWith("REEF-1", "cloud-1", "30001");
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        source_id: "30001",
+        phase: "resolve",
+        reason: "attachment_visibility_unverifiable",
+      }),
+    );
+    expect(state.attachments.get(foreignAttachment.file_uri)).toEqual(
+      originalForeignReadback,
+    );
+    expect(revokeAttachment).not.toHaveBeenCalled();
   });
 
   it("revokes an imported attachment when the byte policy is lowered", async () => {

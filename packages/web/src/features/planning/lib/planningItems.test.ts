@@ -62,6 +62,10 @@ describe("findPlanningName", () => {
 });
 
 describe("selectActiveSprint", () => {
+  it("returns the lone active sprint", () => {
+    expect(selectActiveSprint(catalog.sprints)?.id).toBe("spr-1");
+  });
+
   it("chooses the latest active start date, then the highest id", () => {
     expect(
       selectActiveSprint([
@@ -79,15 +83,29 @@ describe("selectActiveSprint", () => {
           ...catalog.sprints[0],
           id: "spr-3",
           start_date: "2026-06-11",
+        },
+        {
+          ...catalog.sprints[0],
+          id: "spr-4",
+          start_date: "2026-06-12",
           status: "planned",
         },
+        {
+          ...catalog.sprints[0],
+          id: "spr-5",
+          start_date: "2026-06-13",
+          status: "closed",
+        },
       ]),
-    ).toMatchObject({ id: "spr-2" });
+    ).toMatchObject({ id: "spr-3" });
   });
 
   it("returns null when no sprint is active", () => {
     expect(
-      selectActiveSprint([{ ...catalog.sprints[0], status: "planned" }]),
+      selectActiveSprint([
+        { ...catalog.sprints[0], status: "planned" },
+        { ...catalog.sprints[0], id: "spr-closed", status: "closed" },
+      ]),
     ).toBeNull();
   });
 

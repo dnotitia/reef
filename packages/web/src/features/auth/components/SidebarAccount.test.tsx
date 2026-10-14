@@ -46,12 +46,9 @@ vi.mock("@/features/preferences/hooks/useTheme", () => ({
   useTheme: () => ({ theme: themeState.value, setTheme: setThemeMock }),
 }));
 
-import {
-  SidebarAccount,
-  deriveIdentity,
-  releaseNotesUrl,
-} from "./SidebarAccount";
-import { AccountMenu } from "./AccountMenu";
+import { SidebarAccount } from "./SidebarAccount";
+import { deriveIdentity } from "./SidebarAccountIdentity";
+import { AccountMenu, releaseNotesUrl } from "./AccountMenu";
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({

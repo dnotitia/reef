@@ -104,7 +104,7 @@ describe("GET /api/vaults AKB role contract", () => {
   });
 
   it.each(["owner", "admin"])(
-    "keeps a %s workspace available when AKB rejects the member-only API",
+    "uses the management API directly for a %s without calling the member API",
     async (role) => {
       vaultList(role);
       let memberReads = 0;

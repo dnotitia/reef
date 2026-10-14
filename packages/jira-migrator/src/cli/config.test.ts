@@ -131,18 +131,10 @@ describe("loadJiraMigratorConfig", () => {
       expect(JSON.stringify(error)).not.toContain("jira-secret-token");
     }
 
-    expect(() =>
-      loadJiraMigratorConfig({
-        env: {
-          ...env,
-          REEF_JIRA_BASE_URL:
-            "https://embedded-user:embedded-secret@example.atlassian.net",
-        },
-      }),
-    ).toThrow(JiraMigratorConfigError);
-
+    let credentialUrlError: unknown;
     try {
       loadJiraMigratorConfig({
+        argv: ["--dry-run"],
         env: {
           ...env,
           REEF_JIRA_BASE_URL:
@@ -150,9 +142,15 @@ describe("loadJiraMigratorConfig", () => {
         },
       });
     } catch (error) {
-      expect(JSON.stringify(error)).not.toContain("embedded-user");
-      expect(JSON.stringify(error)).not.toContain("embedded-secret");
+      credentialUrlError = error;
     }
+    expect(credentialUrlError).toBeInstanceOf(JiraMigratorConfigError);
+    expect(credentialUrlError).toMatchObject({
+      issues: ["Jira base URL must be a valid HTTPS URL"],
+    });
+    expect(JSON.stringify(credentialUrlError)).not.toMatch(
+      /embedded-user|embedded-secret/u,
+    );
 
     for (const baseUrl of [
       "https://@example.atlassian.net",

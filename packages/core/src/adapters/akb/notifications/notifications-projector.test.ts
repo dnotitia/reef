@@ -1023,13 +1023,14 @@ describe("notification projector", () => {
         sqlRequest.sql.includes("INSERT INTO reef_notifications"),
       );
     expect(inserts).toHaveLength(2);
-    expect(inserts[0].sql).toContain(
-      "ON CONFLICT (notification_key) DO UPDATE",
-    );
-    expect(inserts[0].sql).toContain(
-      "SET notification_key = EXCLUDED.notification_key",
-    );
-    expect(existing.state).toBe("archived");
+    for (const insert of inserts) {
+      const conflictUpdate = insert.sql
+        .split("ON CONFLICT (notification_key) DO UPDATE ")[1]
+        ?.split(" RETURNING ")[0];
+      expect(conflictUpdate).toBe(
+        "SET notification_key = EXCLUDED.notification_key",
+      );
+    }
     expect(inserts[1].params?.[0]).toBe(
       buildNotificationKey({
         recipient: "bob",

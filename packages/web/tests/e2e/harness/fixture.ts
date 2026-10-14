@@ -175,6 +175,7 @@ export async function waitForAttachmentReadPending(
 
 export async function readFixtureState(request: APIRequestContext): Promise<{
   scenario: string;
+  auth_probe_pending: number;
   calls: Array<{ method: string; path: string }>;
   sql_calls: Array<{ vault: string; username: string; sql: string }>;
   notification: {
@@ -627,24 +628,6 @@ export async function setKeycloakEnabled(
 ): Promise<void> {
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/keycloak`, {
     data: { enabled },
-  });
-  expect(response.ok()).toBeTruthy();
-}
-
-export async function setAuthPolicy(
-  request: APIRequestContext,
-  policy: {
-    keycloakEnabled: boolean;
-    localAuthEnabled: boolean;
-    ssoOnly: boolean;
-  },
-): Promise<void> {
-  const response = await request.post(`${E2E_MOCK_URL}/__e2e/keycloak`, {
-    data: {
-      enabled: policy.keycloakEnabled,
-      local_auth_enabled: policy.localAuthEnabled,
-      sso_only: policy.ssoOnly,
-    },
   });
   expect(response.ok()).toBeTruthy();
 }

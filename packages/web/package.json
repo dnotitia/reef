@@ -9,7 +9,6 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:eval": "vitest run --config vitest.eval.ts",
     "test:e2e": "playwright test",
     "test:e2e:sharded": "node scripts/e2e-shards.mjs",
     "reset:e2e": "node scripts/reset-e2e.mjs",

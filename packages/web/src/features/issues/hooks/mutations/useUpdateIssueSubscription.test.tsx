@@ -1,7 +1,7 @@
+import { createQueryWrapper } from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { issueSubscriptionKey } from "../queries/useIssueSubscription";
 
@@ -24,14 +24,6 @@ function makeQueryClient() {
   });
 }
 
-function wrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useUpdateIssueSubscription", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,7 +41,7 @@ describe("useUpdateIssueSubscription", () => {
     queryClient.setQueryData(key, "unwatched");
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useUpdateIssueSubscription(), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     let pending: Promise<unknown> | undefined;
@@ -62,6 +54,7 @@ describe("useUpdateIssueSubscription", () => {
     });
 
     await waitFor(() => {
+      expect(result.current.isPending).toBe(true);
       expect(queryClient.getQueryData(key)).toBe("watching");
     });
     expect(JSON.parse(mockApiFetch.mock.calls[0]?.[1]?.body as string)).toEqual(
@@ -71,11 +64,11 @@ describe("useUpdateIssueSubscription", () => {
     );
 
     await act(async () => {
-      resolveResponse?.(Response.json({ state: "watching" }, { status: 200 }));
+      resolveResponse?.(Response.json({ state: "muted" }, { status: 200 }));
       await pending;
     });
 
-    expect(queryClient.getQueryData(key)).toBe("watching");
+    expect(queryClient.getQueryData(key)).toBe("muted");
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: key,
       refetchType: "active",
@@ -83,28 +76,42 @@ describe("useUpdateIssueSubscription", () => {
   });
 
   it("rolls a failed mute back and still refetches the server truth", async () => {
-    mockApiFetch.mockResolvedValueOnce(
-      Response.json(
-        { error: "Notification preference could not be changed." },
-        { status: 503 },
-      ),
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
     );
     const queryClient = makeQueryClient();
     const key = issueSubscriptionKey("reef-e2e", "REEF-001");
     queryClient.setQueryData(key, "watching");
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useUpdateIssueSubscription(), {
-      wrapper: wrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
+    let pending: Promise<unknown> | undefined;
+    act(() => {
+      pending = result.current.mutateAsync({
+        issueId: "REEF-001",
+        vault: "reef-e2e",
+        action: "mute",
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(true);
+      expect(queryClient.getQueryData(key)).toBe("muted");
+    });
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({
-          issueId: "REEF-001",
-          vault: "reef-e2e",
-          action: "mute",
-        }),
-      ).rejects.toThrow("Notification preference could not be changed.");
+      resolveResponse(
+        Response.json(
+          { error: "Notification preference could not be changed." },
+          { status: 503 },
+        ),
+      );
+      await expect(pending).rejects.toThrow(
+        "Notification preference could not be changed.",
+      );
     });
 
     expect(queryClient.getQueryData(key)).toBe("watching");

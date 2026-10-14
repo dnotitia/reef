@@ -132,17 +132,6 @@ export interface MyWorkWorkspaceContext extends MyWorkWorkspace {
 }
 
 /**
- * The vault's current sprint: the lone `active` sprint, or — if several are
- * active — the most recent `start_date`, then the highest `id`. Mirrors the
- * server default-view active-sprint tie-break (the `activeSprintIdSubquery`
- * folded into the issue-list query, REEF-324) so the page and the board agree on
- * "current sprint".
- */
-export function selectCurrentSprint(sprints: readonly Sprint[]): Sprint | null {
-  return selectActiveSprint(sprints);
-}
-
-/**
  * Focus comparator (AC6): urgency bucket, then nearest deadline within the
  * urgent buckets, then priority, then proximity to active, then recency. Within
  * the non-urgent bucket priority leads — a far-future due date should not float
@@ -229,7 +218,7 @@ export function buildMyWork(
       {
         index: indexIssuesById(workspace.relations as IssueRelationLike[]),
         canResolveBlocked: workspace.relations.length > 0,
-        currentSprint: selectCurrentSprint(workspace.planning.sprints),
+        currentSprint: selectActiveSprint(workspace.planning.sprints),
       },
     ]),
   );
@@ -245,7 +234,7 @@ export function buildMyWork(
     { workspace: string; sprint: Sprint; remaining: number; done: number }
   >();
   for (const workspace of workspaces) {
-    const currentSprint = selectCurrentSprint(workspace.planning.sprints);
+    const currentSprint = selectActiveSprint(workspace.planning.sprints);
     if (!currentSprint) continue;
     const done =
       workspace.resolved_sprint_counts.find(

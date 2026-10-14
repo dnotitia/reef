@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   addMonths,
@@ -8,7 +10,6 @@ import {
   formatMonthYear,
   formatTimestampMonthDay,
   isValidIsoDate,
-  localTodayIso,
   parseIsoDate,
   shiftDays,
   shiftMonths,
@@ -152,8 +153,27 @@ describe("buildMonthGrid", () => {
 });
 
 describe("localTodayIso", () => {
-  it("produces a YYYY-MM-DD shape", () => {
-    expect(localTodayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it("uses the local calendar day when UTC is still the previous day", () => {
+    const sourcePath = fileURLToPath(
+      new URL("./dateHelpers.ts", import.meta.url),
+    );
+    const result = execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `
+      import { localTodayIso } from ${JSON.stringify(sourcePath)};
+      const NativeDate = Date;
+      globalThis.Date = class extends NativeDate {
+        constructor() { super("2026-06-01T23:30:00.000Z"); }
+      };
+      process.stdout.write(localTodayIso());
+    `,
+      ],
+      { env: { ...process.env, TZ: "Asia/Seoul" }, encoding: "utf8" },
+    );
+    expect(result).toBe("2026-06-02");
   });
 });
 

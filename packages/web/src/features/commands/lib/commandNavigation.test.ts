@@ -1,19 +1,9 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import {
-  buildNavigationHref,
-  buildViewHref,
-  resolveCurrentIssueView,
-} from "./commandNavigation";
+import { buildViewHref, resolveCurrentIssueView } from "./commandNavigation";
 
 describe("command navigation", () => {
-  it("always scopes navigation destinations to the active vault", () => {
-    expect(buildNavigationHref("reef-acme", "/planning")).toBe(
-      "/workspace/reef-acme/planning",
-    );
-  });
-
   it("preserves issue workspace filters, search, and sort while changing view", () => {
     expect(
       buildViewHref({

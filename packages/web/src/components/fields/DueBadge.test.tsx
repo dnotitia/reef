@@ -64,14 +64,13 @@ describe("DueIcon", () => {
 
   it("maps each due state to a distinct glyph", () => {
     const seen = new Set<string>();
-    for (const d of ["overdue", "due_soon"] as const) {
-      const { container } = render(<DueIcon due={d} />);
-      const cls = container.querySelector("svg")?.getAttribute("class") ?? "";
-      const lucideClass = cls.split(" ").find((c) => c.startsWith("lucide-"));
-      expect(lucideClass).toBeDefined();
-      seen.add(lucideClass ?? "");
+    for (const due of ["overdue", "due_soon", "no_due"] as const) {
+      const { container } = render(<DueIcon due={due} />);
+      const glyph = container.querySelector("svg")?.innerHTML;
+      expect(glyph).toBeTruthy();
+      seen.add(glyph ?? "");
       cleanup();
     }
-    expect(seen.size).toBe(2);
+    expect(seen.size).toBe(3);
   });
 });

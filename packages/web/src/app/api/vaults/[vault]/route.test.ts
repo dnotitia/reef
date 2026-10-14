@@ -84,7 +84,7 @@ describe("DELETE /api/vaults/[vault]", () => {
     expect(mockDeleteVault).not.toHaveBeenCalled();
   });
 
-  it("folds an akb admin/owner guard (403) into 401", async () => {
+  it("translates an untyped AuthError to 401", async () => {
     mockDeleteVault.mockRejectedValueOnce(new AuthError({}));
     const req = new Request("http://localhost/api/vaults/reef-acme", {
       method: "DELETE",

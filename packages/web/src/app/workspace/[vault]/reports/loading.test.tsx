@@ -8,5 +8,9 @@ describe("reports loading.tsx", () => {
     expect(
       screen.getByRole("heading", { name: "Reports" }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("reports-skeleton")).toBeInTheDocument();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading…");
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
   });
 });

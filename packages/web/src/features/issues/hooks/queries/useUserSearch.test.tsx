@@ -1,6 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createQueryWrapper } from "@/test-support/query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock apiFetch — should happen before the import below. The hook also
@@ -34,17 +34,6 @@ const mockCollaborators = [
   },
 ];
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useUserSearch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,7 +47,7 @@ describe("useUserSearch", () => {
     );
 
     const { result } = renderHook(() => useUserSearch("", "owner/repo"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -69,7 +58,7 @@ describe("useUserSearch", () => {
     mockApiFetch.mockReturnValue(new Promise(() => {})); // does not resolves
 
     const { result } = renderHook(() => useUserSearch("", "owner/repo"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     expect(result.current.isLoading).toBe(true);
@@ -83,7 +72,7 @@ describe("useUserSearch", () => {
     );
 
     const { result } = renderHook(() => useUserSearch("", "owner/repo"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -92,7 +81,7 @@ describe("useUserSearch", () => {
 
   it("is disabled when repo is empty string", () => {
     const { result } = renderHook(() => useUserSearch("", ""), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     // enabled: false → fetchStatus is 'idle' (not fetching)
@@ -108,7 +97,7 @@ describe("useUserSearch", () => {
     );
 
     const { result } = renderHook(() => useUserSearch("alice", "owner/repo"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -117,32 +106,35 @@ describe("useUserSearch", () => {
     );
   });
 
-  it("two different queries produce two separate calls (cache key includes query)", async () => {
-    // Query client with no deduplication — each renderHook gets a fresh client
-    const results: string[] = [];
+  it("keeps separate cached results when the query changes on one client", async () => {
     mockApiFetch.mockImplementation(async (url) => {
-      results.push(url as string);
-      return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      const query = new URL(String(url), "https://reef.test").searchParams.get(
+        "q",
+      );
+      return Response.json({
+        users:
+          query === "alice" ? [mockCollaborators[0]] : [mockCollaborators[1]],
+      });
     });
-
-    const wrapperAlice = createWrapper();
-    const wrapperBob = createWrapper();
-
-    const { result: r1 } = renderHook(
-      () => useUserSearch("alice", "owner/repo"),
-      { wrapper: wrapperAlice },
+    const { result, rerender } = renderHook(
+      ({ query }) => useUserSearch(query, "reef-acme"),
+      { initialProps: { query: "alice" }, wrapper: createQueryWrapper() },
     );
-    const { result: r2 } = renderHook(
-      () => useUserSearch("bob", "owner/repo"),
-      { wrapper: wrapperBob },
+    await waitFor(() =>
+      expect(result.current.data).toEqual([mockCollaborators[0]]),
     );
-
-    await waitFor(() => expect(r1.current.isSuccess).toBe(true));
-    await waitFor(() => expect(r2.current.isSuccess).toBe(true));
-
-    // Both queries should have fired
-    expect(results.some((u) => u.includes("q=alice"))).toBe(true);
-    expect(results.some((u) => u.includes("q=bob"))).toBe(true);
+    rerender({ query: "bob" });
+    await waitFor(() =>
+      expect(result.current.data).toEqual([mockCollaborators[1]]),
+    );
+    rerender({ query: "alice" });
+    await waitFor(() =>
+      expect(result.current.data).toEqual([mockCollaborators[0]]),
+    );
+    expect(mockApiFetch.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/vault-members?vault=reef-acme&q=alice",
+      "/api/vault-members?vault=reef-acme&q=bob",
+    ]);
   });
 
   it("empty q does not include q param in URL", async () => {
@@ -151,7 +143,7 @@ describe("useUserSearch", () => {
     );
 
     const { result } = renderHook(() => useUserSearch("", "owner/repo"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

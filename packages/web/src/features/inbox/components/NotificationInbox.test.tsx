@@ -104,6 +104,12 @@ describe("NotificationInboxPage", () => {
     expect(screen.getByText("REEF-001")).toBeInTheDocument();
     expect(screen.getByText("Unread")).toBeInTheDocument();
     expect(screen.getByText("Read")).toBeInTheDocument();
+    const time = screen
+      .getAllByTestId("notification-item")[0]
+      .querySelector("time");
+    expect(time).toHaveAttribute("datetime", "2026-07-28T00:00:00.000Z");
+    expect(time).toHaveTextContent("Jul 28, 2026, 00:00");
+    expect(time).toHaveAttribute("title", "Jul 28, 2026, 00:00");
   });
 
   it("keeps matching notification keys distinct by source workspace", async () => {
@@ -140,6 +146,8 @@ describe("NotificationInboxPage", () => {
   });
 
   it("marks an unread notification read before opening its issue activity", async () => {
+    const read = Promise.withResolvers<object>();
+    mocks.mutateAsync.mockReturnValueOnce(read.promise);
     renderPage();
 
     fireEvent.click(
@@ -155,6 +163,14 @@ describe("NotificationInboxPage", () => {
         state: "read",
       }),
     );
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", {
+        name: "Open activity for REEF-001 in reef-acme",
+      }),
+    ).toBeDisabled();
+    read.resolve({});
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledOnce());
     expect(mocks.push).toHaveBeenCalledWith(
       "/workspace/reef-acme/issues/REEF-001#issue-activity",
     );

@@ -27,17 +27,6 @@ afterEach(() => {
 });
 
 describe("workspace root page (REEF-424)", () => {
-  it("reuses the global root auth and remembered-workspace redirect contract", () => {
-    useAuthRedirect.mockReturnValue("active");
-    render(<WorkspaceRootPage />);
-
-    expect(useAuthRedirect).toHaveBeenCalledWith("root");
-    expect(useWorkspaceAutoResume).toHaveBeenCalledWith({
-      enabled: true,
-      redirectWhenEmpty: true,
-    });
-  });
-
   it("keeps the app-shell skeleton visible while the client redirect resolves", () => {
     useAuthRedirect.mockReturnValue("checking");
     render(<WorkspaceRootPage />);

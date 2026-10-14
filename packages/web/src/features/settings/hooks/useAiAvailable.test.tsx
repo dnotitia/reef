@@ -1,21 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createQueryWrapper } from "@/test-support/query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiAvailable } from "./useAiAvailable";
 
 const mockFetch = vi.fn<typeof fetch>();
-
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 describe("useAiAvailable", () => {
   beforeEach(() => {
@@ -36,7 +25,7 @@ describe("useAiAvailable", () => {
     );
 
     const { result } = renderHook(() => useAiAvailable(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -54,7 +43,7 @@ describe("useAiAvailable", () => {
     mockFetch.mockResolvedValueOnce(new Response("nope", { status: 500 }));
 
     const { result } = renderHook(() => useAiAvailable(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));

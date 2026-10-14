@@ -1,7 +1,7 @@
+import { createQueryWrapper } from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueContentSearch } from "./useIssueContentSearch";
 
@@ -17,11 +17,7 @@ function makeWrapper() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  return function Wrapper({ children }: PropsWithChildren) {
-    return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-  };
+  return createQueryWrapper(client);
 }
 
 beforeEach(() => {

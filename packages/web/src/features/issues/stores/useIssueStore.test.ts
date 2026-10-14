@@ -15,15 +15,14 @@ describe("useIssueStore", () => {
   });
 
   it("initial state has empty filter and null selectedIssueId", () => {
-    const filter = useIssueStore.getState().filter;
-    const selectedId = useIssueStore.getState().selectedIssueId;
+    const filter = useIssueStore.getInitialState().filter;
+    const selectedId = useIssueStore.getInitialState().selectedIssueId;
     expect(filter).toEqual({});
     expect(selectedId).toBeNull();
   });
 
   it("initial state has empty searchQuery", () => {
-    const searchQuery = useIssueStore.getState().searchQuery;
-    expect(searchQuery).toBe("");
+    expect(useIssueStore.getInitialState().searchQuery).toBe("");
   });
 
   it("setFilter merges partial filter into existing filter", () => {
@@ -153,17 +152,5 @@ describe("useIssueStore", () => {
     useIssueStore.setState({ listOptionalColumns: ["start", "release"] });
     useIssueStore.getState().resetFilterScope();
     expect(useIssueStore.getState().listOptionalColumns).toEqual([]);
-  });
-
-  it("granular selector: can select filter without subscribing to whole store", () => {
-    useIssueStore.getState().setFilter({ status: ["todo"] });
-    const filter = useIssueStore.getState().filter;
-    expect(filter.status).toEqual(["todo"]);
-  });
-
-  it("granular selector: can select searchQuery independently", () => {
-    useIssueStore.getState().setSearchQuery("dependency");
-    const searchQuery = useIssueStore.getState().searchQuery;
-    expect(searchQuery).toBe("dependency");
   });
 });

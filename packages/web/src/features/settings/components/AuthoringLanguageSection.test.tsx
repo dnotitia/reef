@@ -102,7 +102,7 @@ describe("AuthoringLanguageSection", () => {
     await waitFor(() => {
       expect(
         screen.getByTestId("authoring-language-readonly"),
-      ).toBeInTheDocument();
+      ).toHaveTextContent("—");
     });
     expect(
       screen.queryByTestId("authoring-language-select"),

@@ -58,58 +58,36 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
   // through v10/v11 and declares removed stores as `null`.
   describe("older store removal (v9 -> v11 upgrade)", () => {
     it("drops removed draft/cache stores and the stale browser credential store", async () => {
-      const NAME = "reef-upgrade-regression";
-      await Dexie.delete(NAME);
+      db.close();
+      await db.delete();
+      const older = new Dexie(db.name);
+      try {
+        // Historical fixture only; the production owner performs the upgrade.
+        older.version(9).stores({
+          credentials: "++id, key",
+          config: "++id, key",
+          auto_issue_drafts: "id, status",
+          dismissed_suggestions: "++id, ref",
+          cache: "id, fetchedAt",
+        });
+        await older.open();
+        await older
+          .table("credentials")
+          .add({ key: "github_token", value: "ghp_stale" });
+        await older.table("config").add({ key: "theme", value: "dark" });
+        older.close();
 
-      // Simulate a browser already at the old 5-store v9 schema.
-      const older = new Dexie(NAME);
-      older.version(9).stores({
-        credentials: "++id, key",
-        config: "++id, key",
-        auto_issue_drafts: "id, status",
-        dismissed_suggestions: "++id, ref",
-        cache: "id, fetchedAt",
-      });
-      await older.open();
-      await older.table("credentials").add({
-        key: "github_token",
-        value: "ghp_stale",
-      });
-      expect(older.tables.map((t) => t.name).sort()).toEqual(
-        [
-          "auto_issue_drafts",
-          "cache",
-          "config",
-          "credentials",
-          "dismissed_suggestions",
-        ].sort(),
-      );
-      older.close();
-
-      // re-open the SAME database with the production schema (full v9 set + the
-      // v10/v11 null-drops). The upgrade should delete old stores and any stale
-      // browser GitHub PAT row with them.
-      const upgraded = new Dexie(NAME);
-      upgraded.version(9).stores({
-        credentials: "++id, key",
-        config: "++id, key",
-        auto_issue_drafts: "id, status",
-        dismissed_suggestions: "++id, ref",
-        cache: "id, fetchedAt",
-      });
-      upgraded.version(10).stores({
-        auto_issue_drafts: null,
-        dismissed_suggestions: null,
-        cache: null,
-      });
-      upgraded.version(11).stores({
-        credentials: null,
-      });
-      await upgraded.open();
-      expect(upgraded.verno).toBe(11);
-      expect(upgraded.tables.map((t) => t.name).sort()).toEqual(["config"]);
-      upgraded.close();
-      await Dexie.delete(NAME);
+        await db.open();
+        expect(Array.from(db.backendDB().objectStoreNames)).toEqual(["config"]);
+        expect(
+          (await db.config.where("key").equals("theme").first())?.value,
+        ).toBe("dark");
+      } finally {
+        older.close();
+        db.close();
+        await db.delete();
+        await db.open();
+      }
     });
   });
 });

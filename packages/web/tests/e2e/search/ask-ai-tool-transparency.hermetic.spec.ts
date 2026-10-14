@@ -45,7 +45,22 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
     await trace.locator('button[aria-expanded="false"]').click();
     await expect(trace).toContainText("Searched issues");
     await expect(trace).toContainText("Searched documents");
-    await expect(trace).toContainText("1 result");
+    const issueStep = trace
+      .locator("li")
+      .filter({ hasText: "Searched issues" });
+    const documentStep = trace
+      .locator("li")
+      .filter({ hasText: "Searched documents" });
+    await expect(issueStep.getByRole("button")).toContainText("1 result");
+    await expect(documentStep.getByRole("button")).toContainText("1 result");
+    await issueStep.getByRole("button").click();
+    await expect(issueStep).toContainText("search_issues");
+    await expect(issueStep).toContainText("Alpha");
+    await expect(assistant).toContainText("Initial issue Alpha");
+    await documentStep.getByRole("button").click();
+    await expect(documentStep).toContainText("search_documents");
+    await expect(documentStep).toContainText("spec-overview");
+    await expect(assistant).toContainText("Spec overview");
 
     await expect(
       assistant.locator('[data-testid="chat-citations"]'),

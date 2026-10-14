@@ -1,15 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import {
-  makeIssueQueryResponse,
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
+import { makeIssueQueryResponse } from "./issueFixtures";
 import { listMyWorkIssues } from "./listMyWorkIssues";
-
-mockOpenTelemetry();
 
 const BASE_ISSUE: IssueMetadata = {
   id: "REEF-001",
@@ -97,7 +91,7 @@ describe("listMyWorkIssues", () => {
     ]);
 
     const result = await listMyWorkIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       actor: " alice ",
       vaults: ["reef-zeta", "reef-e2e", "reef-alpha"],
       query: { limit: 2, offset: 2 },
@@ -164,7 +158,7 @@ describe("listMyWorkIssues", () => {
   it("does not make an AKB request when no ready workspace is available", async () => {
     const { calls } = setupFetch([]);
     const result = await listMyWorkIssues({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       actor: "alice",
       vaults: [],
     });
@@ -177,7 +171,7 @@ describe("listMyWorkIssues", () => {
 
   it("rejects unsafe or alias-colliding vault inputs", async () => {
     const { calls } = setupFetch([]);
-    const adapter = makeTestAkbAdapter();
+    const adapter = makeAdapter();
 
     await expect(
       listMyWorkIssues({
@@ -205,7 +199,7 @@ describe("listMyWorkIssues", () => {
 
     await expect(
       listMyWorkIssues({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         actor: "alice",
         vaults: ["reef-e2e"],
       }),

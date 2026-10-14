@@ -1,6 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
@@ -18,14 +21,6 @@ import { useDeleteIssue } from "./useDeleteIssue";
 
 const mockApiFetch = vi.mocked(apiFetch);
 
-function makeWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useDeleteIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,12 +28,10 @@ describe("useDeleteIssue", () => {
 
   it("sends DELETE to /api/issues/{id}?vault={vault}", async () => {
     mockApiFetch.mockResolvedValue(new Response(null, { status: 204 }));
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useDeleteIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -56,12 +49,10 @@ describe("useDeleteIssue", () => {
         status: 404,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useDeleteIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -73,13 +64,11 @@ describe("useDeleteIssue", () => {
 
   it("invalidates list + detail on success", async () => {
     mockApiFetch.mockResolvedValue(new Response(null, { status: 204 }));
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useDeleteIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {
@@ -103,12 +92,10 @@ describe("useDeleteIssue", () => {
         status: 401,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useDeleteIssue(), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await act(async () => {

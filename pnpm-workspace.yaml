@@ -23,7 +23,6 @@ allowBuilds:
   "msw": true
   "protobufjs": true
   "sharp": true
-  "vitest-evals": false
 
 overrides:
   "@babel/core": "7.29.7"

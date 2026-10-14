@@ -6,21 +6,29 @@ import { rootSkillContent } from "./rootSkill";
 // retained generated-prose path sees the same setting.
 describe("root skill — authoring language (REEF-136)", () => {
   const content = rootSkillContent("reef-test");
+  const authoringDirective =
+    content
+      .split("\n")
+      .find((line) =>
+        line.startsWith("- Honor the workspace authoring language"),
+      ) ?? "";
 
   it("carries the runtime authoring_language read in the always-loaded skill", () => {
-    expect(content).toContain("authoring_language");
-    expect(content).toContain(
+    expect(authoringDirective).toContain("authoring_language");
+    expect(authoringDirective).toContain(
       "SELECT value FROM reef_settings WHERE key = 'authoring_language'",
     );
-  });
-
-  it("covers the retained generated-prose path", () => {
-    expect(content.toLowerCase()).toContain("generated prose");
+    expect(authoringDirective).toContain("generated prose");
   });
 
   it("keeps symbols untranslated and the user's words intact", () => {
-    expect(content).toMatch(/keep reef ids|enum values|code identifiers/i);
-    expect(content.toLowerCase()).toContain(
+    expect(authoringDirective).toContain("Translate prose only");
+    expect(authoringDirective).toContain("keep reef ids");
+    expect(authoringDirective).toContain("enum values");
+    expect(authoringDirective).toContain("labels");
+    expect(authoringDirective).toContain("code identifiers");
+    expect(authoringDirective).toContain("URLs as-is");
+    expect(authoringDirective).toContain(
       "never translate the user's own words",
     );
   });

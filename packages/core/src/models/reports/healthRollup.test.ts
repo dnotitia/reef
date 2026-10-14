@@ -160,8 +160,8 @@ describe("computeHealthRollup — grouping & sort", () => {
         now: NOW,
         catalog: catalog({
           milestones: [
-            milestone({ id: "M1", target_date: "2026-06-30T00:00:00.000Z" }),
             milestone({ id: "M2", target_date: "2026-12-31T00:00:00.000Z" }),
+            milestone({ id: "M1", target_date: "2026-06-30T00:00:00.000Z" }),
           ],
         }),
       },
@@ -179,7 +179,7 @@ describe("computeHealthRollup — grouping & sort", () => {
         dimension: "milestone",
         now: NOW,
         catalog: catalog({
-          milestones: [milestone({ id: "M1" }), milestone({ id: "M_EMPTY" })],
+          milestones: [milestone({ id: "M_EMPTY" }), milestone({ id: "M1" })],
         }),
       },
     );

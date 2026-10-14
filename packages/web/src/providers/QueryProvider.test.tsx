@@ -1,6 +1,6 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEffect } from "react";
 import { clearAuthScopedClientCache } from "@/lib/storage/clientCache";
 
@@ -25,14 +25,7 @@ describe("QueryProvider", () => {
     window.localStorage.clear();
   });
 
-  it("renders without crashing", () => {
-    const { container } = render(
-      <QueryProvider>
-        <div>Hello</div>
-      </QueryProvider>,
-    );
-    expect(container).toBeTruthy();
-  });
+  afterEach(() => vi.useRealTimers());
 
   it("renders children", () => {
     render(
@@ -55,36 +48,32 @@ describe("QueryProvider", () => {
   });
 
   it("does not recreate an empty persisted snapshot after account cache cleanup", async () => {
-    render(
-      <QueryProvider>
-        <QueryClientConsumer />
-      </QueryProvider>,
-    );
-
-    await waitFor(() => expect(queryClientRef.current).toBeDefined());
-    await new Promise((resolve) => setTimeout(resolve, 25));
-
-    act(() => {
-      queryClientRef.current?.setQueryData(["account"], { id: "user-alice" });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await act(async () => {
+      render(
+        <QueryProvider>
+          <QueryClientConsumer />
+        </QueryProvider>,
+      );
     });
-    await waitFor(
-      () =>
-        expect(
-          window.localStorage.getItem("REACT_QUERY_OFFLINE_CACHE"),
-        ).not.toBe(null),
-      { timeout: 3_000 },
+    const client = queryClientRef.current;
+    expect(client).toBeDefined();
+    if (!client) throw new Error("expected mounted QueryClient");
+
+    await act(async () => {
+      client.setQueryData(["account"], { id: "user-alice" });
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(window.localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")).toContain(
+      "user-alice",
     );
 
-    act(() => {
+    await act(async () => {
       clearAuthScopedClientCache();
+      // Drain the real persister's 1000ms throttle after QueryCache removal.
+      await vi.advanceTimersByTimeAsync(1_001);
     });
-
-    await waitFor(
-      () =>
-        expect(window.localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")).toBe(
-          null,
-        ),
-      { timeout: 3_000 },
-    );
+    expect(client.getQueryData(["account"])).toBeUndefined();
+    expect(window.localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")).toBeNull();
   });
 });

@@ -94,20 +94,7 @@ describe("EmptyState", () => {
     expect(state).not.toHaveAttribute("role", "region");
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(state).toHaveTextContent("Pick a workspace to continue.");
-  });
-
-  it("keeps structure content unboxed without section-only slots", () => {
-    render(
-      <EmptyState
-        variant="structure"
-        description="Nothing needs your attention."
-      />,
-    );
-
-    const state = screen.getByText("Nothing needs your attention.").parentElement
-      ?.parentElement;
-    expect(state).toBeTruthy();
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
-    expect(state?.querySelector('[data-slot="empty-state-icon"]')).toBeNull();
+    expect(state.querySelector('[data-slot="empty-state-icon"]')).toBeNull();
   });
 });

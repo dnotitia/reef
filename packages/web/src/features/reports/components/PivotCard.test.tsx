@@ -4,7 +4,7 @@ import {
   type IssueMetadata,
   type PivotFieldKey,
 } from "@reef/core";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -97,10 +97,30 @@ describe("PivotCard (REEF-189)", () => {
     renderCard();
     // bob has no Done issue: the cell exists but is blank, not a zero glyph.
     expect(screen.getByTitle("bob × Done: 0").textContent).toBe("");
-    // A Total column header and a Total row header.
-    expect(screen.getAllByText("Total").length).toBeGreaterThanOrEqual(2);
-    // Grand total = 3 issues, in the corner cell.
-    expect(screen.getByRole("table").textContent).toContain("3");
+    const aliceRow = screen
+      .getByRole("rowheader", { name: "alice" })
+      .closest("tr") as HTMLTableRowElement;
+    const bobRow = screen
+      .getByRole("rowheader", { name: "bob" })
+      .closest("tr") as HTMLTableRowElement;
+    expect(within(aliceRow).getAllByRole("cell").at(-1)).toHaveTextContent(
+      /^2$/,
+    );
+    expect(within(bobRow).getAllByRole("cell").at(-1)).toHaveTextContent(/^1$/);
+    const headers = within(screen.getByRole("table")).getAllByRole(
+      "columnheader",
+    );
+    const totalRow = screen
+      .getByRole("rowheader", { name: "Total" })
+      .closest("tr") as HTMLTableRowElement;
+    const totals = within(totalRow).getAllByRole("cell");
+    expect(
+      totals[headers.findIndex((header) => header.textContent === "Todo")],
+    ).toHaveTextContent(/^2$/);
+    expect(
+      totals[headers.findIndex((header) => header.textContent === "Done")],
+    ).toHaveTextContent(/^1$/);
+    expect(totals.at(-1)).toHaveTextContent(/^3$/);
   });
 
   it("row picker offers every categorical field except the column's (AC2)", async () => {

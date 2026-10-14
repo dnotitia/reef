@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -32,11 +32,12 @@ vi.mock("@/lib/akb/accountReconcile", () => ({
 
 import SsoCompletePage from "./page";
 
-function renderWithQueryClient(ui: ReactElement) {
+function renderWithQueryClient(ui: ReactElement, invalidation?: Promise<void>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+  if (invalidation) invalidateSpy.mockReturnValue(invalidation);
   render(
     <QueryClientProvider client={queryClient}>
       <IntlTestProvider>{ui}</IntlTestProvider>
@@ -51,7 +52,7 @@ describe("SsoCompletePage", () => {
     navigation.refresh.mockClear();
     navigation.replace.mockClear();
     navigation.searchParams = new URLSearchParams();
-    reconcileAkbAccount.mockClear();
+    reconcileAkbAccount.mockReset();
     wipeAkbScopedBrowserState.mockClear();
   });
 
@@ -68,17 +69,36 @@ describe("SsoCompletePage", () => {
         ),
     );
 
-    const { invalidateSpy } = renderWithQueryClient(<SsoCompletePage />);
+    const reconcile = Promise.withResolvers<void>();
+    const invalidation = Promise.withResolvers<void>();
+    reconcileAkbAccount.mockReturnValue(reconcile.promise);
+    const { invalidateSpy } = renderWithQueryClient(
+      <SsoCompletePage />,
+      invalidation.promise,
+    );
 
     expect(screen.getByText("Finishing sign-in…")).toBeInTheDocument();
     await waitFor(() => {
       expect(reconcileAkbAccount).toHaveBeenCalledWith("user-1");
     });
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ["auth", "me"],
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.refresh).not.toHaveBeenCalled();
+
+    await act(async () => reconcile.resolve());
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["auth", "me"],
+      });
     });
-    expect(navigation.replace).toHaveBeenCalledWith("/issues?status=open");
-    expect(navigation.refresh).toHaveBeenCalled();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.refresh).not.toHaveBeenCalled();
+
+    await act(async () => invalidation.resolve());
+    await waitFor(() => {
+      expect(navigation.replace).toHaveBeenCalledWith("/issues?status=open");
+      expect(navigation.refresh).toHaveBeenCalled();
+    });
   });
 
   it("normalizes unsafe next paths to root after reconcile", async () => {

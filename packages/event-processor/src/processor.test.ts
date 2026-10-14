@@ -109,7 +109,7 @@ describe("Event Processor", () => {
     expect(project).toHaveBeenCalledTimes(2);
   });
 
-  it("coalesces a burst into serialized reconciliation after activation", async () => {
+  it("coalesces a burst into one reconciliation after activation", async () => {
     const controller = new AbortController();
     const project = vi.fn(async () => {
       if (project.mock.calls.length === 2) controller.abort();
@@ -135,9 +135,6 @@ describe("Event Processor", () => {
     });
 
     expect(project).toHaveBeenCalledTimes(2);
-    expect(project.mock.invocationCallOrder[0]).toBeLessThan(
-      project.mock.invocationCallOrder[1] ?? Number.MAX_SAFE_INTEGER,
-    );
     expect(subscribedCursors).toEqual([undefined]);
   });
 

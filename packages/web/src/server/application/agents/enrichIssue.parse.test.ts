@@ -1,6 +1,6 @@
 import { LlmError } from "@reef/core";
 import { describe, expect, it } from "vitest";
-import { parseEnrichmentResponse } from "./enrichIssue";
+import { parseEnrichmentResponse } from "./enrichIssue/validation";
 
 describe("parseEnrichmentResponse", () => {
   it("parses a plain JSON response", () => {

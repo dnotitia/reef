@@ -582,7 +582,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     );
   });
 
-  test("keeps List selection and row context chrome through pointer and keyboard menus", async ({
+  test("keeps List selection and row context chrome through keyboard menus", async ({
     page,
   }) => {
     await openExistingWorkspace(page);

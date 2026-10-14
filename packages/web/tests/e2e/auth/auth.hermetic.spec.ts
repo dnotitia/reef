@@ -45,8 +45,21 @@ test.describe("Hermetic auth flow", () => {
     page,
     context,
   }) => {
-    await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    await page.goto("/login?redirect=%2Fonboarding");
+    await waitForPasswordLogin(page);
+    await page.getByTestId("login-username").fill("alice");
+    await page.getByTestId("login-password").fill("password");
+    const loginResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/auth/akb/login" &&
+        response.request().method() === "POST",
+    );
+    await page.getByTestId("login-submit").click();
+    expect((await loginResponse).status()).toBe(200);
+    await page.waitForURL((url) => url.pathname !== "/login", {
+      timeout: 10_000,
+    });
+    await expect(page).toHaveURL(/\/onboarding$/);
     await expect(
       page.locator('[data-testid="onboarding-panel"]'),
     ).toBeVisible();

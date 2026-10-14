@@ -55,8 +55,18 @@ describe("KanbanBoard filtering and rendering", () => {
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
-    expect(await screen.findByText("Open A")).toBeInTheDocument();
-    expect(await screen.findByText("In progress B")).toBeInTheDocument();
+    await screen.findByText("Open A");
+    const todo = screen
+      .getByRole("heading", { name: "Todo" })
+      .closest<HTMLElement>("[data-group-by]");
+    const inProgress = screen
+      .getByRole("heading", { name: "In Progress" })
+      .closest<HTMLElement>("[data-group-by]");
+    if (!todo || !inProgress) throw new Error("missing status columns");
+    expect(within(todo).getByText("Open A")).toBeInTheDocument();
+    expect(within(todo).queryByText("In progress B")).toBeNull();
+    expect(within(inProgress).getByText("In progress B")).toBeInTheDocument();
+    expect(within(inProgress).queryByText("Open A")).toBeNull();
   });
 
   it("renders flat read-only Epic columns with parent metadata and fallbacks", async () => {
@@ -315,7 +325,7 @@ describe("KanbanBoard filtering and rendering", () => {
       selectedIssueId: null,
     });
     mockApiFetch.mockImplementation(async (url) =>
-      issueApiResponse(url, { issues: [FILTER_ISSUES[1]] }),
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -324,7 +334,10 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.queryByText("UI board polish")).toBeNull();
     const requestedUrl = mockApiFetch.mock.calls[0]?.[0] as string;
     expect(requestedUrl).toContain("sort_field=rank");
-    expect(requestedUrl).not.toContain("q=api");
+    expect(requestedUrl).not.toContain("q=");
+    expect(
+      screen.getAllByTestId("kanban-card").map((card) => card.dataset.issueId),
+    ).toEqual(["REEF-011"]);
   });
 
   it("applies dependency filters to board cards", async () => {

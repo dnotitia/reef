@@ -5,10 +5,6 @@ import {
 } from "@/features/issues/lib/viewMode";
 import { withVault } from "@/lib/workspaceHref";
 
-export function buildNavigationHref(vault: string, href: string): string {
-  return withVault(vault, href);
-}
-
 export function buildViewHref({
   vault,
   pathname,

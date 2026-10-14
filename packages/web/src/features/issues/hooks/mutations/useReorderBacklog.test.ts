@@ -178,62 +178,94 @@ describe("useReorderBacklog", () => {
     });
   });
 
-  it("optimistically stamps the new rank onto the vault list cache", async () => {
+  it("stamps the pending rank and replaces it with the canonical server rank", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
     const { queryClient, wrapper } = wrap();
-    queryClient.setQueryData<IssueListItem[]>(
-      ["issues", "list", "reef-acme", { status: ["backlog"] }],
-      ordered(["A", 1000], ["B", 2000], ["C", 3000]),
-    );
+    const key = [
+      "issues",
+      "list",
+      "reef-acme",
+      { status: ["backlog"] },
+    ] as const;
+    const rows = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
+    queryClient.setQueryData(key, rows);
     const { result } = renderHook(() => useReorderBacklog(), { wrapper });
-
-    const list = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
-    void result.current.mutate({
-      vault: "reef-acme",
-      scope: "backlog",
-      ...targetFor(list, "C", "B"),
-    });
-
-    await waitFor(() => {
-      const cached = queryClient.getQueryData<IssueListItem[]>([
-        "issues",
-        "list",
-        "reef-acme",
-        { status: ["backlog"] },
-      ]);
-      expect(cached?.find((i) => i.id === "C")?.rank).toBe(1500);
-    });
-  });
-
-  it("reverts the cache when a rank write fails", async () => {
-    const { queryClient, wrapper } = wrap();
-    const original = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
-    queryClient.setQueryData<IssueListItem[]>(
-      ["issues", "list", "reef-acme", { status: ["backlog"] }],
-      original,
-    );
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "boom" }), { status: 500 }),
-    );
-    const { result } = renderHook(() => useReorderBacklog(), { wrapper });
-
-    await result.current
-      .mutateAsync({
+    let pending: Promise<unknown> | undefined;
+    act(() => {
+      pending = result.current.mutateAsync({
         vault: "reef-acme",
         scope: "backlog",
-        ...targetFor(original, "C", "B"),
-      })
-      .catch(() => {});
-
-    await waitFor(() => {
-      const cached = queryClient.getQueryData<IssueListItem[]>([
-        "issues",
-        "list",
-        "reef-acme",
-        { status: ["backlog"] },
-      ]);
-      // Reverted to the original rank (3000), not the optimistic 1500.
-      expect(cached?.find((i) => i.id === "C")?.rank).toBe(3000);
+        ...targetFor(rows, "C", "B"),
+      });
     });
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(true);
+      expect(
+        queryClient
+          .getQueryData<IssueListItem[]>(key)
+          ?.find((item) => item.id === "C")?.rank,
+      ).toBe(1500);
+    });
+    await act(async () => {
+      resolveResponse(
+        Response.json({ ok: true, assignments: [{ id: "C", rank: 1750 }] }),
+      );
+      await pending;
+    });
+    expect(
+      queryClient
+        .getQueryData<IssueListItem[]>(key)
+        ?.find((item) => item.id === "C")?.rank,
+    ).toBe(1750);
+  });
+
+  it("restores the original rank after a pending write fails", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+    const { queryClient, wrapper } = wrap();
+    const key = [
+      "issues",
+      "list",
+      "reef-acme",
+      { status: ["backlog"] },
+    ] as const;
+    const rows = ordered(["A", 1000], ["B", 2000], ["C", 3000]);
+    queryClient.setQueryData(key, rows);
+    const { result } = renderHook(() => useReorderBacklog(), { wrapper });
+    let pending: Promise<unknown> | undefined;
+    act(() => {
+      pending = result.current.mutateAsync({
+        vault: "reef-acme",
+        scope: "backlog",
+        ...targetFor(rows, "C", "B"),
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(true);
+      expect(
+        queryClient
+          .getQueryData<IssueListItem[]>(key)
+          ?.find((item) => item.id === "C")?.rank,
+      ).toBe(1500);
+    });
+    await act(async () => {
+      resolveResponse(Response.json({ error: "boom" }, { status: 500 }));
+      await expect(pending).rejects.toThrow("boom");
+    });
+    expect(
+      queryClient
+        .getQueryData<IssueListItem[]>(key)
+        ?.find((item) => item.id === "C")?.rank,
+    ).toBe(3000);
   });
 
   it("exposes the moved issue identity while pending and flashes after canonical success", async () => {

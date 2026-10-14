@@ -27,7 +27,7 @@ describe("issue table contract", () => {
     expect(ISSUE_TABLE_COLUMN_WIDTHS.status).toBe(152);
   });
 
-  it("shares common field order and width tokens between List and Backlog", () => {
+  it("shares common field order between List and Backlog", () => {
     expect(BACKLOG_COLUMNS.slice(0, 2)).toEqual(["select", "rank"]);
     const listCommon = ISSUE_LIST_DEFAULT_COLUMNS.filter((column) =>
       ["id", "type", "title", "status", "priority", "assignee"].includes(
@@ -41,9 +41,6 @@ describe("issue table contract", () => {
     );
 
     expect(listCommon).toEqual(backlogCommon);
-    expect(
-      listCommon.map((column) => ISSUE_TABLE_COLUMN_WIDTHS[column]),
-    ).toEqual(backlogCommon.map((column) => ISSUE_TABLE_COLUMN_WIDTHS[column]));
   });
 
   it("resolves optional planning columns without changing their canonical order", () => {

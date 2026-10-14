@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const {
   mockUploadAsset,
   mockReadAsset,
@@ -56,8 +34,7 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { VALID_JWT } from "../__test-helpers__/jwt";
+import { authedHeaders } from "../__test-helpers__/jwt";
 import { POST as copyFile } from "./from-file/[fileId]/route";
 import { DELETE as discard, GET as read } from "./[assetId]/route";
 import { GET as metadata } from "./[assetId]/metadata/route";
@@ -74,10 +51,6 @@ const ASSET = {
   size_bytes: 3,
   unclaimed_expires_at: "2026-09-11T00:00:00.000Z",
 };
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 function assetParams(assetId = ASSET_ID) {
   return { params: Promise.resolve({ assetId }) };

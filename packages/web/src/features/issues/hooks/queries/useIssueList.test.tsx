@@ -1,4 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
 import {
   act,
   render,
@@ -6,7 +9,6 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { SprintRolloverNudge } from "@/features/planning/components/SprintRolloverNudge";
@@ -38,18 +40,6 @@ const ISSUES: IssueMetadata[] = [
     updated_by: "alice",
   },
 ];
-
-function createWrapper(
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  }),
-) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 const ROLLOVER_SPRINT: Sprint = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -101,7 +91,7 @@ describe("useIssueList", () => {
     );
 
     const { result } = renderHook(() => useIssueList("reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -111,7 +101,7 @@ describe("useIssueList", () => {
 
   it("is disabled when vault is empty", () => {
     const { result } = renderHook(() => useIssueList(""), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     expect(result.current.fetchStatus).toBe("idle");
@@ -121,7 +111,7 @@ describe("useIssueList", () => {
   it("does not start a request when the owning surface is disabled", () => {
     const { result } = renderHook(
       () => useIssueList("reef-acme", undefined, { enabled: false }),
-      { wrapper: createWrapper() },
+      { wrapper: createQueryWrapper() },
     );
 
     expect(result.current.fetchStatus).toBe("idle");
@@ -136,7 +126,7 @@ describe("useIssueList", () => {
     );
 
     const { result } = renderHook(() => useIssueList("reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -155,7 +145,7 @@ describe("useIssueList", () => {
       );
 
     const { result } = renderHook(() => useIssueList("reef-acme"), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -168,9 +158,7 @@ describe("useIssueList", () => {
   });
 
   it("keeps a cached rollover notice through a failed refetch and same-data recovery", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     mockApiFetch
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "temporary failure" }), {
@@ -183,11 +171,9 @@ describe("useIssueList", () => {
         }),
       );
     queryClient.setQueryData(issueListKey("reef-acme"), ROLLOVER_ISSUES);
-    render(
-      <QueryClientProvider client={queryClient}>
-        <IssueListBackedRolloverNudge vault="reef-acme" />
-      </QueryClientProvider>,
-    );
+    render(<IssueListBackedRolloverNudge vault="reef-acme" />, {
+      wrapper: createQueryWrapper(queryClient),
+    });
 
     await waitFor(() =>
       expect(screen.getByTestId("sprint-rollover-nudge")).toBeVisible(),
@@ -238,7 +224,7 @@ describe("useIssueList", () => {
     const { result, rerender } = renderHook(
       ({ q }: { q: Record<string, string> }) => useIssueList("reef-acme", q),
       {
-        wrapper: createWrapper(),
+        wrapper: createQueryWrapper(),
         initialProps: { q: { assigned_to: "alice" } },
       },
     );
@@ -269,7 +255,7 @@ describe("useIssueList", () => {
     const { result, rerender } = renderHook(
       ({ vault }: { vault: string }) => useIssueList(vault),
       {
-        wrapper: createWrapper(),
+        wrapper: createQueryWrapper(),
         initialProps: { vault: "reef-first" },
       },
     );
@@ -306,7 +292,7 @@ describe("useIssueList", () => {
       ({ q }: { q: Record<string, string> }) =>
         useIssueList("reef-acme", q, { keepPreviousData: false }),
       {
-        wrapper: createWrapper(),
+        wrapper: createQueryWrapper(),
         initialProps: { q: { assigned_to: "alice" } },
       },
     );

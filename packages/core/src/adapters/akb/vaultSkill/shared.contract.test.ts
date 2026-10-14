@@ -246,7 +246,7 @@ describe("AkbSearchResponseSchema / AkbSearchHitSchema contract", () => {
 
   // NOT live (search returned 0 hits). Synthesized from akb SearchResult
   // source: backend/app/models/document.py:198. Note akb keys the doc type as
-  // `doc_type` (not `type`) and includes `path` — neither is named by reef.
+  // `doc_type` (not `type`); reef names it and preserves the additional `path`.
   const SEARCH_HIT_FROM_SOURCE = {
     source_type: "document",
     uri: "akb://reef/coll/issues/doc/reef-001.md",
@@ -271,20 +271,26 @@ describe("AkbSearchResponseSchema / AkbSearchHitSchema contract", () => {
     expect(parsed).toHaveProperty("truncated", false);
   });
 
-  it("preserves akb hit fields reef does not name (path, doc_type) via passthrough", () => {
+  it("parses canonical search-hit metadata and validates source_type", () => {
     const parsed = AkbSearchHitSchema.parse(SEARCH_HIT_FROM_SOURCE) as Record<
       string,
       unknown
     >;
     expect(parsed.uri).toBe(SEARCH_HIT_FROM_SOURCE.uri);
-    // passthrough → akb keys survive verbatim (not stripped).
+    expect(parsed).toHaveProperty("source_type", "document");
     expect(parsed).toHaveProperty("doc_type", "task");
+    // Additional upstream fields survive verbatim through passthrough.
     expect(parsed).toHaveProperty("path", "issues/reef-001.md");
-  });
-
-  it("no longer declares the dead `type` mirror (akb sends `doc_type`)", () => {
-    expect(AkbSearchHitSchema.shape).not.toHaveProperty("type");
-    expect(AkbSearchHitSchema.shape).toHaveProperty("source_type");
+    const malformed = AkbSearchHitSchema.safeParse({
+      ...SEARCH_HIT_FROM_SOURCE,
+      source_type: 42,
+    });
+    expect(malformed.success).toBe(false);
+    if (!malformed.success) {
+      expect(malformed.error.issues).toMatchObject([
+        { code: "invalid_type", path: ["source_type"] },
+      ]);
+    }
   });
 });
 

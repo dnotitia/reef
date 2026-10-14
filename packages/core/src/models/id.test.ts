@@ -74,17 +74,12 @@ describe("nextIssueId", () => {
       expect(() => nextIssueId({ prefix: "", currentMax: 0 })).toThrow(
         SchemaValidationError,
       );
-    });
-
-    it("throws SchemaValidationError with field 'prefix' for empty prefix", () => {
-      try {
-        nextIssueId({ prefix: "", currentMax: 0 });
-      } catch (err) {
-        expect(err).toBeInstanceOf(SchemaValidationError);
-        if (err instanceof SchemaValidationError) {
-          expect(err.context.field).toBe("prefix");
-        }
-      }
+      expect(() => nextIssueId({ prefix: "", currentMax: 0 })).toThrow(
+        expect.objectContaining({
+          name: "SchemaValidationError",
+          context: expect.objectContaining({ field: "prefix" }),
+        }),
+      );
     });
 
     it("throws SchemaValidationError when prefix is lowercase (round-trip invariant)", () => {
@@ -115,6 +110,12 @@ describe("nextIssueId", () => {
       expect(() => nextIssueId({ prefix: "REEF", currentMax: -1 })).toThrow(
         SchemaValidationError,
       );
+      expect(() => nextIssueId({ prefix: "REEF", currentMax: -1 })).toThrow(
+        expect.objectContaining({
+          name: "SchemaValidationError",
+          context: expect.objectContaining({ field: "currentMax" }),
+        }),
+      );
     });
 
     it("throws SchemaValidationError when currentMax is a non-integer", () => {
@@ -136,17 +137,6 @@ describe("nextIssueId", () => {
           currentMax: Number.POSITIVE_INFINITY,
         }),
       ).toThrow(SchemaValidationError);
-    });
-
-    it("records field 'currentMax' in SchemaValidationError context for bad currentMax", () => {
-      try {
-        nextIssueId({ prefix: "REEF", currentMax: -1 });
-      } catch (err) {
-        expect(err).toBeInstanceOf(SchemaValidationError);
-        if (err instanceof SchemaValidationError) {
-          expect(err.context.field).toBe("currentMax");
-        }
-      }
     });
   });
 

@@ -238,24 +238,6 @@ test.describe("Search progress hairline (REEF-369)", () => {
     await expect(page.locator(HAIRLINE)).toHaveCount(0);
   });
 
-  test("issue-list search shows the hairline on refetch, then clears", async ({
-    page,
-  }) => {
-    await openExistingWorkspace(page);
-    // The hairline is wired into IssueListTable (and BacklogView); switch to the
-    // List view so it is mounted, then let the initial load settle.
-    await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
-    await expect(
-      page.locator('[data-testid="issue-list-row"]').first(),
-    ).toBeVisible();
-    await delaySearchResponses(page);
-
-    await page.locator('[data-testid="search-input"]').fill("blocker");
-
-    await expect(page.locator(HAIRLINE)).toBeVisible();
-    await expect(page.locator(HAIRLINE)).toHaveCount(0);
-  });
-
   test("empty search mount stays quiet and one progress track follows issue search through each view", async ({
     page,
   }, testInfo) => {

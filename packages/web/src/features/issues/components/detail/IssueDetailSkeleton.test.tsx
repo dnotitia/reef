@@ -87,9 +87,11 @@ describe("IssueDetailSkeleton", () => {
 
     // Every placeholder bar is decorative — aria-hidden individually, while
     // fixed field and section labels stay in the accessibility tree.
-    expect(
-      container.querySelector('.reef-shimmer[aria-hidden="true"]'),
-    ).not.toBeNull();
+    const decorativeBars = container.querySelectorAll(".reef-shimmer");
+    expect(decorativeBars.length).toBeGreaterThan(0);
+    for (const bar of decorativeBars) {
+      expect(bar.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
     expect(
       screen.getByText("Details").closest('[aria-hidden="true"]'),
     ).toBeNull();

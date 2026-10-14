@@ -13,23 +13,7 @@ import type { JiraMigratorConfig, NormalizedJiraIssue } from "../index.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
-import { reportTemplate } from "../related/reporting.js";
-import { mappedFingerprintForIssue } from "./decisions.js";
-import { scheduleIssuePlansForApply } from "./issueSchedule.js";
-import {
-  actionForRelatedIssuePlan,
-  assertRelatedOperationSubset,
-  relatedPlanForApproval,
-} from "./plan.js";
-import {
-  actionForRelatedReport,
-  baseIssueReadbackMatches,
-  canRecoverApprovedPlanningCreate,
-  inferRelationSourceProjectKey,
-  issueReadbackApprovalFingerprint,
-  migrationScopeLockIdentity,
-  runJiraMigration,
-} from "./runner.js";
+import { runJiraMigration } from "./runner.js";
 import { JiraTargetConflictError } from "./targetAdapter.js";
 
 let root: string | null = null;

@@ -13,7 +13,11 @@ describe("settings loading.tsx", () => {
 
     // The settings-group placeholders are decorative — aria-hidden so a screen
     // reader skips the empty DOM.
-    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    const placeholders = container.querySelectorAll(".reef-shimmer");
+    expect(placeholders.length).toBeGreaterThan(0);
+    for (const placeholder of placeholders) {
+      expect(placeholder.closest('[aria-hidden="true"]')).not.toBeNull();
+    }
 
     // The role=status loading announcement is a sibling, not under aria-hidden.
     const status = screen.getByRole("status");

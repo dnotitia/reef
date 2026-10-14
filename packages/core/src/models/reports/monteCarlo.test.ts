@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  FORECAST_CONFIDENCES,
   MAX_FORECAST_WEEKS,
   computeForecast,
   createSeededRng,
@@ -17,6 +16,7 @@ describe("computeForecast — AC1: when will it be done", () => {
       weeklyThroughput: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
       horizonWeeks: 4,
     });
+    expect(forecast.completion).toHaveLength(4);
     for (const c of forecast.completion) {
       expect(c.weeks).toBe(5);
       expect(c.capped).toBe(false);
@@ -30,6 +30,7 @@ describe("computeForecast — AC1: when will it be done", () => {
       weeklyThroughput: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
       horizonWeeks: 4,
     });
+    expect(forecast.completion).toHaveLength(4);
     expect(forecast.completion.every((c) => c.weeks === 4)).toBe(true);
   });
 
@@ -70,6 +71,7 @@ describe("computeForecast — AC2: how many by date", () => {
       weeklyThroughput: [2, 2, 2, 2, 2, 2, 2, 2],
       horizonWeeks: 3,
     });
+    expect(forecast.byDate).toHaveLength(4);
     expect(forecast.byDate.every((b) => b.count === 6)).toBe(true);
   });
 
@@ -80,6 +82,7 @@ describe("computeForecast — AC2: how many by date", () => {
       weeklyThroughput: [5, 5, 5, 5, 5, 5, 5, 5],
       horizonWeeks: 4,
     });
+    expect(forecast.byDate).toHaveLength(4);
     expect(forecast.byDate.every((b) => b.count === 3)).toBe(true);
   });
 
@@ -104,11 +107,9 @@ describe("computeForecast — AC3: the 50/70/85/95 percentiles", () => {
       horizonWeeks: 4,
     });
     expect(forecast.completion.map((c) => c.confidence)).toEqual([
-      ...FORECAST_CONFIDENCES,
+      50, 70, 85, 95,
     ]);
-    expect(forecast.byDate.map((b) => b.confidence)).toEqual([
-      ...FORECAST_CONFIDENCES,
-    ]);
+    expect(forecast.byDate.map((b) => b.confidence)).toEqual([50, 70, 85, 95]);
   });
 });
 
@@ -131,6 +132,8 @@ describe("computeForecast — guards", () => {
       horizonWeeks: 4,
     });
     expect(forecast.insufficient).toBe(false);
+    expect(forecast.completion).toHaveLength(4);
+    expect(forecast.byDate).toHaveLength(4);
     expect(forecast.completion.every((c) => c.weeks === 0)).toBe(true);
     expect(forecast.byDate.every((b) => b.count === 0)).toBe(true);
   });
@@ -200,6 +203,7 @@ describe("computeForecast — determinism", () => {
       weeklyThroughput: [0, 0, 0, 1, 0, 0, 0, 0],
       horizonWeeks: 4,
     });
+    expect(forecast.completion).toHaveLength(4);
     expect(
       forecast.completion.every((c) => c.weeks <= MAX_FORECAST_WEEKS),
     ).toBe(true);

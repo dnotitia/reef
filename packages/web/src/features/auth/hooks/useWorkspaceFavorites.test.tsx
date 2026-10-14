@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import Dexie from "dexie";
 import { db } from "@/lib/storage/db";
 import {
   getWorkspaceFavorites,
@@ -20,21 +21,31 @@ describe("useWorkspaceFavorites", () => {
 
   it("optimistically toggles and restores the previous state after a save failure", async () => {
     await setWorkspaceFavorites(["reef-alpha"]);
+    const saving = Promise.withResolvers<number>();
     const put = vi
       .spyOn(db.config, "put")
-      .mockRejectedValueOnce(new Error("storage unavailable"));
+      .mockReturnValueOnce(Dexie.Promise.resolve(saving.promise));
     const { result } = renderHook(() => useWorkspaceFavorites(CANDIDATES));
 
     await waitFor(() =>
       expect(result.current.favorites).toEqual(["reef-alpha"]),
     );
+    let toggling: Promise<void> = Promise.resolve();
+    act(() => {
+      toggling = result.current.toggleFavorite("reef-alpha");
+    });
+    await waitFor(() => expect(put).toHaveBeenCalledOnce());
+    expect(result.current.favorites).toEqual([]);
+    expect(result.current.hasStorageError).toBe(false);
     await act(async () => {
-      await result.current.toggleFavorite("reef-alpha");
+      saving.reject(new Error("storage unavailable"));
+      await toggling;
     });
 
     expect(result.current.favorites).toEqual(["reef-alpha"]);
     expect(result.current.hasStorageError).toBe(true);
     put.mockRestore();
+    expect(await getWorkspaceFavorites()).toEqual(["reef-alpha"]);
   });
 
   it("clears the in-memory preference when the account cleanup event arrives", async () => {

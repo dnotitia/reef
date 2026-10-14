@@ -100,7 +100,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   helpers) declare `// @vitest-environment node` at the top of the file so they
   do not load jsdom. A missing docblock is silent — the test still passes under
   jsdom — so add it deliberately.
-- E2E tests live in `packages/web/tests/e2e/`; LLM evals live in `packages/web/tests/evals/` with
-  `vitest.eval.ts`.
+- E2E tests live in `packages/web/tests/e2e/`. Prompt contracts and agent output
+  validation belong beside their production owners under
+  `src/server/application/agents/`; provider fixtures must exercise those owners.
 - Real GitHub/LLM/AKB contract checks belong in a separate live E2E
   project or command and must not be the default `test:e2e` signal.

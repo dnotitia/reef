@@ -18,6 +18,8 @@ describe("PlanningKindIcon", () => {
 
     // Shape carries the meaning — the three glyphs should differ.
     expect(sprintSvg).toBeTruthy();
+    expect(milestoneSvg).toBeTruthy();
+    expect(releaseSvg).toBeTruthy();
     expect(sprintSvg).not.toBe(milestoneSvg);
     expect(milestoneSvg).not.toBe(releaseSvg);
     expect(sprintSvg).not.toBe(releaseSvg);

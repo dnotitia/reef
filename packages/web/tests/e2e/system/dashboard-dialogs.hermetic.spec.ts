@@ -23,17 +23,6 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await resetFixture(request, "configured");
   });
 
-  test("renders the reports page through Route Handlers", async ({ page }) => {
-    await openExistingWorkspace(page);
-
-    await page.goto("/workspace/reef-e2e/reports");
-    await expect(page.locator('[data-testid="reports-page"]')).toBeVisible();
-    await expect(
-      page.locator('[data-testid="report-scope-bar"]'),
-    ).toBeVisible();
-    await expect(page.getByText("Workflow")).toBeVisible();
-  });
-
   test("opens global search, shortcuts, Ask AI, and workspace dialogs from the dashboard shell", async ({
     context,
     page,
@@ -154,16 +143,5 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await expect(
       page.locator('[data-testid="create-workspace-dialog"]'),
     ).toBeHidden();
-  });
-
-  test("signs out from the account menu through the real logout route", async ({
-    page,
-  }) => {
-    await openExistingWorkspace(page);
-
-    await page.getByLabel("Account menu").click();
-    await page.locator('[data-testid="account-signout"]').click();
-    await page.waitForURL(/\/login$/, { timeout: 10_000 });
-    await expect(page.locator('[data-testid="akb-login-form"]')).toBeVisible();
   });
 });

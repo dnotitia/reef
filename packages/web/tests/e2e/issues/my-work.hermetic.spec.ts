@@ -245,17 +245,6 @@ test.describe("Hermetic My Work flow", () => {
     ).toBeVisible();
   });
 
-  test("opens an issue from the queue", async ({ page }) => {
-    await openExistingWorkspace(page, "reef-alpha");
-    await page.goto("/workspace/reef-alpha/my-work");
-
-    const firstRow = page.locator('a[data-testid^="my-work-row-"]').first();
-    await expect(firstRow).toBeVisible();
-    await firstRow.click();
-
-    await page.waitForURL(/\/issues\/REEF-/, { timeout: 10_000 });
-  });
-
   test("keeps populated rows readable and contained at the supported widths", async ({
     page,
     request,

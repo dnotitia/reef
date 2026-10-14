@@ -96,7 +96,11 @@ describe("activity payload schemas (REEF-126)", () => {
       }),
     ).toEqual({ ref_type: "pull_request", ref: "42", repo: "dnotitia/reef" });
     expect(() =>
-      ImplRefLinkedPayloadSchema.parse({ ref_type: "pull_request", ref: "" }),
+      ImplRefLinkedPayloadSchema.parse({
+        ref_type: "pull_request",
+        ref: "",
+        repo: null,
+      }),
     ).toThrow();
   });
 

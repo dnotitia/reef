@@ -378,15 +378,14 @@ describe("IssueDetail", { timeout: 10_000 }, () => {
     );
   });
 
-  it("forwards vault to AssigneeCombobox (which then hits /api/vault-members)", async () => {
+  it("renders all three People controls", async () => {
     render(
       wrap(
         <IssueDetail issueId="REEF-001" vault="reef-acme" onClose={() => {}} />,
       ),
     );
     await screen.findByDisplayValue("Sample title");
-    // AssigneeCombobox renders eagerly with vault prop — its data fetch is gated
-    // on user opening the popover, so just verify the combobox container exists.
+    // The detail sidebar exposes Assignee, Requester, and Reporter controls.
     expect(await screen.findAllByTestId("assignee-combobox")).toHaveLength(3);
   });
 

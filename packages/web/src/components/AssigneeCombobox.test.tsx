@@ -92,20 +92,6 @@ describe("AssigneeCombobox", () => {
     );
   });
 
-  it("renders the popover trigger when vault is provided", () => {
-    render(
-      wrap(
-        <AssigneeCombobox
-          value="alice"
-          onChange={() => {}}
-          vault="reef-acme"
-        />,
-      ),
-    );
-    expect(screen.getByTestId("assignee-combobox")).toBeInTheDocument();
-    expect(screen.getByLabelText("Assignee: alice")).toBeInTheDocument();
-  });
-
   it("uses the current roster display name on the assigned value and refreshes it", async () => {
     let displayName = "Fixture Editor";
     const members: VaultMember[] = [

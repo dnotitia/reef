@@ -147,109 +147,56 @@ describe("KanbanBoard drag and status updates", () => {
     });
   });
 
-  it("PATCHes status when a card is moved backward by the user", async () => {
-    useFieldOrdering();
-    mockApiFetch.mockImplementation(async (url, init) => {
-      if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
-        return new Response(JSON.stringify({ issues: ISSUES }), {
-          status: 200,
-        });
-      }
-      if (url === "/api/issues/REEF-002" && init?.method === "PATCH") {
-        return new Response(
-          JSON.stringify({
-            issue: { ...ISSUES[1], status: "todo" },
+  it.each(["in_progress", "closed"] as const)(
+    "PATCHes only the target status when moving a %s card backward",
+    async (status) => {
+      useFieldOrdering();
+      const source: IssueMetadata = {
+        ...ISSUES[1],
+        status,
+        ...(status === "closed"
+          ? {
+              closed_at: "2026-05-20T00:00:00.000Z",
+              closed_reason: "completed" as const,
+            }
+          : {}),
+      };
+      mockApiFetch.mockImplementation(async (url, init) => {
+        if (String(url).startsWith("/api/issues?vault=reef-acme")) {
+          return Response.json({ issues: [source] });
+        }
+        if (url === "/api/issues/REEF-002" && init?.method === "PATCH") {
+          return Response.json({
+            issue: { ...source, status: "todo" },
             content: "",
-          }),
-          { status: 200 },
-        );
-      }
-      return new Response("{}", { status: 500 });
-    });
-
-    render(wrap(<KanbanBoard vault="reef-acme" />));
-    await screen.findByText("In progress B");
-
-    act(() => {
-      dndHarness.contextProps?.onDragEnd?.({
-        active: { data: { current: { issue: ISSUES[1] } } },
-        over: { id: "todo" },
+          });
+        }
+        return new Response("{}", { status: 500 });
       });
-    });
-
-    await waitFor(() =>
-      expect(mockApiFetch).toHaveBeenCalledWith(
-        "/api/issues/REEF-002",
-        expect.objectContaining({ method: "PATCH" }),
-      ),
-    );
-
-    const patchCall = mockApiFetch.mock.calls.find(
-      ([url, init]) =>
-        url === "/api/issues/REEF-002" && init?.method === "PATCH",
-    );
-    const body = JSON.parse(patchCall?.[1]?.body as string);
-
-    expect(body.update).toEqual({
-      issue_id: "REEF-002",
-      patch: { status: "todo" },
-    });
-  });
-
-  it("clears closed metadata when a closed card is moved backward by the user", async () => {
-    useFieldOrdering();
-    const closedIssue: IssueMetadata = {
-      ...ISSUES[1],
-      status: "closed",
-      closed_at: "2026-05-20T00:00:00.000Z",
-      closed_reason: "completed",
-    };
-    mockApiFetch.mockImplementation(async (url, init) => {
-      if ((url as string).startsWith("/api/issues?vault=reef-acme")) {
-        return new Response(JSON.stringify({ issues: [closedIssue] }), {
-          status: 200,
+      render(wrap(<KanbanBoard vault="reef-acme" />));
+      await screen.findByText("In progress B");
+      act(() => {
+        dndHarness.contextProps?.onDragEnd?.({
+          active: { data: { current: { issue: source } } },
+          over: { id: "todo" },
         });
-      }
-      if (url === "/api/issues/REEF-002" && init?.method === "PATCH") {
-        return new Response(
-          JSON.stringify({
-            issue: { ...closedIssue, status: "todo" },
-            content: "",
-          }),
-          { status: 200 },
-        );
-      }
-      return new Response("{}", { status: 500 });
-    });
-
-    render(wrap(<KanbanBoard vault="reef-acme" />));
-    await screen.findByText("In progress B");
-
-    act(() => {
-      dndHarness.contextProps?.onDragEnd?.({
-        active: { data: { current: { issue: closedIssue } } },
-        over: { id: "todo" },
       });
-    });
-
-    await waitFor(() =>
-      expect(mockApiFetch).toHaveBeenCalledWith(
-        "/api/issues/REEF-002",
-        expect.objectContaining({ method: "PATCH" }),
-      ),
-    );
-
-    const patchCall = mockApiFetch.mock.calls.find(
-      ([url, init]) =>
-        url === "/api/issues/REEF-002" && init?.method === "PATCH",
-    );
-    const body = JSON.parse(patchCall?.[1]?.body as string);
-
-    expect(body.update).toEqual({
-      issue_id: "REEF-002",
-      patch: { status: "todo" },
-    });
-  });
+      await waitFor(() =>
+        expect(mockApiFetch).toHaveBeenCalledWith(
+          "/api/issues/REEF-002",
+          expect.objectContaining({ method: "PATCH" }),
+        ),
+      );
+      const call = mockApiFetch.mock.calls.find(
+        ([url, init]) =>
+          url === "/api/issues/REEF-002" && init?.method === "PATCH",
+      );
+      expect(JSON.parse(String(call?.[1]?.body)).update).toEqual({
+        issue_id: "REEF-002",
+        patch: { status: "todo" },
+      });
+    },
+  );
 
   it("does not PATCH when the card is dropped outside a status column", async () => {
     mockApiFetch.mockResolvedValue(

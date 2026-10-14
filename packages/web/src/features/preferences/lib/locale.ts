@@ -7,7 +7,7 @@ export type { Locale } from "@/i18n/locales";
  * preference, not a session token, so it should outlive the akb session cookie;
  * IndexedDB still restores the choice if the cookie is ever cleared.
  */
-export const LOCALE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+const LOCALE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 /**
  * Apply a locale on the client: update `<html lang>` for immediate feedback and

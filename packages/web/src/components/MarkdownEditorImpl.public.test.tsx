@@ -13,7 +13,7 @@ import {
   buildResolvedMentionRecipients,
   formatMentionToken,
   parseMentionTokens,
-  type VaultMember,
+  IssueListItemSchema,
 } from "@reef/core";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -98,51 +98,171 @@ describe("Markdown editor public contract", () => {
     );
   });
 
-  it("keeps exact username identities separate from authored mention tokens", async () => {
-    const username = "team@ops\\blue}";
-    const authoredToken = formatMentionToken(username);
-    const onChange = vi.fn();
-    const member = {
-      username,
-      display_name: "Operations owner",
-    } as VaultMember;
-    const { container } = render(
-      <IntlTestProvider locale="en">
-        <MarkdownEditor
-          value={`Before ${authoredToken} after.`}
-          onChange={onChange}
-          readOnly
-          mentionConfig={{
-            members: [member],
-            issues: [],
-            mentionOptionLabel: (value) => `@${value}`,
-          }}
-        />
-      </IntlTestProvider>,
-    );
-    await waitFor(() =>
-      expect(
-        container.querySelector('[data-markdown-reference="true"]'),
-      ).toHaveAttribute("data-markdown-reference-resolution", "available"),
-    );
-    const reference = container.querySelector(
-      '[data-markdown-reference="true"]',
-    );
-    if (!reference) {
-      throw new Error("Shared Markdown surface did not render the mention");
-    }
-
-    expect(reference).toHaveAttribute("data-markdown-reference-id", username);
-    expect(reference).toHaveAttribute(
-      "data-markdown-reference-value",
-      authoredToken,
-    );
-    expect(reference).toHaveAttribute(
-      "data-markdown-reference-title",
-      `@${username}`,
-    );
-    expect(onChange).not.toHaveBeenCalled();
-  });
+  it.each([
+    {
+      markdown: String.raw`Before @{team@ops\\blue\}} after.`,
+      members: [
+        {
+          username: "team@ops\\blue}",
+          display_name: "Operations owner",
+          role: "member",
+        },
+      ],
+      references: [
+        {
+          id: "team@ops\\blue}",
+          value: String.raw`@{team@ops\\blue\}}`,
+          title: "@team@ops\\blue}",
+        },
+      ],
+    },
+    {
+      markdown: "@alice @Alice REEF-001",
+      members: [
+        { username: "alice", display_name: "Alice Lower", role: "member" },
+        { username: "Alice", display_name: "Alice Upper", role: "member" },
+      ],
+      references: [
+        { id: "alice", value: "@alice", title: "@alice" },
+        { id: "Alice", value: "@Alice", title: "@Alice" },
+      ],
+    },
+  ])(
+    "keeps exact username identities separate from authored mention tokens in $markdown",
+    async ({ markdown, members, references }) => {
+      const onChange = vi.fn();
+      const mentionConfig = {
+        members,
+        issues: [
+          IssueListItemSchema.parse({
+            id: "REEF-001",
+            title: "Auth flow",
+            status: "todo",
+            created_at: "2026-01-01T00:00:00.000Z",
+            created_by: "alice",
+            updated_at: "2026-01-01T00:00:00.000Z",
+            updated_by: "alice",
+            archived_at: null,
+          }),
+        ],
+        mentionOptionLabel: (value: string) => `@${value}`,
+      };
+      const props = {
+        value: markdown,
+        onChange,
+        readOnly: true,
+        vault: "reef-test",
+      };
+      const { container, rerender } = render(
+        <IntlTestProvider locale="en">
+          <MarkdownEditor {...props} mentionConfig={mentionConfig} />
+        </IntlTestProvider>,
+      );
+      const people = () =>
+        Array.from(
+          container.querySelectorAll(
+            '[data-markdown-reference="true"][data-markdown-reference-kind="person"]',
+          ),
+        );
+      await waitFor(() => {
+        expect(people()).toHaveLength(references.length);
+        references.forEach((reference, index) => {
+          expect(people()[index]).toHaveAttribute(
+            "data-markdown-reference-resolution",
+            "available",
+          );
+          expect(people()[index]).toHaveAttribute(
+            "data-markdown-reference-id",
+            reference.id,
+          );
+          expect(people()[index]).toHaveAttribute(
+            "data-markdown-reference-value",
+            reference.value,
+          );
+          expect(people()[index]).toHaveAttribute(
+            "title",
+            `${reference.value} — ${reference.title}`,
+          );
+        });
+      });
+      if (markdown.includes("REEF-001")) {
+        const issue = container.querySelector(
+          '[data-markdown-reference="true"][data-markdown-reference-kind="issue"]',
+        );
+        await waitFor(() =>
+          expect(issue).toHaveAttribute(
+            "href",
+            "/workspace/reef-test/issues/REEF-001",
+          ),
+        );
+        expect(issue).toHaveAttribute(
+          "data-markdown-reference-title",
+          "Auth flow",
+        );
+      }
+      const removed = references[references.length - 1];
+      rerender(
+        <IntlTestProvider locale="en">
+          <MarkdownEditor
+            {...props}
+            mentionConfig={{
+              ...mentionConfig,
+              members: members.filter(
+                (member) => member.username !== removed.id,
+              ),
+            }}
+          />
+        </IntlTestProvider>,
+      );
+      await waitFor(() =>
+        expect(people()[references.length - 1]).toHaveAttribute(
+          "data-markdown-reference-resolution",
+          "unavailable",
+        ),
+      );
+      expect(people()[references.length - 1]).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+      expect(people()[references.length - 1]).toHaveAttribute(
+        "data-markdown-reference-value",
+        removed.value,
+      );
+      if (references.length === 2)
+        expect(people()[0]).toHaveAttribute(
+          "data-markdown-reference-resolution",
+          "available",
+        );
+      rerender(
+        <IntlTestProvider locale="en">
+          <MarkdownEditor
+            {...props}
+            mentionConfig={{
+              ...mentionConfig,
+              members: [...members].reverse(),
+            }}
+          />
+        </IntlTestProvider>,
+      );
+      await waitFor(() =>
+        references.forEach((reference, index) => {
+          expect(people()[index]).toHaveAttribute(
+            "data-markdown-reference-resolution",
+            "available",
+          );
+          expect(people()[index]).toHaveAttribute(
+            "data-markdown-reference-id",
+            reference.id,
+          );
+          expect(people()[index]).toHaveAttribute(
+            "title",
+            `${reference.value} — ${reference.title}`,
+          );
+        }),
+      );
+      expect(onChange).not.toHaveBeenCalled();
+    },
+  );
 
   it("preserves core username and recipient identity through repeated public round trips", () => {
     const usernames = ["alice", "한글42", "Ada Lovelace", "team@ops\\blue}"];

@@ -16,7 +16,6 @@ import {
   resolveCommandTarget,
 } from "@/features/commands/lib/commandContext";
 import {
-  buildNavigationHref,
   buildViewHref,
   resolveCurrentIssueView,
 } from "@/features/commands/lib/commandNavigation";
@@ -35,6 +34,7 @@ import {
   type ShortcutBinding,
   isFirefoxLike,
 } from "@/features/shortcuts/lib/shortcuts";
+import { withVault } from "@/lib/workspaceHref";
 import type { Locale } from "@/i18n/locales";
 import type { ThemePreference } from "@/lib/storage/config";
 import type {
@@ -188,7 +188,7 @@ export function useCommandRegistry({
         return;
       }
       commitIssuePatch(target, (issue) =>
-        issue.status === next ? null : buildStatusPatch(issue, next),
+        issue.status === next ? null : buildStatusPatch(next),
       );
     },
     [commitIssuePatch, getFreshIssue],
@@ -218,9 +218,7 @@ export function useCommandRegistry({
       setPendingClose(null);
       if (!target) return;
       commitIssuePatch(target, (issue) =>
-        issue.status === "closed"
-          ? null
-          : buildStatusPatch(issue, "closed", undefined, reason),
+        issue.status === "closed" ? null : buildStatusPatch("closed", reason),
       );
     },
     [commitIssuePatch, pendingClose],
@@ -243,7 +241,7 @@ export function useCommandRegistry({
     ) => {
       const { id } = descriptor;
       if (id in NAVIGATION_HREFS) {
-        navigate(buildNavigationHref(vault, NAVIGATION_HREFS[id] ?? "/issues"));
+        navigate(withVault(vault, NAVIGATION_HREFS[id] ?? "/issues"));
         return;
       }
       if (id.startsWith("view.")) {
@@ -374,9 +372,7 @@ export function useCommandRegistry({
       if (id === "navigation.chord") return () => startChord("g");
       if (id in NAVIGATION_HREFS) {
         return () =>
-          navigate(
-            buildNavigationHref(vault, NAVIGATION_HREFS[id] ?? "/issues"),
-          );
+          navigate(withVault(vault, NAVIGATION_HREFS[id] ?? "/issues"));
       }
       if (id === "issue.new") return openNewIssue;
       if (id === "ai.toggle") return toggleAskAi;

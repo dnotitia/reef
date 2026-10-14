@@ -48,3 +48,8 @@
 - Apply/reconciliation tests must cover mutation-free dry runs, idempotent
   reruns, target readback before binding confirmation, visibility revocation,
   bounded attachment handling, and partial-failure recovery.
+- Keep internal dependency directions in `src/moduleBoundary.test.ts`; the
+  canonical workspace dependency-cruiser check owns file-level cycle proof.
+- The built behavior harness owns public-package and fresh-process resume
+  proof. Assert captured AKB wire values against independent expectations when
+  its limited SQL fixture supplies source-derived readback defaults.

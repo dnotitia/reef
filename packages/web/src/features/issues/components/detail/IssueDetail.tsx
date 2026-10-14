@@ -395,7 +395,7 @@ function IssueDetailLoaded({
   function confirmClose(reason: ClosedReason) {
     setDraftField("status", "closed");
     setCloseDialogOpen(false);
-    commit(buildStatusPatch(issue, "closed", undefined, reason));
+    commit(buildStatusPatch("closed", reason));
   }
 
   async function handleArchiveToggle() {

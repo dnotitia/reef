@@ -1,3 +1,5 @@
+import { renderToString } from "react-dom/server";
+import { within } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PageHeader } from "./PageHeader";
@@ -15,11 +17,6 @@ describe("PageHeader", () => {
     expect(
       screen.getByRole("heading", { name: "Issues", level: 1 }),
     ).not.toHaveAttribute("translate");
-  });
-
-  it("renders the description text as the header subtitle", () => {
-    render(<PageHeader title="Reports" description="reef-acme" />);
-    expect(screen.getByText("reef-acme")).toBeInTheDocument();
   });
 
   it("uses the canonical page-title role without an inline tracking override", () => {
@@ -101,13 +98,18 @@ describe("PageHeader", () => {
   });
 
   it("keeps non-interactive loading chrome visible before hydration", () => {
-    render(
+    const header = (
       <PageHeader
         title="Issues"
         staticTitleAdjacent={<span>Active</span>}
         staticActions={<span>Board</span>}
-      />,
+      />
     );
+    const server = document.createElement("div");
+    server.innerHTML = renderToString(header);
+    expect(within(server).getByText("Active")).toHaveTextContent("Active");
+    expect(within(server).getByText("Board")).toHaveTextContent("Board");
+    render(header);
 
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Board")).toBeInTheDocument();
@@ -120,15 +122,25 @@ describe("PageHeader", () => {
   });
 
   it("keeps a static description in place through hydration", () => {
-    render(
+    const header = (
       <PageHeader
         title="Issues"
         description="loaded description"
         staticDescription={
           <span data-testid="pending-description">Pending description</span>
         }
-      />,
+      />
     );
+    const server = document.createElement("div");
+    server.innerHTML = renderToString(header);
+    expect(within(server).getByTestId("pending-description")).toHaveTextContent(
+      "Pending description",
+    );
+    expect(within(server).queryByText("loaded description")).toBeNull();
+    expect(
+      within(server).getByTestId("pending-description").parentElement,
+    ).toHaveAttribute("aria-hidden", "true");
+    render(header);
 
     expect(screen.getByTestId("pending-description")).toBeInTheDocument();
     expect(screen.queryByText("loaded description")).toBeNull();

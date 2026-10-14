@@ -1,6 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createQueryWrapper } from "@/test-support/query";
+import { QueryClient } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Let the real throwHttpError flow through — it just parses res.json()
@@ -34,17 +34,6 @@ const mockApiFetch = vi.mocked(apiFetch);
 const ETAG_KEY = "reef:etag:repos:installation:list:v3";
 const LEGACY_PAT_ETAG_KEY = "reef:etag:repos:list:v2";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
@@ -69,7 +58,7 @@ describe("useRepos", () => {
     );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -93,7 +82,7 @@ describe("useRepos", () => {
     );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -115,7 +104,7 @@ describe("useRepos", () => {
     );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -143,7 +132,7 @@ describe("useRepos", () => {
       );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -168,7 +157,7 @@ describe("useRepos", () => {
       .mockResolvedValueOnce(new Response(null, { status: 304 }));
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -189,7 +178,7 @@ describe("useRepos", () => {
     );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -205,7 +194,7 @@ describe("useRepos", () => {
     );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     // Give a (wrongly) enabled query time to fire before asserting it didn't.
@@ -224,7 +213,7 @@ describe("useRepos", () => {
     );
 
     const { result } = renderHook(() => useRepos(), {
-      wrapper: createWrapper(),
+      wrapper: createQueryWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -244,9 +233,7 @@ describe("useRepos", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: true } },
     });
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
+    const wrapper = createQueryWrapper(queryClient);
 
     const { result } = renderHook(() => useRepos(), { wrapper });
 

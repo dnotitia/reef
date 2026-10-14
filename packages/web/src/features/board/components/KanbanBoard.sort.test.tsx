@@ -105,43 +105,47 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
     expect(isBefore(backend, ui)).toBe(true);
   });
 
-  it("re-orders the same column by priority (high → low)", async () => {
+  it("re-orders reverse-input cards in the same column by priority (high → low)", async () => {
     useIssueStore.setState({
       filter: { sortField: "priority", sortOrder: "desc" },
       searchQuery: "",
       selectedIssueId: null,
     });
     mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+      Response.json({ issues: [FILTER_ISSUES[3], FILTER_ISSUES[0]] }),
     );
-
     render(wrap(<KanbanBoard vault="reef-acme" />));
-
-    const ui = await screen.findByText("UI board polish"); // high
-    const backend = await screen.findByText("Backend blocker"); // medium
+    const ui = await screen.findByText("UI board polish");
+    const backend = await screen.findByText("Backend blocker");
     expect(isBefore(ui, backend)).toBe(true);
   });
 
-  it("orders the same column by numeric ticket number in either direction", async () => {
-    useIssueStore.setState({
-      filter: { sortField: "reef_id", sortOrder: "asc" },
-      searchQuery: "",
-      selectedIssueId: null,
-    });
-    const rows = FILTER_ISSUES.map((issue, index) => ({
-      ...issue,
-      id: index === 0 ? "TEAM_2-1000" : index === 1 ? "TEAM_2-999" : issue.id,
-    }));
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: rows }), { status: 200 }),
-    );
-
-    render(wrap(<KanbanBoard vault="reef-acme" />));
-
-    const oneThousand = await screen.findByText("UI board polish");
-    const nineNinetyNine = await screen.findByText("Backend blocker");
-    expect(isBefore(nineNinetyNine, oneThousand)).toBe(true);
-  });
+  it.each([
+    ["asc", ["TEAM_2-999", "TEAM_2-1000"]],
+    ["desc", ["TEAM_2-1000", "TEAM_2-999"]],
+  ] as const)(
+    "orders competing numeric ticket numbers in one column %s",
+    async (sortOrder, expected) => {
+      useIssueStore.setState({
+        filter: { sortField: "reef_id", sortOrder },
+        searchQuery: "",
+        selectedIssueId: null,
+      });
+      const rows = [
+        { ...FILTER_ISSUES[0], id: "TEAM_2-1000" },
+        { ...FILTER_ISSUES[3], id: "TEAM_2-999" },
+      ];
+      mockApiFetch.mockResolvedValue(Response.json({ issues: rows }));
+      render(wrap(<KanbanBoard vault="reef-acme" />));
+      await screen.findByText("UI board polish");
+      await screen.findByText("Backend blocker");
+      expect(
+        screen
+          .getAllByTestId("kanban-card")
+          .map((card) => card.dataset.issueId),
+      ).toEqual(expected);
+    },
+  );
 
   it("reorders the same Manual Board group through the shared rank command", async () => {
     const manualIssues = FILTER_ISSUES.map((issue) =>

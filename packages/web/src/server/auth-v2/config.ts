@@ -112,21 +112,6 @@ export function requireAuthV2RuntimeConfig(
   return config;
 }
 
-export function summarizeAuthV2RuntimeConfig(config: AuthV2RuntimeConfig): {
-  enabled: boolean;
-  mode: "local" | "sso";
-  redisConfigured: boolean;
-  encryptionKeyConfigured: boolean;
-} {
-  return {
-    enabled: config.enabled,
-    mode: config.mode,
-    redisConfigured: config.enabled && Boolean(config.redisUrl),
-    encryptionKeyConfigured:
-      config.enabled && config.encryptionKey.byteLength === 32,
-  };
-}
-
 function readMode(env: AuthV2Environment): "local" | "sso" {
   const raw = env.REEF_AUTH_MODE?.trim().toLowerCase();
   if (!raw) {

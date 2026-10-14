@@ -29,8 +29,7 @@ import LoginPage from "./page";
 
 const loadAkbAuthConfigMock = vi.mocked(loadAkbAuthConfig);
 
-function ssoEnabledConfig(options: { ssoOnly?: boolean } = {}) {
-  void options;
+function ssoEnabledConfig() {
   return {
     ok: true as const,
     config: {
@@ -135,25 +134,19 @@ describe("LoginPage", () => {
   });
 
   describe("SSO-first auto-redirect (REEF-312)", () => {
-    it("does not auto-redirect by default (env unset)", async () => {
-      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
-      const view = await LoginPage({ searchParams: Promise.resolve({}) });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
+    it.each([{}, { redirect: "/issues" }])(
+      "keeps the login panel without auto-redirect opt-in for %j",
+      async (searchParams) => {
+        loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
+        const view = await LoginPage({
+          searchParams: Promise.resolve(searchParams),
+        });
+        render(<IntlTestProvider>{view}</IntlTestProvider>);
 
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-      expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not redirect without explicit auto-redirect opt-in", async () => {
-      loadAkbAuthConfigMock.mockResolvedValue(
-        ssoEnabledConfig({ ssoOnly: true }),
-      );
-      const view = await LoginPage({
-        searchParams: Promise.resolve({ redirect: "/issues" }),
-      });
-      render(<IntlTestProvider>{view}</IntlTestProvider>);
-      expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-    });
+        expect(screen.getByTestId("login-panel")).toBeInTheDocument();
+        expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
+      },
+    );
 
     it("redirects to SSO start, preserving the redirect destination", async () => {
       vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");

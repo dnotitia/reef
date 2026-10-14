@@ -1347,7 +1347,9 @@ function searchVaultResources(vault, url) {
 function isToolLoopSearch(url) {
   const query = (url.searchParams.get("q") ?? "").toLowerCase();
   return (
-    query.includes("initial issue alpha") || query.includes("spec overview")
+    (query === "alpha" && url.searchParams.get("collection") === "issues") ||
+    query.includes("initial issue alpha") ||
+    query.includes("spec overview")
   );
 }
 

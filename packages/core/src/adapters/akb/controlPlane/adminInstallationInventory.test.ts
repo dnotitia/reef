@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthError, ControlPlaneError } from "../../../errors";
-import {
-  makeTestAkbAdapter,
-  setupFetch,
-} from "../../../test-support/akb/fetchMock";
+import { makeAdapter, setupFetch } from "../core/httpTestSupport";
 import { listAdminActiveInstallations } from "./installationInventoryReader";
 
 const appId = "11111111-1111-4111-8111-111111111111";
@@ -27,7 +24,7 @@ describe("user-authenticated admin installation inventory", () => {
       { body: { items: [item(2)], next_cursor: null } },
     ]);
     const result = await listAdminActiveInstallations({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       appId,
     });
     expect(result.map((entry) => entry.vaultName)).toEqual([
@@ -63,7 +60,7 @@ describe("user-authenticated admin installation inventory", () => {
         },
       ]);
       await expect(
-        listAdminActiveInstallations({ adapter: makeTestAkbAdapter(), appId }),
+        listAdminActiveInstallations({ adapter: makeAdapter(), appId }),
       ).rejects.toBeInstanceOf(ControlPlaneError);
     },
   );
@@ -73,7 +70,7 @@ describe("user-authenticated admin installation inventory", () => {
       { status: 403, body: { detail: { code: "account_suspended" } } },
     ]);
     await expect(
-      listAdminActiveInstallations({ adapter: makeTestAkbAdapter(), appId }),
+      listAdminActiveInstallations({ adapter: makeAdapter(), appId }),
     ).rejects.toBeInstanceOf(AuthError);
   });
 });

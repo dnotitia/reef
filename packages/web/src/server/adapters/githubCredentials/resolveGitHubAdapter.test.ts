@@ -80,6 +80,9 @@ describe("resolveGitHubAdapter", () => {
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
         token: appValue,
       });
+      expect(mockCreateProvider).toHaveBeenCalledWith({
+        config: APP_CONFIG.config,
+      });
     });
 
     it("wins over a configured server PAT and ignores a browser PAT header", async () => {
@@ -113,6 +116,7 @@ describe("resolveGitHubAdapter", () => {
 
       expect(result).toEqual({ kind: "session_invalid", response });
       expect(mint).not.toHaveBeenCalled();
+      expect(mockCreateProvider).not.toHaveBeenCalled();
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });
 
@@ -187,31 +191,19 @@ describe("resolveGitHubAdapter", () => {
       resetServerGitHubCredentials();
     });
 
-    it("returns no_credential even when an Authorization header is present", async () => {
-      const result = await resolveGitHubAdapter(
-        makeRequest({ Authorization: "Bearer browser" }),
-      );
-
-      expect(result).toEqual({ kind: "no_credential" });
-      expect(mockGetActor).not.toHaveBeenCalled();
-      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
-    });
-
-    it("returns no_credential when the Authorization header is missing", async () => {
-      const result = await resolveGitHubAdapter(makeRequest());
-
-      expect(result).toEqual({ kind: "no_credential" });
-      expect(mockGetActor).not.toHaveBeenCalled();
-      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
-    });
-
-    it("returns no_credential when the Authorization header is malformed", async () => {
-      const result = await resolveGitHubAdapter(
-        makeRequest({ Authorization: "Token abc123" }),
-      );
-
-      expect(result).toEqual({ kind: "no_credential" });
-      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
-    });
+    it.each([
+      ["absent", {}],
+      ["bearer", { Authorization: "Bearer browser" }],
+      ["malformed", { Authorization: "Token abc123" }],
+    ] as const)(
+      "ignores %s browser Authorization without a deployment credential",
+      async (_name, headers) => {
+        const result = await resolveGitHubAdapter(makeRequest(headers));
+        expect(result).toEqual({ kind: "no_credential" });
+        expect(mockGetActor).not.toHaveBeenCalled();
+        expect(mockCreateProvider).not.toHaveBeenCalled();
+        expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
+      },
+    );
   });
 });

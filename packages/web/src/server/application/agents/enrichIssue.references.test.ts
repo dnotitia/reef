@@ -12,7 +12,13 @@ describe("parseEnrichmentReferences", () => {
       suggestions: [],
       references: [{ uri: DOC, reasoning: "supports", confidence: 0.8 }],
     });
-    expect(parseEnrichmentReferences(raw)).toHaveLength(1);
+    expect(parseEnrichmentReferences(raw)).toEqual([
+      {
+        uri: "akb://v/coll/specs/doc/oauth.md",
+        reasoning: "supports",
+        confidence: 0.8,
+      },
+    ]);
   });
 
   it("returns [] when references is absent (suggestions-only response)", () => {
@@ -31,8 +37,13 @@ describe("validateReferences", () => {
     const out = validateReferences([
       { uri: DOC, reasoning: "supports", confidence: 0.8 },
     ]);
-    expect(out).toHaveLength(1);
-    expect(out[0].uri).toBe(DOC);
+    expect(out).toEqual([
+      {
+        uri: "akb://v/coll/specs/doc/oauth.md",
+        reasoning: "supports",
+        confidence: 0.8,
+      },
+    ]);
   });
 
   it("keeps a reference whose title is null (akb hit without a title)", () => {
@@ -51,7 +62,12 @@ describe("validateReferences", () => {
       { uri: "akb://v/table/pipeline", reasoning: "table", confidence: 0.7 },
       { uri: DOC, confidence: 0.4 },
     ]);
-    expect(out).toHaveLength(1);
-    expect(out[0].uri).toBe(DOC);
+    expect(out).toEqual([
+      {
+        uri: "akb://v/coll/specs/doc/oauth.md",
+        reasoning: "supports",
+        confidence: 0.8,
+      },
+    ]);
   });
 });

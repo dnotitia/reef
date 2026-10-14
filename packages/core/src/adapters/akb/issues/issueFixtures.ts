@@ -94,11 +94,32 @@ export function makeIssueRow(
       reviewers: issue.reviewers ?? null,
       qa_owner: issue.qa_owner ?? null,
       custom_fields: issue.custom_fields ?? null,
+      ...(issue.mention_recipients !== undefined && {
+        mention_recipients: issue.mention_recipients,
+      }),
     },
     created_at: issue.created_at,
     updated_at: issue.updated_at,
     created_by: "akb-principal",
     ...overrides,
+  };
+}
+
+export function makeIssueQueryResponse(
+  issues: IssueMetadata[],
+  rowOverrides: Record<string, unknown> = {},
+) {
+  const items = issues.map((issue) =>
+    makeIssueRow(issue, {
+      document_uri: `akb://reef-acme/doc/issues/${issue.id.toLowerCase()}.md`,
+      ...rowOverrides,
+    }),
+  );
+  return {
+    kind: "table_query",
+    columns: Object.keys(items[0] ?? {}),
+    items,
+    total: items.length,
   };
 }
 

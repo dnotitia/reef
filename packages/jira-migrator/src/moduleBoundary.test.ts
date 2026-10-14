@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const srcRoot = fileURLToPath(new URL(".", import.meta.url));
+const srcRoot = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const packageRoot = resolve(srcRoot, "..");
 
 type ModuleName =
@@ -17,6 +17,7 @@ type ModuleName =
   | "jira"
   | "planning"
   | "related"
+  | "runner"
   | "shared";
 
 const flatModuleByFile: Readonly<Record<string, ModuleName>> = {
@@ -46,6 +47,7 @@ const allowedDependencies: Readonly<Record<ModuleName, readonly ModuleName[]>> =
       "jira",
       "planning",
       "related",
+      "runner",
       "shared",
     ],
     execution: ["archive", "execution", "shared"],
@@ -57,11 +59,34 @@ const allowedDependencies: Readonly<Record<ModuleName, readonly ModuleName[]>> =
       "issues",
       "jira",
       "planning",
+      "related",
       "shared",
     ],
     jira: ["jira", "shared"],
     planning: ["jira", "planning", "shared"],
-    related: ["accounts", "content", "execution", "jira", "related", "shared"],
+    related: [
+      "accounts",
+      "archive",
+      "content",
+      "execution",
+      "jira",
+      "related",
+      "runner",
+      "shared",
+    ],
+    runner: [
+      "accounts",
+      "archive",
+      "cli",
+      "content",
+      "execution",
+      "issues",
+      "jira",
+      "planning",
+      "related",
+      "runner",
+      "shared",
+    ],
     shared: ["shared"],
   };
 
@@ -128,45 +153,5 @@ describe("jira-migrator module boundaries", () => {
     });
 
     expect(violations).toEqual([]);
-  });
-
-  it("keeps internal module dependencies acyclic", () => {
-    const graph = new Map<ModuleName, Set<ModuleName>>();
-    for (const sourceFile of sourceFiles(srcRoot)) {
-      const sourceModule = moduleFor(sourceFile);
-      if (sourceModule === "entry") continue;
-      const dependencies = graph.get(sourceModule) ?? new Set<ModuleName>();
-      for (const specifier of relativeImports(
-        readFileSync(sourceFile, "utf8"),
-      )) {
-        const targetFile = importedFile(sourceFile, specifier);
-        if (!targetFile.startsWith(`${srcRoot}${sep}`)) continue;
-        const targetModule = moduleFor(targetFile);
-        if (targetModule !== sourceModule && targetModule !== "entry") {
-          dependencies.add(targetModule);
-        }
-      }
-      graph.set(sourceModule, dependencies);
-    }
-
-    const visited = new Set<ModuleName>();
-    const active = new Set<ModuleName>();
-    const cycles: ModuleName[][] = [];
-    const visit = (moduleName: ModuleName, path: ModuleName[]): void => {
-      if (active.has(moduleName)) {
-        cycles.push([...path.slice(path.indexOf(moduleName)), moduleName]);
-        return;
-      }
-      if (visited.has(moduleName)) return;
-      active.add(moduleName);
-      for (const dependency of graph.get(moduleName) ?? []) {
-        visit(dependency, [...path, moduleName]);
-      }
-      active.delete(moduleName);
-      visited.add(moduleName);
-    };
-
-    for (const moduleName of graph.keys()) visit(moduleName, []);
-    expect(cycles).toEqual([]);
   });
 });

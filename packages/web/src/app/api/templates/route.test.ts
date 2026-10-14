@@ -20,14 +20,9 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { AuthError, NotFoundError } from "@reef/core";
-import { VALID_JWT } from "../__test-helpers__/jwt";
+import { authedHeaders } from "../__test-helpers__/jwt";
 import { GET } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 describe("GET /api/templates", () => {
   beforeEach(() => {

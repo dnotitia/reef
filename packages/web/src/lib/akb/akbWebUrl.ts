@@ -3,8 +3,8 @@
  *
  * Server + runtime. reef-web has no in-app document viewer, so a linked akb
  * document's "open" action points at akb's own frontend. This base is
- * deployment-managed server state, like {@link getAkbBackendUrl} and
- * {@link getReefPublicOrigin}; read it on the server at request time and hand it
+ * deployment-managed server state, like {@link getAkbBackendUrl}; read it
+ * on the server at request time and hand it
  * to the client through {@link AkbWebUrlProvider}.
  *
  * Reason to avoid `NEXT_PUBLIC_AKB_WEB_URL` in the client: a `NEXT_PUBLIC_*` value

@@ -28,16 +28,12 @@ describe("extractAkbSession", () => {
     expect(extractAkbSession(req)).toBe(jwt);
   });
 
-  it("throws AuthError when cookie header is absent", () => {
-    const req = makeRequest();
-    expect(() => extractAkbSession(req)).toThrow(AuthError);
-  });
-
   it("AuthError context distinguishes missing cookie", () => {
     try {
       extractAkbSession(makeRequest());
       expect.fail("should have thrown");
     } catch (err) {
+      expect(err).toBeInstanceOf(AuthError);
       expect((err as AuthError).context.message).toBe("missing_session_cookie");
     }
   });
@@ -47,18 +43,13 @@ describe("extractAkbSession", () => {
     expect(() => extractAkbSession(req)).toThrow(AuthError);
   });
 
-  it("throws AuthError when JWT is expired", () => {
-    const jwt = makeJwt({ exp: pastExp });
-    const req = makeRequest(`${SESSION_COOKIE}=${jwt}`);
-    expect(() => extractAkbSession(req)).toThrow(AuthError);
-  });
-
   it("AuthError context distinguishes expired cookie", () => {
     const jwt = makeJwt({ exp: pastExp });
     try {
       extractAkbSession(makeRequest(`${SESSION_COOKIE}=${jwt}`));
       expect.fail("should have thrown");
     } catch (err) {
+      expect(err).toBeInstanceOf(AuthError);
       expect((err as AuthError).context.message).toBe("expired_session_cookie");
     }
   });

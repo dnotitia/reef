@@ -236,7 +236,8 @@ describe("Markdown target presentation", () => {
   it("opens available references and blocks unavailable ones in read-only mode", async () => {
     const target = "akb://reef-e2e/coll/docs/doc/guide.md";
     const runtimeUrl = "https://akb.example/vault/reef-e2e/doc/docs%2Fguide.md";
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
     const onChange = vi.fn();
     const accessibleResolver: MarkdownTargetResolver = {
       async resolve(resolvedTarget) {
@@ -274,6 +275,7 @@ describe("Markdown target presentation", () => {
       "_blank",
       "noopener,noreferrer",
     );
+    expect(opened.opener).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
 
     const unavailableResolver: MarkdownTargetResolver = {
@@ -312,21 +314,105 @@ describe("Markdown target presentation", () => {
     expect(unavailableLink).toHaveAttribute("aria-disabled", "true");
     expect(open).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
+
+    view.rerender(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor
+          value="[REEF-001](/workspace/reef-e2e/issues/REEF-001)\n\n[External](https://example.test/spec)"
+          onChange={onChange}
+          readOnly
+        />
+      </IntlTestProvider>,
+    );
+    const issueLink = await screen.findByRole("link", { name: "REEF-001" });
+    opened.opener = window;
+    fireEvent.click(issueLink);
+    expect(open).toHaveBeenCalledWith(
+      new URL("/workspace/reef-e2e/issues/REEF-001", window.location.href).href,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const externalLink = await screen.findByRole("link", { name: "External" });
+    externalLink.setAttribute("data-markdown-target", "akb://not-valid");
+    open.mockClear();
+    fireEvent.click(externalLink);
+    const confirmation = await screen.findByRole("dialog", {
+      name: "Open external link",
+    });
+    expect(confirmation).toHaveTextContent("https://example.test/spec");
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Cancel" }),
+    );
+    expect(open).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 
 describe("MarkdownEditor shared Source surface", () => {
+  it("uses automatic height in both modes when a wide viewport has a coarse pointer", async () => {
+    let finePointer = true;
+    vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+      matches: query === "(pointer: fine)" && finePointer,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    const width = Object.getOwnPropertyDescriptor(window, "innerWidth");
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1440,
+    });
+    try {
+      const props = {
+        value: "Body",
+        onChange: vi.fn(),
+        enableHeightResize: true,
+      };
+      const view = render(
+        <IntlTestProvider locale="en">
+          <MarkdownEditor {...props} />
+        </IntlTestProvider>,
+      );
+      expect(await screen.findByRole("separator")).toBeInTheDocument();
+      finePointer = false;
+      view.rerender(
+        <IntlTestProvider locale="en">
+          <MarkdownEditor {...props} />
+        </IntlTestProvider>,
+      );
+      expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+      const frame = screen.getByTestId("markdown-editor-body-frame");
+      expect(frame.style.height).toBe("");
+      expect(screen.getByTestId("markdown-editor-content")).toHaveAttribute(
+        "contenteditable",
+        "true",
+      );
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+      expect(
+        await screen.findByRole("textbox", { name: "Markdown source" }),
+      ).toHaveValue("Body");
+      expect(frame.style.height).toBe("");
+      expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    } finally {
+      if (width) Object.defineProperty(window, "innerWidth", width);
+    }
+  });
+
   it("keeps the canonical escaped image alt, title, and target in the public preserve surface", async () => {
     const markdown = String.raw`![screen\\shot-猫](${repeatedImageTarget} "Build evidence")`;
     const onChange = vi.fn();
     render(
-      <MarkdownLocaleProvider locale="en">
-        <PublicSurfaceHarness
-          markdown={markdown}
-          onChange={onChange}
-          onBlur={vi.fn()}
-        />
-      </MarkdownLocaleProvider>,
+      <IntlTestProvider locale="en">
+        <MarkdownEditor value={markdown} onChange={onChange} />
+      </IntlTestProvider>,
     );
 
     const content = await screen.findByTestId("markdown-editor-content");
@@ -784,6 +870,8 @@ describe("MarkdownEditor shared Source surface", () => {
       target: { value: "# Edited\n\nSource body" },
     });
     expect(onChange).toHaveBeenLastCalledWith("# Edited\n\nSource body");
+    fireEvent.blur(source, { relatedTarget: document.body });
+    expect(onBlur).toHaveBeenCalledExactlyOnceWith("# Edited\n\nSource body");
 
     fireEvent.click(screen.getByTitle("Toggle source mode"));
     await waitFor(() =>
@@ -793,7 +881,40 @@ describe("MarkdownEditor shared Source surface", () => {
     await waitFor(() => expect(content).toHaveFocus());
     expect(content).toHaveTextContent("Source body");
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onBlur).not.toHaveBeenCalled();
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    fireEvent.blur(content, { relatedTarget: document.body });
+    expect(onBlur).toHaveBeenCalledTimes(2);
+    expect(onBlur).toHaveBeenLastCalledWith("# Edited\n\nSource body");
+  });
+
+  it("uses Reef's localized vault search on the actual link toolbar", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        results: [
+          {
+            uri: "akb://reef-test/coll/docs/doc/auth.md",
+            title: "Auth guide",
+            kind: "document",
+          },
+        ],
+      }),
+    );
+    render(
+      <IntlTestProvider locale="ko">
+        <MarkdownEditor value="Body" onChange={vi.fn()} vault="reef-test" />
+      </IntlTestProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "링크 삽입" }));
+    const search = await screen.findByRole("combobox", {
+      name: "볼트 자료 검색",
+    });
+    expect(search).toHaveAttribute("placeholder", "문서 또는 파일 찾기");
+    fireEvent.change(search, { target: { value: "auth" } });
+    await screen.findByRole("option", { name: "Auth guide (문서)" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/documents/search?vault=reef-test&q=auth&include_files=true",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("keeps the shared header and Source undo/redo controls available", async () => {
@@ -955,19 +1076,54 @@ describe("MarkdownEditor shared Source surface", () => {
     const resolve = vi.spyOn(documentTitleResolver, "resolveAkbDocumentTitles");
     render(
       <IntlTestProvider locale="en">
-        <MarkdownEditor value="" onChange={onChange} />
+        <MarkdownEditor value={`Original ${uri}`} onChange={onChange} />
       </IntlTestProvider>,
     );
+    expect(
+      await screen.findByTestId("markdown-editor-content"),
+    ).toHaveTextContent(`Original ${uri}`);
 
     fireEvent.click(screen.getByTitle("Toggle source mode"));
     const source = await screen.findByRole("textbox", {
       name: "Markdown source",
     });
+    expect(source).toHaveValue(`Original ${uri}`);
+    expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(source, { target: { value: markdown } });
 
     await waitFor(() => expect(source).toHaveValue(markdown));
     expect(onChange).toHaveBeenLastCalledWith(markdown);
     expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it("normalizes a bare AKB document URI pasted into the actual WYSIWYG surface", async () => {
+    const uri = "akb://reef-test/coll/research/doc/guide.md";
+    const onChange = vi.fn();
+    const resolve = vi
+      .spyOn(documentTitleResolver, "resolveAkbDocumentTitles")
+      .mockImplementation(() => new Promise(() => {}));
+    render(
+      <IntlTestProvider locale="en">
+        <MarkdownEditor value="" onChange={onChange} vault="reef-test" />
+      </IntlTestProvider>,
+    );
+    const content = await screen.findByTestId("markdown-editor-content");
+    content.focus();
+    fireEvent.paste(content, {
+      clipboardData: {
+        files: [],
+        getData: (type: string) => (type === "text/plain" ? `See ${uri}` : ""),
+      },
+    });
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith(`See [guide](${uri})`),
+    );
+    expect(onChange).toHaveBeenNthCalledWith(1, `See [guide](${uri})`);
+    expect(resolve).toHaveBeenCalledWith("reef-test", [uri]);
+    fireEvent.click(screen.getByTitle("Toggle source mode"));
+    expect(
+      await screen.findByRole("textbox", { name: "Markdown source" }),
+    ).toHaveValue(`See [guide](${uri})`);
   });
 
   it("discards a title response after the Source draft deletes its URI", async () => {
@@ -1499,6 +1655,8 @@ describe("MarkdownEditor shared Source surface", () => {
       </IntlTestProvider>,
     );
     const editor = screen.getByTestId("markdown-editor-content");
+    const root = screen.getByTestId("markdown-editor");
+    expect(root).toHaveAttribute("data-reef-editable-markdown", "");
 
     view.rerender(
       <IntlTestProvider locale="en">
@@ -1529,6 +1687,7 @@ describe("MarkdownEditor shared Source surface", () => {
       </IntlTestProvider>,
     );
     expect(source).toHaveProperty("readOnly", true);
+    expect(root).not.toHaveAttribute("data-reef-editable-markdown");
     expect(screen.queryByTitle("Toggle source mode")).not.toBeInTheDocument();
 
     view.rerender(
@@ -1550,6 +1709,7 @@ describe("MarkdownEditor shared Source surface", () => {
       </IntlTestProvider>,
     );
     expect(editor).toHaveAttribute("contenteditable", "false");
+    expect(root).not.toHaveAttribute("data-reef-editable-markdown");
     expect(screen.queryByTestId("markdown-toolbar")).not.toBeInTheDocument();
 
     view.rerender(
@@ -1604,41 +1764,60 @@ describe("MarkdownEditor shared Source surface", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps generic attachment uploads separate from image insertion", async () => {
-    const onChange = vi.fn();
-    const onUploadFiles = vi.fn().mockResolvedValue({
-      items: [],
-      succeeded: 0,
-      failed: 0,
-      cancelled: 0,
-      partial: false,
-    });
-    render(
-      <IntlTestProvider locale="en">
-        <MarkdownEditor
-          value="Existing body"
-          onChange={onChange}
-          onUploadFiles={onUploadFiles}
-          ariaLabel="Issue description"
-        />
-      </IntlTestProvider>,
-    );
+  it.each(["success", "rejection"] as const)(
+    "keeps generic attachment uploads separate from image insertion on %s",
+    async (outcome) => {
+      const onChange = vi.fn();
+      const onBlur = vi.fn();
+      const onUploadFiles = vi.fn();
+      if (outcome === "rejection")
+        onUploadFiles.mockRejectedValue(new Error("offline"));
+      else
+        onUploadFiles.mockResolvedValue({
+          items: [],
+          succeeded: 0,
+          failed: 0,
+          cancelled: 0,
+          partial: false,
+        });
+      render(
+        <IntlTestProvider locale="en">
+          <MarkdownEditor
+            value="Existing body"
+            onChange={onChange}
+            onBlur={onBlur}
+            onUploadFiles={onUploadFiles}
+            ariaLabel="Issue description"
+          />
+        </IntlTestProvider>,
+      );
 
-    const attachmentButton = screen.getByRole("button", {
-      name: "Attach file",
-    });
-    expect(attachmentButton).toBeEnabled();
-    fireEvent.click(screen.getByTitle("Toggle source mode"));
-    expect(attachmentButton).toBeDisabled();
-    const source = screen.getByRole("textbox", { name: "Issue description" });
-    fireEvent.change(source, { target: { value: "Source draft" } });
-    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
-    fireEvent.paste(source, { clipboardData: { files: [file] } });
+      const attachmentButton = screen.getByRole("button", {
+        name: "Attach file",
+      });
+      expect(attachmentButton).toBeEnabled();
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+      expect(attachmentButton).toBeDisabled();
+      const source = screen.getByRole("textbox", { name: "Issue description" });
+      fireEvent.change(source, { target: { value: "Source draft" } });
+      const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+      fireEvent.paste(source, { clipboardData: { files: [file] } });
 
-    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
-    expect(source).toHaveValue("Source draft");
-    expect(onChange).toHaveBeenLastCalledWith("Source draft");
-  });
+      await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
+      if (outcome === "rejection") {
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+          "Couldn't upload that file.",
+        );
+      }
+      await waitFor(() => expect(source).toHaveValue("Source draft"));
+      expect(onChange).toHaveBeenLastCalledWith("Source draft");
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onBlur).not.toHaveBeenCalled();
+      expect(
+        screen.getByTestId("markdown-editor-content").querySelector("img"),
+      ).toBeNull();
+    },
+  );
 
   it("routes standalone image paste through the public image upload surface", async () => {
     const onChange = vi.fn();

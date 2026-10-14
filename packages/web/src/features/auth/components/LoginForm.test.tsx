@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,6 +54,8 @@ describe("LoginForm", () => {
   });
 
   it("reconciles the AKB account, then navigates, on a successful sign-in", async () => {
+    const reconciled = Promise.withResolvers<void>();
+    reconcileAkbAccount.mockReturnValueOnce(reconciled.promise);
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ user: { id: "user-1" } }), {
         status: 200,
@@ -64,6 +66,8 @@ describe("LoginForm", () => {
     const { invalidateSpy } = renderWithQueryClient(
       <LoginForm redirectTo="/issues" />,
     );
+    const identityRefreshed = Promise.withResolvers<void>();
+    invalidateSpy.mockReturnValueOnce(identityRefreshed.promise);
     await fillAndSubmit();
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -71,10 +75,20 @@ describe("LoginForm", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(reconcileAkbAccount).toHaveBeenCalledWith("user-1");
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => reconciled.resolve());
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledOnce());
+    expect(push).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => identityRefreshed.resolve());
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/issues"));
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["auth", "me"],
     });
     expect(push).toHaveBeenCalledWith("/issues");
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("keeps auth controls accessible before and during submit", async () => {

@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const { mockDownloadAttachment, mockCreateAdapter } = vi.hoisted(() => ({
   mockDownloadAttachment: vi.fn(),
   mockCreateAdapter: vi.fn(),
@@ -38,13 +16,8 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { VALID_JWT } from "../../../../__test-helpers__/jwt";
+import { authedHeaders } from "../../../../__test-helpers__/jwt";
 import { GET } from "./route";
-
-function authedHeaders(): Record<string, string> {
-  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
-}
 
 function params(id = "REEF-001", attachmentId = "att-1") {
   return { params: Promise.resolve({ id, attachmentId }) };

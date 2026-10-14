@@ -39,7 +39,7 @@ describe("issueIdFromIssueMarkdownHref", () => {
     "/issues/REEF-002",
     "https://example.com/issues/REEF-002",
     "/workspace/reef-test/planning/REEF-002",
-    "/issues/%E0%A4%A",
+    "/workspace/reef-test/issues/%E0%A4%A",
   ])("does not classify %s as an issue route", (href) => {
     expect(issueIdFromIssueMarkdownHref(href)).toBeNull();
   });

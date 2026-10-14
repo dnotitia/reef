@@ -28,18 +28,20 @@ describe("MarkdownResourceSearchResponseSchema", () => {
     ).toHaveLength(2);
   });
 
-  it("rejects empty titles, unsupported resources, and runtime URLs", () => {
+  it.each([
+    ["empty title", { uri: "akb://v/doc/x", title: "", kind: "document" }],
+    [
+      "unsupported resource",
+      { uri: "akb://v/issues/file/x", title: "Table", kind: "table" },
+    ],
+    [
+      "runtime URL",
+      { uri: "https://akb.test/signed/file", title: "File", kind: "file" },
+    ],
+  ])("rejects %s", (_name, result) => {
     expect(
       MarkdownResourceSearchResponseSchema.safeParse({
-        results: [
-          { uri: "akb://v/doc/x", title: "", kind: "document" },
-          { uri: "akb://v/table/x", title: "Table", kind: "table" },
-          {
-            uri: "https://akb.test/signed/file",
-            title: "File",
-            kind: "file",
-          },
-        ],
+        results: [result],
       }).success,
     ).toBe(false);
   });

@@ -1,28 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/telemetry", () => ({
-  tracer: {
-    startActiveSpan: vi.fn(
-      async (
-        _name: string,
-        fn: (span: {
-          setAttribute: () => void;
-          recordException: () => void;
-          setStatus: () => void;
-          end: () => void;
-        }) => Promise<unknown>,
-      ) =>
-        fn({
-          setAttribute: () => {},
-          recordException: () => {},
-          setStatus: () => {},
-          end: () => {},
-        }),
-    ),
-  },
-}));
-
 const { mockResolveDocumentTitles, mockCreateAkbAdapter } = vi.hoisted(() => ({
   mockResolveDocumentTitles: vi.fn(),
   mockCreateAkbAdapter: vi.fn(),
@@ -38,19 +16,11 @@ vi.mock("@reef/core", async () => {
   };
 });
 
-import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { VALID_JWT } from "../../__test-helpers__/jwt";
+import { jsonAuthedHeaders as authedHeaders } from "../../__test-helpers__/jwt";
 import { POST } from "./route";
 
 const URI = "akb://v/coll/research/doc/report.md";
 const RESOLVED = { uri: URI, title: "Research Report", resource_type: "doc" };
-
-function authedHeaders(): Record<string, string> {
-  return {
-    cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-    "content-type": "application/json",
-  };
-}
 
 beforeEach(() => {
   vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");

@@ -1,7 +1,10 @@
+import {
+  createQueryWrapper,
+  createTestQueryClient,
+} from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useVaultRoster, vaultRosterKey } from "./useVaultRoster";
 
@@ -12,14 +15,6 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 const mockApiFetch = vi.mocked(apiFetch);
-
-function createWrapper(queryClient: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
 
 describe("useVaultRoster", () => {
   beforeEach(() => {
@@ -41,12 +36,10 @@ describe("useVaultRoster", () => {
         { status: 200 },
       ),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
 
     const { result } = renderHook(() => useVaultRoster("reef-acme"), {
-      wrapper: createWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -57,9 +50,7 @@ describe("useVaultRoster", () => {
   });
 
   it("revalidates a fresh cached roster on mount", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(vaultRosterKey("reef-acme"), [
       { username: "alice", display_name: "Old Name", role: "reader" },
     ]);
@@ -79,7 +70,7 @@ describe("useVaultRoster", () => {
     );
 
     const { result } = renderHook(() => useVaultRoster("reef-acme"), {
-      wrapper: createWrapper(queryClient),
+      wrapper: createQueryWrapper(queryClient),
     });
 
     await waitFor(() => expect(mockApiFetch).toHaveBeenCalledTimes(1));

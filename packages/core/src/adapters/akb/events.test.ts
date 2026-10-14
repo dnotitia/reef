@@ -105,7 +105,7 @@ describe("AKB Change Event Tail", () => {
     });
   });
 
-  it("supports query-cursor or earliest start, but never combines either with start", async () => {
+  it("supports query-cursor and earliest start, rejecting either cursor with start", async () => {
     const fetchMock = vi.fn(async () => streamResponse([]));
     vi.stubGlobal("fetch", fetchMock);
     const adapter = createAkbAdapter({
@@ -124,17 +124,38 @@ describe("AKB Change Event Tail", () => {
       "https://akb.test/api/v1/events/reef-sample?kind=table.rows_changed&cursor=query-cursor",
     );
 
-    await expect(
-      (async () => {
-        for await (const _record of tail.subscribe({
-          vault: "reef-sample",
-          cursor: "query-cursor",
-          start: "earliest",
-        })) {
-          void _record;
-        }
-      })(),
-    ).rejects.toMatchObject({ code: "invalid_event_cursor", status: 400 });
+    for await (const _record of tail.subscribe({
+      vault: "reef-sample",
+      start: "earliest",
+    })) {
+      void _record;
+    }
+    const [earliestUrl, earliestInit] = fetchMock.mock.calls[1] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(earliestUrl).toBe(
+      "https://akb.test/api/v1/events/reef-sample?kind=table.rows_changed&start=earliest",
+    );
+    expect(new Headers(earliestInit.headers).has("Last-Event-ID")).toBe(false);
+
+    for (const cursorInput of [
+      { cursor: "query-cursor" },
+      { lastEventId: "header-cursor" },
+    ]) {
+      await expect(
+        (async () => {
+          for await (const _record of tail.subscribe({
+            vault: "reef-sample",
+            ...cursorInput,
+            start: "earliest",
+          })) {
+            void _record;
+          }
+        })(),
+      ).rejects.toMatchObject({ code: "invalid_event_cursor", status: 400 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    }
   });
 
   it("selects only activity inserts and comment inserts/updates in the same vault", () => {

@@ -3,14 +3,15 @@ import { AkbApiError, ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   type FetchCall,
-  makeIssueQueryResponse,
-  makeTestAkbAdapter,
+  makeAdapter,
   setupFetch,
-} from "../../../test-support/akb/fetchMock";
-import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
+} from "../core/httpTestSupport";
+import {
+  makeDocumentResponse,
+  makeIssueQueryResponse,
+  makePutResponse,
+} from "./issueFixtures";
 import { claimIssueId, updateIssue, writeIssue } from "./issues";
-
-mockOpenTelemetry();
 
 const VAULT = "reef-acme";
 
@@ -62,28 +63,14 @@ function makeReservation(issue: IssueMetadata): IssueMetadata {
 }
 
 function rowsForIssue(issue: IssueMetadata): unknown {
-  const response = makeIssueQueryResponse([issue]) as {
-    items: Array<Record<string, unknown>>;
-  };
-  response.items[0] = {
-    ...response.items[0],
+  return makeIssueQueryResponse([issue], {
     document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
-    parent_id: issue.parent_id ?? null,
-    related_to: issue.related_to ?? [],
-    meta: {
-      author: issue.created_by,
-      last_editor: issue.updated_by,
-      source: issue.source ?? null,
-      last_status_change: issue.last_status_change ?? null,
-      custom_fields: issue.custom_fields,
-    },
-  };
-  return response;
+  });
 }
 
 /** The `GET /documents/{vault}/{path}` payload `readIssue` reads for the body. */
 function docGetResponse(content: string): unknown {
-  return {
+  return makeDocumentResponse({
     uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
     vault: VAULT,
     path: "issues/reef-001.md",
@@ -94,17 +81,17 @@ function docGetResponse(content: string): unknown {
     current_commit: "commit-old",
     tags: ["bug"],
     content,
-  };
+  });
 }
 
 /** The `PATCH /documents/...` (or POST) put-response envelope. */
 function putResponse(commit: string): unknown {
-  return {
+  return makePutResponse({
     uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
     vault: VAULT,
     path: "issues/reef-001.md",
     commit_hash: commit,
-  };
+  });
 }
 
 const ROW_UPDATE_OK = { kind: "table_sql", result: "UPDATE 1" };
@@ -148,7 +135,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: ROW_UPDATE_OK }, // insertIssueRow
     ]);
     await writeIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       issue: makeIssue({ status: "backlog" }),
       content: "",
@@ -164,7 +151,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: ROW_UPDATE_OK },
     ]);
     await writeIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       issue: makeIssue({ status: "backlog", source: "user:create_issue" }),
       content: "",
@@ -184,7 +171,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: rowsForIssue(issue) }, // finalized readback
     ]);
     await writeIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       issue,
       content: "migrated",
@@ -224,7 +211,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: rowsForIssue(reservation) },
     ]);
     await claimIssueId({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       issue,
     });
@@ -273,7 +260,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
 
     await expect(
       claimIssueId({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue: desired,
       }),
@@ -296,7 +283,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
 
     await expect(
       claimIssueId({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue: desired,
       }),
@@ -340,7 +327,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     ]);
     await expect(
       writeIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue: claimedIssue,
         content: "migrated",
@@ -387,7 +374,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
 
     await expect(
       writeIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue: desiredIssue,
         content: "migrated",
@@ -424,7 +411,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     ]);
     await expect(
       writeIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue,
         content: "migrated",
@@ -450,7 +437,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
 
     await expect(
       writeIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue,
         content: "migrated",
@@ -477,7 +464,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
 
     await expect(
       writeIssue({
-        adapter: makeTestAkbAdapter(),
+        adapter: makeAdapter(),
         vault: VAULT,
         issue,
         content: "migrated",
@@ -493,7 +480,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: ROW_UPDATE_OK },
     ]);
     await writeIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       issue: makeIssue({ status: "todo" }),
       content: "",
@@ -513,7 +500,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       }, // rank read-back
     ]);
     const res = await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: { status: "backlog" },
@@ -538,7 +525,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: ROW_UPDATE_OK },
     ]);
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: { status: "backlog" },
@@ -559,7 +546,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: ROW_UPDATE_OK },
     ]);
     await updateIssue({
-      adapter: makeTestAkbAdapter(),
+      adapter: makeAdapter(),
       vault: VAULT,
       id: "REEF-001",
       partial: { priority: "high" },

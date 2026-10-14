@@ -37,15 +37,32 @@ describe("scrollOptionIntoView", () => {
     expect(container.scrollTop).toBe(25);
   });
 
-  it("never delegates to Element.scrollIntoView, which would drag ancestors (REEF-145)", () => {
-    const spy = vi.spyOn(Element.prototype, "scrollIntoView");
-    const container = document.createElement("div");
-    const option = document.createElement("div");
-    container.appendChild(option);
-    scrollOptionIntoView(container, option);
-    expect(spy).not.toHaveBeenCalled();
-    spy.mockRestore();
-  });
+  it.each([
+    [{ top: 0, bottom: 100 }, { top: 120, bottom: 140 }, 0, 40],
+    [{ top: 50, bottom: 150 }, { top: 30, bottom: 45 }, 60, 40],
+  ])(
+    "keeps overflow scrolling inside its list (REEF-145)",
+    (listRect, optionRect, initialScroll, expectedScroll) => {
+      const spy = vi.spyOn(Element.prototype, "scrollIntoView");
+      const container = document.createElement("div");
+      const option = document.createElement("div");
+      container.appendChild(option);
+      container.scrollTop = initialScroll;
+      vi.spyOn(container, "getBoundingClientRect").mockReturnValue(
+        listRect as DOMRect,
+      );
+      vi.spyOn(option, "getBoundingClientRect").mockReturnValue(
+        optionRect as DOMRect,
+      );
+      try {
+        scrollOptionIntoView(container, option);
+        expect(container.scrollTop).toBe(expectedScroll);
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        vi.restoreAllMocks();
+      }
+    },
+  );
 
   it("no-ops when the container or option is missing", () => {
     expect(() => scrollOptionIntoView(null, null)).not.toThrow();

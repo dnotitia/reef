@@ -78,15 +78,6 @@ export interface JiraRunnerResult {
 }
 
 export { JiraRunnerError } from "./errors.js";
-export {
-  baseIssueReadbackMatches,
-  canRecoverApprovedPlanningCreate,
-  issueReadbackApprovalFingerprint,
-} from "./approval.js";
-export {
-  actionForRelatedReport,
-  inferRelationSourceProjectKey,
-} from "./decisions.js";
 
 const LEDGER_CHECKPOINT_BATCH_SIZE = 50;
 const LEDGER_CHECKPOINT_MAX_DELAY_MS = 5_000;
