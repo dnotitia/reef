@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { request } from "node:https";
 import { expect, it, vi } from "vitest";
@@ -21,15 +22,18 @@ it("proxies paths only to the configured Reef server and rejects alternate desti
   vi.stubEnv("REEF_WEB_URL", `http://127.0.0.1:${port}`);
   vi.stubEnv("REEF_E2E_MOCK_URL", `http://127.0.0.1:${port + 1}`);
   const fixture = await startSsoFixture(() => ({}));
+  const ca = await readFile(
+    new URL("../tests/e2e/harness/sso/localhost-cert.pem", import.meta.url),
+  );
   async function get(path: string) {
     return new Promise<{ status: number | undefined; body: string }>(
       (resolve, reject) => {
         const req = request(
           {
-            hostname: "127.0.0.1",
+            hostname: "localhost",
             port: port + 3,
             path,
-            rejectUnauthorized: false,
+            ca,
           },
           (res) => {
             let body = "";
