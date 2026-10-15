@@ -289,6 +289,17 @@ jobs:
       - name: Run Playwright E2E tests
         run: REEF_E2E_SKIP_BUILD=1 pnpm --filter @reef/web run test:e2e:sharded -- --shard=${{ matrix.shard }}/3
 
+      - name: Upload E2E timings
+        uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-timings-shard-${{ matrix.shard }}
+          path: |
+            packages/web/test-results/e2e-timings.json
+            packages/web/test-results/shard-*/**/report.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
         if: ${{ !cancelled() && failure() }}

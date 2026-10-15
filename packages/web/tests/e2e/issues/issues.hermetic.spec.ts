@@ -1,13 +1,12 @@
-import { type Page, expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   readIndexedDbConfig,
-  resetFixture,
   setIssueListFailure,
-  signInAndSelectExistingWorkspace,
 } from "../harness/fixture";
 
 function collectIssueListRequests(page: Page): string[] {
@@ -57,11 +56,6 @@ function hasExactStatusRequest(
 }
 
 test.describe("Hermetic issue list flow", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("selects an existing reef vault and renders issues through /api/issues", async ({
     page,
     request,
@@ -227,7 +221,7 @@ test.describe("Hermetic issue list flow", () => {
     page,
     request,
   }) => {
-    await signInAndSelectExistingWorkspace(page);
+    await openExistingWorkspace(page);
     await setIssueListFailure(request, true);
 
     await page.goto("/workspace/reef-e2e/issues?view=list");

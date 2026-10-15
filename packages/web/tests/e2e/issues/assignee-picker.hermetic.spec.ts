@@ -1,10 +1,9 @@
-import { type Page, expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
-  openExistingWorkspace,
   readFixtureState,
   readIndexedDbConfig,
-  resetFixture,
 } from "../harness/fixture";
 
 const RECENTS_KEY = "assignee_recents:alice:reef-e2e";
@@ -31,17 +30,15 @@ async function issueAssignee(
 }
 
 test.describe("Hermetic assignee picker", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "assignee_picker");
-  });
+  test.use({ scenario: "assignee_picker" });
 
   test("shows the complete assignable roster, keeps long-list keyboard behavior, and remembers successful selections", async ({
+    openWorkspace,
     page,
     request,
   }) => {
     await page.setViewportSize({ width: 900, height: 700 });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/REEF-001`);
 
     const listbox = await openAssigneePicker(page);
@@ -125,10 +122,11 @@ test.describe("Hermetic assignee picker", () => {
   });
 
   test("preserves the current assignment and recent history after a failed save", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/REEF-002`);
 
     const listbox = await openAssigneePicker(page);

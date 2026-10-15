@@ -1,22 +1,23 @@
+import { test as workspaceTest } from "../harness/workspace-fixture";
 import { waitForIssueContentSave } from "../harness/issue-content";
 import {
   type APIRequestContext,
   type Locator,
   type Page,
   expect,
-  test,
 } from "@playwright/test";
 import {
   E2E_MOCK_URL,
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
   setMarkdownLinkSearchControl,
   waitForMarkdownLinkSearchIdle,
   waitForMarkdownLinkSearchPending,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "markdown_fixture" });
 
 type ThemePreference = "light" | "dark" | "system";
 
@@ -689,11 +690,6 @@ function expectMarkdownFileProxyUrl(href: string, pageUrl: string): URL {
 }
 
 test.describe("Hermetic Markdown editor fixture", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "markdown_fixture");
-  });
-
   test("matches Reef toolbar divider, alignment, and icon color", async ({
     page,
     request,
@@ -1061,6 +1057,22 @@ test.describe("Hermetic Markdown editor fixture", () => {
     const toolbar = editorRoot.getByTestId("markdown-toolbar");
     const openLinkPopup = () =>
       toolbar.getByRole("group", { name: "Insert" }).getByRole("button").last();
+    const settleBodySave = async (markdown: string) => {
+      await page.getByTestId("issue-title-input").click();
+      await expect
+        .poll(async () => {
+          const state = await readFixtureState(request);
+          return state.vaults
+            .find((vault) => vault.name === REEF_E2E_VAULT)
+            ?.documents.find(
+              (document) => document.path === "issues/reef-001.md",
+            )?.content;
+        })
+        .toBe(markdown);
+      await expect(
+        page.getByTestId("issue-save-status").filter({ hasText: "Saving" }),
+      ).toHaveCount(0);
+    };
     const sourceToggle = page
       .getByTestId("markdown-source-toggle")
       .getByRole("button");
@@ -1138,13 +1150,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
     });
     await setMarkdownLinkSearchControl(request, {
       query: "incident",
-      delayMs: 500,
+      hold: true,
     });
     await pendingSearch.fill("incident");
     await waitForMarkdownLinkSearchPending(request, "incident");
     await pendingPopup.getByRole("button", { name: "Cancel" }).click();
     await expect(pendingPopup).not.toBeVisible();
     await expect(editor).toBeFocused();
+    await setMarkdownLinkSearchControl(request, { query: "incident" });
     await waitForMarkdownLinkSearchIdle(request, "incident");
 
     await setMarkdownLinkSearchControl(request, {
@@ -1174,6 +1187,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(appliedMarkdown).toContain(`[${documentLinkText}](${documentUri})`);
     expect(appliedMarkdown).not.toContain("/api/assets/");
     expect(appliedMarkdown).not.toContain("signed");
+    await settleBodySave(appliedMarkdown);
     await sourceToggle.click();
 
     const toolbarUndo = toolbar.getByRole("button", { name: "Undo" });
@@ -1183,6 +1197,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await sourceToggle.click();
     await expect.poll(() => source.inputValue()).not.toContain(documentUri);
     expect(await source.inputValue()).toContain(previousDocumentUri);
+    await settleBodySave(await source.inputValue());
     await sourceToggle.click();
     await expect(toolbarRedo).toBeEnabled();
     await toolbarRedo.click();
@@ -3275,209 +3290,209 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(await reopenedSource.inputValue()).not.toContain("/api/files?");
   });
 
-  test("preserves exact canonical mentions through creation and Description save/reopen", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "markdown_mentions");
-    const task = await readMarkdownFixtureTask(request, "markdown_mentions");
-    const mentions = [
-      ["alice", "@alice"],
-      ["Alice", "@Alice"],
-      ["한글42", "@한글42"],
-      ["Ada Lovelace", "@{Ada Lovelace}"],
-      ["team@ops\\blue}", String.raw`@{team@ops\\blue\}}`],
-    ] as const;
-    const usernames = mentions.map(([username]) => username);
-    const mentionTokens = mentions.map(([, token]) => token);
-    const tokenByUsername = new Map<string, string>([
-      ...mentions,
-      ["missing-person", "@{missing-person}"],
-    ]);
-    const expectedVisibleMentions = (
-      available: readonly string[],
-      unavailable: readonly string[] = [],
-    ) => [
-      ...available.map((username) => [
-        username,
-        tokenByUsername.get(username),
-        "available",
-      ]),
-      ...unavailable.map((username) => [
-        username,
-        tokenByUsername.get(username),
-        "unavailable",
-      ]),
-    ];
-    const readVisibleMentions = (editor: Locator) =>
-      editor
-        .locator(
-          '[data-markdown-reference="true"][data-markdown-reference-kind="person"][data-markdown-reference-escaped="false"]',
-        )
-        .evaluateAll((elements) =>
-          elements.map((element) => [
-            element.getAttribute("data-markdown-reference-id"),
-            element.getAttribute("data-markdown-reference-value"),
-            element.getAttribute("data-markdown-reference-resolution"),
-          ]),
-        );
-    const expectVisibleMentions = async (
-      editor: Locator,
-      available: readonly string[],
-      unavailable: readonly string[] = [],
-    ) => {
+  test.extend({ scenario: "markdown_mentions" })(
+    "preserves exact canonical mentions through creation and Description save/reopen",
+    async ({ page, request }) => {
+      const task = await readMarkdownFixtureTask(request, "markdown_mentions");
+      const mentions = [
+        ["alice", "@alice"],
+        ["Alice", "@Alice"],
+        ["한글42", "@한글42"],
+        ["Ada Lovelace", "@{Ada Lovelace}"],
+        ["team@ops\\blue}", String.raw`@{team@ops\\blue\}}`],
+      ] as const;
+      const usernames = mentions.map(([username]) => username);
+      const mentionTokens = mentions.map(([, token]) => token);
+      const tokenByUsername = new Map<string, string>([
+        ...mentions,
+        ["missing-person", "@{missing-person}"],
+      ]);
+      const expectedVisibleMentions = (
+        available: readonly string[],
+        unavailable: readonly string[] = [],
+      ) => [
+        ...available.map((username) => [
+          username,
+          tokenByUsername.get(username),
+          "available",
+        ]),
+        ...unavailable.map((username) => [
+          username,
+          tokenByUsername.get(username),
+          "unavailable",
+        ]),
+      ];
+      const readVisibleMentions = (editor: Locator) =>
+        editor
+          .locator(
+            '[data-markdown-reference="true"][data-markdown-reference-kind="person"][data-markdown-reference-escaped="false"]',
+          )
+          .evaluateAll((elements) =>
+            elements.map((element) => [
+              element.getAttribute("data-markdown-reference-id"),
+              element.getAttribute("data-markdown-reference-value"),
+              element.getAttribute("data-markdown-reference-resolution"),
+            ]),
+          );
+      const expectVisibleMentions = async (
+        editor: Locator,
+        available: readonly string[],
+        unavailable: readonly string[] = [],
+      ) => {
+        await expect
+          .poll(() => readVisibleMentions(editor))
+          .toEqual(expectedVisibleMentions(available, unavailable));
+      };
+      const bodyWrites: string[] = [];
+      page.on("request", (browserRequest) => {
+        if (
+          browserRequest.method() === "PATCH" &&
+          new URL(browserRequest.url()).pathname === "/api/issues/REEF-001"
+        ) {
+          bodyWrites.push(browserRequest.url());
+        }
+      });
+
+      await openExistingWorkspace(page);
+      await page.goto(task.start_path ?? "");
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      const existingEditor = page
+        .getByTestId("issue-detail")
+        .getByTestId("markdown-editor")
+        .first();
+      await expectVisibleMentions(
+        existingEditor,
+        ["alice", ...usernames],
+        ["missing-person"],
+      );
+      expect(bodyWrites).toEqual([]);
+
+      await existingEditor
+        .getByTestId("markdown-source-toggle")
+        .getByRole("button")
+        .click();
+      const existingSource = existingEditor.locator(
+        '[data-markdown-mode="source"] textarea',
+      );
+      const detailMarker = "\n\nExact mention save marker.";
+      const persistedDetail = `${await existingSource.inputValue()}${detailMarker}`;
+      expect(persistedDetail).toContain(mentionTokens.join(" "));
+      const detailSave = waitForIssueContentSave(
+        page,
+        "REEF-001",
+        persistedDetail,
+      );
+      await existingSource.fill(persistedDetail);
+      await page.getByTestId("issue-title-input").click();
+      const detailSaveResponse = await detailSave;
+      expect(
+        detailSaveResponse.ok(),
+        `Description save failed with ${detailSaveResponse.status()}`,
+      ).toBeTruthy();
+
+      await page.reload();
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      await existingEditor
+        .getByTestId("markdown-source-toggle")
+        .getByRole("button")
+        .click();
+      const reopenedDetailSource = existingEditor.locator(
+        '[data-markdown-mode="source"] textarea',
+      );
       await expect
-        .poll(() => readVisibleMentions(editor))
-        .toEqual(expectedVisibleMentions(available, unavailable));
-    };
-    const bodyWrites: string[] = [];
-    page.on("request", (browserRequest) => {
-      if (
-        browserRequest.method() === "PATCH" &&
-        new URL(browserRequest.url()).pathname === "/api/issues/REEF-001"
-      ) {
-        bodyWrites.push(browserRequest.url());
+        .poll(() => reopenedDetailSource.inputValue())
+        .toContain(detailMarker.trim());
+      const reopenedDetail = await reopenedDetailSource.inputValue();
+      for (const token of mentionTokens) {
+        expect(reopenedDetail).toContain(token);
       }
-    });
-
-    await openExistingWorkspace(page);
-    await page.goto(task.start_path ?? "");
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    const existingEditor = page
-      .getByTestId("issue-detail")
-      .getByTestId("markdown-editor")
-      .first();
-    await expectVisibleMentions(
-      existingEditor,
-      ["alice", ...usernames],
-      ["missing-person"],
-    );
-    expect(bodyWrites).toEqual([]);
-
-    await existingEditor
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    const existingSource = existingEditor.locator(
-      '[data-markdown-mode="source"] textarea',
-    );
-    const detailMarker = "\n\nExact mention save marker.";
-    const persistedDetail = `${await existingSource.inputValue()}${detailMarker}`;
-    expect(persistedDetail).toContain(mentionTokens.join(" "));
-    const detailSave = waitForIssueContentSave(
-      page,
-      "REEF-001",
-      persistedDetail,
-    );
-    await existingSource.fill(persistedDetail);
-    await page.getByTestId("issue-title-input").click();
-    const detailSaveResponse = await detailSave;
-    expect(
-      detailSaveResponse.ok(),
-      `Description save failed with ${detailSaveResponse.status()}`,
-    ).toBeTruthy();
-
-    await page.reload();
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await existingEditor
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    const reopenedDetailSource = existingEditor.locator(
-      '[data-markdown-mode="source"] textarea',
-    );
-    await expect
-      .poll(() => reopenedDetailSource.inputValue())
-      .toContain(detailMarker.trim());
-    const reopenedDetail = await reopenedDetailSource.inputValue();
-    for (const token of mentionTokens) {
-      expect(reopenedDetail).toContain(token);
-    }
-    expect(reopenedDetail).not.toContain("Mention user ");
-    await existingEditor
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    await expectVisibleMentions(
-      existingEditor,
-      ["alice", ...usernames],
-      ["missing-person"],
-    );
-
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
-    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
-    await page.getByTestId("new-issue-trigger").click();
-    const dialog = page.getByTestId("new-issue-dialog");
-    await expect(dialog).toBeVisible();
-    await dialog
-      .getByTestId("new-issue-title-input")
-      .fill("Canonical mention round trip");
-    const newBody = `Created issue mentions: ${mentionTokens.join(" ")}.`;
-    await dialog
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    const draftSource = dialog.locator(
-      '[data-markdown-mode="source"] textarea',
-    );
-    await draftSource.fill(newBody);
-    await dialog
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    const draftEditor = dialog.getByTestId("markdown-editor").first();
-    await expectVisibleMentions(draftEditor, usernames);
-
-    const createResponse = page.waitForResponse((response) => {
-      return (
-        new URL(response.url()).pathname === "/api/issues" &&
-        response.request().method() === "POST"
+      expect(reopenedDetail).not.toContain("Mention user ");
+      await existingEditor
+        .getByTestId("markdown-source-toggle")
+        .getByRole("button")
+        .click();
+      await expectVisibleMentions(
+        existingEditor,
+        ["alice", ...usernames],
+        ["missing-person"],
       );
-    });
-    await dialog.getByTestId("new-issue-submit").click();
-    const created = await createResponse;
-    expect(
-      created.ok(),
-      `issue creation failed with ${created.status()}`,
-    ).toBeTruthy();
-    const createdIssue = (await created.json()) as {
-      issue: { id: string };
-    };
-    expect(createdIssue.issue.id).toMatch(/^REEF-\d+$/u);
-    await page.waitForURL(
-      `/workspace/${REEF_E2E_VAULT}/issues/${createdIssue.issue.id}`,
-      { timeout: 10_000 },
-    );
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    const createdEditor = page
-      .getByTestId("issue-detail")
-      .getByTestId("markdown-editor")
-      .first();
-    await expectVisibleMentions(createdEditor, usernames);
 
-    const fixtureState = await readFixtureState(request);
-    const createdDocument = fixtureState.vaults
-      .find((vault) => vault.name === REEF_E2E_VAULT)
-      ?.documents.find(
-        (document) =>
-          document.path === `issues/${createdIssue.issue.id.toLowerCase()}.md`,
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+      await page.getByTestId("new-issue-trigger").click();
+      const dialog = page.getByTestId("new-issue-dialog");
+      await expect(dialog).toBeVisible();
+      await dialog
+        .getByTestId("new-issue-title-input")
+        .fill("Canonical mention round trip");
+      const newBody = `Created issue mentions: ${mentionTokens.join(" ")}.`;
+      await dialog
+        .getByTestId("markdown-source-toggle")
+        .getByRole("button")
+        .click();
+      const draftSource = dialog.locator(
+        '[data-markdown-mode="source"] textarea',
       );
-    expect(createdDocument?.content).toContain(newBody);
+      await draftSource.fill(newBody);
+      await dialog
+        .getByTestId("markdown-source-toggle")
+        .getByRole("button")
+        .click();
+      const draftEditor = dialog.getByTestId("markdown-editor").first();
+      await expectVisibleMentions(draftEditor, usernames);
 
-    await page.reload();
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await createdEditor
-      .getByTestId("markdown-source-toggle")
-      .getByRole("button")
-      .click();
-    const reopenedCreatedSource = createdEditor.locator(
-      '[data-markdown-mode="source"] textarea',
-    );
-    await expect(reopenedCreatedSource).toHaveValue(newBody);
-    expect(await reopenedCreatedSource.inputValue()).not.toContain(
-      "Mention user ",
-    );
-  });
+      const createResponse = page.waitForResponse((response) => {
+        return (
+          new URL(response.url()).pathname === "/api/issues" &&
+          response.request().method() === "POST"
+        );
+      });
+      await dialog.getByTestId("new-issue-submit").click();
+      const created = await createResponse;
+      expect(
+        created.ok(),
+        `issue creation failed with ${created.status()}`,
+      ).toBeTruthy();
+      const createdIssue = (await created.json()) as {
+        issue: { id: string };
+      };
+      expect(createdIssue.issue.id).toMatch(/^REEF-\d+$/u);
+      await page.waitForURL(
+        `/workspace/${REEF_E2E_VAULT}/issues/${createdIssue.issue.id}`,
+        { timeout: 10_000 },
+      );
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      const createdEditor = page
+        .getByTestId("issue-detail")
+        .getByTestId("markdown-editor")
+        .first();
+      await expectVisibleMentions(createdEditor, usernames);
+
+      const fixtureState = await readFixtureState(request);
+      const createdDocument = fixtureState.vaults
+        .find((vault) => vault.name === REEF_E2E_VAULT)
+        ?.documents.find(
+          (document) =>
+            document.path ===
+            `issues/${createdIssue.issue.id.toLowerCase()}.md`,
+        );
+      expect(createdDocument?.content).toContain(newBody);
+
+      await page.reload();
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      await createdEditor
+        .getByTestId("markdown-source-toggle")
+        .getByRole("button")
+        .click();
+      const reopenedCreatedSource = createdEditor.locator(
+        '[data-markdown-mode="source"] textarea',
+      );
+      await expect(reopenedCreatedSource).toHaveValue(newBody);
+      expect(await reopenedCreatedSource.inputValue()).not.toContain(
+        "Mention user ",
+      );
+    },
+  );
 
   test("keeps local candidates on resource failures and distinguishes empty from error", async ({
     page,
@@ -3580,7 +3595,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
       });
     await setMarkdownLinkSearchControl(request, {
       query: "alpha",
-      delayMs: 700,
+      hold: true,
     });
     await editor.click();
     await page.keyboard.press("Control+End");
@@ -3602,6 +3617,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
         .getByRole("option")
         .filter({ hasText: "incident.log" }),
     ).toBeVisible();
+    await setMarkdownLinkSearchControl(request, { query: "alpha" });
     await waitForMarkdownLinkSearchIdle(request, "alpha");
     await expect(
       listbox
@@ -3619,7 +3635,7 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await expect.poll(readDocumentText).toEqual(resolvedBodyBeforeEscape);
     await setMarkdownLinkSearchControl(request, {
       query: "late",
-      delayMs: 700,
+      hold: true,
       failureStatus: 503,
     });
     await page.keyboard.type(" @late");
@@ -3637,7 +3653,11 @@ test.describe("Hermetic Markdown editor fixture", () => {
     await editor.press("Escape");
     expect((await abortedSearch).failure()?.errorText).toContain("ERR_ABORTED");
     await expect(listbox).toHaveCount(0);
-    // Escape aborts the browser request; wait for the fixture's delayed search to drain.
+    // Escape aborts the browser request; release the held fixture search before checking it drains.
+    await setMarkdownLinkSearchControl(request, {
+      query: "late",
+      failureStatus: 503,
+    });
     await waitForMarkdownLinkSearchIdle(request, "late");
     await expect(listbox).toHaveCount(0);
     expect(await editor.innerText()).toBe(bodyBeforeEscape);

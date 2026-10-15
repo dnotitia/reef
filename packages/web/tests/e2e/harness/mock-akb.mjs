@@ -1,11 +1,5 @@
 import { readFileSync } from "node:fs";
-import {
-  AUTH_PROBE_HANG_MAX_MS,
-  fixtureLogin,
-  NOW,
-  rawVault,
-  REEF_VAULT,
-} from "./mock-fixtures.mjs";
+import { fixtureLogin, NOW, rawVault, REEF_VAULT } from "./mock-fixtures.mjs";
 
 const AKB_DEFAULT_ROOT_GUIDE = readFileSync(
   new URL(
@@ -18,13 +12,7 @@ import {
   E2E_REEF_APP_ID,
   E2E_REEF_RELEASE_VERSION,
 } from "./mock-installation.mjs";
-import {
-  headerQuoted,
-  json,
-  readJson,
-  readRawBody,
-  sleep,
-} from "./mock-http.mjs";
+import { headerQuoted, json, readJson, readRawBody } from "./mock-http.mjs";
 import {
   handleMyWorkSql,
   handlePersonalNotificationsSql,
@@ -49,6 +37,7 @@ import {
   endIssueListRequest,
   endIssueUpdateRequest,
   issueUpdateKey,
+  waitForResponseHold,
   installationLookupMode,
   markdownLinkSearchKey,
   nextCommit,
@@ -160,10 +149,23 @@ export async function handleAkb(req, res, url, state) {
   if (path === "/api/v1/auth/config" && req.method === "GET") {
     return json(res, 200, {
       schema_version: 2,
-      auth_mode: "local",
-      local_auth: { enabled: true },
-      keycloak: { enabled: false, browser_session_ready: false },
-      providers: [],
+      auth_mode: process.env.REEF_E2E_AUTH_MODE === "sso" ? "sso" : "local",
+      local_auth: { enabled: process.env.REEF_E2E_AUTH_MODE !== "sso" },
+      keycloak: {
+        enabled: process.env.REEF_E2E_AUTH_MODE === "sso",
+        browser_session_ready: process.env.REEF_E2E_AUTH_MODE === "sso",
+      },
+      providers:
+        process.env.REEF_E2E_AUTH_MODE === "sso"
+          ? [
+              {
+                provider_type: "keycloak-oidc",
+                alias: "workforce",
+                display_name: "SSO",
+                login_url: "/api/v1/auth/sso/workforce/login",
+              },
+            ]
+          : [],
       mcp_oauth: { enabled: false },
     });
   }
@@ -243,7 +245,7 @@ export async function handleAkb(req, res, url, state) {
   }
 
   if (path === "/api/v1/my/vaults" && req.method === "GET") {
-    if (state.vaultListDelayMs > 0) await sleep(state.vaultListDelayMs);
+    if (state.vaultListGate) await state.vaultListGate;
     if (state.vaultListFailures > 0) {
       state.vaultListFailures -= 1;
       return json(res, 500, { error: "e2e forced vault list failure" });
@@ -476,7 +478,7 @@ export async function handleAkb(req, res, url, state) {
       }
       const installationId = vault.installation.id;
       const installState = state;
-      setTimeout(() => {
+      void waitForResponseHold(state, "installation-execution").then(() => {
         if (
           vault.installation?.id !== installationId ||
           vault.installation.lifecycle !== "installing"
@@ -501,7 +503,7 @@ export async function handleAkb(req, res, url, state) {
           blockedReason: null,
         };
         for (const table of REEF_INSTALLATION_TABLES) vault.tables.add(table);
-      }, 300);
+      });
       return json(res, 202, {
         ...installationWire(vault),
         command_status: "accepted",
@@ -661,9 +663,7 @@ export async function handleAkb(req, res, url, state) {
     if (!vault) return;
     if (!vault.assets) vault.assets = new Map();
     const name = url.searchParams.get("filename") || "attachment";
-    if (state.assetUploadDelayMs > 0) {
-      await sleep(state.assetUploadDelayMs);
-    }
+    await waitForResponseHold(state, "asset-upload");
     const body = await readRawBody(req);
     if (state.assetUploadFailOnce.delete(name)) {
       state.assetUploadAttempts.push({
@@ -910,22 +910,14 @@ export async function handleAkb(req, res, url, state) {
       if (updateKey && consumeIssueUpdateHold(state, updateKey)) {
         await waitForIssueUpdateRelease(state, updateKey);
       }
-      if (issueListKey && state.issueListDelayMs > 0) {
-        await sleep(state.issueListDelayMs);
-      }
-      if (isPlanningCatalogRead && state.planningCatalogDelayMs > 0) {
-        await sleep(state.planningCatalogDelayMs);
-      }
-      const attachmentDelayMs = attachmentKey
-        ? (state.attachmentReadControls.get(attachmentKey)?.delayMs ?? 0)
-        : 0;
-      if (attachmentDelayMs > 0) await sleep(attachmentDelayMs);
-      const delayMs = updateKey
-        ? (state.issueUpdateDelays.get(updateKey) ?? 0)
-        : isReorder
-          ? state.issueReorderDelayMs
-          : 0;
-      if (delayMs > 0) await sleep(delayMs);
+      if (issueListKey) await waitForResponseHold(state, "issue-list");
+      if (isPlanningCatalogRead)
+        await waitForResponseHold(state, "planning-catalog");
+      const attachmentGate = attachmentKey
+        ? state.attachmentReadControls.get(attachmentKey)?.gate
+        : null;
+      if (attachmentGate) await attachmentGate;
+      if (isReorder) await waitForResponseHold(state, "issue-reorder");
       if (isReorder && state.issueReorderFailures > 0) {
         state.issueReorderFailures -= 1;
         return json(res, 200, { error: "e2e forced issue reorder failure" });
@@ -1044,7 +1036,7 @@ export async function handleAkb(req, res, url, state) {
         beginIssueReadRequest(state, issueReadKey);
       }
       try {
-        if (readControl?.delayMs) await sleep(readControl.delayMs);
+        if (readControl?.gate) await readControl.gate;
         if (readControl?.failureStatus) {
           return json(res, readControl.failureStatus, {
             error: "e2e issue read failure",
@@ -1143,7 +1135,7 @@ export async function handleAkb(req, res, url, state) {
       beginMarkdownLinkSearchRequest(state, linkSearchKey);
     }
     try {
-      if (linkSearchControl?.delayMs) await sleep(linkSearchControl.delayMs);
+      await waitForResponseHold(state, `markdown-link-search:${linkSearchKey}`);
       if (linkSearchControl?.failureStatus) {
         return json(res, linkSearchControl.failureStatus, {
           detail: "e2e forced Markdown link search failure",
@@ -1152,11 +1144,10 @@ export async function handleAkb(req, res, url, state) {
       const isIssueContentSearch =
         url.searchParams.get("collection") === "issues" &&
         url.searchParams.get("type") === "task";
-      if (isIssueContentSearch && state.contentSearchDelayMs > 0) {
-        await sleep(state.contentSearchDelayMs);
-      } else if (isToolLoopSearch(url)) {
-        await sleep(350);
-      }
+      if (isIssueContentSearch)
+        await waitForResponseHold(state, "content-search");
+      if (isToolLoopSearch(url))
+        await waitForResponseHold(state, "tool-search");
       if (isIssueContentSearch && state.contentSearchMode === "error") {
         return json(res, 503, { detail: "e2e forced hybrid search failure" });
       }
@@ -1196,15 +1187,6 @@ function accountDenialResponse(res, code) {
 }
 
 async function waitForAuthProbe(req, state) {
-  const delayMs = state.authProbeDelayMs;
-  if (state.authProbeDelayOnce) {
-    state.authProbeDelayMs = 0;
-    state.authProbeDelayOnce = false;
-  }
-  if (delayMs > 0) {
-    await sleep(delayMs);
-    if (req.aborted || req.destroyed) return false;
-  }
   if (state.authProbeHold) {
     beginAuthProbeHold(state);
     try {
@@ -1214,15 +1196,6 @@ async function waitForAuthProbe(req, state) {
       endAuthProbeHold(state);
     }
   }
-  if (!state.authProbeHang) return true;
-
-  await new Promise((resolve) => {
-    const timer = setTimeout(resolve, AUTH_PROBE_HANG_MAX_MS);
-    req.once("aborted", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-  });
   return !req.aborted && !req.destroyed;
 }
 

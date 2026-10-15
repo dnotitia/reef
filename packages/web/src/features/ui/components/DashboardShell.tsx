@@ -337,7 +337,8 @@ const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const hydrated = useHydrated();
-  const interactionReady = hydrated;
+  const [shortcutsReady, setShortcutsReady] = useState(false);
+  const interactionReady = hydrated && shortcutsReady;
   const storedSidebarCollapsed = useViewStore(
     (state) => state.sidebarCollapsed,
   );
@@ -814,6 +815,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       }
     }
     window.addEventListener("keydown", handleKeyDown);
+    setShortcutsReady(true);
     return () => {
       clearChord();
       window.removeEventListener("keydown", handleKeyDown);

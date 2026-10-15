@@ -1,13 +1,15 @@
+import { test as workspaceTest } from "../harness/workspace-fixture";
 import { writeFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
   readFixtureState,
-  resetFixture,
   setAttachmentReadControl,
   signInAsAlice,
   waitForAttachmentReadPending,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "demo_board" });
 
 type LayoutFrame = {
   timeMs: number;
@@ -108,11 +110,6 @@ function assertStableGeometry(
 }
 
 test.describe("Issue attachment loading layout", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   test("keeps delivery links and activity fixed across three cold reads and a delayed empty read", async ({
     page,
     request,
@@ -143,7 +140,7 @@ test.describe("Issue attachment loading layout", () => {
 
     await setAttachmentReadControl(request, {
       issueId: "REEF-101",
-      delayMs: 1200,
+      hold: true,
     });
     await Promise.all([
       page.reload({ waitUntil: "commit" }),
@@ -165,6 +162,10 @@ test.describe("Issue attachment loading layout", () => {
       contentType: "image/png",
     });
 
+    await setAttachmentReadControl(request, {
+      issueId: "REEF-101",
+      hold: false,
+    });
     await expect(status).toHaveCount(0, { timeout: 5_000 });
     await expect(
       page.getByRole("heading", { name: "Attachments" }),

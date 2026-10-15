@@ -304,6 +304,37 @@ describe("DashboardShell", () => {
     );
   });
 
+  it("publishes interaction readiness after the global keyboard listener is connected", () => {
+    const readinessAtRegistration: Array<string | null> = [];
+    const addListener = window.addEventListener.bind(window);
+    const spy = vi
+      .spyOn(window, "addEventListener")
+      .mockImplementation((type, listener, options) => {
+        if (type === "keydown")
+          readinessAtRegistration.push(
+            document
+              .querySelector("[data-interaction-ready]")
+              ?.getAttribute("data-interaction-ready") ?? null,
+          );
+        addListener(type, listener, options);
+      });
+    try {
+      render(
+        wrap(
+          <DashboardShell appVersion="0.0.0">
+            <div>children</div>
+          </DashboardShell>,
+        ),
+      );
+      expect(readinessAtRegistration[0]).toBe("false");
+      expect(
+        document.querySelector('[data-interaction-ready="true"]'),
+      ).toBeInTheDocument();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("keeps pre-hydration navigation out of the accessibility tree", () => {
     hydrationState.ready = false;
     render(

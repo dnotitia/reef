@@ -1,18 +1,12 @@
-import { type Page, type Route, expect, test } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { type Page, type Route, expect } from "@playwright/test";
 import {
   continueToWorkspace,
-  resetFixture,
   signInAsAlice,
+  openExistingWorkspace,
 } from "../harness/fixture";
 
-async function openMultiVaultWorkspace(
-  page: Page,
-  vault: string,
-): Promise<void> {
-  await signInAsAlice(page);
-  await page.goto(`/workspace/${vault}/issues`);
-  await continueToWorkspace(page, vault);
-}
+const test = workspaceTest.extend({ scenario: "configured_multi" });
 
 async function selectTodo(page: Page): Promise<void> {
   await page.getByTestId("status-dropdown-trigger").click();
@@ -44,15 +38,10 @@ async function openMyViewMenu(page: Page) {
 }
 
 test.describe("Hermetic My Views", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured_multi");
-  });
-
   test("saves, applies, reloads, updates, renames, duplicates, rejects duplicates, and deletes", async ({
     page,
   }) => {
-    await openMultiVaultWorkspace(page, "reef-e2e");
+    await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
@@ -231,21 +220,40 @@ test.describe("Hermetic My Views", () => {
   test("clears Changed from the trigger after the update action persists", async ({
     page,
   }) => {
+    type GateWindow = Window & {
+      __reefMyViewWriteGate?: { held: boolean; pending: Array<() => void> };
+    };
     await page.addInitScript(`
       (() => {
-        const originalAddEventListener = IDBRequest.prototype.addEventListener;
-        IDBRequest.prototype.addEventListener = function (type, listener, options) {
-          if (type !== "success" || typeof listener !== "function") {
-            return originalAddEventListener.call(this, type, listener, options);
+        const gate = window.__reefMyViewWriteGate = { held: false, pending: [] };
+        const writes = new WeakSet();
+        const originalPut = IDBObjectStore.prototype.put;
+        IDBObjectStore.prototype.put = function(value, ...keys) {
+          if (this.name === "config" && value?.key?.startsWith("my_view:")) {
+            writes.add(this.transaction);
           }
-          const request = this;
-          return originalAddEventListener.call(this, type, (event) => {
-            window.setTimeout(() => listener.call(request, event), 250);
-          }, options);
+          return originalPut.call(this, value, ...keys);
         };
+        const completion = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, "oncomplete");
+        Object.defineProperty(IDBTransaction.prototype, "oncomplete", {
+          configurable: true,
+          get: completion.get,
+          set(listener) {
+            if (typeof listener !== "function") {
+              completion.set.call(this, listener);
+              return;
+            }
+            const transaction = this;
+            completion.set.call(this, (event) => {
+              const deliver = () => listener.call(transaction, event);
+              if (gate.held && writes.has(transaction)) gate.pending.push(deliver);
+              else deliver();
+            });
+          },
+        });
       })();
     `);
-    await openMultiVaultWorkspace(page, "reef-e2e");
+    await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
@@ -263,12 +271,36 @@ test.describe("Hermetic My Views", () => {
     );
 
     const menu = await openMyViewMenu(page);
+    await page.evaluate(() => {
+      const gate = (window as GateWindow).__reefMyViewWriteGate;
+      if (!gate) throw new Error("My View write gate is not installed");
+      gate.held = true;
+    });
     await menu
       .getByRole("menuitem", {
         name: `Update ${savedName} with the current view`,
         exact: true,
       })
       .click();
+
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as GateWindow).__reefMyViewWriteGate?.pending.length ?? 0,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await expect(trigger).toHaveAttribute(
+      "aria-label",
+      new RegExp(`${savedName}.*Changed`),
+    );
+    await page.evaluate(() => {
+      const gate = (window as GateWindow).__reefMyViewWriteGate;
+      if (!gate) throw new Error("My View write gate is not installed");
+      gate.held = false;
+      for (const deliver of gate.pending.splice(0)) deliver();
+    });
 
     // Persistence is browser-local and asynchronous; wait for the bounded
     // eventual state transition rather than treating the unchanged name as
@@ -286,7 +318,7 @@ test.describe("Hermetic My Views", () => {
   test("isolates vaults and clears browser-local My Views during account reconciliation", async ({
     page,
   }) => {
-    await openMultiVaultWorkspace(page, "reef-e2e");
+    await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
@@ -329,7 +361,7 @@ test.describe("Hermetic My Views", () => {
   test("drops a pending prior-vault result when switching workspaces", async ({
     page,
   }) => {
-    await openMultiVaultWorkspace(page, "reef-e2e");
+    await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),

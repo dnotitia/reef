@@ -1,4 +1,8 @@
 import {
+  advanceQueryRetries,
+  waitForPaint,
+} from "../harness/browser-observations";
+import {
   expect,
   test,
   type Browser,
@@ -9,6 +13,7 @@ import {
 } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
+  releaseAuthProbe,
   REEF_E2E_VAULT,
   clearPersistedQueryCache,
   continueToWorkspace,
@@ -353,8 +358,7 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
           .toBe(false);
         await installFrameRecorder(page);
         await setAuthControl(request, {
-          probeDelayMs: 700,
-          probeDelayOnce: true,
+          probeHold: true,
           session: "active",
         });
         const detailResponse = page.waitForResponse(
@@ -363,9 +367,10 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
             response.request().method() === "GET",
         );
         await page.goto(issuePath, { waitUntil: "domcontentloaded" });
+        await releaseAuthProbe(request);
         expect((await detailResponse).status()).toBe(200);
         await expect(page.getByTestId("issue-close")).toBeVisible();
-        await page.waitForTimeout(150);
+        await waitForPaint(page);
         await captureAndAssertContinuity(page, testInfo, `cold-${iteration}`);
         expect(hydrationWarnings).toEqual([]);
       } finally {
@@ -444,12 +449,10 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
   });
 
   test("keeps the frame while the original issue response and editor chunk are delayed", async ({
-    context,
     page,
     request,
   }, testInfo) => {
     testInfo.setTimeout(120_000);
-    await context.clearCookies();
     await page.setViewportSize({ width: 1440, height: 900 });
     const hydrationWarnings = collectHydrationWarnings(page);
     await resetFixture(request, "demo_board");
@@ -457,8 +460,7 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
     await installFrameRecorder(page);
     await clearPersistedQueryCache(page);
     await setAuthControl(request, {
-      probeDelayMs: 700,
-      probeDelayOnce: true,
+      probeHold: true,
       session: "active",
     });
 
@@ -517,31 +519,31 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
 
     const issuePath = `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`;
     await page.goto(issuePath, { waitUntil: "domcontentloaded" });
+    await releaseAuthProbe(request);
     await issueHeld;
     await expect(page.getByTestId("issue-detail-skeleton")).toBeVisible();
-    await page.waitForTimeout(250);
+    await waitForPaint(page);
     await captureAndAssertContinuity(page, testInfo, "detail-response-held");
 
     releaseIssue();
     await editorHeld;
     await expect(page.getByTestId("markdown-editor-skeleton")).toBeVisible();
-    await page.waitForTimeout(250);
+    await waitForPaint(page);
     await captureAndAssertContinuity(page, testInfo, "editor-chunk-held");
 
     releaseEditor();
     await expect(page.locator(".reef-markdown-editor")).toBeVisible();
-    await page.waitForTimeout(150);
+    await waitForPaint(page);
     await captureAndAssertContinuity(page, testInfo, "editor-ready");
     expect(hydrationWarnings).toEqual([]);
   });
 
   test("keeps the issue panel available for a real detail failure and retry", async ({
-    context,
     page,
     request,
   }) => {
+    await page.clock.install();
     test.setTimeout(60_000);
-    await context.clearCookies();
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
@@ -571,6 +573,7 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
       .getByText("Review monitored-repo findings", { exact: true })
       .click();
     await expect(page).toHaveURL((url) => url.pathname === issuePath);
+    await advanceQueryRetries(page, page.getByTestId("issue-detail-error"));
     await expect.poll(() => failedReadCount).toBe(4);
     await expect(page.getByTestId("issue-detail-error")).toBeVisible();
     await expect(page.getByTestId("issue-close")).toBeVisible();
@@ -602,11 +605,10 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
   });
 
   test("keeps an unknown issue inside the panel error state", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
+    await page.clock.install();
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
 
@@ -618,6 +620,7 @@ test.describe("Hermetic issue detail hard-entry continuity", () => {
     );
     await page.goto(missingPath, { waitUntil: "domcontentloaded" });
     expect((await missingRead).status()).toBe(404);
+    await advanceQueryRetries(page, page.getByTestId("issue-detail-error"));
     await expect(page.getByTestId("issue-detail-error")).toBeVisible();
     await expect(page.getByTestId("issue-close")).toBeVisible();
     await expect(page.getByTestId("issue-detail")).toHaveCount(0);

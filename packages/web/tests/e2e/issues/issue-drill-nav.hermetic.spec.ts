@@ -1,13 +1,16 @@
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { advanceQueryRetries } from "../harness/browser-observations";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import {
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
   setIssueReadControl,
   waitForIssueReadIdle,
   waitForIssueReadPending,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "demo_board" });
 
 // The demo_board fixture wires a parent chain REEF-101 → REEF-102 → REEF-103
 // (mock-server.mjs), so each issue exposes a sub-issue to drill *into* and a
@@ -139,11 +142,6 @@ function startIssueDrillFrameRecorder(destinationId: string) {
 }
 
 test.describe("Hermetic issue drill navigation (REEF-270)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   async function openRootFromList(page: import("@playwright/test").Page) {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
@@ -720,11 +718,6 @@ test.describe("Direct detail first relationship move", () => {
     colorScheme: "light",
   });
 
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   async function openDirectRoot(
     page: import("@playwright/test").Page,
     beforeOpen?: () => Promise<void>,
@@ -750,6 +743,9 @@ test.describe("Direct detail first relationship move", () => {
     artifactPrefix: string,
     waitForDelayedRead: boolean,
   ): Promise<void> {
+    // The duration assertions below cover a controlled observation window,
+    // not an application latency budget. Advance virtual RAF time explicitly.
+    await page.clock.install();
     await page.addInitScript(startIssueDrillFrameRecorder, SHORT_CHILD);
     await page.evaluate(() => {
       sessionStorage.setItem("__reef649_issue_drill_trace", "recording");
@@ -764,7 +760,6 @@ test.describe("Direct detail first relationship move", () => {
       contentType: "image/png",
     });
 
-    const clickStartedAt = Date.now();
     await page
       .locator(
         `[data-testid="issue-children"] a[data-issue-id="${SHORT_CHILD}"]`,
@@ -776,9 +771,7 @@ test.describe("Direct detail first relationship move", () => {
     if (waitForDelayedRead) {
       await waitForIssueReadPending(request, SHORT_CHILD);
     }
-    // Observe the same transition window without assuming a minimum RAF rate.
-    // Under load, 250ms may contain only a few frames; wait until the recorder
-    // has actually sampled that interval before reading its evidence.
+    await page.clock.runFor(300);
     await page.waitForFunction(() => {
       const trace = (
         window as Window & {
@@ -828,6 +821,10 @@ test.describe("Direct detail first relationship move", () => {
       ),
     ).toBe(true);
 
+    if (waitForDelayedRead) {
+      await page.clock.runFor(600);
+      await setIssueReadControl(request, { issueId: SHORT_CHILD, hold: false });
+    }
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
       SHORT_CHILD_TITLE,
       { timeout: 15_000 },
@@ -862,7 +859,9 @@ test.describe("Direct detail first relationship move", () => {
     });
     const trace = {
       ...browserTrace,
-      elapsedMs: Date.now() - clickStartedAt,
+      virtualClock: true,
+      elapsedMs:
+        browserTrace.readyAt - (browserTrace.clickAt ?? browserTrace.readyAt),
     };
     const traceJson = JSON.stringify(trace, null, 2);
     const tracePath = `${artifactPrefix}-transition-frames.json`;
@@ -943,7 +942,7 @@ test.describe("Direct detail first relationship move", () => {
             ? () =>
                 setIssueReadControl(request, {
                   issueId: SHORT_CHILD,
-                  delayMs: 1_200,
+                  hold: true,
                 })
             : undefined,
         );
@@ -1116,6 +1115,7 @@ test.describe("Direct detail first relationship move", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     await openDirectRoot(page);
     await setIssueReadControl(request, {
       issueId: SHORT_CHILD,
@@ -1127,6 +1127,7 @@ test.describe("Direct detail first relationship move", () => {
       )
       .click();
     await page.waitForURL(new RegExp(`/issues/${SHORT_CHILD}\\?view=list$`));
+    await advanceQueryRetries(page, page.getByTestId("issue-detail-error"));
     await expect(
       page.locator('[data-testid="issue-detail-error"]'),
     ).toBeVisible({

@@ -1,9 +1,10 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { waitForPaint } from "../harness/browser-observations";
+import { type Locator, type Page, expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
 } from "../harness/fixture";
 
 async function issueStatus(
@@ -61,11 +62,6 @@ async function expectFocusedGeometryStable(locator: Locator) {
 }
 
 test.describe("Hermetic issue keyboard navigation", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("toggles Ask AI with the platform-primary Period shortcut", async ({
     page,
   }) => {
@@ -672,7 +668,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
       const main = element as HTMLElement;
       main.scrollTop = main.scrollHeight;
     });
-    await page.waitForTimeout(50);
+    await waitForPaint(page);
     const viewportGeometry = await selectedRow.evaluate((row) => {
       const rect = row.getBoundingClientRect();
       return { top: rect.top, bottom: rect.bottom };
@@ -702,7 +698,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
       const main = element as HTMLElement;
       main.scrollTop = main.scrollHeight;
     });
-    await page.waitForTimeout(50);
+    await waitForPaint(page);
     const targetGeometry = await targetRow.evaluate((row) => {
       const rect = row.getBoundingClientRect();
       return { top: rect.top, bottom: rect.bottom };
@@ -778,7 +774,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
       root.scrollLeft = Math.min(600, root.scrollWidth);
       root.dispatchEvent(new Event("scroll"));
     });
-    await page.waitForTimeout(50);
+    await waitForPaint(page);
     const after = await textRects();
     const separated = (
       first: { left: number; right: number },
@@ -916,7 +912,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
       root.scrollLeft = 0;
       root.dispatchEvent(new Event("scroll"));
     });
-    await page.waitForTimeout(50);
+    await waitForPaint(page);
     const selectedLeftBoundary = await boundary(selectedRow);
     assertSelectedStateHasNoRowBoundary(selectedLeftBoundary);
 
@@ -925,7 +921,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
       root.scrollLeft = root.scrollWidth;
       root.dispatchEvent(new Event("scroll"));
     });
-    await page.waitForTimeout(50);
+    await waitForPaint(page);
 
     const selectedBoundary = await boundary(selectedRow);
     const unselectedBoundary = await boundary(unselectedRow);
@@ -1044,8 +1040,9 @@ test.describe("Hermetic issue keyboard navigation", () => {
       .locator('[data-testid="search-input"]')
       .evaluate((node) => (node as HTMLInputElement).blur());
 
+    await page.clock.install();
     await page.keyboard.press("g");
-    await page.waitForTimeout(850);
+    await page.clock.runFor(850);
     await page.keyboard.press("i");
     await expect(page).toHaveURL(/\/issues\?view=list/);
 

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 
 /**
  * REEF-360 — context-aware chat grounding.
@@ -16,15 +16,13 @@ import { openExistingWorkspace, resetFixture } from "../harness/fixture";
  *   - removing the chip drops the grounding, sending a context-free request (AC3).
  */
 test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("grounds the chat on the open issue and can be cleared to context-free", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 

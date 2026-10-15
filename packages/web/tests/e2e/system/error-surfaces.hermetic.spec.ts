@@ -1,12 +1,7 @@
-import { expect, test } from "@playwright/test";
-import { resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 
 test.describe("Branded error surfaces", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("serves true branded 404s and recovers through the safe root flow", async ({
     page,
   }) => {

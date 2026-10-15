@@ -1,11 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import { REEF_VAULT_SKILL_VERSION } from "@reef/core";
-import {
-  REEF_E2E_VAULT,
-  openExistingWorkspace,
-  readFixtureState,
-  resetFixture,
-} from "../harness/fixture";
+import { REEF_E2E_VAULT, readFixtureState } from "../harness/fixture";
 
 type FixtureState = Awaited<ReturnType<typeof readFixtureState>>;
 
@@ -18,16 +14,14 @@ function reefVault(state: FixtureState): FixtureState["vaults"][number] {
 }
 
 test.describe("Hermetic workspace skill update workflow", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "skill_outdated");
-  });
+  test.use({ scenario: "skill_outdated" });
 
   test("applies the workspace AI instruction update, stamps the version, and reflects drift in the sidebar Settings badge (REEF-257)", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
 
     // REEF-257 AC1: the drift lights the sidebar Settings badge on the landing
     // route (/issues), so it is discoverable without opening settings.

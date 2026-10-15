@@ -31,6 +31,29 @@ export function markdownLinkSearchKey(vault, query) {
   return `${vault}:${String(query).trim().toLowerCase()}`;
 }
 
+// Named external-response gates share the same reset/release lifecycle.
+export function setResponseHold(state, operation, held) {
+  state.responseHolds.get(operation)?.resolve();
+  if (held) state.responseHolds.set(operation, Promise.withResolvers());
+  else state.responseHolds.delete(operation);
+}
+
+export async function waitForResponseHold(state, operation) {
+  const gate = state.responseHolds.get(operation);
+  if (!gate) return;
+  state.responseHoldPending.set(
+    operation,
+    (state.responseHoldPending.get(operation) ?? 0) + 1,
+  );
+  try {
+    await gate.promise;
+  } finally {
+    const pending = (state.responseHoldPending.get(operation) ?? 1) - 1;
+    if (pending) state.responseHoldPending.set(operation, pending);
+    else state.responseHoldPending.delete(operation);
+  }
+}
+
 export function setIssueUpdateHold(state, key, held) {
   if (held) state.issueUpdateHolds.set(key, 1);
   else state.issueUpdateHolds.delete(key);
@@ -198,34 +221,31 @@ export function createState(scenario) {
     issueListFailure: false,
     issueListFailureStatus: null,
     issueListNextPageFailures: 0,
-    issueListDelayMs: 0,
+    responseHolds: new Map(),
+    responseHoldPending: new Map(),
     issueReadControls: new Map(),
     issueReadPending: new Map(),
     attachmentReadControls: new Map(),
     attachmentReadPending: new Map(),
     markdownLinkSearchControls: new Map(),
     markdownLinkSearchPending: new Map(),
-    assetUploadDelayMs: 0,
     assetUploadFailOnce: new Set(),
     assetUploadAttempts: [],
     planningCatalogFailure: false,
-    planningCatalogDelayMs: 0,
     contentSearchMode: "healthy",
-    contentSearchDelayMs: 0,
-    vaultListDelayMs: 0,
+    vaultListGate: null,
+    releaseVaultList: null,
     vaultListFailures: 0,
     workspaceInitFailureOperation: null,
     workspaceInitFailureRemaining: 0,
     workspaceInitFailureSuccessesBefore: null,
     installationExecutionFailures: new Set(),
     issueUpdateFailures: new Map(),
-    issueUpdateDelays: new Map(),
     issueUpdateHolds: new Map(),
     issueUpdateReleaseWaiters: new Map(),
     issueUpdatePending: new Map(),
     issueListPending: new Map(),
     issueReorderFailures: 0,
-    issueReorderDelayMs: 0,
     issueUpdateCalls: new Map(),
     sqlCalls: [],
     notificationRoles: new Map(
@@ -252,16 +272,10 @@ export function createState(scenario) {
     installationLookupModes: new Map(),
     notificationSchemaMode: "healthy",
     notificationDataMode: "healthy",
-    keycloakEnabled: false,
-    localAuthEnabled: true,
-    ssoOnly: false,
     accountDenialCode: null,
-    authProbeDelayMs: 0,
-    authProbeDelayOnce: false,
     authProbeHold: false,
     authProbeHoldCount: 0,
     authProbeReleaseWaiters: new Set(),
-    authProbeHang: false,
     authProbeFailureStatus: null,
     protectedResponse: "healthy",
     commitSeq: 0,
@@ -384,6 +398,7 @@ export function publicState(state) {
     scenario: state.scenario,
     calls: state.calls,
     auth_probe_pending: state.authProbeHoldCount,
+    response_hold_pending: Object.fromEntries(state.responseHoldPending),
     sql_calls: state.sqlCalls,
     notification: {
       roles: Object.fromEntries(state.notificationRoles),

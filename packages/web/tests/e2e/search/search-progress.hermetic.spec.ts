@@ -1,6 +1,6 @@
+import { test } from "../harness/workspace-fixture";
 import { writeFile } from "node:fs/promises";
-import { type Page, type TestInfo, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { type Page, type TestInfo, expect } from "@playwright/test";
 
 // UI-only timing: these tests assert a purely visual in-flight indicator — the
 // shared SearchProgressBar hairline (REEF-369). reef-web's real /api/issues
@@ -204,28 +204,15 @@ async function holdIssueSearchResponse(
   return { responseHeld, release: releaseResponse };
 }
 
-async function delaySearchResponses(page: Page, ms = 700): Promise<void> {
-  await page.route(
-    (url) => url.pathname === "/api/issues" && url.searchParams.has("q"),
-    async (route) => {
-      const response = await route.fetch();
-      await new Promise((resolve) => setTimeout(resolve, ms));
-      await route.fulfill({ response });
-    },
-  );
-}
-
 test.describe("Search progress hairline (REEF-369)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
+  test.use({ scenario: "demo_board" });
 
   test("⌘K search shows the hairline while in flight, then clears", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
-    await delaySearchResponses(page);
+    await openWorkspace();
+    const held = await holdIssueSearchResponse(page, "blocker");
 
     await page.keyboard.press("Control+K");
     const input = page.locator('[data-testid="global-search-input"]');
@@ -234,20 +221,25 @@ test.describe("Search progress hairline (REEF-369)", () => {
 
     // In flight (debounce + delayed fetch): the hairline is shown.
     await expect(page.locator(HAIRLINE)).toBeVisible();
+    expect(await held.responseHeld).toBe(200);
+    held.release();
     // Once the response settles, it is removed (renders nothing when idle).
     await expect(page.locator(HAIRLINE)).toHaveCount(0);
   });
 
   test("empty search mount stays quiet and one progress track follows issue search through each view", async ({
+    openWorkspace,
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await installSearchProgressSampler(page);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues?view=board&sort=rank");
     await expect(page.getByTestId("kanban-board")).toBeVisible();
     await expect(page.locator(HAIRLINE)).toHaveCount(0);
-    await page.waitForTimeout(250);
+    await expect
+      .poll(async () => (await summarizeSearchProgress(page)).frames)
+      .toBeGreaterThan(1);
 
     const initialSummary = await summarizeSearchProgress(page);
     await persistEvidence(
@@ -300,7 +292,9 @@ test.describe("Search progress hairline (REEF-369)", () => {
         await clearSearchProgressSamples(page);
         await page.getByTestId("search-input").fill(query);
         const responseStatus = await held.responseHeld;
-        await page.waitForTimeout(700);
+        await expect
+          .poll(async () => (await summarizeSearchProgress(page)).activeFrames)
+          .toBeGreaterThan(0);
         const progress = await summarizeSearchProgress(page);
         observations.push({
           view: view.name,
@@ -362,11 +356,12 @@ test.describe("Search progress hairline (REEF-369)", () => {
   });
 
   test("Rank search keeps its local results feedback at the results edge without an API search", async ({
+    openWorkspace,
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await installSearchProgressSampler(page);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues?view=board&sort=rank");
     await expect(page.getByTestId("kanban-board")).toBeVisible();
     await clearSearchProgressSamples(page);
@@ -397,9 +392,10 @@ test.describe("Search progress hairline (REEF-369)", () => {
   });
 
   test("an instant local facet filter never shows the hairline", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
 
     // The status facet is a client-side, in-memory filter (no async load, no
     // `loading` prop), so opening its panel must not flash the search hairline

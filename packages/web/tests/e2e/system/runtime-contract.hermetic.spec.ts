@@ -642,6 +642,16 @@ test.describe("Hermetic runtime discovery", () => {
       schema_version: 2,
       status: "ready",
       operations: {
+        response_hold: {
+          method: "POST",
+          path: "/__e2e/response-hold",
+          content_type: "application/json",
+          body: {
+            operation:
+              "asset-upload|issue-list|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
+            hold: "<boolean>",
+          },
+        },
         health: { method: "GET", path: "/__e2e/health" },
         reset: {
           method: "POST",
@@ -672,9 +682,6 @@ test.describe("Hermetic runtime discovery", () => {
           path: "/__e2e/auth-control",
           content_type: "application/json",
           body: {
-            probe_delay_ms: "<milliseconds>",
-            probe_delay_once: "<boolean>",
-            probe_hang: "<boolean>",
             probe_failure_status: "null|500|503",
             session: "active|revoked",
             protected_response: "healthy|unauthorized|forbidden",
@@ -686,7 +693,7 @@ test.describe("Hermetic runtime discovery", () => {
           content_type: "application/json",
           body: {
             vault: "<vault>",
-            delay_ms: "<milliseconds>",
+            hold: "<boolean>",
             failures: "<count>",
           },
         },
@@ -695,12 +702,7 @@ test.describe("Hermetic runtime discovery", () => {
           path: "/__e2e/vault-list-control",
           content_type: "application/json",
           body: {
-            delay_ms: {
-              type: "number",
-              optional: true,
-              default: 0,
-              minimum: 0,
-            },
+            hold: { type: "boolean", optional: true, default: false },
             failures: {
               type: "number",
               optional: true,
@@ -709,11 +711,11 @@ test.describe("Hermetic runtime discovery", () => {
             },
           },
           effects: {
-            delay_ms: "delay subsequent GET /akb/api/v1/my/vaults responses",
+            hold: "hold subsequent GET /akb/api/v1/my/vaults responses until hold is false",
             failures:
               "return HTTP 500 for the next N GET /akb/api/v1/my/vaults requests",
             reset:
-              "send delay_ms=0 and failures=0, or reset the fixture scenario",
+              "send hold=false and failures=0, or reset the fixture scenario",
           },
         },
         markdown_link_search_control: {
@@ -723,7 +725,7 @@ test.describe("Hermetic runtime discovery", () => {
           body: {
             vault: "<vault>",
             query: "<query>",
-            delay_ms: "<milliseconds>",
+            hold: "<boolean>",
             failure_status: "null|500|503",
           },
         },
@@ -862,7 +864,7 @@ test.describe("Hermetic runtime discovery", () => {
           controls: {
             auth_control: [
               "session revoke",
-              "bounded probe delay (including one-shot) or hang",
+              "hold/release auth probes, including application timeout and retry",
               "temporary auth-probe 5xx response",
               "healthy, plain 401, or resource 403 protected responses",
             ],
@@ -876,7 +878,7 @@ test.describe("Hermetic runtime discovery", () => {
           interaction: {
             type: "auth_soft_navigation",
             operation:
-              "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale delayed probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
+              "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale held probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
           },
         },
         status_quick_edit: {
@@ -886,7 +888,7 @@ test.describe("Hermetic runtime discovery", () => {
           interaction: {
             type: "status_quick_edit",
             operation:
-              "configure delayed priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent delayed success, failure rollback, retry, and concurrent success confirmation",
+              "hold priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent held success, failure rollback, retry, and concurrent success confirmation",
           },
         },
         planning_overflow: {
@@ -1163,14 +1165,15 @@ test.describe("Hermetic runtime discovery", () => {
 
     await setMarkdownLinkSearchControl(request, {
       query: "incident",
-      delayMs: 120,
+      hold: true,
     });
-    const delayedSearch = request.get(fixtureSearchUrl("incident"), {
+    const heldSearch = request.get(fixtureSearchUrl("incident"), {
       headers: searchHeaders,
     });
     await waitForMarkdownLinkSearchPending(request, "incident");
-    const delayedSearchResponse = await delayedSearch;
-    expect(delayedSearchResponse.status()).toBe(200);
+    await setMarkdownLinkSearchControl(request, { query: "incident" });
+    const heldSearchResponse = await heldSearch;
+    expect(heldSearchResponse.status()).toBe(200);
     await waitForMarkdownLinkSearchIdle(request, "incident");
     const fileSearchResponse = await request.get(fixtureSearchUrl("incident"), {
       headers: searchHeaders,
@@ -1444,11 +1447,9 @@ test.describe("Hermetic runtime discovery", () => {
   });
 
   test("keeps representative empty-state controls visibly focused in both themes", async ({
-    context,
     page,
     request,
   }, testInfo) => {
-    await context.clearCookies();
     await page.setViewportSize({ width: 1280, height: 900 });
     await clearPersistedQueryCacheOnLoad(page);
 
@@ -1497,11 +1498,9 @@ test.describe("Hermetic runtime discovery", () => {
   });
 
   test("renders the configured empty workspace across its routed surfaces", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await page.setViewportSize({ width: 1440, height: 900 });
     await resetFixture(request, "configured_empty");
 
@@ -1640,7 +1639,6 @@ test.describe("Hermetic runtime discovery", () => {
     page,
     request,
   }) => {
-    await context.clearCookies();
     const viewportWidth = 375;
     await page.setViewportSize({ width: viewportWidth, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
@@ -1753,7 +1751,6 @@ test.describe("Hermetic runtime discovery", () => {
     page,
     request,
   }) => {
-    await context.clearCookies();
     const viewportWidth = 375;
     await page.setViewportSize({ width: viewportWidth, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
@@ -1802,7 +1799,6 @@ test.describe("Hermetic runtime discovery", () => {
     request,
   }) => {
     const viewportWidth = 320;
-    await context.clearCookies();
     await page.setViewportSize({ width: viewportWidth, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
     await clearPersistedQueryCacheOnLoad(page);
@@ -1890,13 +1886,9 @@ test.describe("Hermetic runtime discovery", () => {
   });
 
   test("keeps empty copy, primary action, and focus usable at an effective 200% zoom", async ({
-    context,
     page,
     request,
   }) => {
-    // A 720px CSS viewport is the equivalent reflow width for 200% browser
-    // zoom from the required 1440px desktop proof size.
-    await context.clearCookies();
     await page.setViewportSize({ width: 720, height: 900 });
     await page.emulateMedia({ colorScheme: "light" });
     await clearPersistedQueryCacheOnLoad(page);
@@ -1927,11 +1919,9 @@ test.describe("Hermetic runtime discovery", () => {
   });
 
   test("preserves the label no-match after clearing a parent report scope", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/reports");
@@ -1984,11 +1974,9 @@ test.describe("Hermetic runtime discovery", () => {
   });
 
   test("opens the shared New issue dialog from an empty Reports header and restores focus", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await resetFixture(request, "configured_empty");
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/reports");
@@ -2026,11 +2014,9 @@ test.describe("Hermetic runtime discovery", () => {
   });
 
   test("creates and persists an issue from an empty Reports header", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await resetFixture(request, "configured_empty");
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/reports");
@@ -2068,123 +2054,129 @@ test.describe("Hermetic runtime discovery", () => {
       );
   });
 
-  test("records dashboard surface roles and responsive evidence across routed pages", async ({
-    page,
-    request,
-  }, testInfo) => {
-    test.setTimeout(300_000);
-    await resetFixture(request, "configured");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await openExistingWorkspace(page);
-
-    const routes = [
-      {
-        name: "inbox",
-        path: "/workspace/reef-e2e/inbox",
-        ready: () => page.getByTestId("notification-inbox"),
-        focus: () => page.getByRole("link", { name: "Inbox", exact: true }),
-      },
-      {
-        name: "my-work",
-        path: "/workspace/reef-e2e/my-work",
-        ready: () => page.getByTestId("my-work-page"),
-        focus: () => page.locator('[data-testid^="my-work-row-"]').first(),
-      },
-      {
-        name: "planning",
-        path: "/workspace/reef-e2e/planning",
-        ready: () => page.getByRole("heading", { name: "Planning" }),
-        focus: () => page.getByRole("button", { name: "New sprint" }),
-      },
-      {
-        name: "reports",
-        path: "/workspace/reef-e2e/reports",
-        ready: () => page.getByTestId("reports-page"),
-        focus: () => page.getByTestId("new-issue-trigger"),
-      },
-      {
-        name: "settings-workspace",
-        path: "/workspace/reef-e2e/settings/workspace",
-        ready: () => page.getByTestId("settings-tabs"),
-        focus: () =>
-          page.getByTestId("settings-tabs").getByRole("link").first(),
-      },
-      {
-        name: "settings-members",
-        path: "/workspace/reef-e2e/settings/workspace/members",
-        ready: () => page.getByTestId("settings-tabs"),
-        focus: () =>
-          page.getByTestId("settings-tabs").getByRole("link").first(),
-      },
-      {
-        name: "settings-preferences",
-        path: "/workspace/reef-e2e/settings/preferences",
-        ready: () => page.getByTestId("settings-tabs"),
-        focus: () =>
-          page.getByTestId("settings-tabs").getByRole("link").first(),
-      },
-      {
-        name: "settings-deployment",
-        path: "/workspace/reef-e2e/settings/deployment",
-        ready: () => page.getByTestId("settings-tabs"),
-        focus: () =>
-          page.getByTestId("settings-tabs").getByRole("link").first(),
-      },
-    ] as const;
-
-    const observations: Array<
-      RuntimeSurfaceObservation & {
-        route: string;
-        theme: "light" | "dark";
-        viewport: string;
-      }
-    > = [];
+  test.describe("records dashboard surface roles and responsive evidence across routed pages", () => {
     for (const theme of ["light", "dark"] as const) {
-      await setRuntimeTheme(page, theme);
       for (const viewport of RUNTIME_VISUAL_VIEWPORTS) {
-        await page.setViewportSize(viewport);
-        for (const route of routes) {
-          await page.goto(route.path);
-          await expect(route.ready()).toBeVisible({ timeout: 15_000 });
-          await expectRuntimeFocus(route.focus());
+        test(
+          `${theme}--${viewport.name}`,
+          { tag: "@visual-matrix" },
+          async ({ page, request }, testInfo) => {
+            await resetFixture(request, "configured");
+            await page.setViewportSize({ width: 1440, height: 900 });
+            await openExistingWorkspace(page);
 
-          const observation = await observeRuntimeSurface(page);
-          observations.push({
-            route: route.name,
-            theme,
-            viewport: viewport.name,
-            ...observation,
-          });
-          expect(observation.documentOverflow).toBe(false);
-          expect(observation.bodyOverflow).toBe(false);
-          expect(observation.mainOverflow).toBe(false);
-          expect(observation.unresolvedSurfaceFills).toEqual([]);
-          expect(
-            observation.clippedText,
-            `${route.name} / ${theme} / ${viewport.name}`,
-          ).toEqual([]);
-          expect(observation.outOfViewportControls).toEqual([]);
-          const tokenColors = Object.values(observation.roleTokenColors);
-          expect(
-            tokenColors.every((color) => color && color !== "transparent"),
-          ).toBe(true);
-          expect(new Set(tokenColors).size).toBe(RUNTIME_SURFACE_ROLES.length);
+            const routes = [
+              {
+                name: "inbox",
+                path: "/workspace/reef-e2e/inbox",
+                ready: () => page.getByTestId("notification-inbox"),
+                focus: () =>
+                  page.getByRole("link", { name: "Inbox", exact: true }),
+              },
+              {
+                name: "my-work",
+                path: "/workspace/reef-e2e/my-work",
+                ready: () => page.getByTestId("my-work-page"),
+                focus: () =>
+                  page.locator('[data-testid^="my-work-row-"]').first(),
+              },
+              {
+                name: "planning",
+                path: "/workspace/reef-e2e/planning",
+                ready: () => page.getByRole("heading", { name: "Planning" }),
+                focus: () => page.getByRole("button", { name: "New sprint" }),
+              },
+              {
+                name: "reports",
+                path: "/workspace/reef-e2e/reports",
+                ready: () => page.getByTestId("reports-page"),
+                focus: () => page.getByTestId("new-issue-trigger"),
+              },
+              {
+                name: "settings-workspace",
+                path: "/workspace/reef-e2e/settings/workspace",
+                ready: () => page.getByTestId("settings-tabs"),
+                focus: () =>
+                  page.getByTestId("settings-tabs").getByRole("link").first(),
+              },
+              {
+                name: "settings-members",
+                path: "/workspace/reef-e2e/settings/workspace/members",
+                ready: () => page.getByTestId("settings-tabs"),
+                focus: () =>
+                  page.getByTestId("settings-tabs").getByRole("link").first(),
+              },
+              {
+                name: "settings-preferences",
+                path: "/workspace/reef-e2e/settings/preferences",
+                ready: () => page.getByTestId("settings-tabs"),
+                focus: () =>
+                  page.getByTestId("settings-tabs").getByRole("link").first(),
+              },
+              {
+                name: "settings-deployment",
+                path: "/workspace/reef-e2e/settings/deployment",
+                ready: () => page.getByTestId("settings-tabs"),
+                focus: () =>
+                  page.getByTestId("settings-tabs").getByRole("link").first(),
+              },
+            ] as const;
 
-          const screenshot = await page.screenshot({
-            animations: "disabled",
-            path: testInfo.outputPath(
-              `${route.name}-${theme}-${viewport.name}.png`,
-            ),
-          });
-          expect(screenshot.byteLength).toBeGreaterThan(0);
-        }
+            const observations: Array<
+              RuntimeSurfaceObservation & {
+                route: string;
+                theme: "light" | "dark";
+                viewport: string;
+              }
+            > = [];
+            await setRuntimeTheme(page, theme);
+            await page.setViewportSize(viewport);
+            for (const route of routes) {
+              await page.goto(route.path);
+              await expect(route.ready()).toBeVisible({ timeout: 15_000 });
+              await expectRuntimeFocus(route.focus());
+
+              const observation = await observeRuntimeSurface(page);
+              observations.push({
+                route: route.name,
+                theme,
+                viewport: viewport.name,
+                ...observation,
+              });
+              expect(observation.documentOverflow).toBe(false);
+              expect(observation.bodyOverflow).toBe(false);
+              expect(observation.mainOverflow).toBe(false);
+              expect(observation.unresolvedSurfaceFills).toEqual([]);
+              expect(
+                observation.clippedText,
+                `${route.name} / ${theme} / ${viewport.name}`,
+              ).toEqual([]);
+              expect(observation.outOfViewportControls).toEqual([]);
+              const tokenColors = Object.values(observation.roleTokenColors);
+              expect(
+                tokenColors.every((color) => color && color !== "transparent"),
+              ).toBe(true);
+              expect(new Set(tokenColors).size).toBe(
+                RUNTIME_SURFACE_ROLES.length,
+              );
+
+              const screenshot = await page.screenshot({
+                animations: "disabled",
+                path: testInfo.outputPath(
+                  `${route.name}-${theme}-${viewport.name}.png`,
+                ),
+              });
+              expect(screenshot.byteLength).toBeGreaterThan(0);
+            }
+
+            await testInfo.attach("dashboard-surface-observations.json", {
+              body: JSON.stringify(observations, null, 2),
+              contentType: "application/json",
+            });
+          },
+        );
       }
     }
-
-    await testInfo.attach("dashboard-surface-observations.json", {
-      body: JSON.stringify(observations, null, 2),
-      contentType: "application/json",
-    });
   });
 
   test("records login, onboarding, error, and 404 surface evidence", async ({
@@ -2193,7 +2185,6 @@ test.describe("Hermetic runtime discovery", () => {
     request,
   }, testInfo) => {
     test.setTimeout(300_000);
-    await context.clearCookies();
     await resetFixture(request, "configured");
 
     const observations: Array<

@@ -1,4 +1,5 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { expect, type Page, type TestInfo } from "@playwright/test";
 import {
   E2E_REEF_APP_ID,
   E2E_REEF_OLD_SCHEMA_FINGERPRINT,
@@ -11,12 +12,13 @@ import {
   fixtureReaderLogin,
   fixtureWriterLogin,
   readFixtureState,
-  resetFixture,
   setInstallationControl,
   signInAsAlice,
   signInAsUser,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "installation_drift" });
 
 const localizedInstallationActions = {
   en: {
@@ -48,47 +50,43 @@ async function attachFullPageScreenshot(
 }
 
 test.describe("installation drift and readiness guidance", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "installation_drift");
-  });
+  test.extend({ scenario: "configured_multi" })(
+    "a manager workspace opens when AKB denies the member-only availability endpoint",
+    async ({ page, request }) => {
+      await setInstallationControl(request, {
+        memberLookup: "forbidden",
+        detailLookup: "healthy",
+      });
+      await signInAsAlice(page);
+      await page.goto("/workspace/reef-e2e/issues");
+      await expect(
+        page.getByRole("heading", { name: "Issues", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByTestId("workspace-access-denied")).toHaveCount(0);
 
-  test("a manager workspace opens when AKB denies the member-only availability endpoint", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured_multi");
-    await setInstallationControl(request, {
-      memberLookup: "forbidden",
-      detailLookup: "healthy",
-    });
-    await signInAsAlice(page);
-    await page.goto("/workspace/reef-e2e/issues");
-    await expect(
-      page.getByRole("heading", { name: "Issues", exact: true }),
-    ).toBeVisible();
-    await expect(page.getByTestId("workspace-access-denied")).toHaveCount(0);
-
-    const response = await page.request.get("/api/vaults");
-    expect(response.ok()).toBe(true);
-    const { vaults } = await response.json();
-    const workspace = vaults.find(
-      (vault: { name: string }) => vault.name === "reef-e2e",
-    );
-    expect(workspace.installation_active).toBe(true);
-    expect(workspace).not.toHaveProperty("installation");
-    const state = await readFixtureState(request);
-    const vaultId = state.vaults.find((vault) => vault.name === "reef-e2e")?.id;
-    const managementPath = `/akb/api/v1/apps/${E2E_REEF_APP_ID}/installations/${vaultId}`;
-    expect(
-      state.calls.some(
-        (call) => call.method === "GET" && call.path === managementPath,
-      ),
-    ).toBe(true);
-    expect(
-      state.calls.some((call) => call.path === `${managementPath}/active`),
-    ).toBe(false);
-  });
+      const response = await page.request.get("/api/vaults");
+      expect(response.ok()).toBe(true);
+      const { vaults } = await response.json();
+      const workspace = vaults.find(
+        (vault: { name: string }) => vault.name === "reef-e2e",
+      );
+      expect(workspace.installation_active).toBe(true);
+      expect(workspace).not.toHaveProperty("installation");
+      const state = await readFixtureState(request);
+      const vaultId = state.vaults.find(
+        (vault) => vault.name === "reef-e2e",
+      )?.id;
+      const managementPath = `/akb/api/v1/apps/${E2E_REEF_APP_ID}/installations/${vaultId}`;
+      expect(
+        state.calls.some(
+          (call) => call.method === "GET" && call.path === managementPath,
+        ),
+      ).toBe(true);
+      expect(
+        state.calls.some((call) => call.path === `${managementPath}/active`),
+      ).toBe(false);
+    },
+  );
 
   test("an active workspace stays usable while owner details show observed drift", async ({
     page,
@@ -305,14 +303,19 @@ test.describe("installation drift and readiness guidance", () => {
       page.getByRole("button", { name: "Check status" }),
     ).toBeEnabled();
 
+    // Reading another provider can mint a GitHub installation token. It must
+    // not be mistaken for an AKB installation mutation by this assertion.
+    const repositories = await page.request.get("/api/repos");
+    expect(repositories.ok()).toBe(true);
     const ownerState = await readFixtureState(request);
     expect(
-      ownerState.calls.some(
+      ownerState.calls.filter(
         (call) =>
           ["POST", "PUT", "DELETE"].includes(call.method) &&
+          call.path.startsWith("/akb/api/v1/apps/") &&
           call.path.includes("/installations/"),
       ),
-    ).toBe(false);
+    ).toEqual([]);
 
     await page.getByTestId("installation-diagnostics-link-reef-e2e").click();
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/settings\/workspace$/);
@@ -423,12 +426,7 @@ test.describe("installation drift and readiness guidance", () => {
     ).toBeVisible();
   });
 
-  test("installation status surfaces render across role, locale, theme, and viewport", async ({
-    context,
-    page,
-    request,
-  }, testInfo) => {
-    test.setTimeout(900_000);
+  test.describe("installation status appearance matrix", () => {
     const roles = ["owner", "admin", "writer", "reader"] as const;
     const locales = ["en", "ko"] as const;
     const themes = ["light", "dark"] as const;
@@ -445,223 +443,242 @@ test.describe("installation drift and readiness guidance", () => {
       for (const locale of locales) {
         for (const theme of themes) {
           for (const viewport of viewports) {
-            const canManage = role === "owner" || role === "admin";
             const appearance = `${role}--${locale}--${theme}--${viewport.name}`;
-            await context.clearCookies();
-            await page.setViewportSize({
-              width: viewport.width,
-              height: viewport.height,
-            });
-            await page.emulateMedia({
-              colorScheme: theme === "dark" ? "dark" : "light",
-            });
-            await page.goto("/login?redirect=%2Fonboarding");
-            await context.addCookies([
-              {
-                name: "NEXT_LOCALE",
-                value: locale,
-                url: new URL(page.url()).origin,
-              },
-            ]);
-            await page.reload({ waitUntil: "domcontentloaded" });
-            await expect(page.locator("html")).toHaveAttribute("lang", locale);
-            if (canManage) {
-              await setInstallationControl(request, {
-                roles: { alice: role, bob: "reader", writer: "writer" },
-              });
-              await signInAsAlice(page);
-            } else {
-              await signInAsUser(
-                page,
-                role === "writer" ? fixtureWriterLogin : fixtureReaderLogin,
-              );
-            }
-            await writeIndexedDbConfig(page, "locale", locale);
-            await writeIndexedDbConfig(page, "theme", theme);
-            await page.evaluate((selectedTheme) => {
-              window.localStorage.setItem("reef.theme", selectedTheme);
-            }, theme);
-            await page.reload({ waitUntil: "domcontentloaded" });
-            await expect(page.locator("html")).toHaveAttribute("lang", locale);
-            await expect
-              .poll(() =>
-                page
-                  .locator("html")
-                  .evaluate((element) => element.classList.contains("dark")),
-              )
-              .toBe(theme === "dark");
-
-            await setInstallationControl(request, {
-              lifecycle: "active",
-              blockedReason: "null",
-              drift: {
-                release: "mismatch",
-                schema: "mismatch",
-                grant: "mismatch",
-              },
-              observation: "stale",
-            });
-            await clearPersistedQueryCache(page);
-            await clearPersistedQueryCacheOnLoad(page);
-            await page.goto("/workspace/reef-e2e/issues");
-            await page.goto(surfacePaths.settings);
-            const settingsSection = page.getByTestId(
-              "workspace-installation-section",
-            );
-            if (canManage) {
-              await expect(settingsSection).toBeVisible();
-              await expect(
-                page.getByTestId("workspace-installation-reef-e2e"),
-              ).toHaveCount(0);
-              await expect(
-                settingsSection.getByTestId("installation-details-disclosure"),
-              ).not.toHaveAttribute("open");
-            } else {
-              await expect(settingsSection).toHaveCount(0);
-            }
-            await attachFullPageScreenshot(
-              page,
-              testInfo,
-              `settings--${appearance}--default.png`,
-            );
-            if (canManage) {
-              await settingsSection
-                .getByTestId("installation-details-disclosure")
-                .locator("summary")
-                .click();
-              await expect(
-                settingsSection.getByTestId("installation-details"),
-              ).toBeVisible();
-              await settingsSection.evaluate((element) =>
-                element.scrollIntoView({ block: "start", inline: "nearest" }),
-              );
-              await attachFullPageScreenshot(
-                page,
-                testInfo,
-                `settings--${appearance}--details.png`,
-              );
-              if (viewport.name === "mobile") {
-                const observedAt = settingsSection.getByTestId(
-                  "installation-observed-at",
+            test(
+              appearance,
+              { tag: "@visual-matrix" },
+              async ({ context, page, request }, testInfo) => {
+                const canManage = role === "owner" || role === "admin";
+                await page.setViewportSize({
+                  width: viewport.width,
+                  height: viewport.height,
+                });
+                await page.emulateMedia({
+                  colorScheme: theme === "dark" ? "dark" : "light",
+                });
+                await page.goto("/login?redirect=%2Fonboarding");
+                await context.addCookies([
+                  {
+                    name: "NEXT_LOCALE",
+                    value: locale,
+                    url: new URL(page.url()).origin,
+                  },
+                ]);
+                await page.reload({ waitUntil: "domcontentloaded" });
+                await expect(page.locator("html")).toHaveAttribute(
+                  "lang",
+                  locale,
                 );
-                await observedAt.scrollIntoViewIfNeeded();
-                const observedBounds = await observedAt.boundingBox();
-                expect(observedBounds?.y).toBeGreaterThanOrEqual(0);
-                expect(
-                  (observedBounds?.y ?? viewport.height) +
-                    (observedBounds?.height ?? viewport.height),
-                ).toBeLessThanOrEqual(viewport.height);
+                if (canManage) {
+                  await setInstallationControl(request, {
+                    roles: { alice: role, bob: "reader", writer: "writer" },
+                  });
+                  await signInAsAlice(page);
+                } else {
+                  await signInAsUser(
+                    page,
+                    role === "writer" ? fixtureWriterLogin : fixtureReaderLogin,
+                  );
+                }
+                await writeIndexedDbConfig(page, "locale", locale);
+                await writeIndexedDbConfig(page, "theme", theme);
+                await page.evaluate((selectedTheme) => {
+                  window.localStorage.setItem("reef.theme", selectedTheme);
+                }, theme);
+                await page.reload({ waitUntil: "domcontentloaded" });
+                await expect(page.locator("html")).toHaveAttribute(
+                  "lang",
+                  locale,
+                );
+                await expect
+                  .poll(() =>
+                    page
+                      .locator("html")
+                      .evaluate((element) =>
+                        element.classList.contains("dark"),
+                      ),
+                  )
+                  .toBe(theme === "dark");
+
+                await setInstallationControl(request, {
+                  lifecycle: "active",
+                  blockedReason: "null",
+                  drift: {
+                    release: "mismatch",
+                    schema: "mismatch",
+                    grant: "mismatch",
+                  },
+                  observation: "stale",
+                });
+                await clearPersistedQueryCache(page);
+                await clearPersistedQueryCacheOnLoad(page);
+                await page.goto("/workspace/reef-e2e/issues");
+                await page.goto(surfacePaths.settings);
+                const settingsSection = page.getByTestId(
+                  "workspace-installation-section",
+                );
+                if (canManage) {
+                  await expect(settingsSection).toBeVisible();
+                  await expect(
+                    page.getByTestId("workspace-installation-reef-e2e"),
+                  ).toHaveCount(0);
+                  await expect(
+                    settingsSection.getByTestId(
+                      "installation-details-disclosure",
+                    ),
+                  ).not.toHaveAttribute("open");
+                } else {
+                  await expect(settingsSection).toHaveCount(0);
+                }
                 await attachFullPageScreenshot(
                   page,
                   testInfo,
-                  `settings--${appearance}--details-bottom.png`,
+                  `settings--${appearance}--default.png`,
                 );
-              }
-            }
+                if (canManage) {
+                  await settingsSection
+                    .getByTestId("installation-details-disclosure")
+                    .locator("summary")
+                    .click();
+                  await expect(
+                    settingsSection.getByTestId("installation-details"),
+                  ).toBeVisible();
+                  await settingsSection.evaluate((element) =>
+                    element.scrollIntoView({
+                      block: "start",
+                      inline: "nearest",
+                    }),
+                  );
+                  await attachFullPageScreenshot(
+                    page,
+                    testInfo,
+                    `settings--${appearance}--details.png`,
+                  );
+                  if (viewport.name === "mobile") {
+                    const observedAt = settingsSection.getByTestId(
+                      "installation-observed-at",
+                    );
+                    await observedAt.scrollIntoViewIfNeeded();
+                    const observedBounds = await observedAt.boundingBox();
+                    expect(observedBounds?.y).toBeGreaterThanOrEqual(0);
+                    expect(
+                      (observedBounds?.y ?? viewport.height) +
+                        (observedBounds?.height ?? viewport.height),
+                    ).toBeLessThanOrEqual(viewport.height);
+                    await attachFullPageScreenshot(
+                      page,
+                      testInfo,
+                      `settings--${appearance}--details-bottom.png`,
+                    );
+                  }
+                }
 
-            await setInstallationControl(request, {
-              vault: "reef-e2e",
-              lifecycle: "blocked",
-              blockedReason: "worker_timeout",
-            });
-            await setInstallationControl(request, {
-              vault: "reef-zeta",
-              lifecycle: "blocked",
-              blockedReason: "worker_timeout",
-            });
-            const blockedVaultsResponse = await page.request.get("/api/vaults");
-            expect(blockedVaultsResponse.ok()).toBe(true);
-            const blockedVaultsPayload =
-              (await blockedVaultsResponse.json()) as {
-                vaults: Array<{
-                  name: string;
-                  installation_active: boolean | null;
-                }>;
-              };
-            expect(
-              blockedVaultsPayload.vaults
-                .filter((vault) =>
-                  ["reef-e2e", "reef-zeta"].includes(vault.name),
-                )
-                .map(({ name, installation_active }) => ({
-                  name,
-                  installation_active,
-                }))
-                .sort((left, right) => left.name.localeCompare(right.name)),
-            ).toEqual([
-              { name: "reef-e2e", installation_active: false },
-              { name: "reef-zeta", installation_active: false },
-            ]);
-            await setInstallationControl(request, {
-              vault: "reef-e2e",
-              lifecycle: "blocked",
-              blockedReason: "worker_timeout",
-            });
-            await setInstallationControl(request, {
-              vault: "reef-zeta",
-              lifecycle: "active",
-              blockedReason: "null",
-            });
-            await clearPersistedQueryCache(page);
-            await clearPersistedQueryCacheOnLoad(page);
-            await page.goto(surfacePaths.access);
-            await expect(
-              page.getByTestId("workspace-access-denied"),
-            ).toBeVisible();
-            await expect(
-              page.getByRole("heading", {
-                name: /This workspace is unavailable\.|지금 이 워크스페이스를 이용할 수 없습니다/,
-              }),
-            ).toBeVisible();
-            const accessCard = page.getByTestId(
-              "workspace-installation-reef-e2e",
+                await setInstallationControl(request, {
+                  vault: "reef-e2e",
+                  lifecycle: "blocked",
+                  blockedReason: "worker_timeout",
+                });
+                await setInstallationControl(request, {
+                  vault: "reef-zeta",
+                  lifecycle: "blocked",
+                  blockedReason: "worker_timeout",
+                });
+                const blockedVaultsResponse =
+                  await page.request.get("/api/vaults");
+                expect(blockedVaultsResponse.ok()).toBe(true);
+                const blockedVaultsPayload =
+                  (await blockedVaultsResponse.json()) as {
+                    vaults: Array<{
+                      name: string;
+                      installation_active: boolean | null;
+                    }>;
+                  };
+                expect(
+                  blockedVaultsPayload.vaults
+                    .filter((vault) =>
+                      ["reef-e2e", "reef-zeta"].includes(vault.name),
+                    )
+                    .map(({ name, installation_active }) => ({
+                      name,
+                      installation_active,
+                    }))
+                    .sort((left, right) => left.name.localeCompare(right.name)),
+                ).toEqual([
+                  { name: "reef-e2e", installation_active: false },
+                  { name: "reef-zeta", installation_active: false },
+                ]);
+                await setInstallationControl(request, {
+                  vault: "reef-e2e",
+                  lifecycle: "blocked",
+                  blockedReason: "worker_timeout",
+                });
+                await setInstallationControl(request, {
+                  vault: "reef-zeta",
+                  lifecycle: "active",
+                  blockedReason: "null",
+                });
+                await clearPersistedQueryCache(page);
+                await clearPersistedQueryCacheOnLoad(page);
+                await page.goto(surfacePaths.access);
+                await expect(
+                  page.getByTestId("workspace-access-denied"),
+                ).toBeVisible();
+                await expect(
+                  page.getByRole("heading", {
+                    name: /This workspace is unavailable\.|지금 이 워크스페이스를 이용할 수 없습니다/,
+                  }),
+                ).toBeVisible();
+                const accessCard = page.getByTestId(
+                  "workspace-installation-reef-e2e",
+                );
+                const actions = localizedInstallationActions[locale];
+                await expect(accessCard).toHaveAttribute(
+                  "data-status",
+                  "management_required",
+                );
+                await expect(
+                  accessCard.getByRole("button", { name: actions.checkStatus }),
+                ).toBeVisible();
+                for (const action of [
+                  actions.setup,
+                  actions.restore,
+                  actions.fresh,
+                ]) {
+                  await expect(
+                    accessCard.getByRole("button", { name: action }),
+                  ).toHaveCount(0);
+                }
+                if (canManage) {
+                  await expect(
+                    page.getByTestId("installation-diagnostics-link-reef-e2e"),
+                  ).toHaveAttribute(
+                    "href",
+                    "/workspace/reef-e2e/settings/workspace",
+                  );
+                } else {
+                  await expect(
+                    page.getByTestId("installation-diagnostics-link-reef-e2e"),
+                  ).toHaveCount(0);
+                }
+                await attachFullPageScreenshot(
+                  page,
+                  testInfo,
+                  `access--${appearance}--default.png`,
+                );
+                await expect(
+                  accessCard.getByTestId("installation-details-disclosure"),
+                ).toHaveCount(0);
+                await expect(
+                  accessCard.getByTestId("installation-blocked-guidance"),
+                ).toHaveCount(0);
+                const accessHeading = page.getByRole("heading", {
+                  name: /This workspace is unavailable\.|지금 이 워크스페이스를 이용할 수 없습니다/,
+                });
+                const headingBounds = await accessHeading.boundingBox();
+                expect(headingBounds?.y).toBeGreaterThanOrEqual(0);
+                expect(headingBounds?.y).toBeLessThan(viewport.height);
+              },
             );
-            const actions = localizedInstallationActions[locale];
-            await expect(accessCard).toHaveAttribute(
-              "data-status",
-              "management_required",
-            );
-            await expect(
-              accessCard.getByRole("button", { name: actions.checkStatus }),
-            ).toBeVisible();
-            for (const action of [
-              actions.setup,
-              actions.restore,
-              actions.fresh,
-            ]) {
-              await expect(
-                accessCard.getByRole("button", { name: action }),
-              ).toHaveCount(0);
-            }
-            if (canManage) {
-              await expect(
-                page.getByTestId("installation-diagnostics-link-reef-e2e"),
-              ).toHaveAttribute(
-                "href",
-                "/workspace/reef-e2e/settings/workspace",
-              );
-            } else {
-              await expect(
-                page.getByTestId("installation-diagnostics-link-reef-e2e"),
-              ).toHaveCount(0);
-            }
-            await attachFullPageScreenshot(
-              page,
-              testInfo,
-              `access--${appearance}--default.png`,
-            );
-            await expect(
-              accessCard.getByTestId("installation-details-disclosure"),
-            ).toHaveCount(0);
-            await expect(
-              accessCard.getByTestId("installation-blocked-guidance"),
-            ).toHaveCount(0);
-            const accessHeading = page.getByRole("heading", {
-              name: /This workspace is unavailable\.|지금 이 워크스페이스를 이용할 수 없습니다/,
-            });
-            const headingBounds = await accessHeading.boundingBox();
-            expect(headingBounds?.y).toBeGreaterThanOrEqual(0);
-            expect(headingBounds?.y).toBeLessThan(viewport.height);
           }
         }
       }

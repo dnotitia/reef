@@ -1,6 +1,7 @@
+import { test } from "../harness/workspace-fixture";
 import { version } from "../../../../../package.json";
-import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { type Page, expect } from "@playwright/test";
+import { openExistingWorkspace } from "../harness/fixture";
 
 async function getNewIssueShortcutPress(page: Page) {
   return page.evaluate(() => {
@@ -18,11 +19,6 @@ async function getNewIssueShortcutPress(page: Page) {
 }
 
 test.describe("Hermetic dashboard surfaces and global dialogs", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("opens global search, shortcuts, Ask AI, and workspace dialogs from the dashboard shell", async ({
     context,
     page,

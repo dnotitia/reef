@@ -1388,6 +1388,10 @@ error message, stack, or digest.
 
 ### Keyboard Shortcuts
 
+The shell becomes interactive after both hydration and global shortcut
+registration. Its readiness marker and accessibility state must agree with
+that boundary; the first shortcut works without opening another dialog first.
+
 Global shortcuts are registered once at the shell from the same app-action
 catalog used by the command palette and keyboard-shortcuts sheet: **⌘I** opens
 New Issue (**⌘⌥N** on Firefox), **⌘K** toggles search and commands, **⌘⇧.**

@@ -1,10 +1,14 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import {
+  advanceQueryRetries,
+  cumulativeLayoutShift,
+} from "../harness/browser-observations";
+import { expect, type Locator, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
   setIssueListFailure,
   setPlanningCatalogFailure,
 } from "../harness/fixture";
@@ -302,35 +306,7 @@ async function expectNotesControlsAccessible(page: Page) {
   await expect(editor.locator('[contenteditable="true"]')).toBeVisible();
 }
 
-async function cumulativeLayoutShift(page: Page): Promise<number> {
-  return page.evaluate(
-    () =>
-      new Promise<number>((resolve) => {
-        let value = 0;
-        const observer = new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) {
-            const shift = entry as PerformanceEntry & {
-              hadRecentInput: boolean;
-              value: number;
-            };
-            if (!shift.hadRecentInput) value += shift.value;
-          }
-        });
-        observer.observe({ type: "layout-shift", buffered: true });
-        setTimeout(() => {
-          observer.disconnect();
-          resolve(value);
-        }, 300);
-      }),
-  );
-}
-
 test.describe("Hermetic planning workflow", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("creates, updates, and deletes a sprint through /api/planning Route Handlers", async ({
     page,
     request,
@@ -653,6 +629,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     await setPlanningCatalogFailure(request, true);
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
@@ -660,6 +637,7 @@ test.describe("Hermetic planning workflow", () => {
       "/workspace/reef-e2e/planning?view=list&kind=milestones&detail=missing",
     );
 
+    await advanceQueryRetries(page, page.getByTestId("planning-catalog-error"));
     await expect(page.getByTestId("planning-catalog-error")).toBeVisible();
     await expect(page.getByTestId("planning-detail-panel")).toHaveCount(0);
     await expect(
@@ -673,90 +651,92 @@ test.describe("Hermetic planning workflow", () => {
     ).toBeVisible();
   });
 
-  test("keeps long Overview names single-line and readable by pointer and keyboard", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "planning_overflow");
-    await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
+  test.extend({ scenario: "planning_overflow" })(
+    "keeps long Overview names single-line and readable by pointer and keyboard",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await openExistingWorkspace(page);
 
-    const state = await readFixtureState(request);
-    const milestone = state.vaults
-      .find((vault) => vault.name === REEF_E2E_VAULT)
-      ?.milestones.find((item) => item.name === LONG_OVERVIEW_MILESTONE_NAME);
-    if (!milestone) throw new Error("Missing long milestone fixture");
+      const state = await readFixtureState(request);
+      const milestone = state.vaults
+        .find((vault) => vault.name === REEF_E2E_VAULT)
+        ?.milestones.find((item) => item.name === LONG_OVERVIEW_MILESTONE_NAME);
+      if (!milestone) throw new Error("Missing long milestone fixture");
 
-    const expectedPath = `/workspace/${REEF_E2E_VAULT}/planning?view=list&kind=milestones&detail=${milestone.id}`;
+      const expectedPath = `/workspace/${REEF_E2E_VAULT}/planning?view=list&kind=milestones&detail=${milestone.id}`;
 
-    for (const width of [390, 1280]) {
-      await page.setViewportSize({ width, height: 844 });
-      await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+      for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
-      const link = page.getByRole("link", {
-        name: `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
-      });
-      await expect(link).toBeVisible();
-      await expect(link).toHaveAttribute("href", expectedPath);
+        const link = page.getByRole("link", {
+          name: `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
+        });
+        await expect(link).toBeVisible();
+        await expect(link).toHaveAttribute("href", expectedPath);
 
-      const geometry = await link.evaluate((element) => {
-        const name = element.querySelector<HTMLElement>("span");
-        const styles = getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        return {
-          whiteSpace: styles.whiteSpace,
-          overflow: styles.overflow,
-          textOverflow: styles.textOverflow,
-          height: rect.height,
-          lineHeight: Number.parseFloat(styles.lineHeight),
-          nameClientWidth: name?.clientWidth ?? 0,
-          nameScrollWidth: name?.scrollWidth ?? 0,
-          documentWidth: document.documentElement.scrollWidth,
-          bodyWidth: document.body.scrollWidth,
-        };
-      });
-      expect(geometry.whiteSpace).toBe("nowrap");
-      expect(geometry.overflow).toBe("hidden");
-      expect(geometry.textOverflow).toBe("ellipsis");
-      expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
-      expect(geometry.documentWidth).toBeLessThanOrEqual(width);
-      expect(geometry.bodyWidth).toBeLessThanOrEqual(width);
-      await expect(link).toHaveAttribute(
-        "aria-label",
-        `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
-      );
-      await expect(link).toHaveAttribute("title", LONG_OVERVIEW_MILESTONE_NAME);
+        const geometry = await link.evaluate((element) => {
+          const name = element.querySelector<HTMLElement>("span");
+          const styles = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return {
+            whiteSpace: styles.whiteSpace,
+            overflow: styles.overflow,
+            textOverflow: styles.textOverflow,
+            height: rect.height,
+            lineHeight: Number.parseFloat(styles.lineHeight),
+            nameClientWidth: name?.clientWidth ?? 0,
+            nameScrollWidth: name?.scrollWidth ?? 0,
+            documentWidth: document.documentElement.scrollWidth,
+            bodyWidth: document.body.scrollWidth,
+          };
+        });
+        expect(geometry.whiteSpace).toBe("nowrap");
+        expect(geometry.overflow).toBe("hidden");
+        expect(geometry.textOverflow).toBe("ellipsis");
+        expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
+        expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+        expect(geometry.bodyWidth).toBeLessThanOrEqual(width);
+        await expect(link).toHaveAttribute(
+          "aria-label",
+          `Open ${LONG_OVERVIEW_MILESTONE_NAME} in the Planning list`,
+        );
+        await expect(link).toHaveAttribute(
+          "title",
+          LONG_OVERVIEW_MILESTONE_NAME,
+        );
 
-      if (width !== 390) continue;
+        if (width !== 390) continue;
 
-      expect(geometry.nameScrollWidth).toBeGreaterThan(
-        geometry.nameClientWidth,
-      );
-      await link.hover();
-      await expect(page.getByRole("tooltip")).toHaveText(
-        LONG_OVERVIEW_MILESTONE_NAME,
-      );
+        expect(geometry.nameScrollWidth).toBeGreaterThan(
+          geometry.nameClientWidth,
+        );
+        await link.hover();
+        await expect(page.getByRole("tooltip")).toHaveText(
+          LONG_OVERVIEW_MILESTONE_NAME,
+        );
 
-      await page.mouse.move(2, 2);
-      await link.focus();
-      await expect(page.getByRole("tooltip")).toHaveText(
-        LONG_OVERVIEW_MILESTONE_NAME,
-      );
+        await page.mouse.move(2, 2);
+        await link.focus();
+        await expect(page.getByRole("tooltip")).toHaveText(
+          LONG_OVERVIEW_MILESTONE_NAME,
+        );
 
-      const popupPromise = page.context().waitForEvent("page", {
-        timeout: 10_000,
-      });
-      await link.click({ modifiers: [NEW_TAB_MODIFIER] });
-      const popup = await popupPromise;
-      await expect(popup).toHaveURL(
-        new RegExp(
-          `/workspace/${REEF_E2E_VAULT}/planning\\?view=list&kind=milestones&detail=${milestone.id}$`,
-        ),
-      );
-      await popup.close();
-      await expect(page).toHaveURL(/\/planning$/u);
-    }
-  });
+        const popupPromise = page.context().waitForEvent("page", {
+          timeout: 10_000,
+        });
+        await link.click({ modifiers: [NEW_TAB_MODIFIER] });
+        const popup = await popupPromise;
+        await expect(popup).toHaveURL(
+          new RegExp(
+            `/workspace/${REEF_E2E_VAULT}/planning\\?view=list&kind=milestones&detail=${milestone.id}$`,
+          ),
+        );
+        await popup.close();
+        await expect(page).toHaveURL(/\/planning$/u);
+      }
+    },
+  );
 
   test("keeps rollup segment widths immediate under reduced motion", async ({
     page,
@@ -1042,6 +1022,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     await clearPersistedQueryCacheOnLoad(page);
     await setPlanningCatalogFailure(request, true);
     await openExistingWorkspace(page);
@@ -1098,6 +1079,7 @@ test.describe("Hermetic planning workflow", () => {
     releaseCatalogResponse?.();
 
     const error = page.getByTestId("planning-catalog-error");
+    await advanceQueryRetries(page, error);
     await expect(error).toBeVisible({ timeout: 20_000 });
     await expect(loading).toHaveCount(0);
     await expect(error).toHaveAttribute("role", "alert");
@@ -1125,6 +1107,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     await clearPersistedQueryCacheOnLoad(page);
     await setIssueListFailure(request, true);
     await openExistingWorkspace(page);
@@ -1136,6 +1119,7 @@ test.describe("Hermetic planning workflow", () => {
       .getByTestId("planning-sprint-link-00000000-0000-4000-8000-000000000001")
       .locator("xpath=ancestor::tr");
     await expect(row).toBeVisible({ timeout: 20_000 });
+    await advanceQueryRetries(page, page.getByTestId("planning-issue-error"));
     await expect(page.getByTestId("planning-issue-error")).toBeVisible();
     await expect(row.getByText("Unable to verify")).toBeVisible();
 
@@ -1178,147 +1162,149 @@ test.describe("Hermetic planning workflow", () => {
     );
   });
 
-  test("shows the shared lifecycle rollup and opens its filtered Issues view by keyboard", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+  test.extend({ scenario: "demo_board" })(
+    "shows the shared lifecycle rollup and opens its filtered Issues view by keyboard",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await openExistingWorkspace(page);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
-    const state = await readFixtureState(request);
-    const vault = state.vaults.find(
-      (candidate) => candidate.name === REEF_E2E_VAULT,
-    );
-    const sprint = vault?.sprints[0];
-    expect(sprint).toBeDefined();
+      const state = await readFixtureState(request);
+      const vault = state.vaults.find(
+        (candidate) => candidate.name === REEF_E2E_VAULT,
+      );
+      const sprint = vault?.sprints[0];
+      expect(sprint).toBeDefined();
 
-    const rollup = page.getByTestId(`planning-rollup-${sprint?.id}`);
-    await expect(rollup).toBeVisible();
-    await expect(rollup).toContainText("7");
-    await expect(rollup).toContainText("1 completed");
-    await expect(rollup).toContainText("4 in progress");
-    await expect(rollup).toContainText("2 not started");
-    await expect(rollup).toContainText("25 pts total · 5 pts complete");
-    await expect(rollup).toContainText("3 pts remaining");
-    await expect(rollup).toHaveAttribute(
-      "href",
-      `/workspace/${REEF_E2E_VAULT}/issues?sprint_id=${sprint?.id}`,
-    );
-
-    await rollup.focus();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(
-      new RegExp(
-        `/workspace/${REEF_E2E_VAULT}/issues\\?sprint_id=${sprint?.id}$`,
-      ),
-    );
-  });
-
-  test("opens sprint detail from Planning and keeps the fixed Board/List scope", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
-
-    const state = await readFixtureState(request);
-    const sprint = state.vaults
-      .find((vault) => vault.name === REEF_E2E_VAULT)
-      ?.sprints.find((candidate) => candidate.status === "active");
-    expect(sprint).toBeDefined();
-
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
-    await page
-      .getByRole("link", {
-        name: "Open Launch Readiness Sprint sprint details",
-        exact: true,
-      })
-      .click();
-    await expect(page).toHaveURL(
-      `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
-    );
-    await expect(page.getByTestId("sprint-detail-header")).toBeVisible();
-    await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
-    await expect(
-      page.getByRole("heading", { name: "Launch Readiness Sprint" }),
-    ).toBeVisible();
-    await expect(page.getByTestId("sprint-detail-count")).toContainText("1/7");
-    await expect(page.getByTestId("sprint-detail-health")).toBeVisible();
-    await expect(page.getByTestId("sprint-burnup-slot")).toHaveAttribute(
-      "data-slot",
-      "sprint-burnup",
-    );
-    await expect(page.getByTestId("sprint-filter-locked")).toContainText(
-      "Launch Readiness Sprint",
-    );
-    await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
-
-    await expect(
-      page.locator('[data-testid="kanban-card"][data-issue-id="REEF-101"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="kanban-card"][data-issue-id="REEF-103"]'),
-    ).toHaveCount(0);
-    await page.getByTestId("view-switcher-list").click();
-    await expect(page).toHaveURL(
-      new RegExp(
-        `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}\\?view=list$`,
-      ),
-    );
-    await expect(
-      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-101"]'),
-    ).toBeVisible();
-    await expect(
-      page.locator('[data-testid="issue-list-row"][data-issue-id="REEF-103"]'),
-    ).toHaveCount(0);
-
-    await page
-      .getByTestId("sprint-filter-locked")
-      .getByRole("link", { name: "Unlock sprint scope and open Issues" })
-      .click();
-    await expect(page).toHaveURL(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
-    );
-  });
-
-  test("uses the canonical current-sprint anchor in every Active Issues view", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
-
-    const state = await readFixtureState(request);
-    const sprint = state.vaults
-      .find((vault) => vault.name === REEF_E2E_VAULT)
-      ?.sprints.find((candidate) => candidate.status === "active");
-    expect(sprint).toBeDefined();
-
-    for (const view of ["board", "list", "timeline"] as const) {
-      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
-      const contextLink = page
-        .getByTestId("current-sprint-shortcut")
-        .getByRole("link");
-      await expect(contextLink).toHaveAttribute(
+      const rollup = page.getByTestId(`planning-rollup-${sprint?.id}`);
+      await expect(rollup).toBeVisible();
+      await expect(rollup).toContainText("7");
+      await expect(rollup).toContainText("1 completed");
+      await expect(rollup).toContainText("4 in progress");
+      await expect(rollup).toContainText("2 not started");
+      await expect(rollup).toContainText("25 pts total · 5 pts complete");
+      await expect(rollup).toContainText("3 pts remaining");
+      await expect(rollup).toHaveAttribute(
         "href",
+        `/workspace/${REEF_E2E_VAULT}/issues?sprint_id=${sprint?.id}`,
+      );
+
+      await rollup.focus();
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL(
+        new RegExp(
+          `/workspace/${REEF_E2E_VAULT}/issues\\?sprint_id=${sprint?.id}$`,
+        ),
+      );
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "opens sprint detail from Planning and keeps the fixed Board/List scope",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await openExistingWorkspace(page);
+
+      const state = await readFixtureState(request);
+      const sprint = state.vaults
+        .find((vault) => vault.name === REEF_E2E_VAULT)
+        ?.sprints.find((candidate) => candidate.status === "active");
+      expect(sprint).toBeDefined();
+
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+      await page
+        .getByRole("link", {
+          name: "Open Launch Readiness Sprint sprint details",
+          exact: true,
+        })
+        .click();
+      await expect(page).toHaveURL(
         `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
       );
-      expect(await contextLink.evaluate((element) => element.tagName)).toBe(
-        "A",
+      await expect(page.getByTestId("sprint-detail-header")).toBeVisible();
+      await expect(page.getByTestId("current-sprint-shortcut")).toHaveCount(0);
+      await expect(
+        page.getByRole("heading", { name: "Launch Readiness Sprint" }),
+      ).toBeVisible();
+      await expect(page.getByTestId("sprint-detail-count")).toContainText(
+        "1/7",
       );
-      await expect(page.getByTestId("active-sprint-context")).toHaveCount(0);
-    }
-  });
+      await expect(page.getByTestId("sprint-detail-health")).toBeVisible();
+      await expect(page.getByTestId("sprint-burnup-slot")).toHaveAttribute(
+        "data-slot",
+        "sprint-burnup",
+      );
+      await expect(page.getByTestId("sprint-filter-locked")).toContainText(
+        "Launch Readiness Sprint",
+      );
+      await expect(page.getByTestId("view-switcher-timeline")).toHaveCount(0);
+
+      await expect(
+        page.locator('[data-testid="kanban-card"][data-issue-id="REEF-101"]'),
+      ).toBeVisible();
+      await expect(
+        page.locator('[data-testid="kanban-card"][data-issue-id="REEF-103"]'),
+      ).toHaveCount(0);
+      await page.getByTestId("view-switcher-list").click();
+      await expect(page).toHaveURL(
+        new RegExp(
+          `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}\\?view=list$`,
+        ),
+      );
+      await expect(
+        page.locator(
+          '[data-testid="issue-list-row"][data-issue-id="REEF-101"]',
+        ),
+      ).toBeVisible();
+      await expect(
+        page.locator(
+          '[data-testid="issue-list-row"][data-issue-id="REEF-103"]',
+        ),
+      ).toHaveCount(0);
+
+      await page
+        .getByTestId("sprint-filter-locked")
+        .getByRole("link", { name: "Unlock sprint scope and open Issues" })
+        .click();
+      await expect(page).toHaveURL(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
+      );
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "uses the canonical current-sprint anchor in every Active Issues view",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await openExistingWorkspace(page);
+
+      const state = await readFixtureState(request);
+      const sprint = state.vaults
+        .find((vault) => vault.name === REEF_E2E_VAULT)
+        ?.sprints.find((candidate) => candidate.status === "active");
+      expect(sprint).toBeDefined();
+
+      for (const view of ["board", "list", "timeline"] as const) {
+        await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=${view}`);
+        const contextLink = page
+          .getByTestId("current-sprint-shortcut")
+          .getByRole("link");
+        await expect(contextLink).toHaveAttribute(
+          "href",
+          `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
+        );
+        expect(await contextLink.evaluate((element) => element.tagName)).toBe(
+          "A",
+        );
+        await expect(page.getByTestId("active-sprint-context")).toHaveCount(0);
+      }
+    },
+  );
 
   test("keeps a missing sprint distinct from a successful catalog", async ({
     page,
     request,
   }) => {
-    await resetFixture(request, "configured");
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
     const state = await readFixtureState(request);
@@ -1339,7 +1325,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
-    await resetFixture(request, "configured");
+    await page.clock.install();
     await clearPersistedQueryCacheOnLoad(page);
     await setPlanningCatalogFailure(request, true);
     await openExistingWorkspace(page);
@@ -1349,6 +1335,10 @@ test.describe("Hermetic planning workflow", () => {
     expect(sprint).toBeDefined();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
+    );
+    await advanceQueryRetries(
+      page,
+      page.getByTestId("sprint-detail-catalog-error"),
     );
     await expect(page.getByTestId("sprint-detail-catalog-error")).toBeVisible();
     await setPlanningCatalogFailure(request, false);
@@ -1363,7 +1353,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
-    await resetFixture(request, "configured");
+    await page.clock.install();
     await clearPersistedQueryCacheOnLoad(page);
     await setIssueListFailure(request, true);
     await openExistingWorkspace(page);
@@ -1373,6 +1363,10 @@ test.describe("Hermetic planning workflow", () => {
     expect(sprint).toBeDefined();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/planning/sprints/${sprint?.id}`,
+    );
+    await advanceQueryRetries(
+      page,
+      page.getByTestId("sprint-detail-issue-error"),
     );
     await expect(page.getByTestId("sprint-detail-issue-error")).toBeVisible();
     await expect(page.getByTestId("sprint-detail-not-found")).toHaveCount(0);
@@ -1388,7 +1382,6 @@ test.describe("Hermetic planning workflow", () => {
     page,
     request,
   }) => {
-    await resetFixture(request, "configured");
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
     const state = await readFixtureState(request);
@@ -1403,28 +1396,25 @@ test.describe("Hermetic planning workflow", () => {
     expect(await cumulativeLayoutShift(page)).toBeLessThan(0.1);
   });
 
-  test("keeps the existing empty planning state and create entry point for a successful empty catalog", async ({
-    page,
-    request,
-  }) => {
-    // The runtime-contract task publishes empty-state starting points but does
-    // not execute this composed page, so keep the routed Planning proof here.
-    await resetFixture(request, "configured_empty");
-    await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
+  test.extend({ scenario: "configured_empty" })(
+    "keeps the existing empty planning state and create entry point for a successful empty catalog",
+    async ({ page }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await openExistingWorkspace(page);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/planning`);
 
-    await expect(
-      page.getByTestId("planning-overview-empty-currentSprint"),
-    ).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(
-      page.getByRole("heading", { name: "No current sprint." }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "New sprint" }),
-    ).toBeVisible();
-    await expect(page.getByTestId("planning-catalog-error")).toHaveCount(0);
-  });
+      await expect(
+        page.getByTestId("planning-overview-empty-currentSprint"),
+      ).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(
+        page.getByRole("heading", { name: "No current sprint." }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "New sprint" }),
+      ).toBeVisible();
+      await expect(page.getByTestId("planning-catalog-error")).toHaveCount(0);
+    },
+  );
 });

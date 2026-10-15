@@ -1,5 +1,5 @@
-import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 
 async function exerciseCommentMention(page: Page) {
   const composer = page.getByRole("textbox", {
@@ -97,15 +97,13 @@ async function exerciseCommentMention(page: Page) {
 }
 
 test.describe("Comment mentions (REEF-452)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "comment_mentions");
-  });
+  test.use({ scenario: "comment_mentions" });
 
   test("selects an exact-case roster token and renders a non-clickable mention", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
     const accessibleText = await exerciseCommentMention(page);
@@ -114,9 +112,10 @@ test.describe("Comment mentions (REEF-452)", () => {
   });
 
   test("preserves consecutive backslashes through visible comment create, edit, and reopen", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
     const original = String.raw`댓글 ' \\ 한글 🧪`;
@@ -183,9 +182,10 @@ test.describe("Comment mentions (REEF-452)", () => {
   });
 
   test("Escape closes autocomplete without dismissing the composer or issue", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
     let createRequests = 0;
@@ -217,9 +217,10 @@ test.describe("Comment mentions (REEF-452)", () => {
   });
 
   test("escapes an edited or unresolved ordinary label at the save boundary", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
     const composer = page.getByRole("textbox", {
@@ -325,9 +326,10 @@ test.describe("Comment mentions (REEF-452)", () => {
   });
 
   test("deletes only the author's comment subtree after confirmation and persists after reload (REEF-520)", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
     const otherAuthorThread = page.getByTestId("comment-thread").first();

@@ -1,9 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { expect, type Page } from "@playwright/test";
 import {
   openExistingWorkspace,
-  resetFixture,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "demo_board" });
 
 interface ThemeFrame {
   at: number;
@@ -152,7 +154,6 @@ async function installThemePaintProbe(page: Page): Promise<void> {
       );
     });
 
-    const stopAt = performance.now() + 4_000;
     let previousDark = isDark();
     const sampleFrames = () => {
       const dark = isDark();
@@ -161,7 +162,7 @@ async function installThemePaintProbe(page: Page): Promise<void> {
         previousDark = dark;
       }
       captureSwitcher();
-      if (performance.now() < stopAt) requestAnimationFrame(sampleFrames);
+      requestAnimationFrame(sampleFrames);
     };
     requestAnimationFrame(sampleFrames);
   });
@@ -192,11 +193,6 @@ function firstContentfulPaint(probe: ThemePaintProbe | null) {
 }
 
 test.describe("theme first paint", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   test("keeps the selected view stable before and after hydration", async ({
     page,
   }, testInfo) => {

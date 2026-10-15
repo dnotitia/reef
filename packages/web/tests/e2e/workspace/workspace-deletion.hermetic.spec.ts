@@ -1,24 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
-  openExistingWorkspace,
   readFixtureState,
-  resetFixture,
 } from "../harness/fixture";
 
 // Settings offers recoverable Reef uninstall and owner-only full vault delete.
 test.describe("Hermetic workspace lifecycle danger zone", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("rejects fresh after Remove and restores the retained workspace", async ({
+    openWorkspace,
     page,
     request,
   }) => {
     await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
+    await openWorkspace();
 
     const installationResponse = await page.request.get(
       "/api/vaults/reef-e2e/installation",
@@ -144,11 +141,12 @@ test.describe("Hermetic workspace lifecycle danger zone", () => {
   });
 
   test("delete requires typing the name, removes the whole vault, and redirects", async ({
+    openWorkspace,
     page,
     request,
   }) => {
     await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page);
+    await openWorkspace();
 
     await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");

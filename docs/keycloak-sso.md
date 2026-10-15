@@ -49,3 +49,10 @@ AKB credential rejection and stable account denials (membership_required, accoun
 ## Readiness and verification
 
 Readiness checks are bounded and non-authenticating: configuration, Redis reachability, and a usable pinned JWKS. They do not perform login or refresh. Hermetic tests cover local and SSO mode gates, provider selection, local-realm claim differences, PKCE/state/nonce binding, access/ID token rejection, encrypted custody, CAS refresh, lock/logout ordering, CSRF, and token non-disclosure. A real AKB + Keycloak companion client, account, and Redis are required for SSO operational cutover evidence. If that environment is absent, record the real SSO check as not_run and keep the implementation candidate separate from that deployment decision.
+
+
+## Hermetic browser verification
+
+The canonical `pnpm --filter @reef/web run test:e2e:sharded` includes the `sso` Playwright project. It starts the production Reef server in exclusive SSO mode with LLM disabled. The fixture owns OIDC authorization/token/JWKS endpoints, signed RS256 tokens, and a Redis wire server; Reef's routes, PKCE/state/nonce and token validation, AES-GCM custody, AKB account validation, and logout remain real. Every test resets both external fixtures. Local-auth projects use separate server phases.
+
+For a focused production run, use `pnpm --filter @reef/web run test:e2e:sharded --shards=1 --project=sso`. The fixture terminates HTTPS on web port + 3 and serves Redis on mock port + 1, within each shard's port allocation. The checked-in localhost TLS key and fixed fixture credentials are public test data, never deployment credentials. Only the SSO browser context accepts the fixture's self-signed certificate; Reef's production configuration checks remain enabled.

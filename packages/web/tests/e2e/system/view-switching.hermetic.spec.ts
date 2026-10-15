@@ -1,5 +1,5 @@
-import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 
 /**
  * Issue view-switch interaction (REEF-265). Scope and layout are independent
@@ -51,15 +51,13 @@ async function holdListNavigation(page: Page) {
 }
 
 test.describe("Hermetic issue view switching", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("swaps layouts and keeps the independent URL state without flashing the board skeleton", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
 
     await page.goto("/workspace/reef-e2e/issues");
     await expect(
@@ -123,9 +121,10 @@ test.describe("Hermetic issue view switching", () => {
   });
 
   test("rapid consecutive clicks converge to the last selected view", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
 
     await page.goto("/workspace/reef-e2e/issues");
     await expect(

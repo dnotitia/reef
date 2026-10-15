@@ -1,9 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import {
-  openExistingWorkspace,
+  openWorkspaceThroughLogin,
   readFixtureState,
   readIndexedDbConfig,
-  resetFixture,
   releaseAuthProbe,
   setAkbAccountDenial,
   setAuthControl,
@@ -336,9 +336,7 @@ async function expectContinuitySnapshot(
 }
 
 test.describe("auth soft navigation", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
+  test.beforeEach(async ({ request }) => {
     await setAuthControl(request, {});
   });
 
@@ -369,7 +367,7 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     await expect(page).toHaveURL(new RegExp(`${ISSUES_PATH}$`));
 
     let authProbeCount = 0;
@@ -379,7 +377,7 @@ test.describe("auth soft navigation", () => {
     page.on("request", countAuthProbe);
 
     try {
-      await setAuthControl(request, { probeDelayMs: 1_200 });
+      await setAuthControl(request, { probeHold: true });
       await page.locator(`a[href="${PLANNING_PATH}"]`).click();
       await page.waitForURL((url) => url.pathname === PLANNING_PATH);
       await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
@@ -434,7 +432,7 @@ test.describe("auth soft navigation", () => {
     page.on("requestfailed", settleProtectedRequest);
 
     try {
-      await openExistingWorkspace(page);
+      await openWorkspaceThroughLogin(page);
       await expect(page.getByTestId("kanban-board")).toBeVisible();
       await expect
         .poll(() => readIndexedDbConfig(page, "vault"))
@@ -517,7 +515,7 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     test.setTimeout(60_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     const currentUrl = page.url();
     await writeIndexedDbConfig(
       page,
@@ -529,7 +527,7 @@ test.describe("auth soft navigation", () => {
       "filter:reef-e2e",
       JSON.stringify({ version: 1, filter: { status: ["todo"] } }),
     );
-    await setAuthControl(request, { probeHang: true });
+    await setAuthControl(request, { probeHold: true });
 
     const probe = page.waitForRequest(isAuthProbeRequest);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -547,7 +545,7 @@ test.describe("auth soft navigation", () => {
       .poll(() => readIndexedDbConfig(page, "filter:reef-e2e"))
       .toBe(JSON.stringify({ version: 1, filter: { status: ["todo"] } }));
 
-    await setAuthControl(request, { probeHang: false });
+    await releaseAuthProbe(request);
     const retryProbe = page.waitForResponse(
       (response) =>
         isAuthProbeRequest(response.request()) && response.status() === 200,
@@ -573,7 +571,7 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     test.setTimeout(60_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     const currentUrl = page.url();
     await setAuthControl(request, { probeFailureStatus: 500 });
 
@@ -628,9 +626,9 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     test.setTimeout(60_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     const currentUrl = page.url();
-    await setAuthControl(request, { probeHang: true });
+    await setAuthControl(request, { probeHold: true });
 
     await page.reload();
     await expect(page.getByTestId("auth-verification-unavailable")).toBeVisible(
@@ -642,7 +640,7 @@ test.describe("auth soft navigation", () => {
       0,
     );
 
-    await setAuthControl(request, { probeHang: false });
+    await releaseAuthProbe(request);
     const retryProbe = page.waitForResponse(
       (response) =>
         isAuthProbeRequest(response.request()) && response.status() === 200,
@@ -661,7 +659,7 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     test.setTimeout(120_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
 
     for (const surface of [
       {
@@ -735,7 +733,7 @@ test.describe("auth soft navigation", () => {
     request,
   }, testInfo) => {
     test.setTimeout(120_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     await page.setViewportSize({ width: 1280, height: 844 });
     await setAuthControl(request, { probeHold: true });
 
@@ -838,7 +836,7 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     test.setTimeout(120_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     await page.setViewportSize({ width: 1280, height: 844 });
     await setAuthControl(request, { probeHold: true });
 
@@ -931,7 +929,7 @@ test.describe("auth soft navigation", () => {
     request,
   }, testInfo) => {
     test.setTimeout(180_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
 
     const modes = CONTINUITY_MODES;
     const surfaces = [
@@ -1170,7 +1168,7 @@ test.describe("auth soft navigation", () => {
     request,
   }, testInfo) => {
     test.setTimeout(240_000);
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
 
     const modes = CONTINUITY_MODES;
     const surfaces = CONTINUITY_SURFACES;
@@ -1412,8 +1410,8 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
-    await setAuthControl(request, { probeDelayMs: 1_200 });
+    await openWorkspaceThroughLogin(page);
+    await setAuthControl(request, { probeHold: true });
 
     const probe = page.waitForRequest(isAuthProbeRequest);
     await page.evaluate(() => {
@@ -1421,13 +1419,16 @@ test.describe("auth soft navigation", () => {
     });
     await probe;
 
-    await page.waitForTimeout(300);
+    await expect
+      .poll(async () => (await readFixtureState(request)).auth_probe_pending)
+      .toBeGreaterThan(0);
     await expect(page).toHaveURL(new RegExp(`${ISSUES_PATH}$`));
     await expectPersistentShell(page);
     await expect(
       page.locator('[data-testid="auth-revalidation-status"]'),
     ).toHaveCount(0);
 
+    await releaseAuthProbe(request);
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
       timeout: 15_000,
     });
@@ -1437,7 +1438,7 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     await page.setViewportSize({ width: 1280, height: 844 });
 
     const sidebar = page.getByRole("complementary", { name: "Sidebar" });
@@ -1445,7 +1446,7 @@ test.describe("auth soft navigation", () => {
     await expect(sidebar).toHaveClass(/w-14/u);
     await expect(page.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
 
-    await setAuthControl(request, { probeDelayMs: 1_200 });
+    await setAuthControl(request, { probeHold: true });
     const probe = page.waitForResponse(
       (response) =>
         isAuthProbeRequest(response.request()) && response.status() === 200,
@@ -1453,6 +1454,12 @@ test.describe("auth soft navigation", () => {
     await page.evaluate(() => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
+    await expect
+      .poll(async () => (await readFixtureState(request)).auth_probe_pending)
+      .toBeGreaterThan(0);
+    await expect(sidebar).toHaveClass(/w-14/u);
+    await expect(page.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
+    await releaseAuthProbe(request);
     await probe;
     await expect(sidebar).toHaveClass(/w-14/u);
     await expect(page.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
@@ -1463,7 +1470,7 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     await setAuthControl(request, { probeHold: true });
     const pendingProbe = page.waitForRequest(isAuthProbeRequest);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -1490,7 +1497,7 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
     await page.goto(`${WORKSPACE}/settings/workspace/members`);
     await expect(page.getByTestId("members-section")).toBeVisible();
     const prefs = await readIndexedDbConfig(page, "vault");
@@ -1544,7 +1551,7 @@ test.describe("auth soft navigation", () => {
     context,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
 
     const sibling = await context.newPage();
     try {

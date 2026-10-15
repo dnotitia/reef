@@ -1,14 +1,17 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { advanceQueryRetries } from "../harness/browser-observations";
+import { expect, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
   setAuthControl,
   setIssueListFailure,
   setIssueUpdateControl,
 } from "../harness/fixture";
 import { PERSISTED_QUERY_CACHE_KEY } from "../../../src/lib/storage/clientCache";
+
+const test = workspaceTest.extend({ scenario: "sprint_rollover" });
 
 function sprintByName(
   state: Awaited<ReturnType<typeof readFixtureState>>,
@@ -32,11 +35,6 @@ async function openPlanning(page: Page) {
 }
 
 test.describe("Hermetic sprint rollover workflow", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "sprint_rollover");
-  });
-
   test("closes into an existing planned target and preserves the issue matrix", async ({
     page,
     request,
@@ -122,44 +120,47 @@ test.describe("Hermetic sprint rollover workflow", () => {
     ).toHaveLength(2);
   });
 
-  test("activates a new target with zero unfinished issues", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "sprint_rollover_empty");
-    await openPlanning(page);
-    await page
-      .getByRole("button", {
-        name: "Close Sprint 14 - Rollover fixture and roll over",
-      })
-      .click();
-    const dialog = page.getByTestId("sprint-rollover-dialog");
-    await expect(dialog.getByText("Unfinished issues to move")).toBeVisible();
-    await expect(dialog.getByRole("definition").first()).toHaveText("0");
-    await dialog
-      .getByTestId("sprint-rollover-target-name")
-      .fill("Fresh Sprint");
-    await dialog.getByTestId("sprint-rollover-submit").click();
-    await expect(dialog.getByTestId("sprint-rollover-complete")).toBeVisible();
-    await expect(
-      dialog.getByTestId("sprint-rollover-completed-count"),
-    ).toHaveText("0 issues rolled over");
-    await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
-    await dialog.getByTestId("sprint-rollover-close").click();
-    await expect(dialog).toBeHidden();
+  test.extend({ scenario: "sprint_rollover_empty" })(
+    "activates a new target with zero unfinished issues",
+    async ({ page, request }) => {
+      await openPlanning(page);
+      await page
+        .getByRole("button", {
+          name: "Close Sprint 14 - Rollover fixture and roll over",
+        })
+        .click();
+      const dialog = page.getByTestId("sprint-rollover-dialog");
+      await expect(dialog.getByText("Unfinished issues to move")).toBeVisible();
+      await expect(dialog.getByRole("definition").first()).toHaveText("0");
+      await dialog
+        .getByTestId("sprint-rollover-target-name")
+        .fill("Fresh Sprint");
+      await dialog.getByTestId("sprint-rollover-submit").click();
+      await expect(
+        dialog.getByTestId("sprint-rollover-complete"),
+      ).toBeVisible();
+      await expect(
+        dialog.getByTestId("sprint-rollover-completed-count"),
+      ).toHaveText("0 issues rolled over");
+      await expect(dialog.getByTestId("sprint-rollover-result")).toHaveCount(0);
+      await dialog.getByTestId("sprint-rollover-close").click();
+      await expect(dialog).toBeHidden();
 
-    await expect
-      .poll(async () => {
-        const state = await readFixtureState(request);
-        const vault = state.vaults.find((item) => item.name === REEF_E2E_VAULT);
-        return vault?.sprints.find((item) => item.name === "Fresh Sprint")
-          ?.status;
-      })
-      .toBe("active");
-    const state = await readFixtureState(request);
-    const vault = state.vaults.find((item) => item.name === REEF_E2E_VAULT);
-    expect(vault?.issues).toHaveLength(0);
-  });
+      await expect
+        .poll(async () => {
+          const state = await readFixtureState(request);
+          const vault = state.vaults.find(
+            (item) => item.name === REEF_E2E_VAULT,
+          );
+          return vault?.sprints.find((item) => item.name === "Fresh Sprint")
+            ?.status;
+        })
+        .toBe("active");
+      const state = await readFixtureState(request);
+      const vault = state.vaults.find((item) => item.name === REEF_E2E_VAULT);
+      expect(vault?.issues).toHaveLength(0);
+    },
+  );
 
   test("opens the same confirmation flow from the sprint detail header", async ({
     page,
@@ -373,7 +374,7 @@ test.describe("Hermetic sprint rollover workflow", () => {
 
       await page.clock.install({ time: new Date() });
       await page.clock.fastForward(60_001);
-      await setIssueListFailure(request, true, 0, 0, failureMode);
+      await setIssueListFailure(request, true, 0, false, failureMode);
       // Switching views remounts the stale issue-list observer while preserving
       // the workspace's warm QueryClient cache. This triggers the real Route
       // Handler refetch without relying on a headless browser focus transition.
@@ -394,6 +395,7 @@ test.describe("Hermetic sprint rollover workflow", () => {
       const board = page.getByTestId("kanban-board");
       const boardError = board.getByRole("alert");
       await expect(board).toBeVisible();
+      await advanceQueryRetries(page, boardError);
       await expect(boardError).toBeVisible({ timeout: 10_000 });
       await expect(boardError).toContainText(
         "Failed to load some issues. Displaying cached data if available.",

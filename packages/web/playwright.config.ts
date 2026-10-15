@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+import { ssoFixtureConfig } from "./tests/e2e/harness/mock-sso-config.mjs";
 import {
   E2E_REEF_APP_ID,
   E2E_REEF_IMAGE_DIGEST,
@@ -15,7 +16,7 @@ import {
  */
 function buildWebServerEnv(): Record<string, string> {
   const llmEnv =
-    process.env.REEF_E2E_LLM_DISABLED === "1"
+    ssoMode || process.env.REEF_E2E_LLM_DISABLED === "1"
       ? {
           REEF_LLM_API_KEY: "",
           REEF_LLM_BASE_URL: "",
@@ -33,9 +34,22 @@ function buildWebServerEnv(): Record<string, string> {
     // Hermetic E2E owns its auth backend; ambient deployment settings must not
     // replace the fixture that the browser login contract exercises.
     AKB_BACKEND_URL: `${E2E_MOCK_URL}/akb`,
-    // The hermetic fixture exercises the local AKB auth contract. Production
-    // standalone does not get the development-only auth-mode default.
-    REEF_AUTH_MODE: "local",
+    // Each project pins one exclusive auth mode for the real Reef server.
+    REEF_AUTH_MODE: ssoMode ? "sso" : "local",
+    ...(ssoMode
+      ? {
+          REEF_PUBLIC_ORIGIN: ssoConfig.publicOrigin,
+          REEF_KEYCLOAK_ISSUER: ssoConfig.issuer,
+          REEF_KEYCLOAK_TRANSPORT_URL: ssoConfig.transportUrl,
+          REEF_KEYCLOAK_CLIENT_ID: ssoConfig.clientId,
+          REEF_AKB_API_AUDIENCE: ssoConfig.audience,
+          REEF_SESSION_REDIS_URL: ssoConfig.redisUrl,
+          REEF_SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString(
+            "base64url",
+          ),
+          REEF_AUTH_SESSION_NAMESPACE: "reef-e2e-sso",
+        }
+      : {}),
     // Match the deployment-bound fixture target used by dev:e2e so configured
     // workspaces stay resumable in both hermetic runtimes.
     REEF_APP_ID: E2E_REEF_APP_ID,
@@ -59,14 +73,15 @@ function buildWebServerEnv(): Record<string, string> {
       process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
     REEF_GITHUB_APP_PRIVATE_KEY:
       process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
-    // Exercise the optional SSO-first entry while the fixture keeps Keycloak
-    // disabled by default. The dedicated auth spec enables it per scenario.
+    // The SSO project exercises the real automatic provider redirect.
     REEF_SSO_AUTO_REDIRECT: process.env.REEF_SSO_AUTO_REDIRECT ?? "1",
   };
 }
 
 const REEF_WEB_URL = process.env.REEF_WEB_URL ?? "http://localhost:7353";
 const E2E_MOCK_URL = process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
+const ssoMode = process.env.REEF_E2E_AUTH_MODE === "sso";
+const ssoConfig = ssoFixtureConfig(REEF_WEB_URL, E2E_MOCK_URL);
 const REEF_WEB_PORT = new URL(REEF_WEB_URL).port || "7353";
 const E2E_MOCK_PORT = new URL(E2E_MOCK_URL).port || "7354";
 const WEB_SERVER_COMMAND =
@@ -83,7 +98,8 @@ export default defineConfig({
   testMatch: /.*\.hermetic\.spec\.ts/,
   timeout: 30_000,
   expect: { timeout: 15_000 },
-  fullyParallel: false, // IndexedDB state is per-browser-context; run sequentially
+  // Test-level sharding; workers=1 serializes access to each shard's mock server.
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
@@ -95,7 +111,22 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      grepInvert: /@visual-matrix|@sso/,
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "visual-matrix",
+      grep: /@visual-matrix/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "sso",
+      grep: /@sso/,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: ssoConfig.publicOrigin,
+        ignoreHTTPSErrors: true,
+      },
     },
   ],
   webServer: [
@@ -104,11 +135,16 @@ export default defineConfig({
       url: `${E2E_MOCK_URL}/__e2e/health`,
       reuseExistingServer: false,
       timeout: 30_000,
-      env: { REEF_E2E_MOCK_PORT: E2E_MOCK_PORT },
+      env: {
+        REEF_E2E_MOCK_PORT: E2E_MOCK_PORT,
+        REEF_E2E_AUTH_MODE: ssoMode ? "sso" : "local",
+        REEF_WEB_URL,
+        REEF_E2E_MOCK_URL: E2E_MOCK_URL,
+      },
     },
     {
       command: WEB_SERVER_COMMAND,
-      url: REEF_WEB_URL,
+      url: `${REEF_WEB_URL}/login?password=1`,
       reuseExistingServer: false,
       timeout: 120_000, // Next.js cold start can be slow
       env: buildWebServerEnv(),

@@ -6,7 +6,6 @@ import {
   releaseAuthProbe,
   resetFixture,
   setAuthControl,
-  setIssueListFailure,
 } from "../harness/fixture";
 
 const WIDTH_KEY = "reef:issue-detail-width:v2";
@@ -110,12 +109,10 @@ test.use({ video: "on" });
 
 test.describe("Hermetic persisted issue layout", () => {
   test("holds the saved panel and Description geometry through reload loading states", async ({
-    context,
     page,
     request,
   }, testInfo) => {
     testInfo.setTimeout(60_000);
-    await context.clearCookies();
     await resetFixture(request, "demo_board");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.emulateMedia({ colorScheme: "light" });
@@ -351,10 +348,20 @@ test.describe("Hermetic persisted issue layout", () => {
     await setAuthControl(request, {
       probeHold: true,
     });
-    await setIssueListFailure(request, false, 0, 1_400);
+    let releaseEditor!: () => void;
+    const editorReleased = new Promise<void>((resolve) => {
+      releaseEditor = resolve;
+    });
     await page.route("**/_next/static/chunks/**", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 450));
-      await route.continue();
+      if (route.request().resourceType() !== "script") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const body = await response.text();
+      if (/"data-testid"\s*:\s*"markdown-editor"/u.test(body))
+        await editorReleased;
+      await route.fulfill({ response });
     });
 
     const reload = page.reload({ waitUntil: "domcontentloaded" });
@@ -381,6 +388,7 @@ test.describe("Hermetic persisted issue layout", () => {
       body: loadingScreenshot,
       contentType: "image/png",
     });
+    releaseEditor();
     await expect(page.getByTestId("markdown-editor")).toBeVisible({
       timeout: 15_000,
     });

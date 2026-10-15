@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { cp, rm } from "node:fs/promises";
+import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectTests, scheduleTests } from "./e2e-scheduling.mts";
 import { assertCurrentProductionBuild } from "./production-build.mjs";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,7 +27,7 @@ const playwrightBin = resolve(
   process.platform === "win32" ? "playwright.cmd" : "playwright",
 );
 
-const start = Date.now();
+const start = performance.now();
 let interrupted = false;
 const children = new Set();
 
@@ -46,6 +47,7 @@ try {
         total: shardCount,
       }));
 
+  await mkdir(resolve(PACKAGE_ROOT, "test-results"), { recursive: true });
   await Promise.all(
     shards.map(({ index }) =>
       rm(resolve(PACKAGE_ROOT, "test-results", `shard-${index}`), {
@@ -75,16 +77,67 @@ try {
       : `[e2e:shards] running ${shardCount} Playwright shards in parallel\n`,
   );
 
+  const collectionPath = resolve(
+    PACKAGE_ROOT,
+    "test-results",
+    "collection.json",
+  );
+  await runOneShot(
+    "collect",
+    playwrightBin,
+    ["test", "--list", ...passthroughArgs, "--reporter=json"],
+    { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: collectionPath },
+  );
+  const inventory = collectTests(
+    JSON.parse(await readFile(collectionPath, "utf8")),
+  );
+  const profile = JSON.parse(
+    await readFile(
+      resolve(PACKAGE_ROOT, "scripts", "e2e-duration-profile.json"),
+      "utf8",
+    ),
+  );
+  const plans = scheduleTests(inventory, profile, shards[0].total);
+  for (const { index } of shards) {
+    const plan = plans[index - 1];
+    await mkdir(resolve(PACKAGE_ROOT, "test-results", `shard-${index}`), {
+      recursive: true,
+    });
+    for (const project of ["chromium", "visual-matrix", "sso"]) {
+      const selectors = plan.tests
+        .filter((test) => test.project === project)
+        .map((test) => test.selector);
+      await writeFile(
+        resolve(
+          PACKAGE_ROOT,
+          "test-results",
+          `shard-${index}`,
+          `${project}-tests.txt`,
+        ),
+        `${selectors.join("\n")}\n`,
+      );
+    }
+    process.stdout.write(
+      `[e2e:${index}/${shards[0].total}] planned ${plan.tests.length} tests / ${(plan.estimatedDurationMs / 1000).toFixed(1)}s\n`,
+    );
+  }
+  const executionStart = performance.now();
+  const buildAndPreparationMs = executionStart - start;
   const results = await Promise.all(
     shards.map(({ index, total }) => {
       const portOffset = (index - 1) * PORT_STRIDE;
       const webUrl = withPort(baseWebUrl, baseWebPort + portOffset);
       const mockUrl = withPort(baseMockUrl, baseMockPort + portOffset);
-      return runShard(index, total, webUrl, mockUrl);
+      return runShard(index, total, webUrl, mockUrl, plans[index - 1]);
     }),
   );
 
-  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  const durationMs = performance.now() - start;
+  await writeFile(
+    resolve(PACKAGE_ROOT, "test-results", "e2e-timings.json"),
+    `${JSON.stringify({ version: 1, buildAndPreparationMs, durationMs, shards: results }, null, 2)}\n`,
+  );
+  const elapsed = (durationMs / 1000).toFixed(1);
   const failed = results.filter((result) => result.code !== 0);
   process.stdout.write(`[e2e:shards] finished in ${elapsed}s\n`);
 
@@ -189,12 +242,48 @@ function withPort(url, port) {
   return next.toString().replace(/\/$/, "");
 }
 
-function runShard(shard, total, webUrl, mockUrl) {
+async function runShard(shard, total, webUrl, mockUrl, plan) {
+  const shardStart = performance.now();
+  const projects = [];
+  let code = 0;
+  // One fixture server per shard: run project phases sequentially.
+  for (const project of ["chromium", "visual-matrix", "sso"]) {
+    if (interrupted) break;
+    if (!plan.tests.some((test) => test.project === project)) continue;
+    const result = await runProjectShard(
+      shard,
+      total,
+      webUrl,
+      mockUrl,
+      project,
+    );
+    projects.push(result);
+    code ||= result.code;
+  }
+  const durationMs = performance.now() - shardStart;
+  process.stdout.write(
+    `[e2e:${shard}/${total}] shard finished in ${(durationMs / 1000).toFixed(1)}s\n`,
+  );
+  return {
+    shard,
+    total,
+    code: interrupted ? 1 : code,
+    durationMs,
+    estimatedDurationMs: plan.estimatedDurationMs,
+    testCount: plan.tests.length,
+    projects,
+  };
+}
+
+function runProjectShard(shard, total, webUrl, mockUrl, project) {
+  const projectStart = performance.now();
   const prefix = `[e2e:${shard}/${total}]`;
   const args = [
     "test",
-    `--shard=${shard}/${total}`,
-    `--output=test-results/shard-${shard}`,
+    `--project=${project}`,
+    `--test-list=test-results/shard-${shard}/${project}-tests.txt`,
+    `--output=test-results/shard-${shard}/${project}`,
+    `--reporter=${process.env.CI ? "github" : "list"},json`,
     ...passthroughArgs,
   ];
 
@@ -211,6 +300,14 @@ function runShard(shard, total, webUrl, mockUrl) {
         "test-results",
         `transform-cache-${shard}`,
       ),
+      PLAYWRIGHT_JSON_OUTPUT_FILE: resolve(
+        PACKAGE_ROOT,
+        "test-results",
+        `shard-${shard}`,
+        project,
+        "report.json",
+      ),
+      REEF_E2E_AUTH_MODE: project === "sso" ? "sso" : "local",
       REEF_WEB_URL: webUrl,
       REEF_E2E_MOCK_URL: mockUrl,
       REEF_E2E_WEB_COMMAND:
@@ -226,21 +323,22 @@ function runShard(shard, total, webUrl, mockUrl) {
   return new Promise((resolve) => {
     child.on("exit", (code, signal) => {
       children.delete(child);
-      if (signal && interrupted) {
-        resolve({ shard, total, code: 1 });
-        return;
-      }
-      resolve({ shard, total, code: code ?? (signal ? 1 : 0) });
+      const durationMs = performance.now() - projectStart;
+      const exitCode = signal && interrupted ? 1 : (code ?? (signal ? 1 : 0));
+      process.stdout.write(
+        `${prefix} ${project} finished in ${(durationMs / 1000).toFixed(1)}s (exit ${exitCode})\n`,
+      );
+      resolve({ project, code: exitCode, durationMs });
     });
   });
 }
 
-function runOneShot(name, command, args) {
+function runOneShot(name, command, args, env = process.env) {
   process.stdout.write(`[e2e:shards] ${name}: ${command} ${args.join(" ")}\n`);
   const child = spawn(command, args, {
     cwd: PACKAGE_ROOT,
-    env: process.env,
-    stdio: "inherit",
+    env,
+    stdio: name === "collect" ? ["ignore", "ignore", "inherit"] : "inherit",
   });
   children.add(child);
 

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 
 // REEF-329: jira and confluence are first-class external_refs kinds. This drives
 // the real "Reference kind" dropdown in the issue editor (a Radix Select that
@@ -9,15 +9,13 @@ import { openExistingWorkspace, resetFixture } from "../harness/fixture";
 const JIRA_URL = "https://acme.atlassian.net/browse/PROJ-42";
 
 test.describe("Hermetic external reference kinds (REEF-329)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("offers Jira + Confluence in the reference-kind dropdown and persists a Jira link across reload", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 

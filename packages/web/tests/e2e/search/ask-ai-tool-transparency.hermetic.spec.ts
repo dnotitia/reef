@@ -1,5 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { setResponseHold, releaseResponseHold } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 
 /**
  * REEF-372 — Ask AI tool transparency through a hermetic fake LLM tool loop.
@@ -11,15 +12,14 @@ import { openExistingWorkspace, resetFixture } from "../harness/fixture";
  * second LLM turn returns final prose after tool outputs.
  */
 test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("shows live/completed tool steps, citations, and issue deep links", async ({
+    openWorkspace,
     page,
+    request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await expect(page.locator('[data-testid="ask-ai-fab"]')).toBeVisible();
 
     await page.locator('[data-testid="ask-ai-fab"]').click();
@@ -30,12 +30,14 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
       .fill(
         "tool transparency e2e: search for Initial issue Alpha and cite the Spec overview document.",
       );
+    await setResponseHold(request, "tool-search", true);
     await page.locator('[data-testid="ask-ai-send"]').click();
 
     const assistant = page.locator('[data-testid="assistant-message"]').last();
     const trace = assistant.locator('[data-testid="chat-tool-trace"]');
     await expect(trace).toBeVisible();
     await expect(trace).toContainText("Searching issues");
+    await releaseResponseHold(request, "tool-search");
 
     await expect(assistant).toContainText("REEF-001", { timeout: 15_000 });
     await expect(trace.locator('button[aria-expanded="false"]')).toBeVisible();
@@ -80,6 +82,7 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
   });
 
   test("answers exact issue questions with completed traces across close/reopen", async ({
+    openWorkspace,
     page,
   }) => {
     const agentRunStatuses: number[] = [];
@@ -89,7 +92,7 @@ test.describe("Hermetic Ask AI tool transparency (REEF-372)", () => {
       }
     });
 
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.locator('[data-testid="ask-ai-fab"]').click();
     const askInput = page.locator('[data-testid="ask-ai-input"]');
     const askSend = page.locator('[data-testid="ask-ai-send"]');

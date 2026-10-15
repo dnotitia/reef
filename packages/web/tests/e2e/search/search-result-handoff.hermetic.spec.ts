@@ -1,5 +1,8 @@
-import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
+import { openExistingWorkspace } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "demo_board" });
 
 const SEARCH_RESULTS = {
   planning: [
@@ -303,7 +306,13 @@ async function runRapidTimelineHandoff(page: Page): Promise<TimelineFrame[]> {
   const input = page.getByTestId("search-input");
   for (const query of ["board", "Review", "Ship"] as const) {
     await input.fill(query);
-    await page.waitForTimeout(230);
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("q"))
+      .toBe(query);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
   }
 
   await expect
@@ -382,13 +391,23 @@ function assertNoInvalidTimelineFrames(frames: TimelineFrame[]): void {
   expect(summary.settledQueryMismatches).toEqual([]);
 }
 
-async function runRapidHandoff(page: Page): Promise<BoardFrame[]> {
+async function runRapidHandoff(
+  page: Page,
+  releaseResponses?: () => Promise<void>,
+): Promise<BoardFrame[]> {
   const input = page.getByTestId("search-input");
   for (const query of ["board", "Review", "Ship"] as const) {
     await input.fill(query);
-    await page.waitForTimeout(230);
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("q"))
+      .toBe(query);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
   }
 
+  await releaseResponses?.();
   await expect
     .poll(() => new URL(page.url()).searchParams.get("q"))
     .toBe("Ship");
@@ -477,33 +496,32 @@ function assertNoInvalidFrames(frames: BoardFrame[]): void {
   expect(summary.settledQueryMismatches).toEqual([]);
 }
 
-async function delaySearchResponseDelivery(
+// UI-only delivery control: every response still comes from Reef's real route.
+async function holdSearchResponseDelivery(
   page: Page,
-  milliseconds: number,
-  delayed: Array<{ query: string; status: number; delayMs: number }>,
-): Promise<void> {
+  held: Array<{ query: string; status: number }>,
+): Promise<() => void> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await page.route(
     (url) => url.pathname === "/api/issues" && url.searchParams.has("q"),
     async (route) => {
       const url = new URL(route.request().url());
       const response = await route.fetch();
-      delayed.push({
+      held.push({
         query: url.searchParams.get("q") ?? "",
         status: response.status(),
-        delayMs: milliseconds,
       });
-      await new Promise((resolve) => setTimeout(resolve, milliseconds));
+      await released;
       await route.fulfill({ response });
     },
   );
+  return release;
 }
 
 test.describe("Search result handoff", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   test("keeps cached result sets through repeated three-query handoffs", async ({
     page,
   }) => {
@@ -529,7 +547,6 @@ test.describe("Search result handoff", () => {
     const delayed = [] as Array<{
       query: string;
       status: number;
-      delayMs: number;
     }>;
     const runs: Array<{ repetition: number; frames: BoardFrame[] }> = [];
 
@@ -537,7 +554,7 @@ test.describe("Search result handoff", () => {
     await startFrameCapture(page);
     runs.push({ repetition: 1, frames: await runRapidHandoff(page) });
 
-    await delaySearchResponseDelivery(page, 700, delayed);
+    const releaseResponses = await holdSearchResponseDelivery(page, delayed);
     for (const repetition of [2, 3] as const) {
       await enterSettledSearch(page, "planning");
       await startFrameCapture(page);
@@ -549,7 +566,7 @@ test.describe("Search result handoff", () => {
     process.stdout.write(
       `SEARCH_RESULT_FRAME_EVIDENCE ${JSON.stringify({
         condition:
-          "demo_board; warm cache; three repetitions; 230ms query intervals",
+          "demo_board; warm cache; three repetitions; debounce commitment per query",
         warmRequests,
         warmResponses,
         handoffRequests,
@@ -564,6 +581,7 @@ test.describe("Search result handoff", () => {
 
     expect(handoffRequests).toEqual([]);
     expect(delayed).toEqual([]);
+    releaseResponses();
     assertNoInvalidFrames(frames);
   });
 
@@ -604,7 +622,7 @@ test.describe("Search result handoff", () => {
     process.stdout.write(
       `TIMELINE_SEARCH_RESULT_FRAME_EVIDENCE ${JSON.stringify({
         condition:
-          "demo_board; timeline Q2 2026; warm cache; three repetitions; 230ms query intervals",
+          "demo_board; timeline Q2 2026; warm cache; three repetitions; debounce commitment per query",
         warmRequests,
         warmResponses,
         handoffRequests,
@@ -630,18 +648,29 @@ test.describe("Search result handoff", () => {
     const delayed = [] as Array<{
       query: string;
       status: number;
-      delayMs: number;
     }>;
-    await delaySearchResponseDelivery(page, 700, delayed);
+    const releaseResponses = await holdSearchResponseDelivery(page, delayed);
     const requestsBeforeHandoff = traffic.requests.length;
     await startFrameCapture(page);
-    const frames = await runRapidHandoff(page);
+    let frames: BoardFrame[];
+    try {
+      frames = await runRapidHandoff(page, async () => {
+        await expect.poll(() => delayed.length).toBe(3);
+        expect(await readCardTitles(page)).toEqual(
+          [...SEARCH_RESULTS.planning].sort(),
+        );
+        releaseResponses();
+        await expect.poll(() => traffic.responses.length).toBe(4);
+      });
+    } finally {
+      releaseResponses();
+    }
     const handoffRequests = traffic.requests.slice(requestsBeforeHandoff);
     const handoffResponses = traffic.responses.slice(1);
     process.stdout.write(
       `SEARCH_RESULT_FRAME_EVIDENCE ${JSON.stringify({
         condition:
-          "demo_board; uncached queries; 700ms response delivery; 230ms query intervals",
+          "demo_board; uncached queries; held response delivery; debounce commitment per query",
         handoffRequests,
         handoffResponses,
         delayedResponses: delayed,
@@ -658,9 +687,9 @@ test.describe("Search result handoff", () => {
       200, 200, 200,
     ]);
     const expectedDelayed = [
-      { query: "board", status: 200, delayMs: 700 },
-      { query: "Review", status: 200, delayMs: 700 },
-      { query: "Ship", status: 200, delayMs: 700 },
+      { query: "board", status: 200 },
+      { query: "Review", status: 200 },
+      { query: "Ship", status: 200 },
     ];
     expect([...delayed].sort((a, b) => a.query.localeCompare(b.query))).toEqual(
       [...expectedDelayed].sort((a, b) => a.query.localeCompare(b.query)),
@@ -683,7 +712,7 @@ test.describe("Search result handoff", () => {
     process.stdout.write(
       `SEARCH_RESULT_FRAME_EVIDENCE ${JSON.stringify({
         condition:
-          "demo_board; uncached queries; no added response delay; 230ms query intervals",
+          "demo_board; uncached queries; no added response delay; debounce commitment per query",
         handoffRequests,
         handoffResponses,
         frames: frameEvidence(frames),

@@ -42,3 +42,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Public test-only TLS fixture, never deployment credentials.
+!tests/e2e/harness/sso/localhost-cert.pem
+!tests/e2e/harness/sso/localhost-key.pem

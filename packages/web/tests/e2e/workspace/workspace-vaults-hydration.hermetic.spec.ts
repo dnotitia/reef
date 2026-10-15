@@ -1,15 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
+import { openExistingWorkspace } from "../harness/fixture";
 
 const isHydrationMessage = (text: string) =>
   /hydrat|did(?:n't| not) match|server rendered HTML/i.test(text);
 
 test.describe("Hermetic settings cache hydration", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("warm settings caches match every settings SSR snapshot", async ({
     page,
   }) => {
