@@ -7,8 +7,8 @@ import { ssoFixtureConfig } from "./mock-sso-config.mjs";
 
 /** TLS termination and external OIDC/Redis fixtures; Reef handlers are untouched. */
 export async function startSsoFixture(getState) {
-  const webUrl = process.env.REEF_WEB_URL;
-  const config = ssoFixtureConfig(webUrl, process.env.REEF_E2E_MOCK_URL);
+  const webUrl = new URL(process.env.REEF_WEB_URL);
+  const config = ssoFixtureConfig(webUrl.href, process.env.REEF_E2E_MOCK_URL);
   const oidc = createOidcFixture(config, getState);
   const redis = createRedisFixture();
   const proxy = createServer(
@@ -19,6 +19,11 @@ export async function startSsoFixture(getState) {
       ),
     },
     (req, res) => {
+      if (!req.url.startsWith("/") || req.url.startsWith("//")) {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
       const url = new URL(req.url, config.publicOrigin);
       if (url.pathname.startsWith("/realms/reef/")) {
         oidc.handle(req, res, url).catch(() => {
@@ -28,8 +33,10 @@ export async function startSsoFixture(getState) {
         return;
       }
       const upstream = request(
-        new URL(req.url, webUrl),
         {
+          hostname: webUrl.hostname,
+          port: webUrl.port,
+          path: `${url.pathname}${url.search}`,
           method: req.method,
           headers: {
             ...req.headers,
