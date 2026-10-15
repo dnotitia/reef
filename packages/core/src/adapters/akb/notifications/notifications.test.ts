@@ -70,6 +70,18 @@ function subscriptionRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("notification adapter", () => {
+  it("returns an empty read snapshot without querying when no workspaces are available", async () => {
+    const { calls } = setupFetch([]);
+
+    await expect(
+      akbMarkAllPersonalNotificationsRead(makeAdapter(), {
+        recipient: "kim",
+        workspaces: [],
+      }),
+    ).resolves.toEqual({ targets: [], completed: [], unresolved: [] });
+    expect(calls).toHaveLength(0);
+  });
+
   it("snapshots every unread identity across workspaces before applying state writes", async () => {
     const targets = Array.from({ length: 101 }, (_, index) => ({
       workspace: index === 100 ? "reef-zeta" : "reef-alpha",
