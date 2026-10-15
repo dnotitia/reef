@@ -12,6 +12,11 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- The personal Inbox leads with source issue titles and shows the original
+  status transition for activity notifications when that history is available.
+
 ### Fixed
 
 - Dashboard navigation becomes interactive only after hydration and global

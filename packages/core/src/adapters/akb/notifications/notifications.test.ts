@@ -274,6 +274,212 @@ describe("notification adapter", () => {
     expect(request.sql).not.toContain("reef-zeta");
   });
 
+  it("loads issue titles and the exact original status event from each source workspace", async () => {
+    const activityRow = (overrides: Record<string, unknown>) => ({
+      id: FIRST_ID,
+      reef_id: "REEF-1",
+      event_type: "status_change",
+      event_key: "status:1",
+      payload: JSON.stringify({ from: "todo", to: "in_progress" }),
+      meta: JSON.stringify({
+        actor: "lee",
+        at: "2026-07-28T00:00:00.000Z",
+        source: "user:board",
+      }),
+      ...overrides,
+    });
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            notificationRow({
+              source_type: "activity",
+              workspace: "reef-alpha",
+            }),
+            notificationRow({
+              id: SECOND_ID,
+              source_type: "activity",
+              workspace: "reef-zeta",
+            }),
+          ],
+          ["id", "workspace"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [{ reef_id: "REEF-1", title: "Alpha source title" }],
+          ["reef_id", "title"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [
+            activityRow({
+              payload: JSON.stringify({ from: "todo", to: "in_progress" }),
+            }),
+          ],
+          ["id", "reef_id", "event_type", "event_key", "payload", "meta"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [{ reef_id: "REEF-1", title: "Zeta source title" }],
+          ["reef_id", "title"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [
+            activityRow({
+              payload: JSON.stringify({ from: "backlog", to: "done" }),
+            }),
+          ],
+          ["id", "reef_id", "event_type", "event_key", "payload", "meta"],
+        ),
+      },
+    ]);
+
+    const notifications = await akbListPersonalNotifications(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef-zeta", "reef-alpha"],
+    });
+    const alpha = notifications.find(
+      ({ workspace }) => workspace === "reef-alpha",
+    );
+    const zeta = notifications.find(
+      ({ workspace }) => workspace === "reef-zeta",
+    );
+
+    expect(alpha).toMatchObject({
+      issue_context: { availability: "available", title: "Alpha source title" },
+      status_change_context: {
+        availability: "available",
+        from: "todo",
+        to: "in_progress",
+      },
+    });
+    expect(zeta).toMatchObject({
+      issue_context: { availability: "available", title: "Zeta source title" },
+      status_change_context: {
+        availability: "available",
+        from: "backlog",
+        to: "done",
+      },
+    });
+    const requests = calls.map((call) => sqlRequestBody(call));
+    expect(requests[1]?.sql).toContain(
+      "SELECT reef_id, title FROM reef_issues",
+    );
+    const sourceReads = requests.filter((request) =>
+      request.sql.includes("FROM reef_activity"),
+    );
+    expect(sourceReads).toHaveLength(2);
+    expect(sourceReads[0]?.sql).toContain("event_key");
+    expect(sourceReads[0]?.sql).not.toContain("status =");
+    expect(sourceReads[0]?.params).toEqual(["REEF-1", "status:1"]);
+    expect(sourceReads[1]?.params).toEqual(["REEF-1", "status:1"]);
+    const sourceVaults = calls
+      .filter((call) => sqlRequestBody(call).sql.includes("FROM reef_activity"))
+      .map((call) => new URL(call.url).pathname.split("/").at(-2));
+    expect(sourceVaults).toEqual(["reef-alpha", "reef-zeta"]);
+  });
+
+  it("marks missing or invalid source issue history unavailable without failing the list", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            notificationRow({
+              source_type: "activity",
+              workspace: "reef-alpha",
+            }),
+          ],
+          ["id", "workspace"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [{ reef_id: "REEF-1", title: "  " }],
+          ["reef_id", "title"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              id: FIRST_ID,
+              reef_id: "REEF-1",
+              event_type: "status_change",
+              event_key: "status:1",
+              payload: JSON.stringify({ from: "todo", to: "not-a-status" }),
+              meta: JSON.stringify({
+                actor: "lee",
+                at: "2026-07-28T00:00:00.000Z",
+              }),
+            },
+          ],
+          ["id", "reef_id", "event_type", "event_key", "payload", "meta"],
+        ),
+      },
+    ]);
+
+    const notifications = await akbListPersonalNotifications(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef-alpha"],
+    });
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      issue_context: { availability: "unavailable", title: null },
+      status_change_context: {
+        availability: "unavailable",
+        from: null,
+        to: null,
+      },
+    });
+    expect(calls).toHaveLength(3);
+  });
+
+  it("keeps the list and marks source details unavailable when source reads are denied", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            notificationRow({
+              source_type: "activity",
+              workspace: "reef-alpha",
+            }),
+          ],
+          ["id", "workspace"],
+        ),
+      },
+      {
+        status: 403,
+        body: { error: "permission_denied", detail: "issue read denied" },
+      },
+      {
+        status: 403,
+        body: { error: "permission_denied", detail: "activity read denied" },
+      },
+    ]);
+
+    const notifications = await akbListPersonalNotifications(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef-alpha"],
+    });
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      issue_context: { availability: "unavailable", title: null },
+      status_change_context: {
+        availability: "unavailable",
+        from: null,
+        to: null,
+      },
+    });
+    expect(calls).toHaveLength(3);
+  });
+
   it("returns an empty list without querying when no ready workspaces exist", async () => {
     const { calls } = setupFetch([]);
 

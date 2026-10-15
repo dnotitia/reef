@@ -5,6 +5,12 @@ import {
   SchemaValidationError,
 } from "../../../errors";
 import {
+  ACTIVITY_EVENT_STATUS_CHANGE,
+  ActivityEventMetaSchema,
+  ActivityEventSchema,
+} from "../../../schemas/issues/activity";
+import { IssueMetadataSchema } from "../../../schemas/issues/metadata";
+import {
   type EffectiveSubscriptionState,
   type Notification,
   type NotificationCreateInput,
@@ -31,6 +37,8 @@ import {
 import {
   type AkbAdapter,
   REEF_NOTIFICATIONS_TABLE,
+  REEF_ACTIVITY_TABLE,
+  REEF_ISSUES_TABLE,
   REEF_SUBSCRIPTIONS_TABLE,
   SqlParameterBuilder,
   canonicalTableSelectColumns,
@@ -40,6 +48,8 @@ import {
   tableRef,
   withSpan,
 } from "../core/shared";
+import { StatusChangePayloadSchema } from "../../../schemas/issues/activity";
+import { VaultNameSchema } from "../../../schemas/workspace/config";
 
 function validationError(error: ZodError): SchemaValidationError {
   return new SchemaValidationError({
@@ -70,13 +80,240 @@ function notificationFromRow(row: Record<string, unknown>): Notification {
   });
 }
 
-function personalNotificationFromRow(
+type PersonalNotificationBase = Notification & {
+  workspace: PersonalNotification["workspace"];
+};
+
+type PersonalNotificationStatusChangeContext = Exclude<
+  PersonalNotification["status_change_context"],
+  null
+>;
+
+const PersonalNotificationIssueTitleSchema = IssueMetadataSchema.pick({
+  id: true,
+  title: true,
+});
+
+function personalNotificationBaseFromRow(
   row: Record<string, unknown>,
-): PersonalNotification {
-  return parseInput(PersonalNotificationSchema, {
-    ...row,
-    payload: decodeSettingsValue(row.payload),
-    meta: decodeSettingsValue(row.meta),
+): PersonalNotificationBase {
+  return {
+    ...notificationFromRow(row),
+    workspace: parseInput(VaultNameSchema, row.workspace),
+  };
+}
+
+function activityReferenceKey(reefId: string, eventKey: string): string {
+  return JSON.stringify([reefId, eventKey]);
+}
+
+async function readNotificationIssueTitles(
+  adapter: AkbAdapter,
+  workspace: string,
+  notifications: PersonalNotificationBase[],
+): Promise<Map<string, PersonalNotification["issue_context"]>> {
+  const issueIds = [...new Set(notifications.map(({ reef_id }) => reef_id))];
+  const params = new SqlParameterBuilder();
+  const issueIdParameters = issueIds.map((reefId) =>
+    params.add(reefId, "notification source issue id"),
+  );
+
+  return withSpan(
+    "akb.notifications.read_personal_issue_titles",
+    { vault: workspace, issue_count: issueIds.length },
+    async (span) => {
+      try {
+        const response = await runSql(
+          adapter,
+          workspace,
+          `SELECT reef_id, title FROM ${tableRef(
+            REEF_ISSUES_TABLE,
+          )} WHERE reef_id IN (${issueIdParameters.join(", ")})`,
+          params.params,
+        );
+        const issueContexts = new Map<
+          string,
+          PersonalNotification["issue_context"]
+        >();
+        if (response.kind !== "table_query") {
+          span.setAttribute("issue_title_count", 0);
+          return issueContexts;
+        }
+
+        for (const row of response.items) {
+          const issue = PersonalNotificationIssueTitleSchema.safeParse({
+            id: row.reef_id,
+            title: row.title,
+          });
+          if (!issue.success || !issue.data.title.trim()) continue;
+          issueContexts.set(issue.data.id, {
+            availability: "available",
+            title: issue.data.title,
+          });
+        }
+        span.setAttribute("issue_title_count", issueContexts.size);
+        return issueContexts;
+      } catch {
+        span.setAttribute("issue_title_count", 0);
+        return new Map();
+      }
+    },
+  );
+}
+
+async function readNotificationStatusChanges(
+  adapter: AkbAdapter,
+  workspace: string,
+  notifications: PersonalNotificationBase[],
+): Promise<Map<string, PersonalNotificationStatusChangeContext>> {
+  const sources = new Map<string, { reefId: string; eventKey: string }>();
+  for (const notification of notifications) {
+    if (
+      notification.event_type !== ACTIVITY_EVENT_STATUS_CHANGE ||
+      notification.source_type !== "activity"
+    ) {
+      continue;
+    }
+    const key = activityReferenceKey(
+      notification.reef_id,
+      notification.source_ref,
+    );
+    sources.set(key, {
+      reefId: notification.reef_id,
+      eventKey: notification.source_ref,
+    });
+  }
+  if (sources.size === 0) return new Map();
+
+  const params = new SqlParameterBuilder();
+  const sourcePairs = [...sources.values()].map(({ reefId, eventKey }) => {
+    const reefIdParameter = params.add(
+      reefId,
+      "notification activity issue id",
+    );
+    const eventKeyParameter = params.add(
+      eventKey,
+      "notification activity event key",
+    );
+    return `(${reefIdParameter}, ${eventKeyParameter})`;
+  });
+
+  return withSpan(
+    "akb.notifications.read_personal_status_changes",
+    { vault: workspace, status_change_count: sources.size },
+    async (span) => {
+      try {
+        const response = await runSql(
+          adapter,
+          workspace,
+          `SELECT id, reef_id, event_type, event_key, payload, meta FROM ${tableRef(
+            REEF_ACTIVITY_TABLE,
+          )} WHERE (reef_id, event_key) IN (${sourcePairs.join(", ")}) AND event_type = '${ACTIVITY_EVENT_STATUS_CHANGE}'`,
+          params.params,
+        );
+        const transitions = new Map<
+          string,
+          PersonalNotificationStatusChangeContext
+        >();
+        if (response.kind !== "table_query") {
+          span.setAttribute("available_transition_count", 0);
+          return transitions;
+        }
+
+        for (const row of response.items) {
+          const meta = ActivityEventMetaSchema.safeParse(
+            decodeSettingsValue(row.meta) ?? {},
+          );
+          if (!meta.success) continue;
+          const payload = StatusChangePayloadSchema.safeParse(
+            decodeSettingsValue(row.payload) ?? {},
+          );
+          if (!payload.success) continue;
+          const event = ActivityEventSchema.safeParse({
+            id: row.id,
+            reef_id: row.reef_id,
+            event_type: row.event_type,
+            event_key: row.event_key,
+            payload: payload.data,
+            actor: meta.data.actor,
+            at: meta.data.at,
+            source: meta.data.source,
+          });
+          if (
+            !event.success ||
+            event.data.event_type !== ACTIVITY_EVENT_STATUS_CHANGE
+          ) {
+            continue;
+          }
+          transitions.set(
+            activityReferenceKey(event.data.reef_id, event.data.event_key),
+            {
+              availability: "available",
+              from: event.data.payload.from,
+              to: event.data.payload.to,
+            },
+          );
+        }
+        span.setAttribute("available_transition_count", transitions.size);
+        return transitions;
+      } catch {
+        span.setAttribute("available_transition_count", 0);
+        return new Map();
+      }
+    },
+  );
+}
+
+async function enrichPersonalNotifications(
+  adapter: AkbAdapter,
+  notifications: PersonalNotificationBase[],
+): Promise<PersonalNotification[]> {
+  const byWorkspace = new Map<string, PersonalNotificationBase[]>();
+  for (const notification of notifications) {
+    const group = byWorkspace.get(notification.workspace) ?? [];
+    group.push(notification);
+    byWorkspace.set(notification.workspace, group);
+  }
+
+  const contexts = await Promise.all(
+    [...byWorkspace].map(async ([workspace, sourceNotifications]) => {
+      const [issueTitles, statusChanges] = await Promise.all([
+        readNotificationIssueTitles(adapter, workspace, sourceNotifications),
+        readNotificationStatusChanges(adapter, workspace, sourceNotifications),
+      ]);
+      return [workspace, issueTitles, statusChanges] as const;
+    }),
+  );
+  const contextByWorkspace = new Map(
+    contexts.map(([workspace, issueTitles, statusChanges]) => [
+      workspace,
+      { issueTitles, statusChanges },
+    ]),
+  );
+
+  return notifications.map((notification) => {
+    const source = contextByWorkspace.get(notification.workspace);
+    const statusChangeKey = activityReferenceKey(
+      notification.reef_id,
+      notification.source_ref,
+    );
+    const statusChangeContext =
+      notification.event_type === ACTIVITY_EVENT_STATUS_CHANGE
+        ? (source?.statusChanges.get(statusChangeKey) ?? {
+            availability: "unavailable" as const,
+            from: null,
+            to: null,
+          })
+        : null;
+
+    return parseInput(PersonalNotificationSchema, {
+      ...notification,
+      issue_context: source?.issueTitles.get(notification.reef_id) ?? {
+        availability: "unavailable",
+        title: null,
+      },
+      status_change_context: statusChangeContext,
+    });
   });
 }
 
@@ -232,17 +469,18 @@ export async function listPersonalNotifications(
         });
       }
       const rows = response.items;
-      const notifications = rows
-        .map(personalNotificationFromRow)
-        .sort((left, right) => {
-          const timeOrder =
-            Date.parse(right.occurred_at) - Date.parse(left.occurred_at);
-          if (timeOrder !== 0) return timeOrder;
-          if (left.workspace !== right.workspace) {
-            return left.workspace < right.workspace ? -1 : 1;
-          }
-          return left.id > right.id ? -1 : left.id < right.id ? 1 : 0;
-        });
+      const baseNotifications = rows.map(personalNotificationBaseFromRow);
+      const notifications = (
+        await enrichPersonalNotifications(adapter, baseNotifications)
+      ).sort((left, right) => {
+        const timeOrder =
+          Date.parse(right.occurred_at) - Date.parse(left.occurred_at);
+        if (timeOrder !== 0) return timeOrder;
+        if (left.workspace !== right.workspace) {
+          return left.workspace < right.workspace ? -1 : 1;
+        }
+        return left.id > right.id ? -1 : left.id < right.id ? 1 : 0;
+      });
       span.setAttribute("notification_count", notifications.length);
       return notifications;
     },

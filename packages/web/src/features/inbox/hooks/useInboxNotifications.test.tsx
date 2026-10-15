@@ -55,6 +55,11 @@ function makeNotification(
     archived_at: null,
     payload: null,
     meta: null,
+    issue_context: {
+      availability: "available",
+      title: `Title for REEF-${index + 1}`,
+    },
+    status_change_context: null,
     workspace,
   };
 }
