@@ -1,9 +1,6 @@
-import { expect, test } from "@playwright/test";
-import {
-  openExistingWorkspace,
-  readFixtureState,
-  resetFixture,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
+import { readFixtureState } from "../harness/fixture";
 
 const LONG_MILESTONE_NAME =
   "A milestone name long enough to overflow the planning filter option panel";
@@ -15,13 +12,11 @@ const VIEWPORTS = [
 ] as const;
 
 test.describe("Planning overflow tooltip pointer contract", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "planning_overflow");
-  });
+  test.use({ scenario: "planning_overflow" });
 
   for (const viewport of VIEWPORTS) {
     test(`moves from an overflowing milestone to its adjacent option at ${viewport.name} size`, async ({
+      openWorkspace,
       page,
       request,
     }) => {
@@ -29,7 +24,7 @@ test.describe("Planning overflow tooltip pointer contract", () => {
         width: viewport.width,
         height: viewport.height,
       });
-      await openExistingWorkspace(page);
+      await openWorkspace();
       await page.goto("/workspace/reef-e2e/issues?view=list");
       await expect(
         page.locator('[data-testid="issue-list-row"]').first(),

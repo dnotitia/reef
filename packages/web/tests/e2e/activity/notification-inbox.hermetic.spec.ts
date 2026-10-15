@@ -1,23 +1,25 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { expect, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   fixtureReaderLogin,
   fixtureWriterLogin,
-  continueToWorkspace,
   readFixtureState,
-  resetFixture,
   setNotificationControl,
   setInstallationControl,
   setVaultListControl,
-  signInAsAlice,
+  signInThroughApi,
+  continueToWorkspace,
   signInAsUser,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "notifications_personal" });
 
 const DUPLICATE_COMMENT_NOTIFICATION_KEY =
   "notification:5:alice:7:comment:15:comment-primary";
 
 async function openNotificationWorkspace(page: Page): Promise<void> {
-  await signInAsAlice(page);
+  await signInThroughApi(page);
   await page.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
   await continueToWorkspace(page, REEF_E2E_VAULT);
 }
@@ -98,15 +100,10 @@ function schemaMutationSql(
 }
 
 test.describe("Hermetic notification Inbox", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "notifications_personal");
-  });
-
   test("lists the actor's personal notifications without a selected vault", async ({
     page,
   }) => {
-    await signInAsAlice(page);
+    await signInThroughApi(page);
 
     const response = await page.request.get(
       "/api/notifications?vault=raw-vault&state=archived&limit=1&recipient=bob",

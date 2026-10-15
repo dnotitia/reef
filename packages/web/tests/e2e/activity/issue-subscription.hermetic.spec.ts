@@ -1,24 +1,16 @@
-import { expect, test } from "@playwright/test";
-import {
-  readFixtureState,
-  resetFixture,
-  signInAndSelectExistingWorkspace,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
+import { readFixtureState, openExistingWorkspace } from "../harness/fixture";
 
 const issuePath = "/workspace/reef-e2e/issues/REEF-001";
 
 test.describe("Hermetic issue notification preference", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("persists watch and mute choices for the signed-in actor", async ({
     browser,
     page,
     request,
   }) => {
-    await signInAndSelectExistingWorkspace(page);
+    await openExistingWorkspace(page);
     await page.goto(issuePath);
 
     const initialControl = page.getByRole("button", {
@@ -44,7 +36,7 @@ test.describe("Hermetic issue notification preference", () => {
     const freshContext = await browser.newContext({ baseURL });
     try {
       const freshPage = await freshContext.newPage();
-      await signInAndSelectExistingWorkspace(freshPage);
+      await openExistingWorkspace(freshPage);
       await freshPage.goto(issuePath);
 
       const watchingControl = freshPage.getByRole("button", {

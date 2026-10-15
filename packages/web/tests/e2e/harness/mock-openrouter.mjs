@@ -5,9 +5,10 @@ import {
   TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
   TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
 } from "./mock-fixtures.mjs";
-import { json, readJson, sleep } from "./mock-http.mjs";
+import { waitForResponseHold } from "./mock-state.mjs";
+import { json, readJson } from "./mock-http.mjs";
 
-export async function handleOpenRouter(req, res) {
+export async function handleOpenRouter(req, res, state) {
   if (req.method === "POST") {
     const body = await readJson(req);
     if (body?.stream === true) {
@@ -15,41 +16,39 @@ export async function handleOpenRouter(req, res) {
       const toolLoopResult = readToolLoopResult(body);
       if (toolLoopResult) {
         await streamOpenRouterChunks(
+          state,
           res,
           finalToolLoopChunks(created, toolLoopResult),
-          {
-            delayBeforeTextDeltaMs: 250,
-          },
         );
         return;
       }
       if (isToolLoopPromptTurn(body)) {
-        await streamOpenRouterChunks(res, initialToolLoopChunks(created), {
-          delayAfterFunctionCallMs: 180,
-        });
+        await streamOpenRouterChunks(
+          state,
+          res,
+          initialToolLoopChunks(created),
+        );
         return;
       }
       const issueQuestion = issueQuestionResult(body);
       if (issueQuestion) {
         await streamOpenRouterChunks(
+          state,
           res,
           finalIssueQuestionChunks(created, issueQuestion.output),
-          { delayBeforeTextDeltaMs: 250 },
         );
         return;
       }
       const issueId = issueQuestionId(body);
       if (issueId) {
         await streamOpenRouterChunks(
+          state,
           res,
           initialIssueQuestionChunks(created, issueId),
-          {
-            delayAfterFunctionCallMs: 180,
-          },
         );
         return;
       }
-      await streamOpenRouterChunks(res, basicTextChunks(created, body));
+      await streamOpenRouterChunks(state, res, basicTextChunks(created, body));
       return;
     }
     return json(res, 200, {
@@ -257,26 +256,19 @@ function chatCompletionChunk(id, created, delta, finishReason = null) {
   };
 }
 
-async function streamOpenRouterChunks(
-  res,
-  chunks,
-  { delayAfterFunctionCallMs = 0, delayBeforeTextDeltaMs = 0 } = {},
-) {
+async function streamOpenRouterChunks(state, res, chunks) {
   res.writeHead(200, {
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
   });
   for (const chunk of chunks) {
-    if (delayBeforeTextDeltaMs > 0 && chunk.choices?.[0]?.delta?.content) {
-      await sleep(delayBeforeTextDeltaMs);
+    if (chunk.choices?.[0]?.delta?.content) {
+      await waitForResponseHold(state, "llm-text");
     }
     res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-    if (
-      delayAfterFunctionCallMs > 0 &&
-      chunk.choices?.[0]?.finish_reason === "tool_calls"
-    ) {
-      await sleep(delayAfterFunctionCallMs);
+    if (chunk.choices?.[0]?.finish_reason === "tool_calls") {
+      await waitForResponseHold(state, "llm-tool-call");
     }
   }
   res.end("data: [DONE]\n\n");

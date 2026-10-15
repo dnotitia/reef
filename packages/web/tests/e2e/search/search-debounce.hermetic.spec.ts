@@ -1,11 +1,11 @@
+import { test } from "../harness/workspace-fixture";
 import {
   type APIRequestContext,
   type Page,
   type Request,
   expect,
-  test,
 } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { openExistingWorkspace } from "../harness/fixture";
 
 /**
  * REEF-370 — search debounce cadence.
@@ -55,11 +55,6 @@ function collectMemberSearch(page: Page): string[] {
 }
 
 test.describe("search debounce cadence (REEF-370)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("warm ⌘K palette coalesces fast keystrokes into one /api/issues?q request", async ({
     page,
   }) => {
@@ -144,85 +139,83 @@ test.describe("search debounce cadence (REEF-370)", () => {
     ).toBeVisible();
   });
 
-  test("List exposes updating state before a debounced search replaces populated results", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "large_vault");
-    await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
+  test.extend({ scenario: "large_vault" })(
+    "List exposes updating state before a debounced search replaces populated results",
+    async ({ page }) => {
+      await openExistingWorkspace(page);
+      await page.goto("/workspace/reef-e2e/issues?view=list&sort=priority");
 
-    const input = page.getByTestId("search-input");
-    const visibleSearchProgress = page.locator(
-      '[data-testid="search-progress-bar"]:visible',
-    );
-    const existingRow = page.getByTestId("issue-list-row").first();
-    await expect(existingRow).toBeVisible();
+      const input = page.getByTestId("search-input");
+      const visibleSearchProgress = page.locator(
+        '[data-testid="search-progress-bar"]:visible',
+      );
+      const existingRow = page.getByTestId("issue-list-row").first();
+      await expect(existingRow).toBeVisible();
 
-    const query = "zzzz-no-such-issue-xyz123";
-    let requestSeen = false;
-    let releaseResponse: (() => void) | undefined;
-    const responseHeld = new Promise<void>((resolve) => {
-      releaseResponse = resolve;
-    });
-    // This is the documented UI-only timing exception: the real Route Handler
-    // and fixture payload run; the route is held only to keep the in-flight
-    // transition observable while the existing rows remain on screen.
-    await page.route(
-      (url) =>
-        url.pathname === "/api/issues" && url.searchParams.get("q") === query,
-      async (route) => {
-        requestSeen = true;
-        const response = await route.fetch();
-        await responseHeld;
-        await route.fulfill({ response });
-      },
-    );
+      const query = "zzzz-no-such-issue-xyz123";
+      let requestSeen = false;
+      let releaseResponse: (() => void) | undefined;
+      const responseHeld = new Promise<void>((resolve) => {
+        releaseResponse = resolve;
+      });
+      // This is the documented UI-only timing exception: the real Route Handler
+      // and fixture payload run; the route is held only to keep the in-flight
+      // transition observable while the existing rows remain on screen.
+      await page.route(
+        (url) =>
+          url.pathname === "/api/issues" && url.searchParams.get("q") === query,
+        async (route) => {
+          requestSeen = true;
+          const response = await route.fetch();
+          await responseHeld;
+          await route.fulfill({ response });
+        },
+      );
 
-    await input.fill(query);
+      await input.fill(query);
 
-    // The existing rows remain visible during the warm debounce window. The
-    // user must still get a visual and assistive-technology signal immediately,
-    // before the debounced query key reaches TanStack Query.
-    await expect(existingRow).toBeVisible();
-    await expect
-      .poll(() => page.getByTestId("search-progress-bar").count(), {
-        timeout: 100,
-        intervals: [10, 20],
-      })
-      .toBeGreaterThan(0);
-    await expect
-      .poll(
-        () =>
-          page
-            .getByRole("status")
-            .filter({ hasText: "Updating results…" })
-            .count(),
-        { timeout: 100, intervals: [10, 20] },
-      )
-      .toBeGreaterThan(0);
-    await expect(existingRow).toBeVisible();
+      // The existing rows remain visible during the warm debounce window. The
+      // user must still get a visual and assistive-technology signal immediately,
+      // before the debounced query key reaches TanStack Query.
+      await expect(existingRow).toBeVisible();
+      await expect
+        .poll(() => page.getByTestId("search-progress-bar").count(), {
+          timeout: 100,
+          intervals: [10, 20],
+        })
+        .toBeGreaterThan(0);
+      await expect
+        .poll(
+          () =>
+            page
+              .getByRole("status")
+              .filter({ hasText: "Updating results…" })
+              .count(),
+          { timeout: 100, intervals: [10, 20] },
+        )
+        .toBeGreaterThan(0);
+      await expect(existingRow).toBeVisible();
 
-    await expect.poll(() => requestSeen, { timeout: 5_000 }).toBe(true);
-    await expect(visibleSearchProgress.first()).toBeVisible();
-    expect(releaseResponse).toBeDefined();
-    releaseResponse?.();
+      await expect.poll(() => requestSeen, { timeout: 5_000 }).toBe(true);
+      await expect(visibleSearchProgress.first()).toBeVisible();
+      expect(releaseResponse).toBeDefined();
+      releaseResponse?.();
 
-    await expect(
-      page.getByText("No issues match your filters.", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByTestId("search-progress-bar")).toHaveCount(0);
-    await expect(
-      page.getByRole("status").filter({ hasText: "Updating results…" }),
-    ).toHaveCount(0);
-  });
+      await expect(
+        page.getByText("No issues match your filters.", { exact: true }),
+      ).toBeVisible();
+      await expect(page.getByTestId("search-progress-bar")).toHaveCount(0);
+      await expect(
+        page.getByRole("status").filter({ hasText: "Updating results…" }),
+      ).toHaveCount(0);
+    },
+  );
 
   async function expectRetainedSearchHandoff(
     page: Page,
     request: APIRequestContext,
     surface: "list" | "board",
   ): Promise<void> {
-    await resetFixture(request, "large_vault");
     await openExistingWorkspace(page);
     await page.goto(`/workspace/reef-e2e/issues?view=${surface}&sort=priority`);
 
@@ -291,19 +284,19 @@ test.describe("search debounce cadence (REEF-370)", () => {
     ).toHaveCount(0);
   }
 
-  test("List keeps updating state through the URL and retained-row handoff", async ({
-    page,
-    request,
-  }) => {
-    await expectRetainedSearchHandoff(page, request, "list");
-  });
+  test.extend({ scenario: "large_vault" })(
+    "List keeps updating state through the URL and retained-row handoff",
+    async ({ page, request }) => {
+      await expectRetainedSearchHandoff(page, request, "list");
+    },
+  );
 
-  test("Board keeps updating state through the URL and retained-card handoff", async ({
-    page,
-    request,
-  }) => {
-    await expectRetainedSearchHandoff(page, request, "board");
-  });
+  test.extend({ scenario: "large_vault" })(
+    "Board keeps updating state through the URL and retained-card handoff",
+    async ({ page, request }) => {
+      await expectRetainedSearchHandoff(page, request, "board");
+    },
+  );
 
   test("cold assignee typeahead coalesces keystrokes into one /api/vault-members?q request", async ({
     page,
@@ -324,8 +317,8 @@ test.describe("search debounce cadence (REEF-370)", () => {
         url.searchParams.get("q") === "ali"
       );
     });
-    // Three characters ~30ms apart — far under the 300ms cold window.
-    await search.pressSequentially("ali", { delay: 30 });
+    // Individual key events coalesce without an artificial typing delay.
+    await search.pressSequentially("ali");
     await settled;
 
     // Only the coalesced final query reached the server (the empty-open member

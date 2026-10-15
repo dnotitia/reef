@@ -61,15 +61,57 @@ export async function resetFixture(
   expect(response.ok()).toBeTruthy();
 }
 
+export type HeldResponse =
+  | "asset-upload"
+  | "issue-list"
+  | "planning-catalog"
+  | "issue-reorder"
+  | "content-search"
+  | "tool-search"
+  | "llm-text"
+  | "llm-tool-call"
+  | "installation-execution";
+
+export async function setResponseHold(
+  request: APIRequestContext,
+  operation: HeldResponse,
+  hold: boolean,
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/response-hold`, {
+    data: { operation, hold },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function releaseResponseHold(
+  request: APIRequestContext,
+  operation: HeldResponse,
+): Promise<void> {
+  await waitForResponseHoldPending(request, operation);
+  await setResponseHold(request, operation, false);
+}
+
+export async function waitForResponseHoldPending(
+  request: APIRequestContext,
+  operation: HeldResponse,
+): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        (await readFixtureState(request)).response_hold_pending[operation] ?? 0,
+    )
+    .toBeGreaterThan(0);
+}
+
 export async function setAssetUploadControl(
   request: APIRequestContext,
-  options: { delayMs?: number; failOnce?: readonly string[] },
+  options: { hold?: boolean; failOnce?: readonly string[] },
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/asset-upload-control`,
     {
       data: {
-        delay_ms: options.delayMs ?? 0,
+        hold: options.hold ?? false,
         fail_once: options.failOnce ?? [],
       },
     },
@@ -94,7 +136,7 @@ export async function setIssueReadControl(
   request: APIRequestContext,
   options: {
     issueId: string;
-    delayMs?: number;
+    hold?: boolean;
     failureStatus?: 404 | 500 | 503 | null;
   },
   vault = REEF_E2E_VAULT,
@@ -105,7 +147,7 @@ export async function setIssueReadControl(
       data: {
         vault,
         issue_id: options.issueId,
-        delay_ms: options.delayMs ?? 0,
+        hold: options.hold ?? false,
         failure_status: options.failureStatus ?? null,
       },
     },
@@ -143,7 +185,7 @@ export async function waitForIssueReadIdle(
 
 export async function setAttachmentReadControl(
   request: APIRequestContext,
-  options: { issueId: string; delayMs?: number },
+  options: { issueId: string; hold?: boolean },
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
   const response = await request.post(
@@ -152,7 +194,7 @@ export async function setAttachmentReadControl(
       data: {
         vault,
         issue_id: options.issueId,
-        delay_ms: options.delayMs ?? 0,
+        hold: options.hold ?? false,
       },
     },
   );
@@ -199,6 +241,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
   issue_read_pending: Record<string, number>;
   attachment_read_pending: Record<string, number>;
   markdown_link_search_pending: Record<string, number>;
+  response_hold_pending: Record<string, number>;
   asset_upload_attempts: Array<{
     filename: string;
     status: "failed" | "uploaded";
@@ -310,7 +353,7 @@ export async function setIssueListFailure(
   request: APIRequestContext,
   enabled: boolean,
   nextPageFailures = 0,
-  delayMs = 0,
+  hold = false,
   failureMode?: IssueListFailureMode,
 ): Promise<void> {
   const response = await request.post(
@@ -319,7 +362,7 @@ export async function setIssueListFailure(
       data: {
         enabled,
         next_page_failures: nextPageFailures,
-        delay_ms: delayMs,
+        hold,
         failure_status: failureMode ?? null,
       },
     },
@@ -330,11 +373,11 @@ export async function setIssueListFailure(
 export async function setPlanningCatalogFailure(
   request: APIRequestContext,
   enabled: boolean,
-  delayMs = 0,
+  hold = false,
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/planning-catalog-failure`,
-    { data: { enabled, delay_ms: delayMs } },
+    { data: { enabled, hold } },
   );
   expect(response.ok()).toBeTruthy();
 }
@@ -342,11 +385,11 @@ export async function setPlanningCatalogFailure(
 export async function setContentSearchMode(
   request: APIRequestContext,
   mode: "healthy" | "degraded" | "error" | "missing-comments",
-  delayMs = 0,
+  hold = false,
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/content-search-control`,
-    { data: { mode, delay_ms: delayMs } },
+    { data: { mode, hold } },
   );
   expect(response.ok()).toBeTruthy();
 }
@@ -355,7 +398,7 @@ export async function setMarkdownLinkSearchControl(
   request: APIRequestContext,
   options: {
     query: string;
-    delayMs?: number;
+    hold?: boolean;
     failureStatus?: 500 | 503 | null;
   },
   vault = REEF_E2E_VAULT,
@@ -366,7 +409,7 @@ export async function setMarkdownLinkSearchControl(
       data: {
         vault,
         query: options.query,
-        delay_ms: options.delayMs ?? 0,
+        hold: options.hold ?? false,
         failure_status: options.failureStatus ?? null,
       },
     },
@@ -481,13 +524,13 @@ export async function setInstallationControl(
 
 export async function setVaultListControl(
   request: APIRequestContext,
-  control: { delayMs?: number; failures?: number },
+  control: { hold?: boolean; failures?: number },
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/vault-list-control`,
     {
       data: {
-        delay_ms: control.delayMs ?? 0,
+        hold: control.hold ?? false,
         failures: control.failures ?? 0,
       },
     },
@@ -532,7 +575,6 @@ export async function setIssueUpdateControl(
   request: APIRequestContext,
   controls: Array<{
     issueId: string;
-    delayMs?: number;
     failures?: number;
     hold?: boolean;
   }>,
@@ -545,7 +587,6 @@ export async function setIssueUpdateControl(
         vault,
         updates: controls.map((control) => ({
           issue_id: control.issueId,
-          delay_ms: control.delayMs ?? 0,
           failures: control.failures ?? 0,
           hold: control.hold ?? false,
         })),
@@ -597,13 +638,13 @@ export async function releaseIssueUpdate(
 
 export async function setIssueReorderControl(
   request: APIRequestContext,
-  control: { delayMs?: number; failures?: number },
+  control: { hold?: boolean; failures?: number },
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-reorder-control`,
     {
       data: {
-        delay_ms: control.delayMs ?? 0,
+        hold: control.hold ?? false,
         failures: control.failures ?? 0,
       },
     },
@@ -618,16 +659,6 @@ export async function removeFixtureIssue(
 ): Promise<void> {
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/remove-issue`, {
     data: { id, vault },
-  });
-  expect(response.ok()).toBeTruthy();
-}
-
-export async function setKeycloakEnabled(
-  request: APIRequestContext,
-  enabled: boolean,
-): Promise<void> {
-  const response = await request.post(`${E2E_MOCK_URL}/__e2e/keycloak`, {
-    data: { enabled },
   });
   expect(response.ok()).toBeTruthy();
 }
@@ -649,10 +680,7 @@ export async function setAkbAccountDenial(
 export async function setAuthControl(
   request: APIRequestContext,
   control: {
-    probeDelayMs?: number;
-    probeDelayOnce?: boolean;
     probeHold?: boolean;
-    probeHang?: boolean;
     probeFailureStatus?: 500 | 503 | null;
     session?: "active" | "revoked";
     protectedResponse?: "healthy" | "unauthorized" | "forbidden";
@@ -660,10 +688,7 @@ export async function setAuthControl(
 ): Promise<void> {
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/auth-control`, {
     data: {
-      probe_delay_ms: control.probeDelayMs ?? 0,
-      probe_delay_once: control.probeDelayOnce ?? false,
       probe_hold: control.probeHold ?? false,
-      probe_hang: control.probeHang ?? false,
       probe_failure_status: control.probeFailureStatus ?? null,
       session: control.session ?? "active",
       protected_response: control.protectedResponse ?? "healthy",
@@ -746,18 +771,31 @@ export async function continueToWorkspace(
     { timeout: 15_000 },
   );
 
-  // The auto-resume redirect can settle before DashboardShell's client effects
-  // install the global shortcut listener. Prove the shell is interactive so a
-  // caller's first shortcut is not lost in that hydration window.
+  // The shell publishes readiness after hydration and shortcut registration.
   await expect(page.locator('[data-interaction-ready="true"]')).toHaveCount(1);
-  const globalSearchInput = page.locator('[data-testid="global-search-input"]');
-  await page.keyboard.press("Control+K");
-  await expect(globalSearchInput).toBeVisible({ timeout: 15_000 });
-  await page.keyboard.press("Escape");
-  await expect(globalSearchInput).toHaveCount(0);
 }
 
+/** Authenticate a fresh feature context through Reef's real login route. */
+export async function signInThroughApi(page: Page): Promise<void> {
+  const response = await page.request.post("/api/auth/akb/login", {
+    data: fixtureLogin,
+  });
+  expect(response.status()).toBe(200);
+}
+
+/** Feature setup uses the real login route without repeating the login form. */
 export async function openExistingWorkspace(
+  page: Page,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  await signInThroughApi(page);
+  await page.goto(`/workspace/${encodeURIComponent(vault)}/issues`);
+  await continueToWorkspace(page, vault);
+  await expect.poll(() => readIndexedDbConfig(page, "vault")).toBe(vault);
+}
+
+/** Auth/account-switch contracts must retain LoginForm's reconciliation. */
+export async function openWorkspaceThroughLogin(
   page: Page,
   vault = REEF_E2E_VAULT,
 ): Promise<void> {

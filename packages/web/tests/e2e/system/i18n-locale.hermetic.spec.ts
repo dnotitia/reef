@@ -1,18 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { advanceQueryRetries } from "../harness/browser-observations";
+import { expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readIndexedDbConfig,
-  resetFixture,
 } from "../harness/fixture";
 import { expectCursorAtPointer } from "../harness/cursor";
 
 test.describe("Hermetic i18n locale switch + persistence", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("defaults to English, switches to Korean, and persists across reload", async ({
     page,
   }) => {
@@ -266,6 +262,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     type ErrorBody = { error: string };
 
     // (A) A web-boundary validation error (invalid issue id) is resolved before
@@ -327,6 +324,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // a non-existent issue renders the server error verbatim (the client toast /
     // error state is a pass-through of `body.error`), so a Korean PM sees Korean.
     await page.goto("/workspace/reef-e2e/issues/REEF-99999");
+    await advanceQueryRetries(page, page.getByTestId("issue-detail-error"));
     await expect(page.getByTestId("issue-detail-error")).toContainText(
       "이슈를 찾을 수 없습니다.",
     );

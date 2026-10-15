@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import { expectCursorAtPointer } from "../harness/cursor";
 
 const splitter = '[data-testid="issue-detail-resize-handle"]';
@@ -7,16 +7,14 @@ const expandWidthName = "Expand issue detail panel to maximum width";
 const restoreWidthName = "Restore issue detail panel width";
 
 test.describe("Hermetic issue detail splitter", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("supports pointer and keyboard resize, then restores the width after issue navigation", async ({
+    openWorkspace,
     page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 720 });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues?view=list");
     await page.getByText("Initial issue Alpha").click();
     await page.waitForURL(/\/issues\/REEF-001\?view=list/, {
@@ -172,10 +170,11 @@ test.describe("Hermetic issue detail splitter", () => {
   });
 
   test("keeps the existing responsive detail layout without a splitter", async ({
+    openWorkspace,
     page,
   }) => {
     await page.setViewportSize({ width: 1279, height: 900 });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await expect(page.locator(splitter)).toHaveCount(0);
@@ -211,9 +210,10 @@ test.describe("Hermetic issue detail splitter", () => {
   });
 
   test("keeps the mobile detail chrome controls non-overlapping", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/settings/preferences");
     const language = page.getByRole("region", { name: /^(Language|언어)$/ });
     await language.getByTestId("locale-option-ko").click();

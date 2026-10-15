@@ -1,4 +1,5 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { type Locator, type Page, expect } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import {
   REEF_E2E_VAULT,
@@ -394,160 +395,162 @@ async function waitForIssueView(
 }
 
 test.describe("Hermetic issue route surfaces", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
-  test("records surface roles, focus, clipping, and overflow across the Issues matrix", async ({
-    page,
-  }, testInfo) => {
-    test.setTimeout(300_000);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await openExistingWorkspace(page);
-
-    const routes = [
-      {
-        name: "issues-board",
-        path: `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
-        ready: () => page.getByTestId("kanban-board"),
-        focus: () => page.getByRole("textbox", { name: "Search issues" }),
-      },
-      {
-        name: "issues-list",
-        path: `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
-        ready: () => page.getByTestId("issue-list-scroll-container"),
-        focus: () => page.getByRole("textbox", { name: "Search issues" }),
-      },
-      {
-        name: "issues-backlog",
-        path: `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
-        ready: () => page.getByTestId("backlog-table"),
-        focus: () => page.getByRole("textbox", { name: "Search issues" }),
-      },
-      {
-        name: "issues-timeline",
-        path: `/workspace/${REEF_E2E_VAULT}/issues?view=timeline`,
-        ready: () => page.getByTestId("timeline-grid"),
-        focus: () => page.getByRole("textbox", { name: "Search issues" }),
-      },
-      {
-        name: "issue-detail",
-        path: `/workspace/${REEF_E2E_VAULT}/issues/REEF-001`,
-        ready: () => page.getByTestId("issue-detail"),
-        focus: () => page.getByTestId("issue-title-input"),
-      },
-    ] as const;
-
-    const observations: Array<
-      SurfaceObservation & {
-        route: string;
-        theme: "light" | "dark";
-        viewport: string;
-      }
-    > = [];
-    const rolesSeen = new Set<SurfaceRole>();
-
+  test.describe("records surface roles, focus, clipping, and overflow across the Issues matrix", () => {
     for (const theme of ["light", "dark"] as const) {
-      await setVisualTheme(page, theme);
-
       for (const viewport of VISUAL_VIEWPORTS) {
-        await page.setViewportSize(viewport);
+        test(
+          `${theme}--${viewport.name}`,
+          { tag: "@visual-matrix" },
+          async ({ page }, testInfo) => {
+            await page.setViewportSize({ width: 1440, height: 900 });
+            await openExistingWorkspace(page);
 
-        for (const route of routes) {
-          await page.goto(route.path);
-          await expect(route.ready()).toBeVisible({ timeout: 15_000 });
-          await expectVisibleFocus(route.focus());
+            const routes = [
+              {
+                name: "issues-board",
+                path: `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
+                ready: () => page.getByTestId("kanban-board"),
+                focus: () =>
+                  page.getByRole("textbox", { name: "Search issues" }),
+              },
+              {
+                name: "issues-list",
+                path: `/workspace/${REEF_E2E_VAULT}/issues?view=list`,
+                ready: () => page.getByTestId("issue-list-scroll-container"),
+                focus: () =>
+                  page.getByRole("textbox", { name: "Search issues" }),
+              },
+              {
+                name: "issues-backlog",
+                path: `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+                ready: () => page.getByTestId("backlog-table"),
+                focus: () =>
+                  page.getByRole("textbox", { name: "Search issues" }),
+              },
+              {
+                name: "issues-timeline",
+                path: `/workspace/${REEF_E2E_VAULT}/issues?view=timeline`,
+                ready: () => page.getByTestId("timeline-grid"),
+                focus: () =>
+                  page.getByRole("textbox", { name: "Search issues" }),
+              },
+              {
+                name: "issue-detail",
+                path: `/workspace/${REEF_E2E_VAULT}/issues/REEF-001`,
+                ready: () => page.getByTestId("issue-detail"),
+                focus: () => page.getByTestId("issue-title-input"),
+              },
+            ] as const;
 
-          const observation = await observeSurfaceRoles(page);
-          observations.push({
-            route: route.name,
-            theme,
-            viewport: viewport.name,
-            ...observation,
-          });
-          for (const role of SURFACE_ROLES) {
-            if (observation.roleCounts[role] > 0) rolesSeen.add(role);
-          }
+            const observations: Array<
+              SurfaceObservation & {
+                route: string;
+                theme: "light" | "dark";
+                viewport: string;
+              }
+            > = [];
+            const rolesSeen = new Set<SurfaceRole>();
 
-          expect(
-            observation.documentOverflow,
-            `${route.name} ${theme} ${viewport.name} document overflow`,
-          ).toBe(false);
-          expect(
-            observation.bodyOverflow,
-            `${route.name} ${theme} ${viewport.name} body overflow`,
-          ).toBe(false);
-          expect(
-            observation.mainOverflow,
-            `${route.name} ${theme} ${viewport.name} main overflow`,
-          ).toBe(false);
-          expect(
-            observation.unresolvedSurfaceFills,
-            `${route.name} ${theme} ${viewport.name} undefined surface fill`,
-          ).toEqual([]);
-          expect(
-            observation.clippedText,
-            `${route.name} ${theme} ${viewport.name} clipped text`,
-          ).toEqual([]);
-          expect(
-            observation.outOfViewportControls,
-            `${route.name} ${theme} ${viewport.name} controls outside viewport`,
-          ).toEqual([]);
+            await setVisualTheme(page, theme);
 
-          const tokenColors = Object.values(observation.roleTokenColors);
-          expect(
-            tokenColors.every((color) => color && color !== "transparent"),
-          ).toBe(true);
-          expect(new Set(tokenColors).size).toBe(SURFACE_ROLES.length);
+            await page.setViewportSize(viewport);
 
-          const screenshot = await page.screenshot({
-            animations: "disabled",
-            path: testInfo.outputPath(
-              `${route.name}-${theme}-${viewport.name}.png`,
-            ),
-          });
-          expect(screenshot.byteLength).toBeGreaterThan(0);
+            for (const route of routes) {
+              await page.goto(route.path);
+              await expect(route.ready()).toBeVisible({ timeout: 15_000 });
+              await expectVisibleFocus(route.focus());
 
-          if (route.name === "issues-board") {
-            await page.getByTestId("sort-control-trigger").click();
-            const menu = page.locator('[role="menu"]:visible').last();
-            await expect(menu).toBeVisible();
-            const popoverObservation = await observeSurfaceRoles(page);
-            observations.push({
-              route: "issues-board-popover",
-              theme,
-              viewport: viewport.name,
-              ...popoverObservation,
-            });
-            if (popoverObservation.roleCounts.popover > 0) {
-              rolesSeen.add("popover");
+              const observation = await observeSurfaceRoles(page);
+              observations.push({
+                route: route.name,
+                theme,
+                viewport: viewport.name,
+                ...observation,
+              });
+              for (const role of SURFACE_ROLES) {
+                if (observation.roleCounts[role] > 0) rolesSeen.add(role);
+              }
+
+              expect(
+                observation.documentOverflow,
+                `${route.name} ${theme} ${viewport.name} document overflow`,
+              ).toBe(false);
+              expect(
+                observation.bodyOverflow,
+                `${route.name} ${theme} ${viewport.name} body overflow`,
+              ).toBe(false);
+              expect(
+                observation.mainOverflow,
+                `${route.name} ${theme} ${viewport.name} main overflow`,
+              ).toBe(false);
+              expect(
+                observation.unresolvedSurfaceFills,
+                `${route.name} ${theme} ${viewport.name} undefined surface fill`,
+              ).toEqual([]);
+              expect(
+                observation.clippedText,
+                `${route.name} ${theme} ${viewport.name} clipped text`,
+              ).toEqual([]);
+              expect(
+                observation.outOfViewportControls,
+                `${route.name} ${theme} ${viewport.name} controls outside viewport`,
+              ).toEqual([]);
+
+              const tokenColors = Object.values(observation.roleTokenColors);
+              expect(
+                tokenColors.every((color) => color && color !== "transparent"),
+              ).toBe(true);
+              expect(new Set(tokenColors).size).toBe(SURFACE_ROLES.length);
+
+              const screenshot = await page.screenshot({
+                animations: "disabled",
+                path: testInfo.outputPath(
+                  `${route.name}-${theme}-${viewport.name}.png`,
+                ),
+              });
+              expect(screenshot.byteLength).toBeGreaterThan(0);
+
+              if (route.name === "issues-board") {
+                await page.getByTestId("sort-control-trigger").click();
+                const menu = page.locator('[role="menu"]:visible').last();
+                await expect(menu).toBeVisible();
+                const popoverObservation = await observeSurfaceRoles(page);
+                observations.push({
+                  route: "issues-board-popover",
+                  theme,
+                  viewport: viewport.name,
+                  ...popoverObservation,
+                });
+                if (popoverObservation.roleCounts.popover > 0) {
+                  rolesSeen.add("popover");
+                }
+                expect(popoverObservation.documentOverflow).toBe(false);
+                expect(popoverObservation.bodyOverflow).toBe(false);
+                expect(popoverObservation.mainOverflow).toBe(false);
+                expect(popoverObservation.unresolvedSurfaceFills).toEqual([]);
+                expect(popoverObservation.clippedText).toEqual([]);
+                expect(popoverObservation.outOfViewportControls).toEqual([]);
+                const popoverScreenshot = await page.screenshot({
+                  animations: "disabled",
+                  path: testInfo.outputPath(
+                    `issues-board-popover-${theme}-${viewport.name}.png`,
+                  ),
+                });
+                expect(popoverScreenshot.byteLength).toBeGreaterThan(0);
+                await page.keyboard.press("Escape");
+                await expect(menu).toBeHidden();
+              }
             }
-            expect(popoverObservation.documentOverflow).toBe(false);
-            expect(popoverObservation.bodyOverflow).toBe(false);
-            expect(popoverObservation.mainOverflow).toBe(false);
-            expect(popoverObservation.unresolvedSurfaceFills).toEqual([]);
-            expect(popoverObservation.clippedText).toEqual([]);
-            expect(popoverObservation.outOfViewportControls).toEqual([]);
-            const popoverScreenshot = await page.screenshot({
-              animations: "disabled",
-              path: testInfo.outputPath(
-                `issues-board-popover-${theme}-${viewport.name}.png`,
-              ),
+
+            expect([...rolesSeen].sort()).toEqual([...SURFACE_ROLES].sort());
+            await testInfo.attach("issues-surface-observations.json", {
+              body: JSON.stringify(observations, null, 2),
+              contentType: "application/json",
             });
-            expect(popoverScreenshot.byteLength).toBeGreaterThan(0);
-            await page.keyboard.press("Escape");
-            await expect(menu).toBeHidden();
-          }
-        }
+          },
+        );
       }
     }
-
-    expect([...rolesSeen].sort()).toEqual([...SURFACE_ROLES].sort());
-    await testInfo.attach("issues-surface-observations.json", {
-      body: JSON.stringify(observations, null, 2),
-      contentType: "application/json",
-    });
   });
 
   test("switches between independent scope and layout controls from /issues", async ({
@@ -1675,6 +1678,7 @@ test.describe("Hermetic issue route surfaces", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await page.clock.install();
 
     for (const width of [320, 768]) {
       await page.setViewportSize({ width, height: 844 });
@@ -1690,7 +1694,7 @@ test.describe("Hermetic issue route surfaces", () => {
       await direction.hover();
       await expect(tooltip).toBeVisible();
       await expect(tooltip).toHaveText("Direction: Newest");
-      await page.waitForTimeout(250);
+      await page.clock.runFor(250);
       await expect(tooltip).toBeVisible();
       await expect(tooltip).toHaveText("Direction: Newest");
 
@@ -1699,7 +1703,7 @@ test.describe("Hermetic issue route surfaces", () => {
       await expect(tooltip).toBeHidden();
       await direction.hover();
       await expect(tooltip).toBeVisible();
-      await page.waitForTimeout(250);
+      await page.clock.runFor(250);
       await expect(tooltip).toBeVisible();
       await expect(tooltip).toHaveText("Direction: Newest");
 
@@ -1717,7 +1721,7 @@ test.describe("Hermetic issue route surfaces", () => {
       await expect(tooltip).toBeHidden();
       await direction.hover();
       await expect(tooltip).toBeVisible();
-      await page.waitForTimeout(250);
+      await page.clock.runFor(250);
       await expect(tooltip).toHaveText("Direction: Oldest");
     }
   });
@@ -2031,20 +2035,19 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(backlogFilterGeometry.documentOverflow).toBe(false);
   });
 
-  test("renders the README demo board fixture across workflow columns", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await openExistingWorkspace(page);
-    await clearPersistedQueryCacheOnLoad(page);
-    await page.goto("/workspace/reef-e2e/issues?view=board");
-    await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
-    await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);
-    await expect(
-      page.getByText("Ship stateless BFF route handlers"),
-    ).toBeVisible();
-  });
+  test.extend({ scenario: "demo_board" })(
+    "renders the README demo board fixture across workflow columns",
+    async ({ page }) => {
+      await openExistingWorkspace(page);
+      await clearPersistedQueryCacheOnLoad(page);
+      await page.goto("/workspace/reef-e2e/issues?view=board");
+      await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
+      await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);
+      await expect(
+        page.getByText("Ship stateless BFF route handlers"),
+      ).toBeVisible();
+    },
+  );
 
   test("opens an intercepted issue detail, autosaves a title edit, and returns to the list backdrop", async ({
     page,

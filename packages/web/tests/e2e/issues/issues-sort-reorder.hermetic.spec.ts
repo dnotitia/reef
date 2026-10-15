@@ -1,17 +1,22 @@
+import { test } from "../harness/workspace-fixture";
+import { waitForPaint } from "../harness/browser-observations";
 import {
   type Locator,
   type Page,
   type Request,
   expect,
-  test,
 } from "@playwright/test";
 import {
+  releaseResponseHold,
+  waitForResponseHoldPending,
+  setResponseHold,
   clearPersistedQueryCacheOnLoad,
   REEF_E2E_VAULT,
   continueToWorkspace,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
+  releaseIssueUpdate,
+  waitForIssueUpdatePending,
   setIssueListFailure,
   setIssueReorderControl,
   setIssueUpdateControl,
@@ -127,6 +132,7 @@ async function dragBoardTarget(
   await page.mouse.down();
   const activationPoint = { x: sourceX + 8, y: sourceY };
   await page.mouse.move(activationPoint.x, activationPoint.y);
+  await waitForPaint(page);
   await onDragging(activationPoint);
   await page.mouse.move(targetX, targetY, { steps: 8 });
   await page.mouse.up();
@@ -169,10 +175,8 @@ function demoIssueState(
 }
 
 test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => {
-  test.beforeEach(async ({ context, page, request }) => {
-    await context.clearCookies();
+  test.beforeEach(async ({ page }) => {
     await clearPersistedQueryCacheOnLoad(page);
-    await resetFixture(request, "configured");
   });
 
   test("a non-membership edit refetches the updated_at-sorted list and re-sorts it", async ({
@@ -299,690 +303,704 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     ).toBeVisible();
   });
 
-  test("persists a Manual Board same-group reorder through the canonical rank spine", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
-    );
-
-    const todo = page.locator(
-      '[data-group-by="status"][data-group-value="todo"]',
-    );
-    await expect(todo).toBeVisible();
-    await expect
-      .poll(() => boardIssueIds(todo))
-      .toEqual(["REEF-103", "REEF-102", "REEF-101"]);
-
-    const movedCard = todo
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Review monitored" });
-    const movedOccurrenceKey = await movedCard.getAttribute(
-      "data-occurrence-key",
-    );
-    const movedIssueId = movedOccurrenceKey?.split(":").at(-1);
-    if (!movedIssueId) throw new Error("missing moved Board issue identity");
-    await setIssueReorderControl(request, { delayMs: 800 });
-
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    await dragBoardTarget(
-      movedCard,
-      todo.getByTestId("kanban-card").filter({ hasText: "Polish onboarding" }),
-      "card",
-      (activationPoint) =>
-        expectCursorAtPointer(
-          page.locator(".reef-drag-overlay"),
-          "grabbing",
-          activationPoint,
-        ),
-    );
-    await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
-    await expect(movedCard).toHaveAttribute("aria-busy", "true");
-    await expectCursorAtPointer(movedCard, "progress");
-    await expect(
-      page.getByTestId("reorder-persistence-announcement"),
-    ).toHaveText(`Saving ${movedIssueId}'s position…`);
-    await expect((await responsePromise).ok()).toBeTruthy();
-    await expectCanonicalReorderSuccessPulse(movedCard, "reef-flash-card");
-    await expect(
-      page.getByTestId("reorder-persistence-announcement"),
-    ).toHaveText(`${movedIssueId}'s position saved.`);
-    await setIssueReorderControl(request, {});
-    await expect
-      .poll(() => boardIssueIds(todo))
-      .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
-
-    const persisted = demoIssueState(await readFixtureState(request));
-    const todoState = persisted.issues
-      .filter((issue) => issue.status === "todo")
-      .sort(
-        (left, right) =>
-          (left.rank ?? Number.POSITIVE_INFINITY) -
-            (right.rank ?? Number.POSITIVE_INFINITY) ||
-          right.id.localeCompare(left.id, undefined, { numeric: true }),
+  test.extend({ scenario: "demo_board" })(
+    "persists a Manual Board same-group reorder through the canonical rank spine",
+    async ({ page, request }) => {
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
       );
-    expect(todoState.map((issue) => issue.id)).toEqual([
-      "REEF-103",
-      "REEF-101",
-      "REEF-102",
-    ]);
 
-    await page.reload();
-    await expect
-      .poll(() => boardIssueIds(todo))
-      .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
-  });
-
-  test("does not show board result progress for a move's delayed revalidation", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await clearPersistedQueryCacheOnLoad(page);
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
-    );
-
-    const todo = page.locator(
-      '[data-group-by="status"][data-group-value="todo"]',
-    );
-    await expect(todo).toBeVisible();
-    const movedCard = todo
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Review monitored" });
-    const movedIssueId = (await movedCard.getAttribute("data-occurrence-key"))
-      ?.split(":")
-      .at(-1);
-    if (!movedIssueId) throw new Error("missing moved Board issue identity");
-
-    await setIssueReorderControl(request, { delayMs: 800 });
-    await setIssueListFailure(request, false, 0, 2_500);
-    const reorderResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    const listRefetchPromise = page.waitForRequest(
-      (requestEvent) =>
-        requestEvent.method() === "GET" &&
-        new URL(requestEvent.url()).pathname === "/api/issues",
-    );
-    const listRefetchResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === "/api/issues",
-    );
-
-    await dragBoardTarget(
-      movedCard,
-      todo.getByTestId("kanban-card").filter({ hasText: "Polish onboarding" }),
-      "card",
-    );
-
-    const progressBar = page.getByTestId("search-progress-bar");
-    const reorderAnnouncement = page.getByTestId(
-      "reorder-persistence-announcement",
-    );
-    await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
-    await expect(movedCard).toHaveAttribute("aria-busy", "true");
-    await expect(reorderAnnouncement).toHaveText(
-      `Saving ${movedIssueId}'s position…`,
-    );
-    expect(await progressBar.count()).toBe(0);
-
-    await expect((await reorderResponsePromise).ok()).toBeTruthy();
-    await listRefetchPromise;
-    await expect
-      .poll(async () => {
-        const state = await readFixtureState(request);
-        return state.issue_list_pending[REEF_E2E_VAULT] ?? 0;
-      })
-      .toBeGreaterThan(0);
-    await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
-    await expect(movedCard).toHaveAttribute("aria-busy", "true");
-    await expect(reorderAnnouncement).toHaveText(
-      `Saving ${movedIssueId}'s position…`,
-    );
-    expect(await progressBar.count()).toBe(0);
-    expect(
-      await page.getByText("Updating results…", { exact: true }).count(),
-    ).toBe(0);
-    expect((await listRefetchResponsePromise).ok()).toBeTruthy();
-    await expect
-      .poll(() => boardIssueIds(todo))
-      .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
-    await page.reload();
-    await expect
-      .poll(() => boardIssueIds(todo))
-      .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
-  });
-
-  test("keeps independent filter progress during another card's save and revalidation", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await clearPersistedQueryCacheOnLoad(page);
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status&sort=priority`,
-    );
-
-    const todo = page.locator(
-      '[data-group-by="status"][data-group-value="todo"]',
-    );
-    const inProgress = page.locator(
-      '[data-group-by="status"][data-group-value="in_progress"]',
-    );
-    await expect(todo).toBeVisible();
-    await expect(page.getByTestId("sort-control-trigger")).toContainText(
-      "Priority",
-    );
-
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await setIssueUpdateControl(request, [
-      { issueId: "REEF-103", delayMs: 3_500 },
-    ]);
-    await setIssueListFailure(request, false, 0, 1_500);
-    const updateResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "PATCH" &&
-        new URL(response.url()).pathname === "/api/issues/REEF-103",
-    );
-    const movedCard = page.locator(
-      '[data-testid="kanban-card"][data-issue-id="REEF-103"]',
-    );
-
-    await dragBoardTarget(
-      todo.getByTestId("kanban-card").filter({ hasText: "Add saved filters" }),
-      inProgress,
-      "body",
-    );
-    await expect(movedCard).toHaveAttribute("aria-busy", "true");
-    await expect(
-      movedCard.locator('[data-issue-update-field="status"]'),
-    ).toHaveAttribute("aria-busy", "true");
-
-    const priorityFilterRequestPromise = page.waitForRequest((requestEvent) => {
-      const url = new URL(requestEvent.url());
-      return (
-        requestEvent.method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.get("priority") === "medium"
+      const todo = page.locator(
+        '[data-group-by="status"][data-group-value="todo"]',
       );
-    });
-    const priorityFilterResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return (
-        response.request().method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.get("priority") === "medium"
-      );
-    });
-    const priorityTrigger = page.getByTestId("priority-dropdown-trigger");
-    // dnd-kit suppresses document clicks for 50ms after a drop.
-    await priorityTrigger.click({ delay: 100 });
-    await page.getByTestId("priority-option-medium").click();
-    await expect(priorityTrigger).toContainText("Medium");
-    await priorityFilterRequestPromise;
+      await expect(todo).toBeVisible();
+      await expect
+        .poll(() => boardIssueIds(todo))
+        .toEqual(["REEF-103", "REEF-102", "REEF-101"]);
 
-    const progressBar = page.getByTestId("search-progress-bar");
-    await expect(progressBar).toHaveCount(1);
-    await expect(movedCard).toHaveAttribute("aria-busy", "true");
-    await expect(page.getByTestId("kanban-board")).toBeVisible();
-    await expect(page.getByTestId("issues-skeleton")).toHaveCount(0);
-    expect(
-      await page.getByText("Updating results…", { exact: true }).count(),
-    ).toBe(1);
-    await expect(
-      page.getByRole("status").filter({ hasText: "Updating results…" }),
-    ).toHaveAttribute("aria-live", "polite");
-    const reducedMotionStyle = await progressBar.evaluate((element) => ({
-      animationName: getComputedStyle(element, "::after").animationName,
-      barWidth: element.getBoundingClientRect().width,
-      sweepWidth: Number.parseFloat(getComputedStyle(element, "::after").width),
-      ariaHidden: element.getAttribute("aria-hidden"),
-    }));
-    expect(reducedMotionStyle.animationName).toBe("none");
-    expect(reducedMotionStyle.sweepWidth).toBeCloseTo(
-      reducedMotionStyle.barWidth,
-      0,
-    );
-    expect(reducedMotionStyle.ariaHidden).toBe("true");
-
-    expect((await priorityFilterResponsePromise).ok()).toBeTruthy();
-    await expect(progressBar).toHaveCount(0);
-    await expect(movedCard).toHaveAttribute("aria-busy", "true");
-
-    const moveRefetchRequestPromise = page.waitForRequest((requestEvent) => {
-      const url = new URL(requestEvent.url());
-      return (
-        requestEvent.method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.get("priority") === "medium"
-      );
-    });
-    const moveRefetchResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return (
-        response.request().method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.get("priority") === "medium"
-      );
-    });
-    expect((await updateResponsePromise).ok()).toBeTruthy();
-    await moveRefetchRequestPromise;
-    await expect
-      .poll(async () => {
-        const state = await readFixtureState(request);
-        return state.issue_list_pending[REEF_E2E_VAULT] ?? 0;
-      })
-      .toBeGreaterThan(0);
-    expect(await progressBar.count()).toBe(0);
-    expect(
-      await page.getByText("Updating results…", { exact: true }).count(),
-    ).toBe(0);
-    expect((await moveRefetchResponsePromise).ok()).toBeTruthy();
-
-    const savedCard = page.locator(
-      '[data-group-by="status"][data-group-value="in_progress"] [data-testid="kanban-card"][data-issue-id="REEF-103"]',
-    );
-    await expect(savedCard).toBeVisible();
-    await page.reload();
-    await expect(savedCard).toBeVisible();
-  });
-
-  test("keeps Backlog Board priority moves card-scoped through delayed revalidation", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await clearPersistedQueryCacheOnLoad(page);
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=board&group=priority`,
-    );
-
-    const low = page.locator(
-      '[data-group-by="priority"][data-group-value="low"]',
-    );
-    const medium = page.locator(
-      '[data-group-by="priority"][data-group-value="medium"]',
-    );
-    await expect(low).toBeVisible();
-    const movedCard = low
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Mobile density" });
-    const movedIssueId = await movedCard.getAttribute("data-issue-id");
-    if (!movedIssueId) throw new Error("missing moved Backlog issue identity");
-
-    await setIssueReorderControl(request, { delayMs: 800 });
-    await setIssueListFailure(request, false, 0, 1_800);
-    const reorderResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    const listRefetchRequestPromise = page.waitForRequest(
-      (requestEvent) =>
-        requestEvent.method() === "GET" &&
-        new URL(requestEvent.url()).pathname === "/api/issues",
-    );
-    const listRefetchResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === "/api/issues",
-    );
-
-    await dragBoardTarget(movedCard, medium, "body");
-    const movedCardInBoard = page.locator(
-      `[data-testid="kanban-card"][data-issue-id="${movedIssueId}"]`,
-    );
-    const reorderAnnouncement = page.getByTestId(
-      "reorder-persistence-announcement",
-    );
-    await expect(movedCardInBoard).toHaveAttribute(
-      "data-reorder-state",
-      "pending",
-    );
-    await expect(movedCardInBoard).toHaveAttribute("aria-busy", "true");
-    await expect(reorderAnnouncement).toHaveText(
-      `Saving ${movedIssueId}'s position…`,
-    );
-    await expect((await reorderResponsePromise).ok()).toBeTruthy();
-    await listRefetchRequestPromise;
-    await expect
-      .poll(async () => {
-        const state = await readFixtureState(request);
-        return state.issue_list_pending[REEF_E2E_VAULT] ?? 0;
-      })
-      .toBeGreaterThan(0);
-    await expect(movedCardInBoard).toHaveAttribute(
-      "data-reorder-state",
-      "pending",
-    );
-    expect(await page.getByTestId("search-progress-bar").count()).toBe(0);
-
-    expect((await listRefetchResponsePromise).ok()).toBeTruthy();
-    expect(await boardIssueIds(medium)).toEqual(["REEF-112"]);
-    const savedIssue = demoIssueState(
-      await readFixtureState(request),
-    ).issues.find((issue) => issue.id === movedIssueId);
-    expect(savedIssue).toMatchObject({ status: "backlog", priority: "medium" });
-
-    await page.reload();
-    await expect.poll(() => boardIssueIds(medium)).toEqual(["REEF-112"]);
-  });
-
-  test("commits a Manual Board cross-group body drop as one status+rank mutation", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
-    );
-
-    const todo = page.locator(
-      '[data-group-by="status"][data-group-value="todo"]',
-    );
-    const inProgress = page.locator(
-      '[data-group-by="status"][data-group-value="in_progress"]',
-    );
-    await expect(todo).toBeVisible();
-    const reorderWrites: Request[] = [];
-    const separateIssueWrites: Request[] = [];
-    page.on("request", (browserRequest) => {
-      const pathname = new URL(browserRequest.url()).pathname;
-      if (
-        browserRequest.method() === "POST" &&
-        pathname === "/api/issues/reorder"
-      ) {
-        reorderWrites.push(browserRequest);
-      }
-      if (
-        browserRequest.method() === "PATCH" &&
-        pathname === "/api/issues/REEF-103"
-      ) {
-        separateIssueWrites.push(browserRequest);
-      }
-    });
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    await dragBoardTarget(
-      todo.getByTestId("kanban-card").filter({ hasText: "Add saved filters" }),
-      inProgress,
-      "body",
-    );
-    await expect((await responsePromise).ok()).toBeTruthy();
-    await expect
-      .poll(async () =>
-        demoIssueState(await readFixtureState(request)).issues.find(
-          (issue) => issue.id === "REEF-103",
-        ),
-      )
-      .toMatchObject({ status: "in_progress" });
-    const moved = demoIssueState(await readFixtureState(request)).issues.find(
-      (issue) => issue.id === "REEF-103",
-    );
-    expect(moved).toMatchObject({ status: "in_progress" });
-    await expect
-      .poll(() => boardIssueIds(inProgress))
-      .toEqual(["REEF-105", "REEF-104", "REEF-103"]);
-    await expect(
-      inProgress
+      const movedCard = todo
         .getByTestId("kanban-card")
-        .filter({ hasText: "Add saved filters" }),
-    ).not.toHaveAttribute("data-reorder-state", "pending");
-    await expect(todo.locator('[data-issue-id="REEF-103"]')).toHaveCount(0);
-    expect(reorderWrites).toHaveLength(1);
-    expect(reorderWrites[0]?.postDataJSON()).toMatchObject({
-      issue_id: "REEF-103",
-      group: { field: "status", value: "in_progress" },
-    });
-    expect(separateIssueWrites).toHaveLength(0);
-    await page.reload();
-    await expect(
-      inProgress
-        .getByTestId("kanban-card")
-        .filter({ hasText: "Add saved filters" }),
-    ).toBeVisible();
-    await expect
-      .poll(() => boardIssueIds(inProgress))
-      .toEqual(["REEF-105", "REEF-104", "REEF-103"]);
-  });
+        .filter({ hasText: "Review monitored" });
+      const movedOccurrenceKey = await movedCard.getAttribute(
+        "data-occurrence-key",
+      );
+      const movedIssueId = movedOccurrenceKey?.split(":").at(-1);
+      if (!movedIssueId) throw new Error("missing moved Board issue identity");
+      await setIssueReorderControl(request, { hold: true });
 
-  test("commits a Manual Board cross-group card drop at the target rank", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
-    );
+      const responsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      await dragBoardTarget(
+        movedCard,
+        todo
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Polish onboarding" }),
+        "card",
+        (activationPoint) =>
+          expectCursorAtPointer(
+            page.locator(".reef-drag-overlay"),
+            "grabbing",
+            activationPoint,
+          ),
+      );
+      await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
+      await expect(movedCard).toHaveAttribute("aria-busy", "true");
+      await expectCursorAtPointer(movedCard, "progress");
+      await expect(
+        page.getByTestId("reorder-persistence-announcement"),
+      ).toHaveText(`Saving ${movedIssueId}'s position…`);
+      await releaseResponseHold(request, "issue-reorder");
+      await expect((await responsePromise).ok()).toBeTruthy();
+      await expectCanonicalReorderSuccessPulse(movedCard, "reef-flash-card");
+      await expect(
+        page.getByTestId("reorder-persistence-announcement"),
+      ).toHaveText(`${movedIssueId}'s position saved.`);
+      await setIssueReorderControl(request, {});
+      await expect
+        .poll(() => boardIssueIds(todo))
+        .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
 
-    const todo = page.locator(
-      '[data-group-by="status"][data-group-value="todo"]',
-    );
-    const inProgress = page.locator(
-      '[data-group-by="status"][data-group-value="in_progress"]',
-    );
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    await dragBoardTarget(
-      todo.getByTestId("kanban-card").filter({ hasText: "Add saved filters" }),
-      inProgress
+      const persisted = demoIssueState(await readFixtureState(request));
+      const todoState = persisted.issues
+        .filter((issue) => issue.status === "todo")
+        .sort(
+          (left, right) =>
+            (left.rank ?? Number.POSITIVE_INFINITY) -
+              (right.rank ?? Number.POSITIVE_INFINITY) ||
+            right.id.localeCompare(left.id, undefined, { numeric: true }),
+        );
+      expect(todoState.map((issue) => issue.id)).toEqual([
+        "REEF-103",
+        "REEF-101",
+        "REEF-102",
+      ]);
+
+      await page.reload();
+      await expect
+        .poll(() => boardIssueIds(todo))
+        .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "does not show board result progress for a move's delayed revalidation",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+      );
+
+      const todo = page.locator(
+        '[data-group-by="status"][data-group-value="todo"]',
+      );
+      await expect(todo).toBeVisible();
+      const movedCard = todo
         .getByTestId("kanban-card")
-        .filter({ hasText: "Stream grounded" }),
-      "card",
-    );
-    await expect((await responsePromise).ok()).toBeTruthy();
-    await expect
-      .poll(async () =>
-        demoIssueState(await readFixtureState(request)).issues.find(
-          (issue) => issue.id === "REEF-103",
+        .filter({ hasText: "Review monitored" });
+      const movedIssueId = (await movedCard.getAttribute("data-occurrence-key"))
+        ?.split(":")
+        .at(-1);
+      if (!movedIssueId) throw new Error("missing moved Board issue identity");
+
+      await setIssueReorderControl(request, { hold: true });
+      const reorderResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      const listRefetchPromise = page.waitForRequest(
+        (requestEvent) =>
+          requestEvent.method() === "GET" &&
+          new URL(requestEvent.url()).pathname === "/api/issues",
+      );
+      const listRefetchResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname === "/api/issues",
+      );
+
+      await dragBoardTarget(
+        movedCard,
+        todo
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Polish onboarding" }),
+        "card",
+      );
+
+      const progressBar = page.getByTestId("search-progress-bar");
+      const reorderAnnouncement = page.getByTestId(
+        "reorder-persistence-announcement",
+      );
+      await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
+      await expect(movedCard).toHaveAttribute("aria-busy", "true");
+      await expect(reorderAnnouncement).toHaveText(
+        `Saving ${movedIssueId}'s position…`,
+      );
+      expect(await progressBar.count()).toBe(0);
+
+      // Reorder reads its anchors before writing; hold only the subsequent refetch.
+      await waitForResponseHoldPending(request, "issue-reorder");
+      await setIssueListFailure(request, false, 0, true);
+      await releaseResponseHold(request, "issue-reorder");
+      await expect((await reorderResponsePromise).ok()).toBeTruthy();
+      await listRefetchPromise;
+      await expect
+        .poll(async () => {
+          const state = await readFixtureState(request);
+          return state.issue_list_pending[REEF_E2E_VAULT] ?? 0;
+        })
+        .toBeGreaterThan(0);
+      await expect(movedCard).toHaveAttribute("data-reorder-state", "pending");
+      await expect(movedCard).toHaveAttribute("aria-busy", "true");
+      await expect(reorderAnnouncement).toHaveText(
+        `Saving ${movedIssueId}'s position…`,
+      );
+      expect(await progressBar.count()).toBe(0);
+      expect(
+        await page.getByText("Updating results…", { exact: true }).count(),
+      ).toBe(0);
+      await releaseResponseHold(request, "issue-list");
+      expect((await listRefetchResponsePromise).ok()).toBeTruthy();
+      await expect
+        .poll(() => boardIssueIds(todo))
+        .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
+      await page.reload();
+      await expect
+        .poll(() => boardIssueIds(todo))
+        .toEqual(["REEF-103", "REEF-101", "REEF-102"]);
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "keeps independent filter progress during another card's save and revalidation",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status&sort=priority`,
+      );
+
+      const todo = page.locator(
+        '[data-group-by="status"][data-group-value="todo"]',
+      );
+      const inProgress = page.locator(
+        '[data-group-by="status"][data-group-value="in_progress"]',
+      );
+      await expect(todo).toBeVisible();
+      await expect(page.getByTestId("sort-control-trigger")).toContainText(
+        "Priority",
+      );
+
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await setIssueUpdateControl(request, [
+        { issueId: "REEF-103", hold: true },
+      ]);
+      await setIssueListFailure(request, false, 0, true);
+      const updateResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PATCH" &&
+          new URL(response.url()).pathname === "/api/issues/REEF-103",
+      );
+      const movedCard = page.locator(
+        '[data-testid="kanban-card"][data-issue-id="REEF-103"]',
+      );
+
+      await page.clock.install();
+      await dragBoardTarget(
+        todo
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Add saved filters" }),
+        inProgress,
+        "body",
+      );
+      await expect(movedCard).toHaveAttribute("aria-busy", "true");
+      await expect(
+        movedCard.locator('[data-issue-update-field="status"]'),
+      ).toHaveAttribute("aria-busy", "true");
+
+      const priorityFilterRequestPromise = page.waitForRequest(
+        (requestEvent) => {
+          const url = new URL(requestEvent.url());
+          return (
+            requestEvent.method() === "GET" &&
+            url.pathname === "/api/issues" &&
+            url.searchParams.get("priority") === "medium"
+          );
+        },
+      );
+      const priorityFilterResponsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("priority") === "medium"
+        );
+      });
+      const priorityTrigger = page.getByTestId("priority-dropdown-trigger");
+      // dnd-kit suppresses document clicks for 50ms after a drop.
+      await page.clock.runFor(51);
+      await priorityTrigger.click();
+      await page.getByTestId("priority-option-medium").click();
+      await expect(priorityTrigger).toContainText("Medium");
+      await priorityFilterRequestPromise;
+
+      const progressBar = page.getByTestId("search-progress-bar");
+      await expect(progressBar).toHaveCount(1);
+      await expect(movedCard).toHaveAttribute("aria-busy", "true");
+      await expect(page.getByTestId("kanban-board")).toBeVisible();
+      await expect(page.getByTestId("issues-skeleton")).toHaveCount(0);
+      expect(
+        await page.getByText("Updating results…", { exact: true }).count(),
+      ).toBe(1);
+      await expect(
+        page.getByRole("status").filter({ hasText: "Updating results…" }),
+      ).toHaveAttribute("aria-live", "polite");
+      const reducedMotionStyle = await progressBar.evaluate((element) => ({
+        animationName: getComputedStyle(element, "::after").animationName,
+        barWidth: element.getBoundingClientRect().width,
+        sweepWidth: Number.parseFloat(
+          getComputedStyle(element, "::after").width,
         ),
-      )
-      .toMatchObject({ status: "in_progress" });
-    await expect
-      .poll(() => boardIssueIds(inProgress))
-      .toEqual(["REEF-103", "REEF-105", "REEF-104"]);
-    const movedCard = inProgress
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Add saved filters" });
-    await expect(movedCard).toHaveAttribute("data-keyboard-focused", "true");
-    await expect(movedCard).toBeFocused();
-  });
+        ariaHidden: element.getAttribute("aria-hidden"),
+      }));
+      expect(reducedMotionStyle.animationName).toBe("none");
+      expect(reducedMotionStyle.sweepWidth).toBeCloseTo(
+        reducedMotionStyle.barWidth,
+        0,
+      );
+      expect(reducedMotionStyle.ariaHidden).toBe("true");
 
-  test("refreshes stale Manual anchors and asks for a new drag after a conflict", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await context.clearCookies();
-    await page.setViewportSize({ width: 2200, height: 1000 });
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
-    );
+      await releaseResponseHold(request, "issue-list");
+      expect((await priorityFilterResponsePromise).ok()).toBeTruthy();
+      await expect(progressBar).toHaveCount(0);
+      await expect(movedCard).toHaveAttribute("aria-busy", "true");
 
-    const todo = page.locator(
-      '[data-group-by="status"][data-group-value="todo"]',
-    );
-    const inProgress = page.locator(
-      '[data-group-by="status"][data-group-value="in_progress"]',
-    );
-    const movedCard = todo
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Add saved filters" });
-    await expect(movedCard).toBeVisible();
-    const movedOccurrenceKey = await movedCard.getAttribute(
-      "data-occurrence-key",
-    );
-    const movedIssueId = movedOccurrenceKey?.split(":").at(-1);
-    if (!movedIssueId) throw new Error("missing moved Board issue identity");
-    const movedErrorCard = todo.locator(
-      `[data-testid="kanban-card"][data-occurrence-key="todo:${movedIssueId}"][data-reorder-state="error"]`,
-    );
+      const moveRefetchRequestPromise = page.waitForRequest((requestEvent) => {
+        const url = new URL(requestEvent.url());
+        return (
+          requestEvent.method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("priority") === "medium"
+        );
+      });
+      const moveRefetchResponsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("priority") === "medium"
+        );
+      });
+      await setResponseHold(request, "issue-list", true);
+      await waitForIssueUpdatePending(request, "REEF-103");
+      await releaseIssueUpdate(request, "REEF-103");
+      expect((await updateResponsePromise).ok()).toBeTruthy();
+      await moveRefetchRequestPromise;
+      await expect
+        .poll(async () => {
+          const state = await readFixtureState(request);
+          return state.issue_list_pending[REEF_E2E_VAULT] ?? 0;
+        })
+        .toBeGreaterThan(0);
+      expect(await progressBar.count()).toBe(0);
+      expect(
+        await page.getByText("Updating results…", { exact: true }).count(),
+      ).toBe(0);
+      await releaseResponseHold(request, "issue-list");
+      expect((await moveRefetchResponsePromise).ok()).toBeTruthy();
 
-    // Change the row through the real Reef route without updating this page's
-    // Query cache. The next drag therefore carries a stale updated_at snapshot
-    // and exercises the canonical 409 recovery path.
-    const externalStatus = await page.evaluate(
-      async ({ id, vault }) => {
-        const response = await fetch(`/api/issues/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            vault,
-            update: {
-              issue_id: id,
-              patch: { priority: "low" },
-            },
-          }),
-        });
-        return response.status;
-      },
-      { id: "REEF-103", vault: REEF_E2E_VAULT },
-    );
-    expect(externalStatus).toBe(200);
+      const savedCard = page.locator(
+        '[data-group-by="status"][data-group-value="in_progress"] [data-testid="kanban-card"][data-issue-id="REEF-103"]',
+      );
+      await expect(savedCard).toBeVisible();
+      await page.reload();
+      await expect(savedCard).toBeVisible();
+    },
+  );
 
-    const reorderResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    await dragBoardTarget(movedCard, inProgress, "body");
-    expect((await reorderResponse).status()).toBe(409);
+  test.extend({ scenario: "demo_board" })(
+    "keeps Backlog Board priority moves card-scoped through delayed revalidation",
+    async ({ page, request }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=board&group=priority`,
+      );
 
-    await expect(page.getByText("The issue order changed")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
-    await expect(movedErrorCard).toHaveCount(1);
-    await expect(movedErrorCard).not.toHaveClass("reef-flash-card");
-    await expect(
-      page.getByTestId("reorder-persistence-announcement"),
-    ).toHaveText(
-      `${movedIssueId}'s position was not saved. The previous position is restored; retry is available.`,
-    );
-    await expect.poll(() => boardIssueIds(todo)).toContain(movedIssueId);
-  });
+      const low = page.locator(
+        '[data-group-by="priority"][data-group-value="low"]',
+      );
+      const medium = page.locator(
+        '[data-group-by="priority"][data-group-value="medium"]',
+      );
+      await expect(low).toBeVisible();
+      const movedCard = low
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Mobile density" });
+      const movedIssueId = await movedCard.getAttribute("data-issue-id");
+      if (!movedIssueId)
+        throw new Error("missing moved Backlog issue identity");
 
-  test("keeps a newly created issue at the Manual-order tail after entering Todo", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
-    await continueToWorkspace(page);
+      await setIssueReorderControl(request, { hold: true });
+      const reorderResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      const listRefetchRequestPromise = page.waitForRequest(
+        (requestEvent) =>
+          requestEvent.method() === "GET" &&
+          new URL(requestEvent.url()).pathname === "/api/issues",
+      );
+      const listRefetchResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname === "/api/issues",
+      );
 
-    await page.getByTestId("new-issue-trigger").click();
-    const dialog = page.getByTestId("new-issue-dialog");
-    await expect(dialog).toBeVisible();
-    await dialog
-      .getByTestId("new-issue-title-input")
-      .fill("New Manual tail issue");
-    await dialog.getByTestId("new-issue-submit").click();
+      await dragBoardTarget(movedCard, medium, "body");
+      const movedCardInBoard = page.locator(
+        `[data-testid="kanban-card"][data-issue-id="${movedIssueId}"]`,
+      );
+      const reorderAnnouncement = page.getByTestId(
+        "reorder-persistence-announcement",
+      );
+      await expect(movedCardInBoard).toHaveAttribute(
+        "data-reorder-state",
+        "pending",
+      );
+      await expect(movedCardInBoard).toHaveAttribute("aria-busy", "true");
+      await expect(reorderAnnouncement).toHaveText(
+        `Saving ${movedIssueId}'s position…`,
+      );
+      // Reorder reads its anchors before writing; hold only the subsequent refetch.
+      await waitForResponseHoldPending(request, "issue-reorder");
+      await setIssueListFailure(request, false, 0, true);
+      await releaseResponseHold(request, "issue-reorder");
+      await expect((await reorderResponsePromise).ok()).toBeTruthy();
+      await listRefetchRequestPromise;
+      await expect
+        .poll(async () => {
+          const state = await readFixtureState(request);
+          return state.issue_list_pending[REEF_E2E_VAULT] ?? 0;
+        })
+        .toBeGreaterThan(0);
+      await expect(movedCardInBoard).toHaveAttribute(
+        "data-reorder-state",
+        "pending",
+      );
+      expect(await page.getByTestId("search-progress-bar").count()).toBe(0);
 
-    await page.waitForURL(/\/issues\/REEF-113$/, { timeout: 10_000 });
-    const issueId = "REEF-113";
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
-    await page.getByTestId("issue-status-select").click();
-    await page.getByRole("option", { name: "Todo", exact: true }).click();
-    await expect
-      .poll(
-        async () =>
+      await releaseResponseHold(request, "issue-list");
+      expect((await listRefetchResponsePromise).ok()).toBeTruthy();
+      expect(await boardIssueIds(medium)).toEqual(["REEF-112"]);
+      const savedIssue = demoIssueState(
+        await readFixtureState(request),
+      ).issues.find((issue) => issue.id === movedIssueId);
+      expect(savedIssue).toMatchObject({
+        status: "backlog",
+        priority: "medium",
+      });
+
+      await page.reload();
+      await expect.poll(() => boardIssueIds(medium)).toEqual(["REEF-112"]);
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "commits a Manual Board cross-group body drop as one status+rank mutation",
+    async ({ page, request }) => {
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+      );
+
+      const todo = page.locator(
+        '[data-group-by="status"][data-group-value="todo"]',
+      );
+      const inProgress = page.locator(
+        '[data-group-by="status"][data-group-value="in_progress"]',
+      );
+      await expect(todo).toBeVisible();
+      const reorderWrites: Request[] = [];
+      const separateIssueWrites: Request[] = [];
+      page.on("request", (browserRequest) => {
+        const pathname = new URL(browserRequest.url()).pathname;
+        if (
+          browserRequest.method() === "POST" &&
+          pathname === "/api/issues/reorder"
+        ) {
+          reorderWrites.push(browserRequest);
+        }
+        if (
+          browserRequest.method() === "PATCH" &&
+          pathname === "/api/issues/REEF-103"
+        ) {
+          separateIssueWrites.push(browserRequest);
+        }
+      });
+      const responsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      await dragBoardTarget(
+        todo
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Add saved filters" }),
+        inProgress,
+        "body",
+      );
+      await expect((await responsePromise).ok()).toBeTruthy();
+      await expect
+        .poll(async () =>
           demoIssueState(await readFixtureState(request)).issues.find(
-            (issue) => issue.id === issueId,
-          )?.status,
-      )
-      .toBe("todo");
-    await expect
-      .poll(
-        async () =>
-          demoIssueState(await readFixtureState(request)).issues.find(
-            (issue) => issue.id === issueId,
-          )?.rank,
-      )
-      .toBeNull();
-
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
-    await expect(
-      page.getByTestId("issue-list-row").filter({ hasText: issueId }),
-    ).toBeVisible();
-    await expect
-      .poll(() => issueListIds(page).then((ids) => ids.at(-1)))
-      .toBe(issueId);
-
-    const initialIds = await issueListIds(page);
-    const firstIssueId = initialIds[0];
-    if (!firstIssueId || firstIssueId === issueId || initialIds.length < 2) {
-      throw new Error("Manual list did not expose a ranked tail target");
-    }
-    const expectedIds = [firstIssueId, issueId, ...initialIds.slice(1, -1)];
-    const grip = page.getByTestId(`issue-list-grip-${issueId}`);
-    await grip.focus();
-    await page.keyboard.press("Space");
-    await expect(grip).toHaveAttribute("aria-pressed", "true");
-    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
-    for (let attempt = 0; attempt < 32; attempt += 1) {
-      if ((await liveRegion.textContent()) === `${issueId} is at position 2.`) {
-        break;
-      }
-      await page.keyboard.press("ArrowUp");
-      await page.evaluate(
-        () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+            (issue) => issue.id === "REEF-103",
+          ),
+        )
+        .toMatchObject({ status: "in_progress" });
+      const moved = demoIssueState(await readFixtureState(request)).issues.find(
+        (issue) => issue.id === "REEF-103",
       );
-    }
-    await expect(liveRegion).toHaveText(`${issueId} is at position 2.`);
-    const reorderResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    await page.keyboard.press("Space");
-    await expect((await reorderResponse).ok()).toBeTruthy();
-    await expect.poll(() => issueListIds(page)).toEqual(expectedIds);
+      expect(moved).toMatchObject({ status: "in_progress" });
+      await expect
+        .poll(() => boardIssueIds(inProgress))
+        .toEqual(["REEF-105", "REEF-104", "REEF-103"]);
+      await expect(
+        inProgress
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Add saved filters" }),
+      ).not.toHaveAttribute("data-reorder-state", "pending");
+      await expect(todo.locator('[data-issue-id="REEF-103"]')).toHaveCount(0);
+      expect(reorderWrites).toHaveLength(1);
+      expect(reorderWrites[0]?.postDataJSON()).toMatchObject({
+        issue_id: "REEF-103",
+        group: { field: "status", value: "in_progress" },
+      });
+      expect(separateIssueWrites).toHaveLength(0);
+      await page.reload();
+      await expect(
+        inProgress
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Add saved filters" }),
+      ).toBeVisible();
+      await expect
+        .poll(() => boardIssueIds(inProgress))
+        .toEqual(["REEF-105", "REEF-104", "REEF-103"]);
+    },
+  );
 
-    await page.reload();
-    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
-    await expect.poll(() => issueListIds(page)).toEqual(expectedIds);
-  });
+  test.extend({ scenario: "demo_board" })(
+    "commits a Manual Board cross-group card drop at the target rank",
+    async ({ page, request }) => {
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+      );
+
+      const todo = page.locator(
+        '[data-group-by="status"][data-group-value="todo"]',
+      );
+      const inProgress = page.locator(
+        '[data-group-by="status"][data-group-value="in_progress"]',
+      );
+      const responsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      await dragBoardTarget(
+        todo
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Add saved filters" }),
+        inProgress
+          .getByTestId("kanban-card")
+          .filter({ hasText: "Stream grounded" }),
+        "card",
+      );
+      await expect((await responsePromise).ok()).toBeTruthy();
+      await expect
+        .poll(async () =>
+          demoIssueState(await readFixtureState(request)).issues.find(
+            (issue) => issue.id === "REEF-103",
+          ),
+        )
+        .toMatchObject({ status: "in_progress" });
+      await expect
+        .poll(() => boardIssueIds(inProgress))
+        .toEqual(["REEF-103", "REEF-105", "REEF-104"]);
+      const movedCard = inProgress
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Add saved filters" });
+      await expect(movedCard).toHaveAttribute("data-keyboard-focused", "true");
+      await expect(movedCard).toBeFocused();
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "refreshes stale Manual anchors and asks for a new drag after a conflict",
+    async ({ page, request }) => {
+      await page.setViewportSize({ width: 2200, height: 1000 });
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=status`,
+      );
+
+      const todo = page.locator(
+        '[data-group-by="status"][data-group-value="todo"]',
+      );
+      const inProgress = page.locator(
+        '[data-group-by="status"][data-group-value="in_progress"]',
+      );
+      const movedCard = todo
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Add saved filters" });
+      await expect(movedCard).toBeVisible();
+      const movedOccurrenceKey = await movedCard.getAttribute(
+        "data-occurrence-key",
+      );
+      const movedIssueId = movedOccurrenceKey?.split(":").at(-1);
+      if (!movedIssueId) throw new Error("missing moved Board issue identity");
+      const movedErrorCard = todo.locator(
+        `[data-testid="kanban-card"][data-occurrence-key="todo:${movedIssueId}"][data-reorder-state="error"]`,
+      );
+
+      // Change the row through the real Reef route without updating this page's
+      // Query cache. The next drag therefore carries a stale updated_at snapshot
+      // and exercises the canonical 409 recovery path.
+      const externalStatus = await page.evaluate(
+        async ({ id, vault }) => {
+          const response = await fetch(`/api/issues/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              vault,
+              update: {
+                issue_id: id,
+                patch: { priority: "low" },
+              },
+            }),
+          });
+          return response.status;
+        },
+        { id: "REEF-103", vault: REEF_E2E_VAULT },
+      );
+      expect(externalStatus).toBe(200);
+
+      const reorderResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      await dragBoardTarget(movedCard, inProgress, "body");
+      expect((await reorderResponse).status()).toBe(409);
+
+      await expect(page.getByText("The issue order changed")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
+      await expect(movedErrorCard).toHaveCount(1);
+      await expect(movedErrorCard).not.toHaveClass("reef-flash-card");
+      await expect(
+        page.getByTestId("reorder-persistence-announcement"),
+      ).toHaveText(
+        `${movedIssueId}'s position was not saved. The previous position is restored; retry is available.`,
+      );
+      await expect.poll(() => boardIssueIds(todo)).toContain(movedIssueId);
+    },
+  );
+
+  test.extend({ scenario: "demo_board" })(
+    "keeps a newly created issue at the Manual-order tail after entering Todo",
+    async ({ page, request }) => {
+      await openExistingWorkspace(page);
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await continueToWorkspace(page);
+
+      await page.getByTestId("new-issue-trigger").click();
+      const dialog = page.getByTestId("new-issue-dialog");
+      await expect(dialog).toBeVisible();
+      await dialog
+        .getByTestId("new-issue-title-input")
+        .fill("New Manual tail issue");
+      await dialog.getByTestId("new-issue-submit").click();
+
+      await page.waitForURL(/\/issues\/REEF-113$/, { timeout: 10_000 });
+      const issueId = "REEF-113";
+      await expect(page.getByTestId("issue-detail")).toBeVisible();
+      await page.getByTestId("issue-status-select").click();
+      await page.getByRole("option", { name: "Todo", exact: true }).click();
+      await expect
+        .poll(
+          async () =>
+            demoIssueState(await readFixtureState(request)).issues.find(
+              (issue) => issue.id === issueId,
+            )?.status,
+        )
+        .toBe("todo");
+      await expect
+        .poll(
+          async () =>
+            demoIssueState(await readFixtureState(request)).issues.find(
+              (issue) => issue.id === issueId,
+            )?.rank,
+        )
+        .toBeNull();
+
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
+      await expect(
+        page.getByTestId("issue-list-row").filter({ hasText: issueId }),
+      ).toBeVisible();
+      await expect
+        .poll(() => issueListIds(page).then((ids) => ids.at(-1)))
+        .toBe(issueId);
+
+      const initialIds = await issueListIds(page);
+      const firstIssueId = initialIds[0];
+      if (!firstIssueId || firstIssueId === issueId || initialIds.length < 2) {
+        throw new Error("Manual list did not expose a ranked tail target");
+      }
+      const expectedIds = [firstIssueId, issueId, ...initialIds.slice(1, -1)];
+      const grip = page.getByTestId(`issue-list-grip-${issueId}`);
+      await grip.focus();
+      await page.keyboard.press("Space");
+      await expect(grip).toHaveAttribute("aria-pressed", "true");
+      const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
+      for (let attempt = 0; attempt < 32; attempt += 1) {
+        if (
+          (await liveRegion.textContent()) === `${issueId} is at position 2.`
+        ) {
+          break;
+        }
+        await page.keyboard.press("ArrowUp");
+        await page.evaluate(
+          () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+        );
+      }
+      await expect(liveRegion).toHaveText(`${issueId} is at position 2.`);
+      const reorderResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      await page.keyboard.press("Space");
+      await expect((await reorderResponse).ok()).toBeTruthy();
+      await expect.poll(() => issueListIds(page)).toEqual(expectedIds);
+
+      await page.reload();
+      await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+      await expect.poll(() => issueListIds(page)).toEqual(expectedIds);
+    },
+  );
 
   test("persists Manual List reorder and exposes keyboard and screen-reader feedback", async ({
     page,
@@ -1002,7 +1020,7 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
       .filter({ hasText: "Initial issue Alpha" });
     const movedIssueId = await movedRow.getAttribute("data-issue-id");
     if (!movedIssueId) throw new Error("missing moved List issue identity");
-    await setIssueReorderControl(request, { delayMs: 800 });
+    await setIssueReorderControl(request, { hold: true });
 
     const pointerResponse = page.waitForResponse(
       (response) =>
@@ -1021,6 +1039,7 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect(
       page.getByTestId("reorder-persistence-announcement"),
     ).toHaveText(`Saving ${movedIssueId}'s position…`);
+    await releaseResponseHold(request, "issue-reorder");
     await expect((await pointerResponse).ok()).toBeTruthy();
     await expectCanonicalReorderSuccessPulse(movedRow, "reef-flash-row");
     await expect(
@@ -1093,58 +1112,56 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
     await expect(cancelGrip).toBeFocused();
   });
 
-  test("shows identity-bound pending and success feedback for Manual Backlog reorder", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "backlog_bulk_partial_failure");
-    await context.clearCookies();
-    await openExistingWorkspace(page);
-    await page.goto(
-      `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
-    );
+  test.extend({ scenario: "backlog_bulk_partial_failure" })(
+    "shows identity-bound pending and success feedback for Manual Backlog reorder",
+    async ({ page, request }) => {
+      await openExistingWorkspace(page);
+      await page.goto(
+        `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
+      );
 
-    const movedRow = page
-      .getByTestId("backlog-row")
-      .filter({ hasText: "Backlog issue Gamma" });
-    const targetRow = page
-      .getByTestId("backlog-row")
-      .filter({ hasText: "Initial issue Beta" });
-    await expect(movedRow).toBeVisible();
-    await expect(targetRow).toBeVisible();
-    const movedIssueId = await movedRow.getAttribute("data-issue-id");
-    const targetIssueId = await targetRow.getAttribute("data-issue-id");
-    if (!movedIssueId || !targetIssueId) {
-      throw new Error("missing moved Backlog issue identity");
-    }
-    const grip = page.getByTestId(`backlog-grip-${movedIssueId}`);
-    await expectCursorAtPointer(grip, "grab");
-    await setIssueReorderControl(request, { delayMs: 800 });
+      const movedRow = page
+        .getByTestId("backlog-row")
+        .filter({ hasText: "Backlog issue Gamma" });
+      const targetRow = page
+        .getByTestId("backlog-row")
+        .filter({ hasText: "Initial issue Beta" });
+      await expect(movedRow).toBeVisible();
+      await expect(targetRow).toBeVisible();
+      const movedIssueId = await movedRow.getAttribute("data-issue-id");
+      const targetIssueId = await targetRow.getAttribute("data-issue-id");
+      if (!movedIssueId || !targetIssueId) {
+        throw new Error("missing moved Backlog issue identity");
+      }
+      const grip = page.getByTestId(`backlog-grip-${movedIssueId}`);
+      await expectCursorAtPointer(grip, "grab");
+      await setIssueReorderControl(request, { hold: true });
 
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/issues/reorder",
-    );
-    await dragGrip(
-      page,
-      "backlog-grip",
-      movedIssueId,
-      targetIssueId,
-      (source) => expectCursorAtPointer(source, "grabbing"),
-    );
-    await expect(movedRow).toHaveAttribute("data-reorder-state", "pending");
-    await expect(movedRow).toHaveAttribute("aria-busy", "true");
-    await expect(
-      page.getByTestId("reorder-persistence-announcement"),
-    ).toHaveText(`Saving ${movedIssueId}'s position…`);
-    await expect((await responsePromise).ok()).toBeTruthy();
-    await expectCanonicalReorderSuccessPulse(movedRow, "reef-flash-row");
-    await expect(
-      page.getByTestId("reorder-persistence-announcement"),
-    ).toHaveText(`${movedIssueId}'s position saved.`);
-    await expectCursorAtPointer(grip, "grab");
-    await setIssueReorderControl(request, {});
-  });
+      const responsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/issues/reorder",
+      );
+      await dragGrip(
+        page,
+        "backlog-grip",
+        movedIssueId,
+        targetIssueId,
+        (source) => expectCursorAtPointer(source, "grabbing"),
+      );
+      await expect(movedRow).toHaveAttribute("data-reorder-state", "pending");
+      await expect(movedRow).toHaveAttribute("aria-busy", "true");
+      await expect(
+        page.getByTestId("reorder-persistence-announcement"),
+      ).toHaveText(`Saving ${movedIssueId}'s position…`);
+      await releaseResponseHold(request, "issue-reorder");
+      await expect((await responsePromise).ok()).toBeTruthy();
+      await expectCanonicalReorderSuccessPulse(movedRow, "reef-flash-row");
+      await expect(
+        page.getByTestId("reorder-persistence-announcement"),
+      ).toHaveText(`${movedIssueId}'s position saved.`);
+      await expectCursorAtPointer(grip, "grab");
+      await setIssueReorderControl(request, {});
+    },
+  );
 });

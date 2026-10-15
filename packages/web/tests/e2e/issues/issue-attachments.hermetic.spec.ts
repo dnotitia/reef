@@ -1,9 +1,9 @@
+import { test } from "../harness/workspace-fixture";
 import { Buffer } from "node:buffer";
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, expect } from "@playwright/test";
 import {
-  openExistingWorkspace,
+  releaseResponseHold,
   readFixtureState,
-  resetFixture,
   setAssetUploadControl,
 } from "../harness/fixture";
 
@@ -46,15 +46,13 @@ async function pasteFile(
 }
 
 test.describe("Hermetic issue attachments (REEF-349)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("uploads pasted files, renders inline images, and downloads stored bytes", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
@@ -133,9 +131,10 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
   });
 
   test("inserts images from the shared image toolbar picker (REEF-633)", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
@@ -167,14 +166,15 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
   });
 
   test("retries only the failed image and keeps earlier successful images (REEF-633)", async ({
+    openWorkspace,
     page,
     request,
   }) => {
     await setAssetUploadControl(request, {
-      delayMs: 25,
+      hold: true,
       failOnce: ["retry-second.png"],
     });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
@@ -193,6 +193,7 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
       },
     ]);
 
+    await releaseResponseHold(request, "asset-upload");
     const failure = page.getByRole("alert");
     await expect(failure).toBeVisible();
     await expect(failure.getByRole("button", { name: "Retry" })).toBeVisible();
@@ -231,9 +232,10 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
   });
 
   test("renders and reloads an uploaded image with a special filename", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 

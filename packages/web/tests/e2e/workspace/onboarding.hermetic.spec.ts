@@ -1,11 +1,18 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import {
+  expect,
+  type APIRequestContext,
+  type Page,
+  type Locator,
+} from "@playwright/test";
 import { DEFAULT_CONFIG, REEF_VAULT_SKILL_VERSION } from "@reef/core";
 import { DEFAULT_ISSUE_TEMPLATES } from "../../../src/features/settings/lib/defaultIssueTemplates";
 import {
   fixtureWriterLogin,
   fixtureReaderLogin,
   readFixtureState,
-  resetFixture,
+  setResponseHold,
+  releaseResponseHold,
   signInAsAlice,
   signInAsUser,
   setInstallationControl,
@@ -14,6 +21,49 @@ import {
   waitForPasswordLogin,
   writeIndexedDbConfig,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "empty" });
+
+// Keep the command's immediate vault refresh inactive. The status poll then
+// owns initialization success/failure before onboarding can resume a workspace.
+async function approveInstallation(
+  page: Page,
+  request: APIRequestContext,
+  vault: string,
+) {
+  await setResponseHold(request, "installation-execution", true);
+  let accepted = false;
+  const command = page
+    .waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname ===
+          `/api/vaults/${vault}/installation`,
+    )
+    .then((response) => {
+      accepted = true;
+      return response;
+    });
+  const refreshedVaults = page.waitForResponse(
+    (response) =>
+      accepted &&
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/api/vaults",
+  );
+  await page
+    .getByTestId("greenfield-approval-step")
+    .getByTestId(`installation-${vault}-approve`)
+    .click();
+  expect((await command).status()).toBe(202);
+  const refreshed = await (await refreshedVaults).json();
+  expect(
+    refreshed.vaults.find(
+      (candidate: { name: string; installation_active: boolean | null }) =>
+        candidate.name === vault,
+    )?.installation_active,
+  ).toBe(false);
+  await releaseResponseHold(request, "installation-execution");
+}
 
 async function expectContained(container: Locator, child: Locator) {
   const [containerBox, childBox] = await Promise.all([
@@ -48,121 +98,114 @@ async function expectWidthContained(container: Locator, child: Locator) {
 }
 
 test.describe("Hermetic onboarding flow", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "empty");
-  });
+  test.extend({ scenario: "notifications_personal" })(
+    "an active initialized reader enters the workspace without management details",
+    async ({ context, page, request }) => {
+      await signInAsAlice(page);
 
-  test("an active initialized reader enters the workspace without management details", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "notifications_personal");
-    await signInAsAlice(page);
+      const ownerVaults = await page.request.get("/api/vaults");
+      expect(ownerVaults.ok()).toBe(true);
+      expect(
+        (await ownerVaults.json()).vaults.find(
+          (vault: { name: string }) => vault.name === "reef-e2e",
+        )?.installation_active,
+      ).toBe(true);
 
-    const ownerVaults = await page.request.get("/api/vaults");
-    expect(ownerVaults.ok()).toBe(true);
-    expect(
-      (await ownerVaults.json()).vaults.find(
-        (vault: { name: string }) => vault.name === "reef-e2e",
-      )?.installation_active,
-    ).toBe(true);
-
-    await context.clearCookies();
-    await signInAsUser(page, fixtureReaderLogin);
-    await page.waitForURL(/\/workspace\/[^/]+\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
-
-    const readerLanding = new URL(page.url()).pathname.match(
-      /^\/workspace\/([^/]+)\/issues\/?$/u,
-    )?.[1];
-    if (!readerLanding) {
-      throw new Error("reader did not enter a workspace");
-    }
-    const readerVaults = await page.request.get("/api/vaults");
-    expect(readerVaults.ok()).toBe(true);
-    const readerVaultList = (await readerVaults.json()) as {
-      vaults: Array<{ name: string; installation_active: boolean | null }>;
-    };
-    expect(
-      readerVaultList.vaults.some(
-        (vault) =>
-          vault.name === readerLanding && vault.installation_active === true,
-      ),
-    ).toBe(true);
-
-    await page.goto("/workspace/reef-e2e/issues");
-    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/);
-    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
-
-    const statusResponse = await page.request.get(
-      "/api/vaults/reef-e2e/installation",
-    );
-    expect(statusResponse.ok()).toBe(true);
-    expect(await statusResponse.json()).toEqual({
-      installation_status: "ready",
-    });
-
-    const mutationResponse = await page.request.post(
-      "/api/vaults/reef-e2e/installation",
-      { data: { mode: "install" } },
-    );
-    expect(mutationResponse.status()).toBe(403);
-  });
-
-  test("onboarding keeps existing setup tasks out for owners and readers", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "installation_drift");
-    for (const vault of ["reef-e2e", "reef-zeta"]) {
-      await setInstallationControl(request, {
-        vault,
-        lifecycle: "uninstalled",
-        memberLookup: "healthy",
+      await context.clearCookies();
+      await signInAsUser(page, fixtureReaderLogin);
+      await page.waitForURL(/\/workspace\/[^/]+\/issues\/?$/, {
+        timeout: 15_000,
       });
-    }
+      await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
 
-    for (const account of ["owner", "reader"] as const) {
-      if (account === "owner") {
-        await signInAsAlice(page);
-      } else {
-        await context.clearCookies();
-        await signInAsUser(page, fixtureReaderLogin);
+      const readerLanding = new URL(page.url()).pathname.match(
+        /^\/workspace\/([^/]+)\/issues\/?$/u,
+      )?.[1];
+      if (!readerLanding) {
+        throw new Error("reader did not enter a workspace");
+      }
+      const readerVaults = await page.request.get("/api/vaults");
+      expect(readerVaults.ok()).toBe(true);
+      const readerVaultList = (await readerVaults.json()) as {
+        vaults: Array<{ name: string; installation_active: boolean | null }>;
+      };
+      expect(
+        readerVaultList.vaults.some(
+          (vault) =>
+            vault.name === readerLanding && vault.installation_active === true,
+        ),
+      ).toBe(true);
+
+      await page.goto("/workspace/reef-e2e/issues");
+      await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/);
+      await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+
+      const statusResponse = await page.request.get(
+        "/api/vaults/reef-e2e/installation",
+      );
+      expect(statusResponse.ok()).toBe(true);
+      expect(await statusResponse.json()).toEqual({
+        installation_status: "ready",
+      });
+
+      const mutationResponse = await page.request.post(
+        "/api/vaults/reef-e2e/installation",
+        { data: { mode: "install" } },
+      );
+      expect(mutationResponse.status()).toBe(403);
+    },
+  );
+
+  test.extend({ scenario: "installation_drift" })(
+    "onboarding keeps existing setup tasks out for owners and readers",
+    async ({ context, page, request }) => {
+      for (const vault of ["reef-e2e", "reef-zeta"]) {
+        await setInstallationControl(request, {
+          vault,
+          lifecycle: "uninstalled",
+          memberLookup: "healthy",
+        });
       }
 
-      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
-      await expect(page.getByTestId("onboarding-panel")).toBeVisible();
-      await expect(
-        page.getByTestId("greenfield-vault-name-input"),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: "Existing workspaces" }),
-      ).toHaveCount(0);
-      for (const action of [
-        "Set up Reef",
-        "Restore installation",
-        "Request fresh setup",
-        "Check status",
-      ]) {
-        await expect(page.getByRole("button", { name: action })).toHaveCount(0);
-      }
+      for (const account of ["owner", "reader"] as const) {
+        if (account === "owner") {
+          await signInAsAlice(page);
+        } else {
+          await context.clearCookies();
+          await signInAsUser(page, fixtureReaderLogin);
+        }
 
-      await expect(
-        page.getByTestId("workspace-installation-reef-e2e"),
-      ).toHaveCount(0);
-      await expect(
-        page.getByTestId("workspace-installation-reef-zeta"),
-      ).toHaveCount(0);
-      await expect(
-        page.getByTestId("workspace-installation-raw-vault"),
-      ).toHaveCount(0);
-    }
-  });
+        await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+        await expect(page.getByTestId("onboarding-panel")).toBeVisible();
+        await expect(
+          page.getByTestId("greenfield-vault-name-input"),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("heading", { name: "Existing workspaces" }),
+        ).toHaveCount(0);
+        for (const action of [
+          "Set up Reef",
+          "Restore installation",
+          "Request fresh setup",
+          "Check status",
+        ]) {
+          await expect(page.getByRole("button", { name: action })).toHaveCount(
+            0,
+          );
+        }
+
+        await expect(
+          page.getByTestId("workspace-installation-reef-e2e"),
+        ).toHaveCount(0);
+        await expect(
+          page.getByTestId("workspace-installation-reef-zeta"),
+        ).toHaveCount(0);
+        await expect(
+          page.getByTestId("workspace-installation-raw-vault"),
+        ).toHaveCount(0);
+      }
+    },
+  );
 
   test("creates a reef workspace through real Route Handlers", async ({
     page,
@@ -191,10 +234,7 @@ test.describe("Hermetic onboarding flow", () => {
           "/api/vaults/reef-new/installation" &&
         response.request().method() === "POST",
     );
-    await page
-      .getByTestId("greenfield-approval-step")
-      .getByTestId("installation-reef-new-approve")
-      .click();
+    await approveInstallation(page, request, "reef-new");
     const installResponse = await installResponsePromise;
     expect(installResponse.status()).toBe(202);
     expect(await installResponse.json()).toMatchObject({
@@ -297,10 +337,7 @@ test.describe("Hermetic onboarding flow", () => {
           "/api/vaults/reef-failed/installation" &&
         response.request().method() === "POST",
     );
-    await page
-      .getByTestId("greenfield-approval-step")
-      .getByTestId("installation-reef-failed-approve")
-      .click();
+    await approveInstallation(page, request, "reef-failed");
     const installResponse = await installResponsePromise;
     expect(installResponse.status()).toBe(202);
     expect(await installResponse.json()).toMatchObject({
@@ -348,10 +385,7 @@ test.describe("Hermetic onboarding flow", () => {
     await page.getByTestId("greenfield-vault-name-input").fill("reef-new");
     await page.getByTestId("greenfield-create-btn").click();
     await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
-    await page
-      .getByTestId("greenfield-approval-step")
-      .getByTestId("installation-reef-new-approve")
-      .click();
+    await approveInstallation(page, request, "reef-new");
     await page.waitForURL(/\/issues\/?(?:\?.*)?$/, { timeout: 10_000 });
 
     const createdIssueResponse = await page.request.post("/api/issues", {
@@ -392,159 +426,159 @@ test.describe("Hermetic onboarding flow", () => {
     expect(paths.some((path) => path.startsWith("overview/reef/"))).toBe(false);
   });
 
-  test("recovers an incomplete brownfield workspace without replacing user data", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "workspace_recovery");
-    await signInAsUser(page, fixtureWriterLogin);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+  test.extend({ scenario: "workspace_recovery" })(
+    "recovers an incomplete brownfield workspace without replacing user data",
+    async ({ page, request }) => {
+      await signInAsUser(page, fixtureWriterLogin);
+      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
-    await page.getByTestId("greenfield-create-btn").click();
-    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
-    await page
-      .getByTestId("greenfield-approval-step")
-      .getByTestId("installation-raw-vault-approve")
-      .click();
-    await page.waitForURL(/\/issues\/?(?:\?.*)?$/, { timeout: 10_000 });
+      await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
+      await page.getByTestId("greenfield-create-btn").click();
+      await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+      await approveInstallation(page, request, "raw-vault");
+      await page.waitForURL(/\/issues\/?(?:\?.*)?$/, { timeout: 10_000 });
 
-    const state = await readFixtureState(request);
-    const recovered = state.vaults.find((vault) => vault.name === "raw-vault");
-    expect(recovered).toBeDefined();
-    expect(recovered?.settings).toMatchObject({
-      custom_setting: "keep-me",
-      project_prefix: "REEF",
-    });
-    expect(recovered?.settings.vault_skill).toBeUndefined();
-    expect(recovered?.tables).toContain("reef_issues");
-    expect(recovered?.issue_ids).toContain("REEF-001");
+      const state = await readFixtureState(request);
+      const recovered = state.vaults.find(
+        (vault) => vault.name === "raw-vault",
+      );
+      expect(recovered).toBeDefined();
+      expect(recovered?.settings).toMatchObject({
+        custom_setting: "keep-me",
+        project_prefix: "REEF",
+      });
+      expect(recovered?.settings.vault_skill).toBeUndefined();
+      expect(recovered?.tables).toContain("reef_issues");
+      expect(recovered?.issue_ids).toContain("REEF-001");
 
-    const documents = recovered?.documents ?? [];
-    expect(
-      documents.find((document) => document.path === "overview/vault-skill.md")
-        ?.content,
-    ).toBe("OUTDATED MANUAL SKILL CONTENT");
-    expect(
-      documents.find((document) => document.path === "docs/user-notes.md")
-        ?.content,
-    ).toBe("KEEP THIS USER DOCUMENT");
-    expect(
-      documents.find((document) => document.path === "reef/runbooks/custom.md")
-        ?.content,
-    ).toBe("KEEP THIS CUSTOM RUNBOOK");
-    expect(
-      documents.find((document) => document.path === "issues/reef-001.md")
-        ?.content,
-    ).toBe("Alpha description from fixture.");
-    expect(
-      documents.filter((document) =>
-        document.path.startsWith("reef/runbooks/"),
-      ),
-    ).toHaveLength(6);
-    expect(
-      documents.some((document) => document.path.startsWith("overview/reef/")),
-    ).toBe(false);
-  });
+      const documents = recovered?.documents ?? [];
+      expect(
+        documents.find(
+          (document) => document.path === "overview/vault-skill.md",
+        )?.content,
+      ).toBe("OUTDATED MANUAL SKILL CONTENT");
+      expect(
+        documents.find((document) => document.path === "docs/user-notes.md")
+          ?.content,
+      ).toBe("KEEP THIS USER DOCUMENT");
+      expect(
+        documents.find(
+          (document) => document.path === "reef/runbooks/custom.md",
+        )?.content,
+      ).toBe("KEEP THIS CUSTOM RUNBOOK");
+      expect(
+        documents.find((document) => document.path === "issues/reef-001.md")
+          ?.content,
+      ).toBe("Alpha description from fixture.");
+      expect(
+        documents.filter((document) =>
+          document.path.startsWith("reef/runbooks/"),
+        ),
+      ).toHaveLength(6);
+      expect(
+        documents.some((document) =>
+          document.path.startsWith("overview/reef/"),
+        ),
+      ).toBe(false);
+    },
+  );
 
-  test("clears a current brownfield skill stamp before a failed preservation retry", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "workspace_recovery_current_stamp");
-    const initial = (await readFixtureState(request)).vaults.find(
-      (vault) => vault.name === "raw-vault",
-    );
-    expect(initial?.settings.vault_skill).toMatchObject({
-      version: REEF_VAULT_SKILL_VERSION,
-    });
-    await setWorkspaceInitializationControl(request, {
-      operation: "document_get",
-      failures: 1,
-      // The owner readiness probe and initialization preflight each read the
-      // existing root document and observe one missing managed document. Let
-      // those four reads and the preservation root read finish, then fail on
-      // the next preservation read after its old stamp has been cleared.
-      successesBeforeFailure: 5,
-    });
-    await signInAsUser(page, fixtureWriterLogin);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+  test.extend({ scenario: "workspace_recovery_current_stamp" })(
+    "clears a current brownfield skill stamp before a failed preservation retry",
+    async ({ page, request }) => {
+      const initial = (await readFixtureState(request)).vaults.find(
+        (vault) => vault.name === "raw-vault",
+      );
+      expect(initial?.settings.vault_skill).toMatchObject({
+        version: REEF_VAULT_SKILL_VERSION,
+      });
+      await setWorkspaceInitializationControl(request, {
+        operation: "document_get",
+        failures: 1,
+        // The owner readiness probe and initialization preflight each read the
+        // existing root document and observe one missing managed document. Let
+        // those four reads and the preservation root read finish, then fail on
+        // the next preservation read after its old stamp has been cleared.
+        successesBeforeFailure: 5,
+      });
+      await signInAsUser(page, fixtureWriterLogin);
+      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
-    const initializationFailure = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          "/api/vaults/raw-vault/installation" &&
-        response.request().method() === "GET" &&
-        response.status() >= 500,
-    );
-    const firstInstallResponse = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          "/api/vaults/raw-vault/installation" &&
-        response.request().method() === "POST",
-    );
-    await page.getByTestId("greenfield-create-btn").click();
-    await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
-    await page
-      .getByTestId("greenfield-approval-step")
-      .getByTestId("installation-raw-vault-approve")
-      .click();
-    const installResponse = await firstInstallResponse;
-    expect(installResponse.status()).toBe(202);
-    expect(await installResponse.json()).toMatchObject({
-      installation_status: "installing",
-      command_status: "accepted",
-    });
-    expect((await initializationFailure).status()).toBeGreaterThanOrEqual(500);
-    await expect(
-      page.getByTestId("greenfield-approval-step").getByRole("alert"),
-    ).toBeVisible();
-    await expect(page).toHaveURL(/\/onboarding$/);
+      await page.getByTestId("greenfield-vault-name-input").fill("raw-vault");
+      const initializationFailure = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname ===
+            "/api/vaults/raw-vault/installation" &&
+          response.request().method() === "GET" &&
+          response.status() >= 500,
+      );
+      const firstInstallResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname ===
+            "/api/vaults/raw-vault/installation" &&
+          response.request().method() === "POST",
+      );
+      await page.getByTestId("greenfield-create-btn").click();
+      await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
+      await approveInstallation(page, request, "raw-vault");
+      const installResponse = await firstInstallResponse;
+      expect(installResponse.status()).toBe(202);
+      expect(await installResponse.json()).toMatchObject({
+        installation_status: "installing",
+        command_status: "accepted",
+      });
+      expect((await initializationFailure).status()).toBeGreaterThanOrEqual(
+        500,
+      );
+      await expect(
+        page.getByTestId("greenfield-approval-step").getByRole("alert"),
+      ).toBeVisible();
+      await expect(page).toHaveURL(/\/onboarding$/);
 
-    const failedState = await readFixtureState(request);
-    const failed = failedState.vaults.find(
-      (vault) => vault.name === "raw-vault",
-    );
-    expect(failed?.settings.custom_setting).toBe("keep-me");
-    expect(failed?.settings.vault_skill).toBeUndefined();
-    expect(
-      failed?.documents.find(
-        (document) => document.path === "overview/vault-skill.md",
-      )?.content,
-    ).toBe("OUTDATED MANUAL SKILL CONTENT");
-    expect(
-      failed?.documents.find(
-        (document) => document.path === "docs/user-notes.md",
-      )?.content,
-    ).toBe("KEEP THIS USER DOCUMENT");
-    expect(
-      failed?.documents.find(
-        (document) => document.path === "issues/reef-001.md",
-      )?.content,
-    ).toBe("Alpha description from fixture.");
+      const failedState = await readFixtureState(request);
+      const failed = failedState.vaults.find(
+        (vault) => vault.name === "raw-vault",
+      );
+      expect(failed?.settings.custom_setting).toBe("keep-me");
+      expect(failed?.settings.vault_skill).toBeUndefined();
+      expect(
+        failed?.documents.find(
+          (document) => document.path === "overview/vault-skill.md",
+        )?.content,
+      ).toBe("OUTDATED MANUAL SKILL CONTENT");
+      expect(
+        failed?.documents.find(
+          (document) => document.path === "docs/user-notes.md",
+        )?.content,
+      ).toBe("KEEP THIS USER DOCUMENT");
+      expect(
+        failed?.documents.find(
+          (document) => document.path === "issues/reef-001.md",
+        )?.content,
+      ).toBe("Alpha description from fixture.");
 
-    await setWorkspaceInitializationControl(request, {
-      operation: null,
-      failures: 0,
-      successesBeforeFailure: null,
-    });
-    await page.getByRole("button", { name: "Check status" }).click();
-    await page.waitForURL(/\/issues\/?(?:\?.*)?$/, { timeout: 10_000 });
+      await setWorkspaceInitializationControl(request, {
+        operation: null,
+        failures: 0,
+        successesBeforeFailure: null,
+      });
+      await page.getByRole("button", { name: "Check status" }).click();
+      await page.waitForURL(/\/issues\/?(?:\?.*)?$/, { timeout: 10_000 });
 
-    const retriedState = await readFixtureState(request);
-    const retried = retriedState.vaults.find(
-      (vault) => vault.name === "raw-vault",
-    );
-    expect(retried?.settings.custom_setting).toBe("keep-me");
-    expect(retried?.settings.vault_skill).toBeUndefined();
-    expect(retried?.tables).toContain("reef_issues");
-    expect(
-      retried?.documents.find(
-        (document) => document.path === "overview/vault-skill.md",
-      )?.content,
-    ).toBe("OUTDATED MANUAL SKILL CONTENT");
-  });
+      const retriedState = await readFixtureState(request);
+      const retried = retriedState.vaults.find(
+        (vault) => vault.name === "raw-vault",
+      );
+      expect(retried?.settings.custom_setting).toBe("keep-me");
+      expect(retried?.settings.vault_skill).toBeUndefined();
+      expect(retried?.tables).toContain("reef_issues");
+      expect(
+        retried?.documents.find(
+          (document) => document.path === "overview/vault-skill.md",
+        )?.content,
+      ).toBe("OUTDATED MANUAL SKILL CONTENT");
+    },
+  );
 
   test("keeps a failed initialization retryable after a document failure", async ({
     page,
@@ -574,10 +608,7 @@ test.describe("Hermetic onboarding flow", () => {
     );
     await page.getByTestId("greenfield-create-btn").click();
     await expect(page.getByTestId("greenfield-approval-step")).toBeVisible();
-    await page
-      .getByTestId("greenfield-approval-step")
-      .getByTestId("installation-reef-retry-approve")
-      .click();
+    await approveInstallation(page, request, "reef-retry");
     const installResponse = await firstInstallResponse;
     expect(installResponse.status()).toBe(202);
     expect(await installResponse.json()).toMatchObject({
@@ -639,18 +670,17 @@ test.describe("Hermetic onboarding flow", () => {
     ).toBe(true);
   });
 
-  test("shows the create form when no vault has reef config", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "raw_only");
-    await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+  test.extend({ scenario: "raw_only" })(
+    "shows the create form when no vault has reef config",
+    async ({ page }) => {
+      await signInAsAlice(page);
+      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    await expect(
-      page.locator('[data-testid="greenfield-vault-name-input"]'),
-    ).toBeVisible();
-  });
+      await expect(
+        page.locator('[data-testid="greenfield-vault-name-input"]'),
+      ).toBeVisible();
+    },
+  );
 
   test("announces required field errors and returns focus to the first error", async ({
     page,
@@ -775,81 +805,78 @@ test.describe("Hermetic onboarding flow", () => {
     ).toHaveCount(0);
   });
 
-  test("prefers a remembered configured workspace", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured_multi");
-    await page.goto("/login");
-    await waitForPasswordLogin(page);
-    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
-    await writeIndexedDbConfig(page, "vault", "reef-zeta");
+  test.extend({ scenario: "configured_multi" })(
+    "prefers a remembered configured workspace",
+    async ({ page }) => {
+      await page.goto("/login");
+      await waitForPasswordLogin(page);
+      await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+      await writeIndexedDbConfig(page, "vault", "reef-zeta");
 
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
-      timeout: 15_000,
-    });
-  });
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
+        timeout: 15_000,
+      });
+    },
+  );
 
-  test("rechecks a remembered workspace after cached selection and re-login", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured_multi");
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await expect
-      .poll(() =>
-        page.evaluate(() => localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")),
-      )
-      .toContain("reef-alpha");
+  test.extend({ scenario: "configured_multi" })(
+    "rechecks a remembered workspace after cached selection and re-login",
+    async ({ context, page }) => {
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            localStorage.getItem("REACT_QUERY_OFFLINE_CACHE"),
+          ),
+        )
+        .toContain("reef-alpha");
 
-    await context.clearCookies();
-    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
-    await writeIndexedDbConfig(page, "vault", "reef-zeta");
-    await page.goto("/login");
-    await waitForPasswordLogin(page);
+      await context.clearCookies();
+      await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+      await writeIndexedDbConfig(page, "vault", "reef-zeta");
+      await page.goto("/login");
+      await waitForPasswordLogin(page);
 
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
-      timeout: 15_000,
-    });
-  });
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
+        timeout: 15_000,
+      });
+    },
+  );
 
-  test("uses ASCII order for an invalid remembered workspace", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured_multi");
-    await page.goto("/login");
-    await waitForPasswordLogin(page);
-    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
-    await writeIndexedDbConfig(page, "vault", "missing");
+  test.extend({ scenario: "configured_multi" })(
+    "uses ASCII order for an invalid remembered workspace",
+    async ({ page }) => {
+      await page.goto("/login");
+      await waitForPasswordLogin(page);
+      await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+      await writeIndexedDbConfig(page, "vault", "missing");
 
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
-      timeout: 15_000,
-    });
-  });
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
+        timeout: 15_000,
+      });
+    },
+  );
 
-  test("auto-resumes direct onboarding and Back does not return to it", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured");
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
-      timeout: 15_000,
-    });
+  test.extend({ scenario: "configured" })(
+    "auto-resumes direct onboarding and Back does not return to it",
+    async ({ page }) => {
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+        timeout: 15_000,
+      });
 
-    await page.goto("/onboarding");
-    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await page.goBack();
-    await expect(page).not.toHaveURL(/\/onboarding\/?$/);
-  });
+      await page.goto("/onboarding");
+      await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      await page.goBack();
+      await expect(page).not.toHaveURL(/\/onboarding\/?$/);
+    },
+  );
 });

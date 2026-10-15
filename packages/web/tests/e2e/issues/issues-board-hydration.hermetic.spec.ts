@@ -1,10 +1,12 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { expect, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
+  releaseAuthProbe,
+  releaseResponseHold,
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
   setAuthControl,
   setIssueListFailure,
   setPlanningCatalogFailure,
@@ -12,6 +14,8 @@ import {
   writeIndexedDbConfig,
 } from "../harness/fixture";
 import { PERSISTED_QUERY_CACHE_KEY } from "../../../src/lib/storage/clientCache";
+
+const test = workspaceTest.extend({ scenario: "demo_board" });
 
 // Regression guard for the warm-cache hydration mismatch on the issues board.
 //
@@ -211,20 +215,12 @@ async function captureIssueViewGeometry(
 }
 
 test.describe("Hermetic issues board hydration (REEF-315)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   for (const view of ["list", "timeline"] as const) {
     test(`keeps fixed issue chrome while the ${view} view code loads`, async ({
-      context,
       page,
       request,
     }, testInfo) => {
-      await context.clearCookies();
       await page.setViewportSize({ width: 1440, height: 900 });
-      await resetFixture(request, "demo_board");
       await openExistingWorkspace(page);
       await expect(page.locator(board)).toBeVisible();
       await expect(page.locator(card).first()).toBeVisible();
@@ -366,276 +362,280 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
     ).toEqual([]);
   });
 
-  test("keeps the rollover row readable across viewport, locale, and theme combinations", async ({
-    context,
-    page,
-    request,
-  }, testInfo) => {
-    test.setTimeout(120_000);
-    await context.clearCookies();
-    await resetFixture(request, "sprint_rollover");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await openExistingWorkspace(page);
+  test.extend({ scenario: "sprint_rollover" })(
+    "keeps the rollover row readable across viewport, locale, and theme combinations",
+    async ({ context, page, request }, testInfo) => {
+      test.setTimeout(120_000);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openExistingWorkspace(page);
 
-    const catalogResponse = await page.request.get(
-      `/api/planning?vault=${REEF_E2E_VAULT}`,
-    );
-    expect(catalogResponse.ok()).toBeTruthy();
-    const catalog = (await catalogResponse.json()) as {
-      sprints: Array<{
-        id: string;
-        name: string;
-        status: string;
-        start_date: string | null;
-        end_date: string | null;
-        goal: string;
-        capacity_points: number | null;
-      }>;
-    };
-    const activeSprint = catalog.sprints.find(
-      (sprint) => sprint.status === "active",
-    );
-    if (!activeSprint) throw new Error("Active fixture sprint is missing");
-    const longName = `Sprint 14 - Rollover fixture — ${"긴스프린트이름확인용".repeat(5)}`;
-    const updateResponse = await page.request.put(
-      `/api/planning/sprints/${activeSprint.id}`,
-      {
-        data: {
-          vault: REEF_E2E_VAULT,
-          item: { ...activeSprint, name: longName },
-        },
-      },
-    );
-    expect(updateResponse.ok()).toBeTruthy();
-    await expect
-      .poll(async () => {
-        const state = await readFixtureState(request);
-        return state.vaults
-          .find((vault) => vault.name === REEF_E2E_VAULT)
-          ?.sprints.find((sprint) => sprint.id === activeSprint.id)?.name;
-      })
-      .toBe(longName);
-
-    await page.close();
-    const visualPage = await context.newPage();
-    await visualPage.goto("/api/healthz");
-    await visualPage.evaluate((cacheKey) => {
-      window.localStorage.removeItem(cacheKey);
-    }, PERSISTED_QUERY_CACHE_KEY);
-    await visualPage.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
-    await expect(visualPage.getByTestId("sprint-rollover-nudge")).toBeVisible();
-    await expect(visualPage.getByTestId("sprint-rollover-nudge")).toContainText(
-      longName,
-    );
-
-    const widths = [320, 375, 414, 768, 1440];
-    const locales = ["en", "ko"] as const;
-    const themes = ["light", "dark"] as const;
-    for (const locale of locales) {
-      await context.addCookies([
+      const catalogResponse = await page.request.get(
+        `/api/planning?vault=${REEF_E2E_VAULT}`,
+      );
+      expect(catalogResponse.ok()).toBeTruthy();
+      const catalog = (await catalogResponse.json()) as {
+        sprints: Array<{
+          id: string;
+          name: string;
+          status: string;
+          start_date: string | null;
+          end_date: string | null;
+          goal: string;
+          capacity_points: number | null;
+        }>;
+      };
+      const activeSprint = catalog.sprints.find(
+        (sprint) => sprint.status === "active",
+      );
+      if (!activeSprint) throw new Error("Active fixture sprint is missing");
+      const longName = `Sprint 14 - Rollover fixture — ${"긴스프린트이름확인용".repeat(5)}`;
+      const updateResponse = await page.request.put(
+        `/api/planning/sprints/${activeSprint.id}`,
         {
-          name: "NEXT_LOCALE",
-          value: locale,
-          url: visualPage.url(),
+          data: {
+            vault: REEF_E2E_VAULT,
+            item: { ...activeSprint, name: longName },
+          },
         },
-      ]);
-      for (const theme of themes) {
-        await writeIndexedDbConfig(visualPage, "theme", theme);
-        await visualPage.evaluate((preference) => {
-          window.localStorage.setItem("reef.theme", preference);
-        }, theme);
-        await visualPage.emulateMedia({ colorScheme: theme });
-        await visualPage.reload();
-        await expect(
-          visualPage.getByTestId("sprint-rollover-nudge"),
-        ).toBeVisible();
-        await expect(visualPage.locator("html")).toHaveAttribute(
-          "lang",
-          locale,
-        );
-        await expect(
-          visualPage.getByTestId("sprint-rollover-nudge"),
-        ).toContainText(longName);
+      );
+      expect(updateResponse.ok()).toBeTruthy();
+      await expect
+        .poll(async () => {
+          const state = await readFixtureState(request);
+          return state.vaults
+            .find((vault) => vault.name === REEF_E2E_VAULT)
+            ?.sprints.find((sprint) => sprint.id === activeSprint.id)?.name;
+        })
+        .toBe(longName);
 
-        for (const width of widths) {
-          await visualPage.setViewportSize({ width, height: 900 });
-          const sample = `${locale}-${theme}-${width}`;
-          const geometry = await visualPage.evaluate((sampleName) => {
-            const row = document.querySelector<HTMLElement>(
-              '[data-testid="sprint-rollover-nudge"]',
-            );
-            const toolbar = document.querySelector<HTMLElement>(
-              '[data-testid="issue-filter-toolbar"]',
-            );
-            const board = document.querySelector<HTMLElement>(
-              '[data-testid="kanban-board"]',
-            );
-            if (!row || !toolbar || !board) {
-              throw new Error("Rollover row, toolbar, or board is missing");
-            }
-            const title = row.querySelector<HTMLElement>("p");
-            const description = row.querySelectorAll<HTMLElement>("p")[1];
-            const action = row.querySelector<HTMLButtonElement>("button");
-            const dismiss =
-              row.querySelectorAll<HTMLButtonElement>("button")[1];
-            if (!title || !description || !action || !dismiss) {
-              throw new Error("Rollover copy or actions are missing");
-            }
-            const rect = (element: Element) => {
-              const bounds = element.getBoundingClientRect();
-              const round = (value: number) => Math.round(value * 10) / 10;
-              return {
-                top: round(bounds.top),
-                right: round(bounds.right),
-                bottom: round(bounds.bottom),
-                left: round(bounds.left),
-                width: round(bounds.width),
-                height: round(bounds.height),
+      await page.close();
+      const visualPage = await context.newPage();
+      await visualPage.goto("/api/healthz");
+      await visualPage.evaluate((cacheKey) => {
+        window.localStorage.removeItem(cacheKey);
+      }, PERSISTED_QUERY_CACHE_KEY);
+      await visualPage.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
+      await expect(
+        visualPage.getByTestId("sprint-rollover-nudge"),
+      ).toBeVisible();
+      await expect(
+        visualPage.getByTestId("sprint-rollover-nudge"),
+      ).toContainText(longName);
+
+      const widths = [320, 375, 414, 768, 1440];
+      const locales = ["en", "ko"] as const;
+      const themes = ["light", "dark"] as const;
+      for (const locale of locales) {
+        await context.addCookies([
+          {
+            name: "NEXT_LOCALE",
+            value: locale,
+            url: visualPage.url(),
+          },
+        ]);
+        for (const theme of themes) {
+          await writeIndexedDbConfig(visualPage, "theme", theme);
+          await visualPage.evaluate((preference) => {
+            window.localStorage.setItem("reef.theme", preference);
+          }, theme);
+          await visualPage.emulateMedia({ colorScheme: theme });
+          await visualPage.reload();
+          await expect(
+            visualPage.getByTestId("sprint-rollover-nudge"),
+          ).toBeVisible();
+          await expect(visualPage.locator("html")).toHaveAttribute(
+            "lang",
+            locale,
+          );
+          await expect(
+            visualPage.getByTestId("sprint-rollover-nudge"),
+          ).toContainText(longName);
+
+          // Planning can resolve before the independent issue-list hydration.
+          // Measure the settled board after both queries have rendered their UI.
+          await expect(
+            visualPage.getByTestId("issue-filter-toolbar"),
+          ).toBeVisible();
+          await expect(visualPage.locator(board)).toBeVisible();
+          for (const width of widths) {
+            await visualPage.setViewportSize({ width, height: 900 });
+            const sample = `${locale}-${theme}-${width}`;
+            const geometry = await visualPage.evaluate((sampleName) => {
+              const row = document.querySelector<HTMLElement>(
+                '[data-testid="sprint-rollover-nudge"]',
+              );
+              const toolbar = document.querySelector<HTMLElement>(
+                '[data-testid="issue-filter-toolbar"]',
+              );
+              const board = document.querySelector<HTMLElement>(
+                '[data-testid="kanban-board"]',
+              );
+              if (!row || !toolbar || !board) {
+                throw new Error("Rollover row, toolbar, or board is missing");
+              }
+              const title = row.querySelector<HTMLElement>("p");
+              const description = row.querySelectorAll<HTMLElement>("p")[1];
+              const action = row.querySelector<HTMLButtonElement>("button");
+              const dismiss =
+                row.querySelectorAll<HTMLButtonElement>("button")[1];
+              if (!title || !description || !action || !dismiss) {
+                throw new Error("Rollover copy or actions are missing");
+              }
+              const rect = (element: Element) => {
+                const bounds = element.getBoundingClientRect();
+                const round = (value: number) => Math.round(value * 10) / 10;
+                return {
+                  top: round(bounds.top),
+                  right: round(bounds.right),
+                  bottom: round(bounds.bottom),
+                  left: round(bounds.left),
+                  width: round(bounds.width),
+                  height: round(bounds.height),
+                };
               };
-            };
-            const textLineCount = (element: HTMLElement) => {
-              const range = document.createRange();
-              range.selectNodeContents(element);
-              return range.getClientRects().length;
-            };
-            const rowStyle = getComputedStyle(row);
-            const titleStyle = getComputedStyle(title);
-            const descriptionStyle = getComputedStyle(description);
-            const toolbarStyle = getComputedStyle(toolbar);
-            const contentElement = title.parentElement;
-            const actionsElement = action.parentElement;
-            const contentRect = contentElement?.getBoundingClientRect();
-            const actionsRect = actionsElement?.getBoundingClientRect();
-            return {
-              sample: sampleName,
-              viewport: {
-                width: window.innerWidth,
-                height: window.innerHeight,
-              },
-              locale: document.documentElement.lang,
-              dark: document.documentElement.classList.contains("dark"),
-              titleText: title.innerText,
-              descriptionText: description.innerText,
-              row: rect(row),
-              content:
-                contentRect && contentElement ? rect(contentElement) : null,
-              actions:
-                actionsRect && actionsElement ? rect(actionsElement) : null,
-              action: rect(action),
-              dismiss: rect(dismiss),
-              toolbar: {
-                ...rect(toolbar),
-                paddingLeft: toolbarStyle.paddingLeft,
-                paddingRight: toolbarStyle.paddingRight,
-              },
-              board: rect(board),
-              documentWidth: document.documentElement.scrollWidth,
-              styles: {
-                rowBackground: rowStyle.backgroundColor,
-                rowBorderBottomColor: rowStyle.borderBottomColor,
-                rowBorderBottomWidth: rowStyle.borderBottomWidth,
-                rowBorderRadius: rowStyle.borderRadius,
-                titleColor: titleStyle.color,
-                titleFontSize: titleStyle.fontSize,
-                titleLineHeight: titleStyle.lineHeight,
-                titleScrollHeight: title.scrollHeight,
-                titleClientHeight: title.clientHeight,
-                descriptionColor: descriptionStyle.color,
-                descriptionFontSize: descriptionStyle.fontSize,
-                descriptionLineHeight: descriptionStyle.lineHeight,
-                descriptionScrollHeight: description.scrollHeight,
-                descriptionClientHeight: description.clientHeight,
-                actionTextLines: textLineCount(action),
-              },
-            };
-          }, sample);
+              const textLineCount = (element: HTMLElement) => {
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                return range.getClientRects().length;
+              };
+              const rowStyle = getComputedStyle(row);
+              const titleStyle = getComputedStyle(title);
+              const descriptionStyle = getComputedStyle(description);
+              const toolbarStyle = getComputedStyle(toolbar);
+              const contentElement = title.parentElement;
+              const actionsElement = action.parentElement;
+              const contentRect = contentElement?.getBoundingClientRect();
+              const actionsRect = actionsElement?.getBoundingClientRect();
+              return {
+                sample: sampleName,
+                viewport: {
+                  width: window.innerWidth,
+                  height: window.innerHeight,
+                },
+                locale: document.documentElement.lang,
+                dark: document.documentElement.classList.contains("dark"),
+                titleText: title.innerText,
+                descriptionText: description.innerText,
+                row: rect(row),
+                content:
+                  contentRect && contentElement ? rect(contentElement) : null,
+                actions:
+                  actionsRect && actionsElement ? rect(actionsElement) : null,
+                action: rect(action),
+                dismiss: rect(dismiss),
+                toolbar: {
+                  ...rect(toolbar),
+                  paddingLeft: toolbarStyle.paddingLeft,
+                  paddingRight: toolbarStyle.paddingRight,
+                },
+                board: rect(board),
+                documentWidth: document.documentElement.scrollWidth,
+                styles: {
+                  rowBackground: rowStyle.backgroundColor,
+                  rowBorderBottomColor: rowStyle.borderBottomColor,
+                  rowBorderBottomWidth: rowStyle.borderBottomWidth,
+                  rowBorderRadius: rowStyle.borderRadius,
+                  titleColor: titleStyle.color,
+                  titleFontSize: titleStyle.fontSize,
+                  titleLineHeight: titleStyle.lineHeight,
+                  titleScrollHeight: title.scrollHeight,
+                  titleClientHeight: title.clientHeight,
+                  descriptionColor: descriptionStyle.color,
+                  descriptionFontSize: descriptionStyle.fontSize,
+                  descriptionLineHeight: descriptionStyle.lineHeight,
+                  descriptionScrollHeight: description.scrollHeight,
+                  descriptionClientHeight: description.clientHeight,
+                  actionTextLines: textLineCount(action),
+                },
+              };
+            }, sample);
 
-          expect(geometry.locale).toBe(locale);
-          expect(geometry.dark).toBe(theme === "dark");
-          expect(geometry.titleText).toContain(longName);
-          expect(geometry.descriptionText).toMatch(/2|두/);
-          expect(geometry.row.left).toBeGreaterThanOrEqual(0);
-          expect(geometry.row.right).toBeLessThanOrEqual(width);
-          expect(geometry.documentWidth).toBeLessThanOrEqual(width);
-          expect(geometry.row.left).toBeCloseTo(
-            geometry.toolbar.left +
-              Number.parseFloat(geometry.toolbar.paddingLeft),
-            0,
-          );
-          expect(geometry.row.right).toBeCloseTo(
-            geometry.toolbar.right -
-              Number.parseFloat(geometry.toolbar.paddingRight),
-            0,
-          );
-          expect(geometry.content).not.toBeNull();
-          expect(geometry.actions).not.toBeNull();
-          expect(geometry.action.top + geometry.action.height / 2).toBeCloseTo(
-            geometry.dismiss.top + geometry.dismiss.height / 2,
-            0,
-          );
-          expect(geometry.styles.actionTextLines).toBe(1);
-          expect(geometry.styles.titleScrollHeight).toBe(
-            geometry.styles.titleClientHeight,
-          );
-          expect(geometry.styles.descriptionScrollHeight).toBe(
-            geometry.styles.descriptionClientHeight,
-          );
-          expect(geometry.styles.rowBorderBottomWidth).toBe("1px");
-          expect(geometry.styles.rowBorderRadius).toBe("0px");
-          expect(geometry.styles.rowBackground).not.toBe("rgba(0, 0, 0, 0)");
-          expect(geometry.styles.rowBorderBottomColor).not.toBe(
-            "rgba(0, 0, 0, 0)",
-          );
-          expect(geometry.styles.titleColor).not.toBe(
-            geometry.styles.descriptionColor,
-          );
+            expect(geometry.locale).toBe(locale);
+            expect(geometry.dark).toBe(theme === "dark");
+            expect(geometry.titleText).toContain(longName);
+            expect(geometry.descriptionText).toMatch(/2|두/);
+            expect(geometry.row.left).toBeGreaterThanOrEqual(0);
+            expect(geometry.row.right).toBeLessThanOrEqual(width);
+            expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+            expect(geometry.row.left).toBeCloseTo(
+              geometry.toolbar.left +
+                Number.parseFloat(geometry.toolbar.paddingLeft),
+              0,
+            );
+            expect(geometry.row.right).toBeCloseTo(
+              geometry.toolbar.right -
+                Number.parseFloat(geometry.toolbar.paddingRight),
+              0,
+            );
+            expect(geometry.content).not.toBeNull();
+            expect(geometry.actions).not.toBeNull();
+            expect(
+              geometry.action.top + geometry.action.height / 2,
+            ).toBeCloseTo(
+              geometry.dismiss.top + geometry.dismiss.height / 2,
+              0,
+            );
+            expect(geometry.styles.actionTextLines).toBe(1);
+            expect(geometry.styles.titleScrollHeight).toBe(
+              geometry.styles.titleClientHeight,
+            );
+            expect(geometry.styles.descriptionScrollHeight).toBe(
+              geometry.styles.descriptionClientHeight,
+            );
+            expect(geometry.styles.rowBorderBottomWidth).toBe("1px");
+            expect(geometry.styles.rowBorderRadius).toBe("0px");
+            expect(geometry.styles.rowBackground).not.toBe("rgba(0, 0, 0, 0)");
+            expect(geometry.styles.rowBorderBottomColor).not.toBe(
+              "rgba(0, 0, 0, 0)",
+            );
+            expect(geometry.styles.titleColor).not.toBe(
+              geometry.styles.descriptionColor,
+            );
 
-          if (width < 640) {
-            expect(geometry.content?.bottom).toBeLessThanOrEqual(
-              geometry.actions?.top ?? 0,
+            if (width < 640) {
+              expect(geometry.content?.bottom).toBeLessThanOrEqual(
+                geometry.actions?.top ?? 0,
+              );
+            } else {
+              expect(geometry.content?.right).toBeLessThanOrEqual(
+                geometry.actions?.left ?? 0,
+              );
+            }
+
+            const geometryPath = testInfo.outputPath(`${sample}.json`);
+            const screenshotPath = testInfo.outputPath(`${sample}.png`);
+            await mkdir(testInfo.outputDir, { recursive: true });
+            await writeFile(geometryPath, JSON.stringify(geometry, null, 2));
+            await writeFile(
+              screenshotPath,
+              await visualPage.screenshot({ animations: "disabled" }),
             );
-          } else {
-            expect(geometry.content?.right).toBeLessThanOrEqual(
-              geometry.actions?.left ?? 0,
-            );
+            await testInfo.attach(`${sample}-geometry`, {
+              path: geometryPath,
+              contentType: "application/json",
+            });
+            await testInfo.attach(`${sample}-screen`, {
+              path: screenshotPath,
+              contentType: "image/png",
+            });
           }
-
-          const geometryPath = testInfo.outputPath(`${sample}.json`);
-          const screenshotPath = testInfo.outputPath(`${sample}.png`);
-          await mkdir(testInfo.outputDir, { recursive: true });
-          await writeFile(geometryPath, JSON.stringify(geometry, null, 2));
-          await writeFile(
-            screenshotPath,
-            await visualPage.screenshot({ animations: "disabled" }),
-          );
-          await testInfo.attach(`${sample}-geometry`, {
-            path: geometryPath,
-            contentType: "application/json",
-          });
-          await testInfo.attach(`${sample}-screen`, {
-            path: screenshotPath,
-            contentType: "image/png",
-          });
         }
       }
-    }
-  });
+    },
+  );
 
   for (const viewport of [
     { name: "desktop", width: 1440, height: 900 },
     { name: "narrow", width: 390, height: 844 },
   ]) {
     test(`keeps the first-login rollover frame stable at ${viewport.name} width`, async ({
-      context,
       page,
       request,
     }, testInfo) => {
-      await context.clearCookies();
       await page.setViewportSize({
         width: viewport.width,
         height: viewport.height,
       });
-      await resetFixture(request, "demo_board");
       await page.goto(
         `/login?redirect=${encodeURIComponent(`/workspace/${REEF_E2E_VAULT}/issues`)}`,
       );
@@ -643,11 +643,10 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
 
       // Hold each real external AKB read long enough to sample auth pending,
       // planning-ready/issue-pending, and the resolved rollover card.
-      await setPlanningCatalogFailure(request, false, 250);
-      await setIssueListFailure(request, false, 0, 2_200);
+      await setPlanningCatalogFailure(request, false, true);
+      await setIssueListFailure(request, false, 0, true);
       await setAuthControl(request, {
-        probeDelayMs: 2_000,
-        probeDelayOnce: true,
+        probeHold: true,
       });
 
       const planningStarted = page.waitForRequest((e2eRequest) => {
@@ -685,7 +684,9 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
         `${viewport.name}-auth-pending`,
       );
 
+      await releaseAuthProbe(request);
       await Promise.all([planningStarted, issueListStarted]);
+      await releaseResponseHold(request, "planning-catalog");
       await planningLoaded;
       // A response event can resolve before React commits the catalog update or
       // replaces the route Suspense fallback. Sample the live pending workspace,
@@ -702,6 +703,7 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
         `${viewport.name}-planning-ready-issues-pending`,
       );
 
+      await releaseResponseHold(request, "issue-list");
       await expect(
         page.locator("[data-testid='sprint-rollover-nudge']"),
       ).toBeVisible();
@@ -758,20 +760,17 @@ test.describe("Hermetic issues board hydration (REEF-315)", () => {
     "configured_empty",
     "sprint_rollover_empty",
   ] as const) {
-    test(`removes the pending frame when ${scenario} cannot show a nudge`, async ({
-      context,
-      page,
-      request,
-    }) => {
-      await context.clearCookies();
-      await resetFixture(request, scenario);
-      await openExistingWorkspace(page);
+    test.extend({ scenario: scenario })(
+      `removes the pending frame when ${scenario} cannot show a nudge`,
+      async ({ page }) => {
+        await openExistingWorkspace(page);
 
-      await expect(page.locator(board)).toBeVisible();
-      await expect(
-        page.getByTestId("sprint-rollover-pending-skeleton"),
-      ).toHaveCount(0);
-      await expect(page.getByTestId("sprint-rollover-nudge")).toHaveCount(0);
-    });
+        await expect(page.locator(board)).toBeVisible();
+        await expect(
+          page.getByTestId("sprint-rollover-pending-skeleton"),
+        ).toHaveCount(0);
+        await expect(page.getByTestId("sprint-rollover-nudge")).toHaveCount(0);
+      },
+    );
   }
 });

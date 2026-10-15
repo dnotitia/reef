@@ -1,6 +1,6 @@
+import { test } from "../harness/workspace-fixture";
 import {
   expect,
-  test,
   type Locator,
   type Page,
   type TestInfo,
@@ -9,7 +9,6 @@ import {
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   REPORTS_FIXTURE_NOW,
-  resetFixture,
   REEF_E2E_VAULT,
 } from "../harness/fixture";
 import historicalBaseline from "./typography-baseline.json";
@@ -900,35 +899,30 @@ async function verifyAdditionalSectionLabels(
 test.describe("Hermetic typography role contract", () => {
   test.setTimeout(120_000);
 
-  test.beforeEach(async ({ context, page, request }) => {
-    await context.clearCookies();
+  test.beforeEach(async ({ page }) => {
     await page.clock.setFixedTime(new Date(REPORTS_FIXTURE_NOW));
-    await resetFixture(request, "configured");
   });
 
-  test("keeps role hierarchy, fixed font fallback, and narrow-surface containment across locales and themes", async ({
-    page,
-  }) => {
-    await openExistingWorkspace(page);
-
+  test.describe("typography appearance matrix", () => {
     for (const locale of ["en", "ko"] as const) {
       for (const theme of ["light", "dark"] as const) {
-        await choosePreferences(page, locale, theme);
-
         for (const viewport of VIEWPORTS) {
-          await page.setViewportSize(viewport);
-          await verifyIssues(page, viewport, locale, theme);
-          if (viewport.width >= VIEWPORTS[1].width) {
-            await verifyTimeline(page, viewport);
-          }
-          await verifyReports(page, viewport);
-          await verifyPreferences(page, viewport);
+          test(`${locale}--${theme}--${viewport.name}`, {
+            tag: "@visual-matrix",
+          }, async ({ page }) => {
+            await openExistingWorkspace(page);
+            await choosePreferences(page, locale, theme);
+            await page.setViewportSize(viewport);
+            await verifyIssues(page, viewport, locale, theme);
+            if (viewport.width >= VIEWPORTS[1].width)
+              await verifyTimeline(page, viewport);
+            await verifyReports(page, viewport);
+            await verifyPreferences(page, viewport);
+            // Preserve the section-label owners once per locale/theme at 1024px.
+            if (viewport.name === VIEWPORTS[1].name)
+              await verifyAdditionalSectionLabels(page, viewport);
+          });
         }
-
-        // The remaining section-label owners are checked once per locale/theme
-        // at the narrow desktop seam; all of them consume the same role.
-        await page.setViewportSize(VIEWPORTS[1]);
-        await verifyAdditionalSectionLabels(page, VIEWPORTS[1]);
       }
     }
   });
@@ -967,47 +961,45 @@ test.describe("Hermetic typography role contract", () => {
     );
   });
 
-  test("stable historical regression keeps the Kanban blocked chip", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await prepareStableRegressionSurface(page, "en", "dark");
-    const main = await openRoute(
-      page,
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
-    );
-    const blockedCard = main
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Blocked" })
-      .first();
-    await expectTypography(
-      blockedCard.getByText("Blocked", { exact: true }),
-      ROLE.boardBlocked,
-      "Stable Kanban blocked chip",
-    );
-  });
+  test.extend({ scenario: "demo_board" })(
+    "stable historical regression keeps the Kanban blocked chip",
+    async ({ page }) => {
+      await prepareStableRegressionSurface(page, "en", "dark");
+      const main = await openRoute(
+        page,
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
+      );
+      const blockedCard = main
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Blocked" })
+        .first();
+      await expectTypography(
+        blockedCard.getByText("Blocked", { exact: true }),
+        ROLE.boardBlocked,
+        "Stable Kanban blocked chip",
+      );
+    },
+  );
 
-  test("stable historical regression keeps the Kanban Task type chip", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await prepareStableRegressionSurface(page, "en", "dark");
-    const main = await openRoute(
-      page,
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
-    );
-    const taskCard = main
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Task" })
-      .first();
-    await expectTypography(
-      taskCard.getByText("Task", { exact: true }),
-      ROLE.boardType,
-      "Stable Kanban Task type chip",
-    );
-  });
+  test.extend({ scenario: "demo_board" })(
+    "stable historical regression keeps the Kanban Task type chip",
+    async ({ page }) => {
+      await prepareStableRegressionSurface(page, "en", "dark");
+      const main = await openRoute(
+        page,
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board`,
+      );
+      const taskCard = main
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Task" })
+        .first();
+      await expectTypography(
+        taskCard.getByText("Task", { exact: true }),
+        ROLE.boardType,
+        "Stable Kanban Task type chip",
+      );
+    },
+  );
 
   test("stable historical regression keeps the List ID", async ({ page }) => {
     await prepareStableRegressionSurface(page, "en", "dark");
@@ -1055,435 +1047,439 @@ test.describe("Hermetic typography role contract", () => {
     );
   });
 
-  test("keeps Epic groups title-case instead of inheriting the status grammar", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "epic_grouping");
-    await openExistingWorkspace(page);
-    await page.setViewportSize(VIEWPORTS[0]);
-    await openRoute(
-      page,
-      `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=epic`,
-    );
-
-    const epicHeader = page
-      .getByTestId("epic-group-header")
-      .first()
-      .locator("h3");
-    await expectTypography(epicHeader, ROLE.boardEpic, "Epic group header");
-    const boardEpicId = epicHeader.locator(".type-compact-mono").first();
-    await expectTypography(boardEpicId, ROLE.compactMono, "Board Epic ID");
-    await expectFontStacks(page, "Board Epic", boardEpicId);
-    await expectTypography(
-      epicHeader.locator('[title="Platform foundation"]'),
-      ROLE.boardEpic,
-      "Board Epic title",
-    );
-
-    const epicList = await openRoute(
-      page,
-      `/workspace/${REEF_E2E_VAULT}/issues?view=list&group=epic`,
-    );
-    const epicListHeader = epicList.locator(
-      '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
-    );
-    await expectTypography(
-      epicListHeader.getByTestId("issue-group-title"),
-      ROLE.listGroup,
-      "Epic List group title",
-    );
-    const listEpicId = epicListHeader.locator(".type-compact-mono").first();
-    await expectTypography(listEpicId, ROLE.compactMono, "Epic List ID");
-    await expectFontStacks(page, "Epic List", listEpicId);
-    await expectTypography(
-      epicListHeader.getByTestId("issue-group-count"),
-      ROLE.listGroupCount,
-      "Epic List group count",
-    );
-  });
-
-  test("keeps the Kanban Blocked badge on its historical compact role", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await openExistingWorkspace(page);
-    await page.setViewportSize(VIEWPORTS[0]);
-    await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues?view=board`);
-    const blockedCard = page
-      .getByTestId("kanban-card")
-      .filter({ hasText: "Blocked" })
-      .first();
-    await expectTypography(
-      blockedCard.getByText("Blocked", { exact: true }),
-      ROLE.boardBlocked,
-      "Kanban blocked badge",
-    );
-  });
-
-  test("keeps detail sub-issue progress on its historical body role", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "demo_board");
-    await openExistingWorkspace(page);
-    await page.setViewportSize(VIEWPORTS[0]);
-    await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`);
-    const issueDetail = page.getByTestId("issue-detail");
-    await expect(issueDetail).toBeVisible();
-    await expectTypography(
-      issueDetail
-        .getByTestId("issue-children")
-        .locator('[data-typography-role="subissue-progress"]:visible')
-        .first(),
-      ROLE.subissueProgress,
-      "Issue detail sub-issue progress",
-    );
-  });
-
-  test("keeps the representative 79-card board dense across mixed-script titles", async ({
-    page,
-    request,
-  }, testInfo: TestInfo) => {
-    await resetFixture(request, "typography");
-    await clearPersistedQueryCacheOnLoad(page);
-    await page.addInitScript(() => {
-      const metrics: SmallBoardMetrics = {
-        documentId: crypto.randomUUID(),
-        hrefAtInit: location.href,
-        readyStateAtInit: document.readyState,
-        initializedAt: performance.now(),
-        observerAttachedAt: null as number | null,
-        observerRegistrationError: null as string | null,
-        observerTargetConnected: false,
-        observerTarget: null as Document | null,
-        mutationCallbackCount: 0,
-        mutationSnapshots: [],
-        issueResponses: [],
-        firstCardDomAt: null as number | null,
-        mountedCardsAtFirstDom: 0,
-        firstCardDocumentId: null as string | null,
-        firstCardHref: null as string | null,
-        firstCardObservationReason: null as string | null,
-      };
-      const runtimeWindow = window as Window & {
-        __reefSmallBoardMetrics?: SmallBoardMetrics;
-      };
-      runtimeWindow.__reefSmallBoardMetrics = metrics;
-      // addInitScript can run before the parser creates <html>; Document is a
-      // stable Node target that also keeps observation active if that root is
-      // later replaced.
-      const observerTarget = document;
-      const recordFirstCardDom = (reason: string) => {
-        if (
-          metrics.issueResponses.length === 0 ||
-          metrics.firstCardDomAt !== null
-        ) {
-          return;
-        }
-        const cards = document.querySelectorAll('[data-testid="kanban-card"]');
-        metrics.mutationSnapshots.push({
-          at: performance.now(),
-          reason,
-          cardCount: cards.length,
-          observerTargetConnected: observerTarget.isConnected,
-          documentElementConnected:
-            document.documentElement?.isConnected ?? false,
-        });
-        metrics.mutationSnapshots = metrics.mutationSnapshots.slice(-20);
-        if (cards.length === 0) return;
-        metrics.firstCardDomAt = performance.now();
-        metrics.mountedCardsAtFirstDom = cards.length;
-        metrics.firstCardDocumentId = metrics.documentId;
-        metrics.firstCardHref = location.href;
-        metrics.firstCardObservationReason = reason;
-        observer.disconnect();
-      };
-      const observer = new MutationObserver(() => {
-        metrics.mutationCallbackCount += 1;
-        recordFirstCardDom("mutation");
-      });
-      const originalJson = Response.prototype.json;
-      Response.prototype.json = async function timedJson() {
-        const url = this.url;
-        const startedAt = performance.now();
-        const result = await originalJson.call(this);
-        if (new URL(url).pathname === "/api/issues") {
-          const parsedAt = performance.now();
-          const issueCount = Array.isArray(result?.issues)
-            ? result.issues.length
-            : null;
-          const responseBytes = new TextEncoder().encode(
-            JSON.stringify(result),
-          ).byteLength;
-          metrics.issueResponses.push({
-            url,
-            parseMs: parsedAt - startedAt,
-            parsedAt,
-            issueCount,
-            responseBytes,
-            documentId: metrics.documentId,
-            timeOrigin: performance.timeOrigin,
-            href: location.href,
-            readyState: document.readyState,
-          });
-          recordFirstCardDom("response-json");
-        }
-        return result;
-      };
-      try {
-        observer.observe(observerTarget, {
-          childList: true,
-          subtree: true,
-        });
-        metrics.observerAttachedAt = performance.now();
-        metrics.observerTargetConnected = observerTarget.isConnected;
-        metrics.observerTarget = observerTarget;
-      } catch (error) {
-        metrics.observerRegistrationError =
-          error instanceof Error ? error.message : String(error);
-      }
-      recordFirstCardDom("init");
-    });
-    await openExistingWorkspace(page);
-    await page.setViewportSize(VIEWPORTS[0]);
-    const boardStatuses = [
-      "todo",
-      "in_progress",
-      "in_review",
-      "done",
-      "closed",
-    ];
-    const issueResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      const statuses = url.searchParams.getAll("status");
-      return (
-        response.request().method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.get("vault") === REEF_E2E_VAULT &&
-        url.searchParams.get("sort_field") === "rank" &&
-        url.searchParams.get("sort_order") === "asc" &&
-        statuses.length === boardStatuses.length &&
-        boardStatuses.every((status) => statuses.includes(status)) &&
-        response.ok()
+  test.extend({ scenario: "epic_grouping" })(
+    "keeps Epic groups title-case instead of inheriting the status grammar",
+    async ({ page }) => {
+      await openExistingWorkspace(page);
+      await page.setViewportSize(VIEWPORTS[0]);
+      await openRoute(
+        page,
+        `/workspace/${REEF_E2E_VAULT}/issues?view=board&group=epic`,
       );
-    });
-    await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues?view=board`);
-    const issueResponse = await issueResponsePromise;
 
-    await expect(page.getByText(/한글 제목/).first()).toBeVisible();
-    await expect(page.getByText(/English title/).first()).toBeVisible();
-    await expect(page.getByText(/Mixed 제목/).first()).toBeVisible();
+      const epicHeader = page
+        .getByTestId("epic-group-header")
+        .first()
+        .locator("h3");
+      await expectTypography(epicHeader, ROLE.boardEpic, "Epic group header");
+      const boardEpicId = epicHeader.locator(".type-compact-mono").first();
+      await expectTypography(boardEpicId, ROLE.compactMono, "Board Epic ID");
+      await expectFontStacks(page, "Board Epic", boardEpicId);
+      await expectTypography(
+        epicHeader.locator('[title="Platform foundation"]'),
+        ROLE.boardEpic,
+        "Board Epic title",
+      );
 
-    const geometryById = new Map<
-      string,
-      { id: string; height: number; titleLines: number }
-    >();
-    const columns = page.locator('[data-group-by="status"]');
-    for (
-      let columnIndex = 0;
-      columnIndex < (await columns.count());
-      columnIndex += 1
-    ) {
-      const column = columns.nth(columnIndex);
-      const scroll = column.getByTestId("kanban-column-scroll-container");
-      let nextScrollTop = 0;
-      while (true) {
-        await scroll.evaluate(async (element, scrollTop) => {
-          const root = element as HTMLElement;
-          root.scrollTop = scrollTop;
-          await new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          );
-        }, nextScrollTop);
+      const epicList = await openRoute(
+        page,
+        `/workspace/${REEF_E2E_VAULT}/issues?view=list&group=epic`,
+      );
+      const epicListHeader = epicList.locator(
+        '[data-testid="issue-group-header"][data-group-id="epic:REEF-100"]',
+      );
+      await expectTypography(
+        epicListHeader.getByTestId("issue-group-title"),
+        ROLE.listGroup,
+        "Epic List group title",
+      );
+      const listEpicId = epicListHeader.locator(".type-compact-mono").first();
+      await expectTypography(listEpicId, ROLE.compactMono, "Epic List ID");
+      await expectFontStacks(page, "Epic List", listEpicId);
+      await expectTypography(
+        epicListHeader.getByTestId("issue-group-count"),
+        ROLE.listGroupCount,
+        "Epic List group count",
+      );
+    },
+  );
 
-        const mountedGeometry = await column.evaluate((columnElement) =>
-          Array.from(
-            columnElement.querySelectorAll<HTMLElement>(
-              '[data-testid="kanban-card"]',
-            ),
-          ).map((element) => {
-            const title = element.querySelector<HTMLElement>("h4");
-            const lineHeight = title
-              ? Number.parseFloat(getComputedStyle(title).lineHeight)
-              : 0;
-            return {
-              id: element.getAttribute("data-issue-id"),
-              height:
-                Math.round(element.getBoundingClientRect().height * 100) / 100,
-              titleLines:
-                title && lineHeight > 0
-                  ? Math.round(title.scrollHeight / lineHeight)
-                  : 0,
-            };
-          }),
-        );
-        for (const actual of mountedGeometry) {
-          if (!actual.id) {
-            throw new Error("typography card is missing its issue id");
-          }
-          geometryById.set(actual.id, { ...actual, id: actual.id });
-        }
+  test.extend({ scenario: "demo_board" })(
+    "keeps the Kanban Blocked badge on its historical compact role",
+    async ({ page }) => {
+      await openExistingWorkspace(page);
+      await page.setViewportSize(VIEWPORTS[0]);
+      await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+      const blockedCard = page
+        .getByTestId("kanban-card")
+        .filter({ hasText: "Blocked" })
+        .first();
+      await expectTypography(
+        blockedCard.getByText("Blocked", { exact: true }),
+        ROLE.boardBlocked,
+        "Kanban blocked badge",
+      );
+    },
+  );
 
-        const scrollMetrics = await scroll.evaluate((element) => {
-          const root = element as HTMLElement;
-          return {
-            scrollTop: root.scrollTop,
-            clientHeight: root.clientHeight,
-            maxScrollTop: root.scrollHeight - root.clientHeight,
-          };
-        });
-        if (scrollMetrics.scrollTop >= scrollMetrics.maxScrollTop - 1) break;
-        nextScrollTop = Math.min(
-          scrollMetrics.maxScrollTop,
-          scrollMetrics.scrollTop +
-            Math.max(1, Math.floor(scrollMetrics.clientHeight / 2)),
-        );
-      }
-    }
+  test.extend({ scenario: "demo_board" })(
+    "keeps detail sub-issue progress on its historical body role",
+    async ({ page }) => {
+      await openExistingWorkspace(page);
+      await page.setViewportSize(VIEWPORTS[0]);
+      await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues/REEF-101`);
+      const issueDetail = page.getByTestId("issue-detail");
+      await expect(issueDetail).toBeVisible();
+      await expectTypography(
+        issueDetail
+          .getByTestId("issue-children")
+          .locator('[data-typography-role="subissue-progress"]:visible')
+          .first(),
+        ROLE.subissueProgress,
+        "Issue detail sub-issue progress",
+      );
+    },
+  );
 
-    const geometry = Array.from(geometryById.values());
-    expect(geometry).toHaveLength(CARD_BASELINE.count);
-    const cardIds = geometry.map((actual) => actual.id);
-    const expectedCardIds = Array.from(
-      { length: CARD_BASELINE.count },
-      (_, index) => `REEF-${String(index + 1).padStart(3, "0")}`,
-    );
-    expect(new Set(cardIds).size, "representative card IDs").toBe(
-      CARD_BASELINE.count,
-    );
-    expect([...cardIds].sort(), "representative card IDs").toEqual(
-      expectedCardIds,
-    );
-    const deltas = geometry.map((actual) => ({
-      heightDelta: actual.height - CARD_BASELINE.geometry.height,
-      titleLines: actual.titleLines,
-      expectedTitleLines: CARD_BASELINE.geometry.titleLines,
-    }));
-    const sortedDeltas = deltas
-      .map(({ heightDelta }) => heightDelta)
-      .sort((left, right) => left - right);
-    const medianDelta = sortedDeltas[Math.floor(sortedDeltas.length / 2)] ?? 0;
-    expect(Math.abs(medianDelta)).toBeLessThanOrEqual(1);
-    expect(
-      deltas.filter(({ heightDelta }) => Math.abs(heightDelta) <= 1).length,
-    ).toBeGreaterThanOrEqual(78);
-    expect(
-      deltas.filter(({ heightDelta }) => Math.abs(heightDelta) > 5),
-    ).toHaveLength(0);
-    expect(
-      deltas.filter(
-        ({ titleLines, expectedTitleLines }) =>
-          titleLines !== expectedTitleLines,
-      ),
-    ).toHaveLength(0);
-
-    const browserMetrics = await page.evaluate(
-      ({ responseUrl, expectedIssueCount }) => {
+  test.extend({ scenario: "typography" })(
+    "keeps the representative 79-card board dense across mixed-script titles",
+    async ({ page, request }, testInfo: TestInfo) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await page.addInitScript(() => {
+        const metrics: SmallBoardMetrics = {
+          documentId: crypto.randomUUID(),
+          hrefAtInit: location.href,
+          readyStateAtInit: document.readyState,
+          initializedAt: performance.now(),
+          observerAttachedAt: null as number | null,
+          observerRegistrationError: null as string | null,
+          observerTargetConnected: false,
+          observerTarget: null as Document | null,
+          mutationCallbackCount: 0,
+          mutationSnapshots: [],
+          issueResponses: [],
+          firstCardDomAt: null as number | null,
+          mountedCardsAtFirstDom: 0,
+          firstCardDocumentId: null as string | null,
+          firstCardHref: null as string | null,
+          firstCardObservationReason: null as string | null,
+        };
         const runtimeWindow = window as Window & {
           __reefSmallBoardMetrics?: SmallBoardMetrics;
         };
-        const measurement = runtimeWindow.__reefSmallBoardMetrics;
-        const responseMatches =
-          measurement?.issueResponses.filter(
-            (candidate) =>
-              candidate.url === responseUrl &&
-              candidate.documentId === measurement.documentId &&
-              candidate.timeOrigin === performance.timeOrigin &&
-              candidate.href === location.href &&
-              candidate.issueCount === expectedIssueCount,
-          ) ?? [];
-        const response =
-          responseMatches.length === 1 ? responseMatches[0] : undefined;
-        return {
-          evidence: {
-            responseMatchCount: responseMatches.length,
-            responseUrl: response?.url ?? null,
-            responseDocumentId: response?.documentId ?? null,
-            responseTimeOrigin: response?.timeOrigin ?? null,
-            responseHref: response?.href ?? null,
-            responseReadyState: response?.readyState ?? null,
-            currentDocumentId: measurement?.documentId ?? null,
-            currentTimeOrigin: performance.timeOrigin,
-            currentHref: location.href,
-            currentReadyState: document.readyState,
-            observerAttachedAt: measurement?.observerAttachedAt ?? null,
-            observerRegistrationError:
-              measurement?.observerRegistrationError ?? null,
-            observerTargetConnectedAtAttach:
-              measurement?.observerTargetConnected ?? null,
-            observerTargetConnectedNow:
-              measurement?.observerTarget?.isConnected ?? null,
-            sameDocument: measurement?.observerTarget
-              ? document === measurement.observerTarget
-              : null,
-            mutationCallbackCount: measurement?.mutationCallbackCount ?? null,
-            mutationSnapshots: measurement?.mutationSnapshots ?? [],
-            firstCardDomAt: measurement?.firstCardDomAt ?? null,
-            firstCardDocumentId: measurement?.firstCardDocumentId ?? null,
-            firstCardHref: measurement?.firstCardHref ?? null,
-            firstCardObservationReason:
-              measurement?.firstCardObservationReason ?? null,
-          },
-          metrics: {
-            parseMs: response?.parseMs ?? null,
-            issueCount: response?.issueCount ?? null,
-            responseBytes: response?.responseBytes ?? null,
-            postParseToFirstCardDomMs:
-              response &&
-              measurement?.firstCardDomAt !== null &&
-              measurement?.firstCardDomAt !== undefined
-                ? measurement.firstCardDomAt - response.parsedAt
-                : null,
-            mountedCardsAtFirstDom: measurement?.mountedCardsAtFirstDom ?? null,
-          },
+        runtimeWindow.__reefSmallBoardMetrics = metrics;
+        // addInitScript can run before the parser creates <html>; Document is a
+        // stable Node target that also keeps observation active if that root is
+        // later replaced.
+        const observerTarget = document;
+        const recordFirstCardDom = (reason: string) => {
+          if (
+            metrics.issueResponses.length === 0 ||
+            metrics.firstCardDomAt !== null
+          ) {
+            return;
+          }
+          const cards = document.querySelectorAll(
+            '[data-testid="kanban-card"]',
+          );
+          metrics.mutationSnapshots.push({
+            at: performance.now(),
+            reason,
+            cardCount: cards.length,
+            observerTargetConnected: observerTarget.isConnected,
+            documentElementConnected:
+              document.documentElement?.isConnected ?? false,
+          });
+          metrics.mutationSnapshots = metrics.mutationSnapshots.slice(-20);
+          if (cards.length === 0) return;
+          metrics.firstCardDomAt = performance.now();
+          metrics.mountedCardsAtFirstDom = cards.length;
+          metrics.firstCardDocumentId = metrics.documentId;
+          metrics.firstCardHref = location.href;
+          metrics.firstCardObservationReason = reason;
+          observer.disconnect();
         };
-      },
-      {
-        responseUrl: issueResponse.url(),
-        expectedIssueCount: CARD_BASELINE.count,
-      },
-    );
-    expect(browserMetrics.evidence.responseMatchCount).toBe(1);
-    console.log(
-      "[BOARD_VIRTUALIZATION_TIMELINE]",
-      JSON.stringify({
-        expectedResponseUrl: issueResponse.url(),
-        responseStatus: issueResponse.status(),
-        ...browserMetrics.evidence,
+        const observer = new MutationObserver(() => {
+          metrics.mutationCallbackCount += 1;
+          recordFirstCardDom("mutation");
+        });
+        const originalJson = Response.prototype.json;
+        Response.prototype.json = async function timedJson() {
+          const url = this.url;
+          const startedAt = performance.now();
+          const result = await originalJson.call(this);
+          if (new URL(url).pathname === "/api/issues") {
+            const parsedAt = performance.now();
+            const issueCount = Array.isArray(result?.issues)
+              ? result.issues.length
+              : null;
+            const responseBytes = new TextEncoder().encode(
+              JSON.stringify(result),
+            ).byteLength;
+            metrics.issueResponses.push({
+              url,
+              parseMs: parsedAt - startedAt,
+              parsedAt,
+              issueCount,
+              responseBytes,
+              documentId: metrics.documentId,
+              timeOrigin: performance.timeOrigin,
+              href: location.href,
+              readyState: document.readyState,
+            });
+            recordFirstCardDom("response-json");
+          }
+          return result;
+        };
+        try {
+          observer.observe(observerTarget, {
+            childList: true,
+            subtree: true,
+          });
+          metrics.observerAttachedAt = performance.now();
+          metrics.observerTargetConnected = observerTarget.isConnected;
+          metrics.observerTarget = observerTarget;
+        } catch (error) {
+          metrics.observerRegistrationError =
+            error instanceof Error ? error.message : String(error);
+        }
+        recordFirstCardDom("init");
+      });
+      await openExistingWorkspace(page);
+      await page.setViewportSize(VIEWPORTS[0]);
+      const boardStatuses = [
+        "todo",
+        "in_progress",
+        "in_review",
+        "done",
+        "closed",
+      ];
+      const issueResponsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        const statuses = url.searchParams.getAll("status");
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("vault") === REEF_E2E_VAULT &&
+          url.searchParams.get("sort_field") === "rank" &&
+          url.searchParams.get("sort_order") === "asc" &&
+          statuses.length === boardStatuses.length &&
+          boardStatuses.every((status) => statuses.includes(status)) &&
+          response.ok()
+        );
+      });
+      await openRoute(page, `/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+      const issueResponse = await issueResponsePromise;
+
+      await expect(page.getByText(/한글 제목/).first()).toBeVisible();
+      await expect(page.getByText(/English title/).first()).toBeVisible();
+      await expect(page.getByText(/Mixed 제목/).first()).toBeVisible();
+
+      const geometryById = new Map<
+        string,
+        { id: string; height: number; titleLines: number }
+      >();
+      const columns = page.locator('[data-group-by="status"]');
+      for (
+        let columnIndex = 0;
+        columnIndex < (await columns.count());
+        columnIndex += 1
+      ) {
+        const column = columns.nth(columnIndex);
+        const scroll = column.getByTestId("kanban-column-scroll-container");
+        let nextScrollTop = 0;
+        while (true) {
+          await scroll.evaluate(async (element, scrollTop) => {
+            const root = element as HTMLElement;
+            root.scrollTop = scrollTop;
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => resolve()),
+              ),
+            );
+          }, nextScrollTop);
+
+          const mountedGeometry = await column.evaluate((columnElement) =>
+            Array.from(
+              columnElement.querySelectorAll<HTMLElement>(
+                '[data-testid="kanban-card"]',
+              ),
+            ).map((element) => {
+              const title = element.querySelector<HTMLElement>("h4");
+              const lineHeight = title
+                ? Number.parseFloat(getComputedStyle(title).lineHeight)
+                : 0;
+              return {
+                id: element.getAttribute("data-issue-id"),
+                height:
+                  Math.round(element.getBoundingClientRect().height * 100) /
+                  100,
+                titleLines:
+                  title && lineHeight > 0
+                    ? Math.round(title.scrollHeight / lineHeight)
+                    : 0,
+              };
+            }),
+          );
+          for (const actual of mountedGeometry) {
+            if (!actual.id) {
+              throw new Error("typography card is missing its issue id");
+            }
+            geometryById.set(actual.id, { ...actual, id: actual.id });
+          }
+
+          const scrollMetrics = await scroll.evaluate((element) => {
+            const root = element as HTMLElement;
+            return {
+              scrollTop: root.scrollTop,
+              clientHeight: root.clientHeight,
+              maxScrollTop: root.scrollHeight - root.clientHeight,
+            };
+          });
+          if (scrollMetrics.scrollTop >= scrollMetrics.maxScrollTop - 1) break;
+          nextScrollTop = Math.min(
+            scrollMetrics.maxScrollTop,
+            scrollMetrics.scrollTop +
+              Math.max(1, Math.floor(scrollMetrics.clientHeight / 2)),
+          );
+        }
+      }
+
+      const geometry = Array.from(geometryById.values());
+      expect(geometry).toHaveLength(CARD_BASELINE.count);
+      const cardIds = geometry.map((actual) => actual.id);
+      const expectedCardIds = Array.from(
+        { length: CARD_BASELINE.count },
+        (_, index) => `REEF-${String(index + 1).padStart(3, "0")}`,
+      );
+      expect(new Set(cardIds).size, "representative card IDs").toBe(
+        CARD_BASELINE.count,
+      );
+      expect([...cardIds].sort(), "representative card IDs").toEqual(
+        expectedCardIds,
+      );
+      const deltas = geometry.map((actual) => ({
+        heightDelta: actual.height - CARD_BASELINE.geometry.height,
+        titleLines: actual.titleLines,
+        expectedTitleLines: CARD_BASELINE.geometry.titleLines,
+      }));
+      const sortedDeltas = deltas
+        .map(({ heightDelta }) => heightDelta)
+        .sort((left, right) => left - right);
+      const medianDelta =
+        sortedDeltas[Math.floor(sortedDeltas.length / 2)] ?? 0;
+      expect(Math.abs(medianDelta)).toBeLessThanOrEqual(1);
+      expect(
+        deltas.filter(({ heightDelta }) => Math.abs(heightDelta) <= 1).length,
+      ).toBeGreaterThanOrEqual(78);
+      expect(
+        deltas.filter(({ heightDelta }) => Math.abs(heightDelta) > 5),
+      ).toHaveLength(0);
+      expect(
+        deltas.filter(
+          ({ titleLines, expectedTitleLines }) =>
+            titleLines !== expectedTitleLines,
+        ),
+      ).toHaveLength(0);
+
+      const browserMetrics = await page.evaluate(
+        ({ responseUrl, expectedIssueCount }) => {
+          const runtimeWindow = window as Window & {
+            __reefSmallBoardMetrics?: SmallBoardMetrics;
+          };
+          const measurement = runtimeWindow.__reefSmallBoardMetrics;
+          const responseMatches =
+            measurement?.issueResponses.filter(
+              (candidate) =>
+                candidate.url === responseUrl &&
+                candidate.documentId === measurement.documentId &&
+                candidate.timeOrigin === performance.timeOrigin &&
+                candidate.href === location.href &&
+                candidate.issueCount === expectedIssueCount,
+            ) ?? [];
+          const response =
+            responseMatches.length === 1 ? responseMatches[0] : undefined;
+          return {
+            evidence: {
+              responseMatchCount: responseMatches.length,
+              responseUrl: response?.url ?? null,
+              responseDocumentId: response?.documentId ?? null,
+              responseTimeOrigin: response?.timeOrigin ?? null,
+              responseHref: response?.href ?? null,
+              responseReadyState: response?.readyState ?? null,
+              currentDocumentId: measurement?.documentId ?? null,
+              currentTimeOrigin: performance.timeOrigin,
+              currentHref: location.href,
+              currentReadyState: document.readyState,
+              observerAttachedAt: measurement?.observerAttachedAt ?? null,
+              observerRegistrationError:
+                measurement?.observerRegistrationError ?? null,
+              observerTargetConnectedAtAttach:
+                measurement?.observerTargetConnected ?? null,
+              observerTargetConnectedNow:
+                measurement?.observerTarget?.isConnected ?? null,
+              sameDocument: measurement?.observerTarget
+                ? document === measurement.observerTarget
+                : null,
+              mutationCallbackCount: measurement?.mutationCallbackCount ?? null,
+              mutationSnapshots: measurement?.mutationSnapshots ?? [],
+              firstCardDomAt: measurement?.firstCardDomAt ?? null,
+              firstCardDocumentId: measurement?.firstCardDocumentId ?? null,
+              firstCardHref: measurement?.firstCardHref ?? null,
+              firstCardObservationReason:
+                measurement?.firstCardObservationReason ?? null,
+            },
+            metrics: {
+              parseMs: response?.parseMs ?? null,
+              issueCount: response?.issueCount ?? null,
+              responseBytes: response?.responseBytes ?? null,
+              postParseToFirstCardDomMs:
+                response &&
+                measurement?.firstCardDomAt !== null &&
+                measurement?.firstCardDomAt !== undefined
+                  ? measurement.firstCardDomAt - response.parsedAt
+                  : null,
+              mountedCardsAtFirstDom:
+                measurement?.mountedCardsAtFirstDom ?? null,
+            },
+          };
+        },
+        {
+          responseUrl: issueResponse.url(),
+          expectedIssueCount: CARD_BASELINE.count,
+        },
+      );
+      expect(browserMetrics.evidence.responseMatchCount).toBe(1);
+      console.log(
+        "[BOARD_VIRTUALIZATION_TIMELINE]",
+        JSON.stringify({
+          expectedResponseUrl: issueResponse.url(),
+          responseStatus: issueResponse.status(),
+          ...browserMetrics.evidence,
+          ...browserMetrics.metrics,
+        }),
+      );
+      const requestTiming = issueResponse.request().timing();
+      const report = {
+        build: "candidate",
+        fixture: "typography",
+        query: "view=board",
+        cacheMode: "fresh browser context; persisted query cache removed",
+        viewport: VIEWPORTS[0],
+        browserVersion: page.context().browser()?.version() ?? "unknown",
+        totalIssues: browserMetrics.metrics.issueCount ?? 0,
+        requestDurationMs:
+          requestTiming.responseEnd - requestTiming.requestStart,
+        requestStartToFirstByteMs:
+          requestTiming.responseStart - requestTiming.requestStart,
+        responseBodyTransferMs:
+          requestTiming.responseEnd - requestTiming.responseStart,
         ...browserMetrics.metrics,
-      }),
-    );
-    const requestTiming = issueResponse.request().timing();
-    const report = {
-      build: "candidate",
-      fixture: "typography",
-      query: "view=board",
-      cacheMode: "fresh browser context; persisted query cache removed",
-      viewport: VIEWPORTS[0],
-      browserVersion: page.context().browser()?.version() ?? "unknown",
-      totalIssues: browserMetrics.metrics.issueCount ?? 0,
-      requestDurationMs: requestTiming.responseEnd - requestTiming.requestStart,
-      requestStartToFirstByteMs:
-        requestTiming.responseStart - requestTiming.requestStart,
-      responseBodyTransferMs:
-        requestTiming.responseEnd - requestTiming.responseStart,
-      ...browserMetrics.metrics,
-      uniqueCardGeometries: geometry.length,
-    };
-    expect(report.parseMs).toBeGreaterThanOrEqual(0);
-    expect(report.totalIssues).toBe(CARD_BASELINE.count);
-    expect(report.responseBytes).toBeGreaterThan(0);
-    expect(report.postParseToFirstCardDomMs).toBeGreaterThanOrEqual(0);
-    expect(report.mountedCardsAtFirstDom).toBeGreaterThan(0);
-    expect(report.mountedCardsAtFirstDom).toBeLessThanOrEqual(50);
-    expect(report.requestStartToFirstByteMs).toBeGreaterThanOrEqual(0);
-    expect(report.responseBodyTransferMs).toBeGreaterThanOrEqual(0);
-    console.log("BOARD_VIRTUALIZATION_SMALL", JSON.stringify(report));
-    await testInfo.attach("board-virtualization-small-measurement", {
-      body: JSON.stringify(report, null, 2),
-      contentType: "application/json",
-    });
-  });
+        uniqueCardGeometries: geometry.length,
+      };
+      expect(report.parseMs).toBeGreaterThanOrEqual(0);
+      expect(report.totalIssues).toBe(CARD_BASELINE.count);
+      expect(report.responseBytes).toBeGreaterThan(0);
+      expect(report.postParseToFirstCardDomMs).toBeGreaterThanOrEqual(0);
+      expect(report.mountedCardsAtFirstDom).toBeGreaterThan(0);
+      expect(report.mountedCardsAtFirstDom).toBeLessThanOrEqual(50);
+      expect(report.requestStartToFirstByteMs).toBeGreaterThanOrEqual(0);
+      expect(report.responseBodyTransferMs).toBeGreaterThanOrEqual(0);
+      console.log("BOARD_VIRTUALIZATION_SMALL", JSON.stringify(report));
+      await testInfo.attach("board-virtualization-small-measurement", {
+        body: JSON.stringify(report, null, 2),
+        contentType: "application/json",
+      });
+    },
+  );
 });

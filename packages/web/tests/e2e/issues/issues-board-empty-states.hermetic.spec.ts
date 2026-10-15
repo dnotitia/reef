@@ -1,5 +1,9 @@
 import { type Page, expect, test } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import {
+  openExistingWorkspace,
+  resetFixture,
+  readIndexedDbConfig,
+} from "../harness/fixture";
 
 const columns = ["Todo", "In Progress", "In Review", "Done", "Closed"];
 
@@ -38,11 +42,9 @@ function expectHeaderTopsWithinPixel(
 
 test.describe("Hermetic board empty states", () => {
   test("distinguishes no-match from true empty and recovers with keyboard clear", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await resetFixture(request, "configured");
     await openExistingWorkspace(page);
     // Start with a URL-applied facet and explicit sort so the reset proves it
@@ -101,7 +103,24 @@ test.describe("Hermetic board empty states", () => {
 
     // The persisted filter settles after the recovery; a reload must stay
     // populated instead of restoring the pre-recovery facet or sort.
-    await page.waitForTimeout(400);
+    await expect
+      .poll(async () => {
+        const raw = await readIndexedDbConfig(page, "filter:reef-e2e");
+        if (!raw) return null;
+        const saved = JSON.parse(raw) as {
+          filter: {
+            priority?: unknown;
+            sortField?: unknown;
+            sortOrder?: unknown;
+          };
+        };
+        return [
+          saved.filter.priority,
+          saved.filter.sortField,
+          saved.filter.sortOrder,
+        ];
+      })
+      .toEqual([undefined, undefined, undefined]);
     await page.reload();
     await expect(page.getByText("Initial issue Alpha")).toBeVisible({
       timeout: 15_000,
@@ -110,11 +129,9 @@ test.describe("Hermetic board empty states", () => {
   });
 
   test("keeps column headers aligned while the no-match overlay stays in the board body", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await resetFixture(request, "configured");
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=board");
@@ -163,11 +180,9 @@ test.describe("Hermetic board empty states", () => {
   });
 
   test("keeps the five columns and zero counts for a configured empty board", async ({
-    context,
     page,
     request,
   }) => {
-    await context.clearCookies();
     await resetFixture(request, "configured_empty");
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=board");

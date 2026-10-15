@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { startSsoFixture } from "./mock-sso.mjs";
 
 import {
   ACCOUNT_DENIAL_CODES,
@@ -38,6 +39,7 @@ import {
   releaseIssueUpdate,
   rememberCall,
   setIssueUpdateHold,
+  setResponseHold,
   waitForAuthProbeHold,
 } from "./mock-state.mjs";
 import { sha256 } from "./mock-utils.mjs";
@@ -51,12 +53,30 @@ const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
 const AUTH_PROBE_FAILURE_STATUSES = new Set([500, 503]);
 
 let state = createState("configured");
+const sso =
+  process.env.REEF_E2E_AUTH_MODE === "sso"
+    ? await startSsoFixture(() => state)
+    : null;
 
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     rememberCall(state, req.method ?? "GET", url.pathname);
 
+    if (sso && url.pathname.startsWith("/realms/reef/"))
+      return sso.oidc.handle(req, res, url);
+    if (sso && url.pathname === "/__e2e/sso") {
+      if (req.method === "POST")
+        sso.oidc.setInvalidNonce((await readJson(req))?.invalid_nonce === true);
+      return json(res, 200, sso.observation());
+    }
+    if (
+      sso &&
+      sso.oidc.accessTokens.has(
+        String(req.headers.authorization ?? "").replace(/^Bearer /u, ""),
+      )
+    )
+      state.ssoBearerForwarded = true;
     if (url.pathname === "/__e2e/health") {
       return json(res, 200, { ok: true });
     }
@@ -78,14 +98,43 @@ const server = createServer(async (req, res) => {
       });
       return res.end(markdownMediaAsset.body);
     }
+    if (url.pathname === "/__e2e/response-hold" && req.method === "POST") {
+      const body = await readJson(req);
+      const operations = [
+        "asset-upload",
+        "issue-list",
+        "planning-catalog",
+        "issue-reorder",
+        "content-search",
+        "tool-search",
+        "llm-text",
+        "llm-tool-call",
+        "installation-execution",
+      ];
+      if (!operations.includes(body?.operation))
+        return json(res, 400, { error: "invalid response operation" });
+      setResponseHold(state, body.operation, body?.hold === true);
+      return json(res, 200, {
+        ok: true,
+        operation: body.operation,
+        hold: body?.hold === true,
+      });
+    }
     if (url.pathname === "/__e2e/runtime" && req.method === "GET") {
       return json(res, 200, runtimeDiscovery(state));
     }
     if (url.pathname === "/__e2e/reset" && req.method === "POST") {
       const body = await readJson(req);
+      for (const gate of state.responseHolds.values()) gate.resolve();
       releaseAllAuthProbeHolds(state);
       releaseAllIssueUpdateHolds(state);
+      state.releaseVaultList?.();
+      for (const control of state.issueReadControls.values())
+        control.release?.();
+      for (const control of state.attachmentReadControls.values())
+        control.release?.();
       state = createState(normalizeScenario(body?.scenario));
+      sso?.reset();
       return json(res, 200, { ok: true, scenario: state.scenario });
     }
     if (
@@ -93,12 +142,8 @@ const server = createServer(async (req, res) => {
       req.method === "POST"
     ) {
       const body = await readJson(req);
-      const delayMs = Number(body?.delay_ms ?? 0);
       const failOnce = body?.fail_once ?? [];
       if (
-        !Number.isFinite(delayMs) ||
-        delayMs < 0 ||
-        delayMs > 10_000 ||
         !Array.isArray(failOnce) ||
         failOnce.some(
           (filename) =>
@@ -109,11 +154,11 @@ const server = createServer(async (req, res) => {
       ) {
         return json(res, 400, { error: "invalid asset upload control" });
       }
-      state.assetUploadDelayMs = Math.trunc(delayMs);
+      setResponseHold(state, "asset-upload", body?.hold === true);
       state.assetUploadFailOnce = new Set(failOnce);
       return json(res, 200, {
         ok: true,
-        delay_ms: state.assetUploadDelayMs,
+        hold: body?.hold === true,
         fail_once: [...state.assetUploadFailOnce],
       });
     }
@@ -157,16 +202,13 @@ const server = createServer(async (req, res) => {
         0,
         Number(body?.next_page_failures ?? 0),
       );
-      state.issueListDelayMs = Math.max(
-        0,
-        Math.min(Number(body?.delay_ms ?? 0), 5_000),
-      );
+      setResponseHold(state, "issue-list", body?.hold === true);
       return json(res, 200, {
         ok: true,
         issue_list_failure: state.issueListFailure,
         issue_list_failure_status: state.issueListFailureStatus,
         issue_list_next_page_failures: state.issueListNextPageFailures,
-        issue_list_delay_ms: state.issueListDelayMs,
+        hold: body?.hold === true,
       });
     }
     if (
@@ -175,23 +217,27 @@ const server = createServer(async (req, res) => {
     ) {
       const body = await readJson(req);
       state.planningCatalogFailure = body?.enabled === true;
-      state.planningCatalogDelayMs = Math.max(
-        0,
-        Math.min(Number(body?.delay_ms ?? 0), 5_000),
-      );
+      setResponseHold(state, "planning-catalog", body?.hold === true);
       return json(res, 200, {
         ok: true,
         planning_catalog_failure: state.planningCatalogFailure,
-        planning_catalog_delay_ms: state.planningCatalogDelayMs,
+        hold: body?.hold === true,
       });
     }
     if (url.pathname === "/__e2e/vault-list-control" && req.method === "POST") {
       const body = await readJson(req);
-      state.vaultListDelayMs = Math.max(0, Number(body?.delay_ms ?? 0));
+      state.releaseVaultList?.();
+      state.releaseVaultList = null;
+      state.vaultListGate =
+        body?.hold === true
+          ? new Promise((resolve) => {
+              state.releaseVaultList = resolve;
+            })
+          : null;
       state.vaultListFailures = Math.max(0, Number(body?.failures ?? 0));
       return json(res, 200, {
         ok: true,
-        delay_ms: state.vaultListDelayMs,
+        hold: state.vaultListGate !== null,
         failures: state.vaultListFailures,
       });
     }
@@ -433,15 +479,12 @@ const server = createServer(async (req, res) => {
         const issueId = String(update?.issue_id ?? "");
         if (!issueId) continue;
         const key = issueUpdateKey(vault, issueId);
-        const delayMs = Math.max(0, Number(update?.delay_ms ?? 0));
         const failures = Math.max(0, Number(update?.failures ?? 0));
-        state.issueUpdateDelays.set(key, delayMs);
         setIssueUpdateHold(state, key, update?.hold === true);
         if (failures > 0) state.issueUpdateFailures.set(key, "once");
         else state.issueUpdateFailures.delete(key);
         controls.push({
           issue_id: issueId,
-          delay_ms: delayMs,
           failures,
           hold: update?.hold === true,
         });
@@ -455,22 +498,27 @@ const server = createServer(async (req, res) => {
       if (!/^REEF-\d+$/.test(issueId)) {
         return json(res, 400, { ok: false, error: "invalid issue_id" });
       }
-      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const held = body?.hold === true ? Promise.withResolvers() : null;
       const requestedStatus = Number(body?.failure_status);
       const failureStatus = [404, 500, 503].includes(requestedStatus)
         ? requestedStatus
         : null;
       const key = `${vault}:${issueId}`;
-      if (delayMs === 0 && failureStatus === null) {
+      state.issueReadControls.get(key)?.release?.();
+      if (!held && failureStatus === null) {
         state.issueReadControls.delete(key);
       } else {
-        state.issueReadControls.set(key, { delayMs, failureStatus });
+        state.issueReadControls.set(key, {
+          gate: held?.promise,
+          release: held?.resolve,
+          failureStatus,
+        });
       }
       return json(res, 200, {
         ok: true,
         vault,
         issue_id: issueId,
-        delay_ms: delayMs,
+        hold: held !== null,
         failure_status: failureStatus,
       });
     }
@@ -484,15 +532,20 @@ const server = createServer(async (req, res) => {
       if (!/^REEF-\d+$/.test(issueId)) {
         return json(res, 400, { ok: false, error: "invalid issue_id" });
       }
-      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const held = body?.hold === true ? Promise.withResolvers() : null;
       const key = attachmentReadKey(vault, issueId);
-      if (delayMs === 0) state.attachmentReadControls.delete(key);
-      else state.attachmentReadControls.set(key, { delayMs });
+      state.attachmentReadControls.get(key)?.release?.();
+      if (!held) state.attachmentReadControls.delete(key);
+      else
+        state.attachmentReadControls.set(key, {
+          gate: held.promise,
+          release: held.resolve,
+        });
       return json(res, 200, {
         ok: true,
         vault,
         issue_id: issueId,
-        delay_ms: delayMs,
+        hold: held !== null,
       });
     }
     if (
@@ -512,14 +565,11 @@ const server = createServer(async (req, res) => {
       req.method === "POST"
     ) {
       const body = await readJson(req);
-      state.issueReorderDelayMs = Math.max(
-        0,
-        Math.min(Number(body?.delay_ms ?? 0), 2_000),
-      );
+      setResponseHold(state, "issue-reorder", body?.hold === true);
       state.issueReorderFailures = Math.max(0, Number(body?.failures ?? 0));
       return json(res, 200, {
         ok: true,
-        delay_ms: state.issueReorderDelayMs,
+        hold: body?.hold === true,
         failures: state.issueReorderFailures,
       });
     }
@@ -537,14 +587,11 @@ const server = createServer(async (req, res) => {
         ? body.mode
         : "healthy";
       state.contentSearchMode = mode;
-      state.contentSearchDelayMs = Math.max(
-        0,
-        Math.min(Number(body?.delay_ms ?? 0), 2_000),
-      );
+      setResponseHold(state, "content-search", body?.hold === true);
       return json(res, 200, {
         ok: true,
         mode,
-        delay_ms: state.contentSearchDelayMs,
+        hold: body?.hold === true,
       });
     }
     if (
@@ -561,22 +608,23 @@ const server = createServer(async (req, res) => {
       if (!query || query.length > 120) {
         return json(res, 400, { error: "invalid query" });
       }
-      const delayMs = Math.max(0, Math.min(Number(body?.delay_ms ?? 0), 5_000));
+      const held = body?.hold === true;
       const requestedStatus = Number(body?.failure_status);
       const failureStatus = [500, 503].includes(requestedStatus)
         ? requestedStatus
         : null;
       const key = markdownLinkSearchKey(vault, query);
-      if (delayMs === 0 && failureStatus === null) {
+      setResponseHold(state, `markdown-link-search:${key}`, held);
+      if (!held && failureStatus === null) {
         state.markdownLinkSearchControls.delete(key);
       } else {
-        state.markdownLinkSearchControls.set(key, { delayMs, failureStatus });
+        state.markdownLinkSearchControls.set(key, { failureStatus });
       }
       return json(res, 200, {
         ok: true,
         vault,
         query: query.toLowerCase(),
-        delay_ms: delayMs,
+        hold: held,
         failure_status: failureStatus,
       });
     }
@@ -650,18 +698,6 @@ const server = createServer(async (req, res) => {
         vault.issues = vault.issues.filter((issue) => issue.reef_id !== id);
       return json(res, 200, { ok: true, id });
     }
-    if (url.pathname === "/__e2e/keycloak" && req.method === "POST") {
-      const body = await readJson(req);
-      state.keycloakEnabled = body?.enabled === true;
-      state.localAuthEnabled = body?.local_auth_enabled !== false;
-      state.ssoOnly = body?.sso_only === true;
-      return json(res, 200, {
-        ok: true,
-        keycloak_enabled: state.keycloakEnabled,
-        local_auth_enabled: state.localAuthEnabled,
-        sso_only: state.ssoOnly,
-      });
-    }
     if (url.pathname === "/__e2e/account-denial" && req.method === "POST") {
       const body = await readJson(req);
       const requested = body?.code;
@@ -675,13 +711,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__e2e/auth-control" && req.method === "POST") {
       const body = await readJson(req);
-      state.authProbeDelayMs = Math.max(
-        0,
-        Math.min(Number(body?.probe_delay_ms ?? 0), 8_000),
-      );
-      state.authProbeDelayOnce = body?.probe_delay_once === true;
       state.authProbeHold = body?.probe_hold === true;
-      state.authProbeHang = body?.probe_hang === true;
       const probeFailureStatus = Number(body?.probe_failure_status);
       state.authProbeFailureStatus = AUTH_PROBE_FAILURE_STATUSES.has(
         probeFailureStatus,
@@ -699,9 +729,7 @@ const server = createServer(async (req, res) => {
       }
       return json(res, 200, {
         ok: true,
-        probe_delay_ms: state.authProbeDelayMs,
         probe_hold: state.authProbeHold,
-        probe_hang: state.authProbeHang,
         probe_failure_status: state.authProbeFailureStatus,
         session: body?.session === "revoked" ? "revoked" : "active",
         protected_response: state.protectedResponse,
@@ -713,25 +741,6 @@ const server = createServer(async (req, res) => {
         ok: true,
         released: pending ? releaseAllAuthProbeHolds(state) : 0,
       });
-    }
-    if (
-      url.pathname === "/api/v1/auth/keycloak/login" &&
-      req.method === "GET"
-    ) {
-      if (!state.keycloakEnabled) {
-        return json(res, 404, { error: "keycloak_disabled" });
-      }
-      res.writeHead(302, {
-        Location: `http://${req.headers.host}/keycloak/authorize`,
-        "Cache-Control": "no-store",
-      });
-      return res.end();
-    }
-    if (url.pathname === "/keycloak/authorize") {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end(
-        '<!doctype html><html><body><main data-testid="fixture-keycloak-authorize"><h1>Keycloak Sign-In (fixture)</h1></main></body></html>',
-      );
     }
     if (url.pathname === "/__e2e/state") {
       return json(res, 200, publicState(state));
@@ -778,7 +787,7 @@ const server = createServer(async (req, res) => {
       return handleAkb(req, res, url, state);
     }
     if (url.pathname.startsWith("/openrouter")) {
-      return handleOpenRouter(req, res);
+      return handleOpenRouter(req, res, state);
     }
     if (url.pathname.startsWith("/github")) {
       return handleGitHub(req, res, url, state);
@@ -808,5 +817,11 @@ server.listen(PORT, HOST, () => {
   );
 });
 
-process.on("SIGTERM", () => server.close(() => process.exit(0)));
-process.on("SIGINT", () => server.close(() => process.exit(0)));
+process.on("SIGTERM", () => {
+  sso?.close();
+  server.close(() => process.exit(0));
+});
+process.on("SIGINT", () => {
+  sso?.close();
+  server.close(() => process.exit(0));
+});

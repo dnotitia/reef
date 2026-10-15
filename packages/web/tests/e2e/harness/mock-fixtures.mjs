@@ -175,7 +175,6 @@ export const AUTH_PROTECTED_RESPONSES = new Set([
   "forbidden",
 ]);
 export const AUTH_SESSIONS = new Set(["active", "revoked"]);
-export const AUTH_PROBE_HANG_MAX_MS = 8_000;
 
 const CONFIGURED_SCENARIOS = new Set([
   "configured",

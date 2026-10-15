@@ -1,24 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
-  openExistingWorkspace,
+  openWorkspaceThroughLogin,
   readIndexedDbConfig,
-  resetFixture,
   setAkbAccountDenial,
   writeIndexedDbConfig,
 } from "../harness/fixture";
 
 test.describe("AKB account denial", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("removed membership clears account state and preserves the denial UX", async ({
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspaceThroughLogin(page);
 
     await expect
       .poll(() => readIndexedDbConfig(page, "vault"))

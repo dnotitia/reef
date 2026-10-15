@@ -1,21 +1,15 @@
-import { expect, test } from "@playwright/test";
-import {
-  REEF_E2E_VAULT,
-  continueToWorkspace,
-  openExistingWorkspace,
-  resetFixture,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
+import { REEF_E2E_VAULT, continueToWorkspace } from "../harness/fixture";
 
 test.describe("Hermetic New Issue enrichment", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("streams field suggestions through the unified agent-run endpoint", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
     await continueToWorkspace(page);
     await page.getByTestId("new-issue-trigger").click();

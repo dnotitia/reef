@@ -1,10 +1,6 @@
-import { expect, test } from "@playwright/test";
-import {
-  REEF_E2E_VAULT,
-  openExistingWorkspace,
-  readFixtureState,
-  resetFixture,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
+import { REEF_E2E_VAULT, readFixtureState } from "../harness/fixture";
 
 async function fixtureIssue(
   request: Parameters<typeof readFixtureState>[0],
@@ -19,7 +15,7 @@ async function fixtureIssue(
 }
 
 async function closeQuickEditor(
-  page: Parameters<typeof openExistingWorkspace>[0],
+  page: Page,
   field: "status" | "priority" | "assignee",
 ) {
   const editor =
@@ -95,7 +91,7 @@ function installBacklogPriorityResizeObserver() {
 }
 
 function disposeBacklogPriorityResizeObserver(
-  page: Parameters<typeof openExistingWorkspace>[0],
+  page: Page,
   includeObservations: boolean,
 ) {
   return page.evaluate((include) => {
@@ -109,15 +105,13 @@ function disposeBacklogPriorityResizeObserver(
 }
 
 test.describe("Hermetic Backlog quick edit", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("uses the shared trigger and field anchor for Status, Priority, and Assignee", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );
@@ -201,9 +195,10 @@ test.describe("Hermetic Backlog quick edit", () => {
   });
 
   test("keeps the Priority editor open and attached after a viewport resize", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.addInitScript(installBacklogPriorityResizeObserver);
     await page.goto(
@@ -253,9 +248,10 @@ test.describe("Hermetic Backlog quick edit", () => {
   });
 
   test("collision-places the narrow Backlog Priority editor inside a 640px viewport", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );
@@ -294,9 +290,10 @@ test.describe("Hermetic Backlog quick edit", () => {
   });
 
   test("keeps the Backlog keyboard scope to triage fields and omits Labels", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );
@@ -328,10 +325,11 @@ test.describe("Hermetic Backlog quick edit", () => {
   });
 
   test("promotes a Backlog issue through the shared mutation and removes it from the view", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );
@@ -360,10 +358,11 @@ test.describe("Hermetic Backlog quick edit", () => {
   });
 
   test("keeps the shared close-reason confirmation when closing from Backlog", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );

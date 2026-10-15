@@ -1,7 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 import {
-  openExistingWorkspace,
-  resetFixture,
+  releaseResponseHold,
   setAkbAccountDenial,
   setContentSearchMode,
 } from "../harness/fixture";
@@ -10,7 +10,7 @@ const inputSelector = '[data-testid="global-search-input"]';
 const contentItemSelector = '[data-testid="global-search-content-item"]';
 
 async function settleContentSearch(
-  page: import("@playwright/test").Page,
+  page: Page,
   query: string,
   expectedStatus = 200,
 ) {
@@ -30,13 +30,13 @@ async function settleContentSearch(
 }
 
 test.describe("Global body and comment search (REEF-347)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "content_search");
-  });
+  test.use({ scenario: "content_search" });
 
-  test("does not request content below two code points", async ({ page }) => {
-    await openExistingWorkspace(page);
+  test("does not request content below two code points", async ({
+    openWorkspace,
+    page,
+  }) => {
+    await openWorkspace();
     const contentRequests: string[] = [];
     page.on("request", (request) => {
       if (new URL(request.url()).pathname === "/api/issues/search-content") {
@@ -45,17 +45,19 @@ test.describe("Global body and comment search (REEF-347)", () => {
     });
 
     await page.keyboard.press("Control+K");
+    await page.clock.install();
     await page.locator(inputSelector).fill("한");
-    await page.waitForTimeout(500);
+    await page.clock.runFor(500);
     expect(contentRequests).toEqual([]);
     await expect(page.getByText("No matching issues.")).toBeVisible();
   });
 
   test("shows Korean field/content headings and inline body provenance", async ({
+    openWorkspace,
     context,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await context.addCookies([
       { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
     ]);
@@ -63,7 +65,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "이슈" }),
     ).toBeVisible();
-    await page.waitForTimeout(300);
+    await expect(page.locator("[data-interaction-ready=true]")).toHaveCount(1);
     await page.keyboard.press("Control+K");
     await page.locator(inputSelector).fill("Initial issue Alpha");
     await expect(page.getByText("이슈 필드 검색 결과")).toBeVisible();
@@ -128,12 +130,13 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("shows English field/content headings and inline comment provenance", async ({
+    openWorkspace,
     context,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
-    const input = page.getByPlaceholder("Search issues...", { exact: true });
+    const input = page.locator(inputSelector);
     await input.fill("Initial issue Alpha");
     await expect(
       page.getByText("Issue field matches", { exact: true }),
@@ -214,9 +217,10 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("deduplicates metadata issues and preserves canonical exact-ID promotion", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
     const content = await settleContentSearch(page, "REEF-001");
     expect(content.results).toEqual(
@@ -235,9 +239,10 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("treats SQL and regex metacharacters as literal highlighted text", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
     await page.locator(inputSelector).fill("%_[\\");
 
@@ -250,9 +255,10 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("guards rapid query changes and includes content in the teal busy state", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
     // UI-only delivery control: real Reef routes and upstream payloads run.
     const releases = new Map<string, () => Promise<void>>();
@@ -342,26 +348,29 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("expands 10 to 20 while retaining rows and stops when exhausted", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
     await page.locator(inputSelector).fill("bounded expansion phrase");
     await expect(page.locator(contentItemSelector)).toHaveCount(10);
     const more = page.getByTestId("global-search-content-more");
     await expect(more).toHaveText("Load more");
 
-    await setContentSearchMode(request, "healthy", 700);
+    await setContentSearchMode(request, "healthy", true);
     await more.click();
     await expect(more).toBeDisabled();
     await expect(page.locator(contentItemSelector)).toHaveCount(10);
+    await releaseResponseHold(request, "content-search");
     await expect(page.locator(contentItemSelector)).toHaveCount(12);
     await expect(more).toHaveCount(0);
     await expect(page.getByText(/10\s*\/\s*12|10 of 12/i)).toHaveCount(0);
   });
 
   test("keeps long content rows contained and selected in light and narrow dark layouts", async ({
+    openWorkspace,
     page,
   }) => {
     const observeLayout = async () =>
@@ -396,7 +405,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
       );
 
     await page.setViewportSize({ width: 1280, height: 900 });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
     const input = page.locator(inputSelector);
     await input.fill("bounded expansion phrase");
@@ -442,10 +451,11 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("silently degrades to metadata-only and keeps body hits without comments", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await setContentSearchMode(request, "degraded");
     await page.keyboard.press("Control+K");
     await settleContentSearch(page, "Initial issue Alpha", 502);
@@ -474,9 +484,10 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("validates the real route and returns schema-conforming JSON", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     const observations = await page.evaluate(async () => {
       const invalid = await fetch(
         "/api/issues/search-content?vault=reef-e2e&q=a&limit=10",
@@ -506,11 +517,11 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("exposes account denial through the real route and clears the session", async ({
+    openWorkspace,
     context,
-    page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     const sessionCookie = (await context.cookies()).find(
       (cookie) => cookie.name === "__reef_session",
     );
@@ -540,9 +551,10 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("selects each issue's latest matching comment before applying the limit", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     const response = await page.evaluate(async () => {
       const result = await fetch(
         "/api/issues/search-content?vault=reef-e2e&q=dedupe-before-limit&limit=10",

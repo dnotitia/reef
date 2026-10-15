@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- Dashboard navigation becomes interactive only after hydration and global
+  shortcut registration, so the first shortcut does not depend on opening a
+  dialog to warm up the shell.
+
 - Workspace initialization preserves a Guide or runbook created concurrently
   after a missing-document read. Creation conflicts stop initialization without
   overwriting the new document or stamping the current instruction version.

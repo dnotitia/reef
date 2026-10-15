@@ -30,12 +30,22 @@ export function runtimeDiscovery(state) {
         content_type: "application/json",
         body: { scenario: "<supported_scenario>" },
       },
+      response_hold: {
+        method: "POST",
+        path: "/__e2e/response-hold",
+        content_type: "application/json",
+        body: {
+          operation:
+            "asset-upload|issue-list|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
+          hold: "<boolean>",
+        },
+      },
       asset_upload_control: {
         method: "POST",
         path: "/__e2e/asset-upload-control",
         content_type: "application/json",
         body: {
-          delay_ms: "<milliseconds>",
+          hold: "<boolean>",
           fail_once: ["<filename>", "..."],
         },
       },
@@ -66,7 +76,7 @@ export function runtimeDiscovery(state) {
           updates: [
             {
               issue_id: "<issue_id>",
-              delay_ms: "<milliseconds>",
+              hold: "<boolean>",
               failures: "<count>",
             },
           ],
@@ -79,7 +89,7 @@ export function runtimeDiscovery(state) {
         body: {
           vault: "<vault>",
           query: "<query>",
-          delay_ms: "<milliseconds>",
+          hold: "<boolean>",
           failure_status: "null|500|503",
         },
       },
@@ -90,7 +100,7 @@ export function runtimeDiscovery(state) {
         body: {
           enabled: "<boolean>",
           next_page_failures: "<count>",
-          delay_ms: "<milliseconds>",
+          hold: "<boolean>",
           failure_status: "null|409|500|503|network",
         },
       },
@@ -99,15 +109,15 @@ export function runtimeDiscovery(state) {
         path: "/__e2e/vault-list-control",
         content_type: "application/json",
         body: {
-          delay_ms: { type: "number", optional: true, default: 0, minimum: 0 },
+          hold: { type: "boolean", optional: true, default: false },
           failures: { type: "number", optional: true, default: 0, minimum: 0 },
         },
         effects: {
-          delay_ms: "delay subsequent GET /akb/api/v1/my/vaults responses",
+          hold: "hold subsequent GET /akb/api/v1/my/vaults responses until hold is false",
           failures:
             "return HTTP 500 for the next N GET /akb/api/v1/my/vaults requests",
           reset:
-            "send delay_ms=0 and failures=0, or reset the fixture scenario",
+            "send hold=false and failures=0, or reset the fixture scenario",
         },
       },
       workspace_initialization_control: {
@@ -164,7 +174,7 @@ export function runtimeDiscovery(state) {
         content_type: "application/json",
         body: {
           vault: "<vault>",
-          delay_ms: "<milliseconds>",
+          hold: "<boolean>",
           failures: "<count>",
         },
       },
@@ -228,9 +238,7 @@ export function runtimeDiscovery(state) {
         path: "/__e2e/auth-control",
         content_type: "application/json",
         body: {
-          probe_delay_ms: "<milliseconds>",
-          probe_delay_once: "<boolean>",
-          probe_hang: "<boolean>",
+          probe_hold: "<boolean>",
           probe_failure_status: "null|500|503",
           session: "active|revoked",
           protected_response: "healthy|unauthorized|forbidden",
@@ -264,7 +272,7 @@ export function runtimeDiscovery(state) {
         controls: {
           auth_control: [
             "session revoke",
-            "bounded probe delay (including one-shot) or hang",
+            "hold/release auth probes, including application timeout and retry",
             "temporary auth-probe 5xx response",
             "healthy, plain 401, or resource 403 protected responses",
           ],
@@ -278,7 +286,7 @@ export function runtimeDiscovery(state) {
         interaction: {
           type: "auth_soft_navigation",
           operation:
-            "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale delayed probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
+            "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale held probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
         },
       },
       assignee_picker: {
@@ -334,7 +342,7 @@ export function runtimeDiscovery(state) {
         interaction: {
           type: "status_quick_edit",
           operation:
-            "configure delayed priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent delayed success, failure rollback, retry, and concurrent success confirmation",
+            "hold priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent held success, failure rollback, retry, and concurrent success confirmation",
         },
       },
       planning_overflow: {
@@ -574,7 +582,7 @@ export function runtimeDiscovery(state) {
         start_path: markdownFixtureStartPath(state),
         controls: {
           markdown_link_search_control: [
-            "delay or fail one AKB search query while preserving the real Reef search route",
+            "hold or fail one AKB search query while preserving the real Reef search route",
           ],
         },
         interaction: {

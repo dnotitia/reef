@@ -1,12 +1,14 @@
-import { type Page, expect, test } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
   clearPersistedQueryCache,
   openExistingWorkspace,
-  resetFixture,
   readIndexedDbConfig,
   setIssueListFailure,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "updated_at_range" });
 
 const LIST_URL =
   "/workspace/reef-e2e/issues?view=list&group=none&columns=start&sort=updated_at&order=asc";
@@ -321,11 +323,6 @@ async function assertUpdatedAtInlineError(
 }
 
 test.describe("Hermetic updated-at date range filter", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "updated_at_range");
-  });
-
   test("renders updated_at as one compound filter trigger", async ({
     context,
     page,

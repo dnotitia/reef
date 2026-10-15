@@ -1,11 +1,11 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
-import { openExistingWorkspace, resetFixture } from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 const searchInput = '[data-testid="global-search-input"]';
 const commandInput = '[data-testid="command-palette-input"]';
 const PRIMARY_MODIFIER = process.platform === "darwin" ? "Meta" : "Control";
 
-async function enterCommandMode(page: import("@playwright/test").Page) {
+async function enterCommandMode(page: Page) {
   await expect(page.locator("[data-interaction-ready=true]")).toBeVisible();
   await page.keyboard.press("Control+K");
   await page.locator(searchInput).fill(">");
@@ -56,15 +56,13 @@ async function changeLocaleFromFocusedEditor(page: Page, locale: "en" | "ko") {
 }
 
 test.describe("Hermetic command palette", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("keeps Commands above recent issues and performs no issue search in command mode", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.keyboard.press("Control+K");
 
     const commands = page.getByTestId("command-mode-entry");
@@ -104,6 +102,7 @@ test.describe("Hermetic command palette", () => {
     });
     await page.locator(searchInput).fill("Alpha");
     await metadataResponse;
+    await page.clock.install();
     metadataSearches = 0;
     contentSearches = 0;
     await page.locator(searchInput).evaluate((input) => {
@@ -118,15 +117,16 @@ test.describe("Hermetic command palette", () => {
       }
     });
     await expect(page.locator(commandInput)).toHaveValue("view");
-    await page.waitForTimeout(500);
+    await page.clock.runFor(500);
     expect(metadataSearches).toBe(0);
     expect(contentSearches).toBe(0);
   });
 
   test("supports nested keyboard navigation and preserves issue query state when changing view", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(
       "/workspace/reef-e2e/issues?view=board&q=Alpha&sort=priority",
     );
@@ -170,8 +170,11 @@ test.describe("Hermetic command palette", () => {
     expect(route.searchParams.get("sort")).toBe("priority");
   });
 
-  test("hands focus to the existing New issue dialog", async ({ page }) => {
-    await openExistingWorkspace(page);
+  test("hands focus to the existing New issue dialog", async ({
+    openWorkspace,
+    page,
+  }) => {
+    await openWorkspace();
     await enterCommandMode(page);
 
     const newIssue = page.locator(
@@ -189,13 +192,14 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("fuzzy-matches aliases from both locales regardless of the UI locale", async ({
+    openWorkspace,
     context,
     page,
   }) => {
     await context.addCookies([
       { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
     ]);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await enterCommandMode(page);
     await page.locator(commandInput).fill("theme");
@@ -248,9 +252,10 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("pops an empty nested page with Backspace after pointer entry", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await enterCommandMode(page);
 
     const themePage = page.locator(
@@ -270,9 +275,10 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("selects and executes the first filtered command result", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/planning");
     await expect(page.locator("html")).not.toHaveClass(/dark/);
     await enterCommandMode(page);
@@ -298,9 +304,10 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("opens a contextual parent page through a real pointer coordinate", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
@@ -346,9 +353,11 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("restores meaningful focus after cancelling the root palette", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
+    await page.getByRole("main").focus();
     await expect(page.getByRole("main")).toBeFocused();
     await page.evaluate(() => {
       const activeElement = document.activeElement;
@@ -367,10 +376,11 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("moves focus to a meaningful destination control after navigation and locale changes", async ({
+    openWorkspace,
     context,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await enterCommandMode(page);
     await page
       .locator(
@@ -402,13 +412,14 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("keeps New Issue draft focus, selection, and undo history through locale commands", async ({
+    openWorkspace,
     context,
     page,
   }) => {
     await context.addCookies([
       { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
     ]);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await page
       .getByRole("button", { name: /^새 이슈(?: \([^)]*\))?$/u })
@@ -457,13 +468,14 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("keeps issue detail open and focused through locale commands from its Markdown editor", async ({
+    openWorkspace,
     context,
     page,
   }) => {
     await context.addCookies([
       { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
     ]);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
@@ -493,9 +505,11 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("restores focus after a same-surface theme command", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
+    await page.getByRole("main").focus();
     await expect(page.getByRole("main")).toBeFocused();
     const origin = page.getByTestId("sidebar-shortcuts-trigger");
     await origin.focus();
@@ -512,9 +526,11 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("restores meaningful focus after a same-surface theme command without an origin control", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
+    await page.getByRole("main").focus();
     await expect(page.getByRole("main")).toBeFocused();
     await page.evaluate(() => {
       const activeElement = document.activeElement;
@@ -537,8 +553,11 @@ test.describe("Hermetic command palette", () => {
     await expect(page.getByRole("main")).toBeFocused();
   });
 
-  test("marks the active issue view as current", async ({ page }) => {
-    await openExistingWorkspace(page);
+  test("marks the active issue view as current", async ({
+    openWorkspace,
+    page,
+  }) => {
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues?view=board");
     await enterCommandMode(page);
     await page
@@ -555,10 +574,11 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("keeps a narrow nested breadcrumb visibly separated from the input", async ({
+    openWorkspace,
     page,
   }) => {
     await page.setViewportSize({ width: 900, height: 800 });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     await enterCommandMode(page);
@@ -584,9 +604,10 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("targets a detail issue, skips same-value PATCH, and requires a close reason", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
@@ -606,11 +627,12 @@ test.describe("Hermetic command palette", () => {
       '[data-testid="command-page-entry"][data-command-page="status"]',
     );
     await expect(statusPage).toContainText("REEF-001");
+    await page.clock.install();
     await statusPage.click();
     await page
       .locator('[data-testid="command-action"][data-command-id="status.todo"]')
       .click();
-    await page.waitForTimeout(300);
+    await page.clock.runFor(300);
     expect(patches).toHaveLength(0);
 
     await page.keyboard.press("Control+K");
@@ -647,9 +669,10 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("PATCHes priority and assignee through their existing mutation path", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 
@@ -695,9 +718,10 @@ test.describe("Hermetic command palette", () => {
   });
 
   test("hides single-issue commands while list selection is active", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues?view=list");
     const row = page
       .getByTestId("issue-list-row")

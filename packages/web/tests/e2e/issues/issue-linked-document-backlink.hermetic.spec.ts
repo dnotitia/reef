@@ -1,10 +1,6 @@
-import { expect, test } from "@playwright/test";
-import {
-  openExistingWorkspace,
-  readFixtureState,
-  resetFixture,
-  REEF_E2E_VAULT,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
+import { readFixtureState, REEF_E2E_VAULT } from "../harness/fixture";
 
 // REEF-368: the linked-document "open in akb" backlink must be driven by the
 // akb web base the SERVER reads at request time (AKB_WEB_URL), handed to the
@@ -22,15 +18,13 @@ const EXPECTED_HREF = `${AKB_WEB_BASE}/vault/reef-e2e/doc/${encodeURIComponent(
 )}`;
 
 test.describe("Hermetic linked-document backlink (REEF-368)", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("renders the akb open link with an href built from the runtime AKB_WEB_URL", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
@@ -46,9 +40,10 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
   });
 
   test("keeps explicit AKB Markdown links canonical and opens them with AKB_WEB_URL", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
@@ -117,10 +112,11 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
   });
 
   test("resolves bare AKB document URIs to title links in Source through save and reopen", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
@@ -173,9 +169,10 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
   });
 
   test("keeps ordinary body text clicks at the clicked paragraph after editor rerenders", async ({
+    openWorkspace,
     page,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 

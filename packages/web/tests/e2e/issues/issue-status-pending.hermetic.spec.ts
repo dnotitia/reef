@@ -1,64 +1,41 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
-  openExistingWorkspace,
   readFixtureState,
   releaseIssueUpdate,
-  resetFixture,
   setIssueUpdateControl,
   waitForIssueListIdle,
   waitForIssueUpdatePending,
 } from "../harness/fixture";
 import { expectCursorAtPointer } from "../harness/cursor";
 
-function issueRow(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-) {
+function issueRow(page: Page, id: string) {
   return page.locator(
     `[data-testid="issue-list-row"][data-issue-id="${id}"], [data-testid="backlog-row"][data-issue-id="${id}"]`,
   );
 }
 
-function issueCard(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-) {
+function issueCard(page: Page, id: string) {
   return page.locator(`[data-testid="kanban-card"][data-issue-id="${id}"]`);
 }
 
-async function chooseStatus(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-  label: string,
-) {
+async function chooseStatus(page: Page, id: string, label: string) {
   await issueRow(page, id).getByTestId("issue-inline-edit-status").click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
-async function choosePriority(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-  label: string,
-) {
+async function choosePriority(page: Page, id: string, label: string) {
   await issueRow(page, id).getByTestId("issue-inline-edit-priority").click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
-async function chooseAssignee(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-  label: string,
-) {
+async function chooseAssignee(page: Page, id: string, label: string) {
   await issueRow(page, id).getByTestId("issue-inline-edit-assignee").click();
   await page.getByRole("option", { name: label }).click();
 }
 
-async function chooseBoardPriority(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-  label: string,
-) {
+async function chooseBoardPriority(page: Page, id: string, label: string) {
   const card = issueCard(page, id);
   await card.focus();
   await page.keyboard.press("p");
@@ -66,11 +43,7 @@ async function chooseBoardPriority(
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
-async function chooseBoardAssignee(
-  page: Parameters<typeof openExistingWorkspace>[0],
-  id: string,
-  label: string,
-) {
+async function chooseBoardAssignee(page: Page, id: string, label: string) {
   const card = issueCard(page, id);
   await card.focus();
   await page.keyboard.press("a");
@@ -79,7 +52,7 @@ async function chooseBoardAssignee(
 }
 
 async function addLabel(
-  page: Parameters<typeof openExistingWorkspace>[0],
+  page: Page,
   id: string,
   label: string,
   surface: "list" | "board",
@@ -106,19 +79,15 @@ async function fixtureIssue(
 }
 
 test.describe("Hermetic issue quick-edit save state", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "status_quick_edit");
-  });
+  test.use({ scenario: "status_quick_edit" });
 
   test("shows one row pending, blocks duplicate activation, and settles a delayed success", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await setIssueUpdateControl(request, [
-      { issueId: "REEF-001", delayMs: 800 },
-    ]);
-    await openExistingWorkspace(page);
+    await setIssueUpdateControl(request, [{ issueId: "REEF-001", hold: true }]);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
 
     const row = issueRow(page, "REEF-001");
@@ -145,6 +114,12 @@ test.describe("Hermetic issue quick-edit save state", () => {
     );
     await expect.poll(() => patchCount).toBe(1);
 
+    await expect(trigger).toBeDisabled();
+    expect(patchCount).toBe(1);
+    await waitForIssueUpdatePending(request, "REEF-001");
+    await releaseIssueUpdate(request, "REEF-001");
+
+    await expect(trigger).not.toHaveAttribute("aria-busy");
     await expect
       .poll(
         async () =>
@@ -153,10 +128,6 @@ test.describe("Hermetic issue quick-edit save state", () => {
           ] ?? 0,
       )
       .toBe(1);
-    await page.waitForTimeout(150);
-    expect(patchCount).toBe(1);
-
-    await expect(trigger).not.toHaveAttribute("aria-busy");
     await expect(trigger).toHaveAccessibleName("Status");
     await expectCursorAtPointer(trigger, "pointer");
     expect((await fixtureIssue(request, "REEF-001")).status).toBe(
@@ -165,15 +136,16 @@ test.describe("Hermetic issue quick-edit save state", () => {
   });
 
   test("shows pending and success for List priority, assignee, and labels", async ({
+    openWorkspace,
     page,
     request,
   }) => {
     await setIssueUpdateControl(request, [
-      { issueId: "REEF-001", delayMs: 700 },
-      { issueId: "REEF-002", delayMs: 700 },
+      { issueId: "REEF-001", hold: true },
+      { issueId: "REEF-002", hold: true },
     ]);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
 
     const first = issueRow(page, "REEF-001");
@@ -189,11 +161,14 @@ test.describe("Hermetic issue quick-edit save state", () => {
     await expect(first.locator("[data-issue-update-announcement]")).toHaveText(
       "Updating Priority…",
     );
+    await waitForIssueUpdatePending(request, "REEF-001");
+    await releaseIssueUpdate(request, "REEF-001");
     await expect(priorityTrigger).not.toHaveAttribute("aria-busy");
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-001")).priority)
       .toBe("medium");
 
+    await setIssueUpdateControl(request, [{ issueId: "REEF-001", hold: true }]);
     await addLabel(page, "REEF-001", "quick-edit", "list");
     const labelsInput = page.getByTestId("issue-quick-edit-labels");
     const labelsAnchor = page.getByTestId("issue-quick-edit-anchor");
@@ -202,6 +177,8 @@ test.describe("Hermetic issue quick-edit save state", () => {
     await expect(
       labelsAnchor.locator("[data-issue-update-announcement]"),
     ).toHaveText("Updating Labels…");
+    await waitForIssueUpdatePending(request, "REEF-001");
+    await releaseIssueUpdate(request, "REEF-001");
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-001")).labels)
       .toContain("quick-edit");
@@ -221,6 +198,8 @@ test.describe("Hermetic issue quick-edit save state", () => {
     await expect(second.locator("[data-issue-update-announcement]")).toHaveText(
       "Updating Assignee…",
     );
+    await waitForIssueUpdatePending(request, "REEF-002");
+    await releaseIssueUpdate(request, "REEF-002");
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-002")).assigned_to)
       .toBe("bob");
@@ -228,13 +207,12 @@ test.describe("Hermetic issue quick-edit save state", () => {
   });
 
   test("rolls back and retries a failed Backlog assignee quick edit", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await setIssueUpdateControl(request, [
-      { issueId: "REEF-003", delayMs: 500 },
-    ]);
-    await openExistingWorkspace(page);
+    await setIssueUpdateControl(request, [{ issueId: "REEF-003", hold: true }]);
+    await openWorkspace();
     await page.goto(
       `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
     );
@@ -246,18 +224,22 @@ test.describe("Hermetic issue quick-edit save state", () => {
     const priorityTrigger = row.getByTestId("issue-inline-edit-priority");
     await expect(priorityTrigger).toHaveAttribute("aria-busy", "true");
     await expect(priorityTrigger).toContainText("Medium");
+    await waitForIssueUpdatePending(request, "REEF-003");
+    await releaseIssueUpdate(request, "REEF-003");
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-003")).priority)
       .toBe("medium");
     await expect(priorityTrigger).not.toHaveAttribute("aria-busy");
 
     await setIssueUpdateControl(request, [
-      { issueId: "REEF-003", delayMs: 500, failures: 1 },
+      { issueId: "REEF-003", hold: true, failures: 1 },
     ]);
     await chooseAssignee(page, "REEF-003", "Bob Example");
     const assigneeTrigger = row.getByTestId("issue-inline-edit-assignee");
     await expect(assigneeTrigger).toHaveAttribute("aria-busy", "true");
+    await waitForIssueUpdatePending(request, "REEF-003");
     await expect(assigneeTrigger).toContainText("bob");
+    await releaseIssueUpdate(request, "REEF-003");
     await expect(assigneeTrigger).not.toHaveAttribute("aria-busy");
     await expect(assigneeTrigger).toContainText("—");
     await expect(row.locator("[data-issue-update-announcement]")).toHaveText(
@@ -269,9 +251,12 @@ test.describe("Hermetic issue quick-edit save state", () => {
 
     const retry = page.getByRole("button", { name: "Retry", exact: true });
     await expect(retry).toBeVisible();
+    await setIssueUpdateControl(request, [{ issueId: "REEF-003", hold: true }]);
     await retry.click();
     await expect(assigneeTrigger).toHaveAttribute("aria-busy", "true");
+    await waitForIssueUpdatePending(request, "REEF-003");
     await expect(assigneeTrigger).toContainText("bob");
+    await releaseIssueUpdate(request, "REEF-003");
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-003")).assigned_to)
       .toBe("bob");
@@ -279,14 +264,15 @@ test.describe("Hermetic issue quick-edit save state", () => {
   });
 
   test("keeps Board priority and assignee saves pending independently and flashes both cards", async ({
+    openWorkspace,
     page,
     request,
   }) => {
     await setIssueUpdateControl(request, [
-      { issueId: "REEF-001", delayMs: 700 },
-      { issueId: "REEF-002", delayMs: 700 },
+      { issueId: "REEF-001", hold: true },
+      { issueId: "REEF-002", hold: true },
     ]);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
 
     const first = issueCard(page, "REEF-001");
@@ -307,6 +293,10 @@ test.describe("Hermetic issue quick-edit save state", () => {
       second.locator('[data-issue-update-field="assigned_to"]'),
     ).toHaveAttribute("aria-busy", "true");
     await expect(second).toHaveText(/Updating Assignee…/);
+    await waitForIssueUpdatePending(request, "REEF-001");
+    await waitForIssueUpdatePending(request, "REEF-002");
+    await releaseIssueUpdate(request, "REEF-001");
+    await releaseIssueUpdate(request, "REEF-002");
 
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-002")).assigned_to)
@@ -323,6 +313,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
       .poll(async () => (await fixtureIssue(request, "REEF-001")).priority)
       .toBe("medium");
 
+    await setIssueUpdateControl(request, [{ issueId: "REEF-001", hold: true }]);
     await addLabel(page, "REEF-001", "board-edit", "board");
     const labelsInput = page.getByTestId("issue-quick-edit-labels");
     await expect(labelsInput).toBeDisabled();
@@ -330,6 +321,8 @@ test.describe("Hermetic issue quick-edit save state", () => {
       "aria-busy",
       "true",
     );
+    await waitForIssueUpdatePending(request, "REEF-001");
+    await releaseIssueUpdate(request, "REEF-001");
     await expect
       .poll(async () => (await fixtureIssue(request, "REEF-001")).labels)
       .toContain("board-edit");
@@ -337,6 +330,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
   });
 
   test("keeps concurrent rows independent through failure, rollback, and retry", async ({
+    openWorkspace,
     page,
     request,
   }) => {
@@ -344,7 +338,7 @@ test.describe("Hermetic issue quick-edit save state", () => {
       { issueId: "REEF-001", failures: 1, hold: true },
       { issueId: "REEF-002" },
     ]);
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);
 
     const first = issueRow(page, "REEF-001");

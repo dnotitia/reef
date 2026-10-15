@@ -28,6 +28,18 @@ afterEach(async () => {
   );
 });
 
+const collectStub = `
+if (process.argv.includes('--list')) {
+  require('node:fs').writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE,
+    JSON.stringify({ suites: [{ title: 'fixture.spec.ts', specs:
+      ['chromium', 'visual-matrix', 'sso'].map(projectName => ({
+        file: 'fixture.spec.ts', title: projectName,
+        tests: [{ projectName, expectedStatus: 'passed' }]
+      })) }] }));
+  process.exit(0);
+}
+`;
+
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "reef-build-reuse-"));
   temporaryDirectories.push(root);
@@ -42,7 +54,13 @@ async function fixture() {
   );
   await mkdir(join(web, "scripts"));
   await Promise.all(
-    ["e2e-shards.mjs", "production-build.mjs", "build.mjs"].map((name) =>
+    [
+      "e2e-shards.mjs",
+      "e2e-scheduling.mts",
+      "e2e-duration-profile.json",
+      "production-build.mjs",
+      "build.mjs",
+    ].map((name) =>
       cp(join(packageRoot, "scripts", name), join(web, "scripts", name)),
     ),
   );
@@ -104,7 +122,7 @@ async function fixture() {
   await writeFile(join(web, ".next/standalone/packages/web/server.js"), "");
   await writeFile(
     join(web, "node_modules/.bin/playwright"),
-    `#!${process.execPath}\nconsole.log('BROWSER_STARTED');\n`,
+    `#!${process.execPath}\n${collectStub}console.log('BROWSER_STARTED');\n`,
     { mode: 0o755 },
   );
   const dryRun = execFileSync(
@@ -244,4 +262,121 @@ it("rejects reuse on a different Node runtime", async () => {
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("production build runtime");
   expect(result.stdout).not.toContain("BROWSER_STARTED");
+});
+
+it("runs scheduled native test lists with isolated project output directories", async () => {
+  const { web } = await fixture();
+  await writeFile(
+    join(web, "node_modules/.bin/playwright"),
+    `#!${process.execPath}\n${collectStub}console.log('PLAYWRIGHT_ARGS ' + JSON.stringify(process.argv.slice(2)));console.log('AUTH_MODE ' + process.env.REEF_E2E_AUTH_MODE);\n`,
+    { mode: 0o755 },
+  );
+  const result = run(web);
+  expect(result.status, result.stderr).toBe(0);
+  const invocations = result.stdout
+    .split("\n")
+    .filter((line) => line.includes("PLAYWRIGHT_ARGS "))
+    .map((line) => JSON.parse(line.split("PLAYWRIGHT_ARGS ")[1]));
+  expect(invocations).toEqual([
+    [
+      "test",
+      "--project=chromium",
+      "--test-list=test-results/shard-1/chromium-tests.txt",
+      "--output=test-results/shard-1/chromium",
+      `--reporter=${process.env.CI ? "github" : "list"},json`,
+    ],
+    [
+      "test",
+      "--project=visual-matrix",
+      "--test-list=test-results/shard-1/visual-matrix-tests.txt",
+      "--output=test-results/shard-1/visual-matrix",
+      `--reporter=${process.env.CI ? "github" : "list"},json`,
+    ],
+    [
+      "test",
+      "--project=sso",
+      "--test-list=test-results/shard-1/sso-tests.txt",
+      "--output=test-results/shard-1/sso",
+      `--reporter=${process.env.CI ? "github" : "list"},json`,
+    ],
+  ]);
+  expect(
+    result.stdout
+      .split("\n")
+      .filter((line) => line.includes("AUTH_MODE "))
+      .map((line) => line.split("AUTH_MODE ")[1]),
+  ).toEqual(["local", "local", "sso"]);
+  const timings = JSON.parse(
+    await readFile(join(web, "test-results/e2e-timings.json"), "utf8"),
+  );
+  expect(timings.version).toBe(1);
+  expect(timings.buildAndPreparationMs).toBeGreaterThanOrEqual(0);
+  expect(timings.durationMs).toBeGreaterThan(0);
+  expect(timings.shards).toHaveLength(1);
+  expect(timings.shards[0]).toMatchObject({ shard: 1, total: 1, code: 0 });
+  expect(timings.shards[0].durationMs).toBeGreaterThan(0);
+  expect(
+    timings.shards[0].projects.map(
+      (project: { project: string }) => project.project,
+    ),
+  ).toEqual(["chromium", "visual-matrix", "sso"]);
+  for (const project of timings.shards[0].projects) {
+    expect(project.code).toBe(0);
+    expect(project.durationMs).toBeGreaterThan(0);
+  }
+});
+
+it.each(["chromium", "visual-matrix", "sso"])(
+  "reports a failure in %s without omitting the other project",
+  async (failedProject) => {
+    const { web } = await fixture();
+    await writeFile(
+      join(web, "node_modules/.bin/playwright"),
+      `#!${process.execPath}
+${collectStub}
+const project = process.argv.find((arg) => arg.startsWith('--project='));
+console.log('PROJECT_STARTED ' + project);
+process.exitCode = project === '--project=${failedProject}' ? 7 : 0;
+`,
+      { mode: 0o755 },
+    );
+    const result = run(web);
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stdout).toContain("PROJECT_STARTED --project=chromium");
+    expect(result.stdout).toContain("PROJECT_STARTED --project=visual-matrix");
+    expect(result.stdout).toContain("PROJECT_STARTED --project=sso");
+  },
+);
+
+it("a selected CI shard uses the same global plan and omits empty project phases", async () => {
+  const { web } = await fixture();
+  const result = spawnSync(
+    process.execPath,
+    [join(web, "scripts/e2e-shards.mjs"), "--shard=2/3"],
+    {
+      cwd: web,
+      encoding: "utf8",
+      env: { ...process.env, REEF_E2E_SKIP_BUILD: "1" },
+    },
+  );
+  expect(result.status, result.stderr).toBe(0);
+  expect(
+    await readFile(join(web, "test-results/shard-2/sso-tests.txt"), "utf8"),
+  ).toBe("[sso] › fixture.spec.ts › sso\n");
+  expect(
+    await readFile(
+      join(web, "test-results/shard-2/chromium-tests.txt"),
+      "utf8",
+    ),
+  ).toBe("\n");
+  const timings = JSON.parse(
+    await readFile(join(web, "test-results/e2e-timings.json"), "utf8"),
+  );
+  expect(timings.shards).toHaveLength(1);
+  expect(timings.shards[0]).toMatchObject({ shard: 2, total: 3, testCount: 1 });
+  expect(
+    timings.shards[0].projects.map(
+      (project: { project: string }) => project.project,
+    ),
+  ).toEqual(["sso"]);
 });

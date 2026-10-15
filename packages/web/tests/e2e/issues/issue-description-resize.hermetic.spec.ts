@@ -1,10 +1,6 @@
-import { type APIRequestContext, expect, test } from "@playwright/test";
-import {
-  E2E_MOCK_URL,
-  continueToWorkspace,
-  openExistingWorkspace,
-  resetFixture,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { type APIRequestContext, expect } from "@playwright/test";
+import { E2E_MOCK_URL, continueToWorkspace } from "../harness/fixture";
 import { expectCursorAtPointer } from "../harness/cursor";
 
 const HEIGHT_KEY = "reef:issue-description-height:v1";
@@ -45,12 +41,10 @@ function getMaxHeight(viewportHeight: number) {
 }
 
 test.describe("Hermetic issue description height resize", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "markdown_fixture");
-  });
+  test.use({ scenario: "markdown_fixture" });
 
   test("supports pointer, keyboard, mode sharing, session restore, and narrow opt-out", async ({
+    openWorkspace,
     page,
     request,
   }) => {
@@ -64,7 +58,7 @@ test.describe("Hermetic issue description height resize", () => {
     const startPath = task.start_path;
     if (!startPath) throw new Error("Missing Markdown fixture start path");
 
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto(startPath);
     await expect(page.getByTestId("issue-detail")).toBeVisible();
 

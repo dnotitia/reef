@@ -1,14 +1,18 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { advanceQueryRetries } from "../harness/browser-observations";
+import { expect, type Page } from "@playwright/test";
 import {
+  releaseResponseHold,
   REEF_E2E_VAULT,
   clearPersistedQueryCache,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
   setIssueListFailure,
   waitForIssueListIdle,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "demo_board" });
 
 const ROOT = "REEF-101";
 const MID = "REEF-102";
@@ -130,11 +134,6 @@ async function waitForIssueListPending(
 }
 
 test.describe("Hermetic issue sub-issue loading", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "demo_board");
-  });
-
   test("keeps the detail frame while loading, retains rows on revalidation, and scopes children to the parent", async ({
     page: initialPage,
     context,
@@ -151,12 +150,12 @@ test.describe("Hermetic issue sub-issue loading", () => {
     await clearPersistedQueryCache(page);
     await clearPersistedQueryCacheOnLoad(page);
     await recordIssueChildrenFrames(page);
-    await setIssueListFailure(request, false, 0, 1_200);
+    await setIssueListFailure(request, false, 0, true);
 
     const children = page.getByTestId("issue-children");
     const issueListPending = waitForIssueListPending(request);
     // Release navigation at document commit so locator polling can observe the
-    // detail UI during the 1.2s list delay instead of after DOMContentLoaded.
+    // detail UI while the list response is held.
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues/${ROOT}?view=list`, {
       waitUntil: "commit",
     });
@@ -171,6 +170,7 @@ test.describe("Hermetic issue sub-issue loading", () => {
     await expect(children.locator("a[data-issue-id]")).toHaveCount(0);
     await expect(page.getByTestId("add-sub-issue-trigger")).toBeVisible();
 
+    await releaseResponseHold(request, "issue-list");
     await waitForIssueListIdle(request);
     const midLink = children.locator(`a[data-issue-id="${MID}"]`);
     const shortChildLink = children.locator(
@@ -235,7 +235,7 @@ test.describe("Hermetic issue sub-issue loading", () => {
 
     // Creating a sub-issue invalidates the whole-vault list. Existing child
     // rows stay visible while that background request is delayed.
-    await setIssueListFailure(request, false, 0, 1_200);
+    await setIssueListFailure(request, false, 0, true);
     await page.getByTestId("add-sub-issue-trigger").click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
@@ -277,6 +277,7 @@ test.describe("Hermetic issue sub-issue loading", () => {
     await expect(
       children.locator(`a[data-issue-id="${createdIssue.id}"]`),
     ).toBeVisible();
+    await releaseResponseHold(request, "issue-list");
     await waitForIssueListIdle(request);
     await dialog.getByTestId("new-issue-cancel").click();
     await page.getByTestId("discard-draft-confirm-button").click();
@@ -306,6 +307,7 @@ test.describe("Hermetic issue sub-issue loading", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     await openExistingWorkspace(page);
     await clearPersistedQueryCacheOnLoad(page);
     await setIssueListFailure(request, true);
@@ -314,6 +316,7 @@ test.describe("Hermetic issue sub-issue loading", () => {
     await expect(page.getByTestId("issue-detail")).toBeVisible();
     const children = page.getByTestId("issue-children");
     const error = children.getByTestId("issue-children-error");
+    await advanceQueryRetries(page, error);
     await expect(error).toBeVisible({ timeout: 20_000 });
     await expect(error).toHaveAttribute("role", "alert");
     await expect(error.getByText("Couldn't load sub-issues.")).toBeVisible();

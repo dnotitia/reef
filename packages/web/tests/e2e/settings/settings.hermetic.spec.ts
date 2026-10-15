@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
-  resetFixture,
 } from "../harness/fixture";
 
 function reefVault(
@@ -18,11 +18,6 @@ function reefVault(
 }
 
 test.describe("Hermetic settings workflows", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
-
   test("contains the active-workspace selector and keyboard focus ring at narrow widths", async ({
     page,
   }) => {

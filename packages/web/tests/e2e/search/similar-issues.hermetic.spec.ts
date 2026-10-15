@@ -1,10 +1,6 @@
-import { expect, test } from "@playwright/test";
-import {
-  REEF_E2E_VAULT,
-  openExistingWorkspace,
-  readFixtureState,
-  resetFixture,
-} from "../harness/fixture";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
+import { REEF_E2E_VAULT, readFixtureState } from "../harness/fixture";
 
 function reefVault(
   state: Awaited<ReturnType<typeof readFixtureState>>,
@@ -17,16 +13,14 @@ function reefVault(
 }
 
 test.describe("Hermetic similar issue hints", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "configured");
-  });
+  test.use({ scenario: "configured" });
 
   test("shows advisory similar issues while drafting without blocking create", async ({
+    openWorkspace,
     page,
     request,
   }) => {
-    await openExistingWorkspace(page);
+    await openWorkspace();
     await page.goto("/workspace/reef-e2e/issues?view=list");
 
     await page.locator('[data-testid="new-issue-trigger"]').click();

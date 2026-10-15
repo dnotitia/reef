@@ -12,10 +12,6 @@ export async function readRawBody(req) {
   return Buffer.concat(chunks);
 }
 
-export function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function headerQuoted(value) {
   return String(value)
     .replace(/["\\\r\n]/g, "_")

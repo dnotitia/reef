@@ -1,9 +1,14 @@
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import {
+  advanceQueryRetries,
+  waitForPaint,
+  cumulativeLayoutShift,
+} from "../harness/browser-observations";
 import {
   type Page,
   type Response,
   type TestInfo,
   expect,
-  test,
 } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
@@ -14,6 +19,8 @@ import {
   setIssueReorderControl,
   signInAsAlice,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "large_vault" });
 
 const LARGE_VAULT = "reef-e2e";
 const TAIL_ISSUE_ID = "REEF-1124";
@@ -411,11 +418,6 @@ function assertTitlePageOrder(
 }
 
 test.describe("large issue list virtualization", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "large_vault");
-  });
-
   test("keeps the selected List viewport positive and virtualized at an effective 200% viewport", async ({
     page,
   }) => {
@@ -452,6 +454,7 @@ test.describe("large issue list virtualization", () => {
       page,
     }, testInfo) => {
       test.setTimeout(120_000);
+      const responses = issueListResponses(page);
       await page.setViewportSize(viewport);
       await openLargeList(page, "sort=reef_id&order=asc");
 
@@ -468,8 +471,22 @@ test.describe("large issue list virtualization", () => {
       const row = page.locator(`[data-issue-id="${CHECKBOX_FOCUS_ISSUE_ID}"]`);
       for (let index = 0; index < 20; index += 1) {
         if (await row.isVisible().catch(() => false)) break;
+        await waitForPaint(page);
+        const pageCount = () =>
+          responses.filter(({ url: raw }) => {
+            const url = new URL(raw);
+            return (
+              url.searchParams.get("limit") === "100" &&
+              url.searchParams.get("sort_field") === "reef_id" &&
+              url.searchParams.get("sort_order") === "asc"
+            );
+          }).length;
+        const before = pageCount();
         await scrollToListEnd(page);
-        await page.waitForTimeout(100);
+        await expect
+          .poll(async () => (await row.isVisible()) || pageCount() > before)
+          .toBe(true);
+        await waitForPaint(page);
       }
       await expect(row).toBeVisible({ timeout: 20_000 });
 
@@ -597,7 +614,7 @@ test.describe("large issue list virtualization", () => {
   }) => {
     test.setTimeout(120_000);
     for (const order of ["asc", "desc"] as const) {
-      await resetFixture(request, "large_vault");
+      if (order !== "asc") await resetFixture(request, "large_vault");
       const titlePage = await page.context().newPage();
       const initialResponse = waitForSortedIssueListPage(
         titlePage,
@@ -682,7 +699,8 @@ test.describe("large issue list virtualization", () => {
     test.setTimeout(120_000);
     for (const field of ["created_at", "updated_at"] as const) {
       for (const order of ["asc", "desc"] as const) {
-        await resetFixture(request, "large_vault");
+        if (field !== "created_at" || order !== "asc")
+          await resetFixture(request, "large_vault");
         const initialResponse = waitForSortedIssueListPage(
           page,
           field,
@@ -733,7 +751,7 @@ test.describe("large issue list virtualization", () => {
   }) => {
     test.setTimeout(120_000);
     for (const order of ["asc", "desc"] as const) {
-      await resetFixture(request, "large_vault");
+      if (order !== "asc") await resetFixture(request, "large_vault");
       const ticketPage = await page.context().newPage();
       const requests = issueListRequests(ticketPage);
       const initialResponse = waitForSortedIssueListPage(
@@ -823,7 +841,8 @@ test.describe("large issue list virtualization", () => {
     test.setTimeout(120_000);
     for (const field of ["start_date", "due_date"] as const) {
       for (const order of ["asc", "desc"] as const) {
-        await resetFixture(request, "large_vault");
+        if (field !== "start_date" || order !== "asc")
+          await resetFixture(request, "large_vault");
         const initialResponse = waitForSortedIssueListPage(
           page,
           field,
@@ -1053,26 +1072,7 @@ test.describe("large issue list virtualization", () => {
     ).toBeVisible({
       timeout: 20_000,
     });
-    const cls = await page.evaluate(
-      () =>
-        new Promise<number>((resolve) => {
-          let value = 0;
-          const observer = new PerformanceObserver((list) => {
-            for (const entry of list.getEntries()) {
-              const shift = entry as PerformanceEntry & {
-                value: number;
-                hadRecentInput: boolean;
-              };
-              if (!shift.hadRecentInput) value += shift.value;
-            }
-          });
-          observer.observe({ type: "layout-shift", buffered: true });
-          setTimeout(() => {
-            observer.disconnect();
-            resolve(value);
-          }, 300);
-        }),
-    );
+    const cls = await cumulativeLayoutShift(page);
     expect(cls).toBeLessThan(0.1);
 
     await resetFixture(request, "configured");
@@ -1085,11 +1085,6 @@ test.describe("large issue list virtualization", () => {
 });
 
 test.describe("large Board column virtualization", () => {
-  test.beforeEach(async ({ context, request }) => {
-    await context.clearCookies();
-    await resetFixture(request, "large_vault");
-  });
-
   test("restores default Rank Board focus and pixel anchor after Reports navigation", async ({
     page,
   }) => {
@@ -1239,6 +1234,7 @@ test.describe("large Board column virtualization", () => {
     page,
     request,
   }) => {
+    await page.clock.install();
     await setIssueListFailure(request, true);
     const boardRequests: string[] = [];
     const isBoardProjection = (url: URL) => {
@@ -1262,6 +1258,12 @@ test.describe("large Board column virtualization", () => {
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page, LARGE_VAULT);
     await page.goto(`/workspace/${LARGE_VAULT}/issues?view=board`);
+    await advanceQueryRetries(
+      page,
+      page
+        .locator('[role="alert"]')
+        .filter({ hasText: "Failed to load some issues." }),
+    );
     await expect(
       page
         .locator('[role="alert"]')
@@ -2358,49 +2360,47 @@ test.describe("large Board column virtualization", () => {
     expect(Math.abs(after.offset - before.offset)).toBeLessThanOrEqual(2);
   });
 
-  test("does not carry a same-ID Board anchor into another workspace", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured_multi");
-    await context.clearCookies();
-    await clearPersistedQueryCacheOnLoad(page);
-    await openExistingWorkspace(page, "reef-alpha");
+  test.extend({ scenario: "configured_multi" })(
+    "does not carry a same-ID Board anchor into another workspace",
+    async ({ page }) => {
+      await clearPersistedQueryCacheOnLoad(page);
+      await openExistingWorkspace(page, "reef-alpha");
 
-    const boardUrl = (vault: string) => `/workspace/${vault}/issues?view=board`;
-    await page.goto(boardUrl("reef-alpha"));
-    const firstWorkspaceCard = page.locator(
-      '[data-group-by="status"][data-group-value="todo"] [data-testid="kanban-card"][data-issue-id="REEF-001"]',
-    );
-    await expect(firstWorkspaceCard).toBeVisible();
-    await firstWorkspaceCard.focus();
-    await expect(firstWorkspaceCard).toHaveAttribute(
-      "data-keyboard-focused",
-      "true",
-    );
+      const boardUrl = (vault: string) =>
+        `/workspace/${vault}/issues?view=board`;
+      await page.goto(boardUrl("reef-alpha"));
+      const firstWorkspaceCard = page.locator(
+        '[data-group-by="status"][data-group-value="todo"] [data-testid="kanban-card"][data-issue-id="REEF-001"]',
+      );
+      await expect(firstWorkspaceCard).toBeVisible();
+      await firstWorkspaceCard.focus();
+      await expect(firstWorkspaceCard).toHaveAttribute(
+        "data-keyboard-focused",
+        "true",
+      );
 
-    await page.getByTestId("sidebar-workspace-trigger").click();
-    await page.getByTestId("workspace-switcher-option-reef-zeta").click();
-    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues(?:\?|$)/);
-    const sameIdInOtherWorkspace = page.locator(
-      '[data-group-by="status"][data-group-value="todo"] [data-testid="kanban-card"][data-issue-id="REEF-001"]',
-    );
-    await expect(sameIdInOtherWorkspace).toBeVisible();
-    await expect(sameIdInOtherWorkspace).not.toHaveAttribute(
-      "data-keyboard-focused",
-      "true",
-    );
-    await expect(sameIdInOtherWorkspace).not.toBeFocused();
+      await page.getByTestId("sidebar-workspace-trigger").click();
+      await page.getByTestId("workspace-switcher-option-reef-zeta").click();
+      await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues(?:\?|$)/);
+      const sameIdInOtherWorkspace = page.locator(
+        '[data-group-by="status"][data-group-value="todo"] [data-testid="kanban-card"][data-issue-id="REEF-001"]',
+      );
+      await expect(sameIdInOtherWorkspace).toBeVisible();
+      await expect(sameIdInOtherWorkspace).not.toHaveAttribute(
+        "data-keyboard-focused",
+        "true",
+      );
+      await expect(sameIdInOtherWorkspace).not.toBeFocused();
 
-    await page.getByTestId("sidebar-workspace-trigger").click();
-    await page.getByTestId("workspace-switcher-option-reef-alpha").click();
-    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues(?:\?|$)/);
-    await expect(firstWorkspaceCard).toBeVisible();
-    await expect(firstWorkspaceCard).toHaveAttribute(
-      "data-keyboard-focused",
-      "true",
-    );
-    await expect(firstWorkspaceCard).toBeFocused();
-  });
+      await page.getByTestId("sidebar-workspace-trigger").click();
+      await page.getByTestId("workspace-switcher-option-reef-alpha").click();
+      await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues(?:\?|$)/);
+      await expect(firstWorkspaceCard).toBeVisible();
+      await expect(firstWorkspaceCard).toHaveAttribute(
+        "data-keyboard-focused",
+        "true",
+      );
+      await expect(firstWorkspaceCard).toBeFocused();
+    },
+  );
 });

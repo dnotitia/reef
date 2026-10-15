@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { test } from "../harness/workspace-fixture";
+import { expect } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
   readIndexedDbConfig,
-  resetFixture,
   signInAsAlice,
   setInstallationControl,
   waitForPasswordLogin,
@@ -18,10 +18,6 @@ import {
  * route tree end to end.
  */
 test.describe("workspace URL routing (REEF-315)", () => {
-  test.beforeEach(async ({ request }) => {
-    await resetFixture(request, "configured");
-  });
-
   test("AC1: opens the board at a vault-scoped URL", async ({ page }) => {
     await openExistingWorkspace(page);
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/);
@@ -44,7 +40,7 @@ test.describe("workspace URL routing (REEF-315)", () => {
     // so a hydration or route-transition race cannot be hidden by a fresh tab.
     await page.reload();
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
-    await page.waitForTimeout(1_000);
+    await expect(page.locator("[data-interaction-ready=true]")).toHaveCount(1);
 
     const planningLink = page.getByRole("link", { name: "Planning" });
     await expect(planningLink).toHaveAttribute(
@@ -122,35 +118,30 @@ test.describe("workspace URL routing (REEF-315)", () => {
     await expect(page).toHaveURL(/\/login$/, { timeout: 10_000 });
   });
 
-  test("a bare vault URL remains explicit through login", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "configured_multi");
-    await page.goto("/workspace/raw-vault/issues");
-    await expect(page).toHaveURL(
-      /\/login\?redirect=%2Fworkspace%2Fraw-vault%2Fissues$/,
-    );
-    await waitForPasswordLogin(page);
+  test.extend({ scenario: "configured_multi" })(
+    "a bare vault URL remains explicit through login",
+    async ({ page }) => {
+      await page.goto("/workspace/raw-vault/issues");
+      await expect(page).toHaveURL(
+        /\/login\?redirect=%2Fworkspace%2Fraw-vault%2Fissues$/,
+      );
+      await waitForPasswordLogin(page);
 
-    await page.locator('[data-testid="login-username"]').fill("alice");
-    await page.locator('[data-testid="login-password"]').fill("password");
-    await page.locator('[data-testid="login-submit"]').click();
+      await page.locator('[data-testid="login-username"]').fill("alice");
+      await page.locator('[data-testid="login-password"]').fill("password");
+      await page.locator('[data-testid="login-submit"]').click();
 
-    await expect(page).toHaveURL(/\/workspace\/raw-vault\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await expect(
-      page.locator('[data-testid="workspace-access-denied"]'),
-    ).toBeVisible();
-  });
+      await expect(page).toHaveURL(/\/workspace\/raw-vault\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      await expect(
+        page.locator('[data-testid="workspace-access-denied"]'),
+      ).toBeVisible();
+    },
+  );
 });
 
 test.describe("workspace root redirects (REEF-424)", () => {
-  test.beforeEach(async ({ request }) => {
-    await resetFixture(request, "configured");
-  });
-
   test("B1: /workspace opens the remembered Reef workspace", async ({
     page,
   }) => {
@@ -162,114 +153,114 @@ test.describe("workspace root redirects (REEF-424)", () => {
     await expect(page.getByText("Initial issue Alpha")).toBeVisible();
   });
 
-  test("B2: /workspace sends a signed-in user without a default to onboarding", async ({
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "empty");
-    await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+  test.extend({ scenario: "empty" })(
+    "B2: /workspace sends a signed-in user without a default to onboarding",
+    async ({ page }) => {
+      await signInAsAlice(page);
+      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    await page.goto("/workspace");
+      await page.goto("/workspace");
 
-    await expect(page).toHaveURL(/\/onboarding$/);
-  });
+      await expect(page).toHaveURL(/\/onboarding$/);
+    },
+  );
 
-  test("login re-entry preserves a remembered unavailable workspace for guidance", async ({
-    context,
-    page,
-    request,
-  }) => {
-    await resetFixture(request, "installation_drift");
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
-    await expect
-      .poll(() => readIndexedDbConfig(page, "vault"))
-      .toBe("reef-e2e");
+  test.extend({ scenario: "installation_drift" })(
+    "login re-entry preserves a remembered unavailable workspace for guidance",
+    async ({ context, page, request }) => {
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+      await expect
+        .poll(() => readIndexedDbConfig(page, "vault"))
+        .toBe("reef-e2e");
 
-    for (const vault of ["reef-e2e", "reef-zeta"]) {
+      for (const vault of ["reef-e2e", "reef-zeta"]) {
+        await setInstallationControl(request, {
+          vault,
+          lifecycle: "uninstalled",
+          memberLookup: "healthy",
+        });
+      }
+      const unavailableResponse = await page.request.get("/api/vaults");
+      expect(unavailableResponse.ok()).toBe(true);
+      const unavailablePayload = (await unavailableResponse.json()) as {
+        vaults: Array<{ name: string; installation_active: boolean | null }>;
+      };
+      expect(
+        unavailablePayload.vaults.every(
+          (vault) => vault.installation_active !== true,
+        ),
+      ).toBe(true);
+
+      await context.clearCookies();
+      await signInAsAlice(page);
+      await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
+      await expect
+        .poll(() => readIndexedDbConfig(page, "vault"))
+        .toBe("reef-e2e");
+      const status = page.getByTestId("workspace-installation-reef-e2e");
+      await expect(status).toHaveAttribute(
+        "data-status",
+        "management_required",
+      );
+      const installationStatus = await page.request.get(
+        "/api/vaults/reef-e2e/installation",
+      );
+      expect(installationStatus.ok()).toBe(true);
+      expect((await installationStatus.json()).installation_status).toBe(
+        "uninstalled",
+      );
+      await expect(page.getByTestId("greenfield-vault-name-input")).toHaveCount(
+        0,
+      );
+      await expect(
+        page.getByRole("button", { name: "Restore installation" }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Request fresh setup" }),
+      ).toHaveCount(0);
+      await expect(page.getByTestId("access-denied-onboarding")).toHaveCount(0);
+
+      await page.goto("/workspace");
+      await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
+
+      await page.getByRole("button", { name: "Check status" }).click();
+      await expect(
+        page.getByRole("button", { name: "Check status" }),
+      ).toBeEnabled();
+      await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
+
       await setInstallationControl(request, {
-        vault,
-        lifecycle: "uninstalled",
+        vault: "reef-e2e",
+        lifecycle: "active",
+        blockedReason: "null",
         memberLookup: "healthy",
       });
-    }
-    const unavailableResponse = await page.request.get("/api/vaults");
-    expect(unavailableResponse.ok()).toBe(true);
-    const unavailablePayload = (await unavailableResponse.json()) as {
-      vaults: Array<{ name: string; installation_active: boolean | null }>;
-    };
-    expect(
-      unavailablePayload.vaults.every(
-        (vault) => vault.installation_active !== true,
-      ),
-    ).toBe(true);
+      await page.getByRole("button", { name: "Check status" }).click();
+      await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId("workspace-access-denied")).toHaveCount(0);
 
-    await context.clearCookies();
-    await signInAsAlice(page);
-    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
-    await expect
-      .poll(() => readIndexedDbConfig(page, "vault"))
-      .toBe("reef-e2e");
-    const status = page.getByTestId("workspace-installation-reef-e2e");
-    await expect(status).toHaveAttribute("data-status", "management_required");
-    const installationStatus = await page.request.get(
-      "/api/vaults/reef-e2e/installation",
-    );
-    expect(installationStatus.ok()).toBe(true);
-    expect((await installationStatus.json()).installation_status).toBe(
-      "uninstalled",
-    );
-    await expect(page.getByTestId("greenfield-vault-name-input")).toHaveCount(
-      0,
-    );
-    await expect(
-      page.getByRole("button", { name: "Restore installation" }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole("button", { name: "Request fresh setup" }),
-    ).toHaveCount(0);
-    await expect(page.getByTestId("access-denied-onboarding")).toHaveCount(0);
-
-    await page.goto("/workspace");
-    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
-      timeout: 15_000,
-    });
-    await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
-
-    await page.getByRole("button", { name: "Check status" }).click();
-    await expect(
-      page.getByRole("button", { name: "Check status" }),
-    ).toBeEnabled();
-    await expect(page.getByTestId("workspace-access-denied")).toBeVisible();
-
-    await setInstallationControl(request, {
-      vault: "reef-e2e",
-      lifecycle: "active",
-      blockedReason: "null",
-      memberLookup: "healthy",
-    });
-    await page.getByRole("button", { name: "Check status" }).click();
-    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.getByTestId("workspace-access-denied")).toHaveCount(0);
-
-    const fixtureState = await readFixtureState(request);
-    expect(
-      fixtureState.calls.some(
-        (call) =>
-          ["POST", "PUT", "DELETE"].includes(call.method) &&
-          call.path.includes("/installations/"),
-      ),
-    ).toBe(false);
-  });
+      const fixtureState = await readFixtureState(request);
+      expect(
+        fixtureState.calls.some(
+          (call) =>
+            ["POST", "PUT", "DELETE"].includes(call.method) &&
+            call.path.includes("/installations/"),
+        ),
+      ).toBe(false);
+    },
+  );
 
   test("B3-B4: an explicit vault root opens Issues and preserves every query value", async ({
     page,

@@ -1,11 +1,13 @@
-import { type Page, expect, test } from "@playwright/test";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+import { type Page, expect } from "@playwright/test";
 import {
   continueToWorkspace,
   readIndexedDbConfig,
-  resetFixture,
   signInAsAlice,
   setInstallationControl,
 } from "../harness/fixture";
+
+const test = workspaceTest.extend({ scenario: "configured_multi" });
 
 const FAVORITES_KEY = "workspace_favorites";
 
@@ -19,10 +21,6 @@ async function openMultiVaultWorkspace(
 }
 
 test.describe("Hermetic workspace favorites", () => {
-  test.beforeEach(async ({ request }) => {
-    await resetFixture(request, "configured_multi");
-  });
-
   test("groups, searches, navigates, restores, and cleans up browser-local favorites", async ({
     page,
     request,
