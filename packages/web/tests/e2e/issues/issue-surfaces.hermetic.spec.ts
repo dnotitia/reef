@@ -2498,7 +2498,7 @@ test.describe("Hermetic issue route surfaces", () => {
 
     const title = "Created mention body survives re-open";
     const body = "@alice plain @ghost-v4";
-    await page.getByTestId("new-issue-trigger").click();
+    await page.locator('button[data-testid="new-issue-trigger"]').click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
     await dialog.getByTestId("new-issue-title-input").fill(title);
