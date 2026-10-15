@@ -4,6 +4,7 @@ import {
   NotificationCreateInputSchema,
   NotificationStateSchema,
   PersonalNotificationListInputSchema,
+  PersonalNotificationSchema,
   SubscriptionSourceSchema,
   SubscriptionUpsertInputSchema,
   buildNotificationKey,
@@ -105,6 +106,62 @@ describe("notification and subscription contracts", () => {
       PersonalNotificationListInputSchema.safeParse({
         recipient: "kim",
         workspaces: ["reef-acme", "Bad Name"],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates source issue and original status-transition availability", () => {
+    const notification = {
+      id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+      notification_key: buildNotificationKey({
+        recipient: "kim",
+        sourceType: "issue_activity",
+        sourceRef: "status:1",
+      }),
+      recipient: "kim",
+      reef_id: "REEF-1",
+      source_type: "issue_activity",
+      source_ref: "status:1",
+      event_type: "status_change",
+      actor: "lee",
+      occurred_at: "2026-07-28T00:00:00.000Z",
+      state: "unread",
+      workspace: "reef-alpha",
+      issue_context: { availability: "available", title: "Alpha issue" },
+      status_change_context: {
+        availability: "available",
+        from: "todo",
+        to: "in_progress",
+      },
+    };
+
+    expect(PersonalNotificationSchema.parse(notification)).toMatchObject(
+      notification,
+    );
+    expect(
+      PersonalNotificationSchema.safeParse({
+        ...notification,
+        issue_context: { availability: "unavailable", title: "Secret title" },
+      }).success,
+    ).toBe(false);
+    expect(
+      PersonalNotificationSchema.safeParse({
+        ...notification,
+        status_change_context: {
+          availability: "available",
+          from: "not-a-status",
+          to: "in_progress",
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      PersonalNotificationSchema.safeParse({
+        ...notification,
+        status_change_context: {
+          availability: "unavailable",
+          from: "todo",
+          to: "in_progress",
+        },
       }).success,
     ).toBe(false);
   });

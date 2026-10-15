@@ -43,9 +43,12 @@ test.describe("AKB account denial", () => {
     await setAkbAccountDenial(request, "membership_required");
     await page.reload();
 
-    await expect(page).toHaveURL(/\/login\?/, {
-      timeout: 15_000,
-    });
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === "/login" &&
+        url.searchParams.get("sso_error") === "membership_required",
+      { timeout: 15_000 },
+    );
     const loginUrl = new URL(page.url());
     expect(loginUrl.pathname).toBe("/login");
     expect(loginUrl.searchParams.get("sso_error")).toBe("membership_required");

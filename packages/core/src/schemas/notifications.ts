@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StatusEnum } from "./issues/metadata";
 import { VaultNameSchema } from "./workspace/config";
 
 const NonEmptyIdentitySchema = z.string().trim().min(1);
@@ -63,8 +64,57 @@ export const NotificationRowSchema = z.looseObject({
   meta: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
+export const PersonalNotificationIssueContextSchema = z.discriminatedUnion(
+  "availability",
+  [
+    z.strictObject({
+      availability: z.literal("available"),
+      title: NonEmptyIdentitySchema,
+    }),
+    z.strictObject({ availability: z.literal("unavailable"), title: z.null() }),
+  ],
+);
+
+export const PersonalNotificationStatusChangeContextSchema =
+  z.discriminatedUnion("availability", [
+    z.strictObject({
+      availability: z.literal("available"),
+      from: StatusEnum,
+      to: StatusEnum,
+    }),
+    z.strictObject({
+      availability: z.literal("unavailable"),
+      from: z.null(),
+      to: z.null(),
+    }),
+  ]);
+
 export const PersonalNotificationSchema = NotificationRowSchema.extend({
   workspace: VaultNameSchema,
+  issue_context: PersonalNotificationIssueContextSchema,
+  status_change_context:
+    PersonalNotificationStatusChangeContextSchema.nullable(),
+}).superRefine((notification, context) => {
+  if (
+    notification.event_type === "status_change" &&
+    notification.status_change_context === null
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["status_change_context"],
+      message: "status-change notifications require a source transition state",
+    });
+  }
+  if (
+    notification.event_type !== "status_change" &&
+    notification.status_change_context !== null
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["status_change_context"],
+      message: "only status-change notifications may carry a source transition",
+    });
+  }
 });
 
 export const SubscriptionIdentitySchema = z.strictObject({

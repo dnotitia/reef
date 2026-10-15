@@ -25,6 +25,13 @@ const mocks = vi.hoisted(() => ({
       workspace: string;
       occurred_at: string;
       state: "unread" | "read" | "archived";
+      issue_context:
+        | { availability: "available"; title: string }
+        | { availability: "unavailable"; title: null };
+      status_change_context:
+        | { availability: "available"; from: string; to: string }
+        | { availability: "unavailable"; from: null; to: null }
+        | null;
     }>,
     unreadCount: 0,
     isLoading: false,
@@ -57,6 +64,13 @@ function makeNotification(
     event_type: string;
     actor: string;
     workspace: string;
+    issue_context:
+      | { availability: "available"; title: string }
+      | { availability: "unavailable"; title: null };
+    status_change_context:
+      | { availability: "available"; from: string; to: string }
+      | { availability: "unavailable"; from: null; to: null }
+      | null;
   }> = {},
 ) {
   return {
@@ -69,6 +83,11 @@ function makeNotification(
     event_type: overrides.event_type ?? "comment_created",
     actor: overrides.actor ?? "bob",
     workspace: overrides.workspace ?? "reef-acme",
+    issue_context: overrides.issue_context ?? {
+      availability: "available",
+      title: `Title for ${issue}`,
+    },
+    status_change_context: overrides.status_change_context ?? null,
     occurred_at: "2026-07-28T00:00:00.000Z",
     state,
   };
@@ -112,6 +131,73 @@ describe("NotificationInboxPage", () => {
     expect(time).toHaveAttribute("title", "Jul 28, 2026, 00:00");
   });
 
+  it("prioritizes source issue titles and original status transitions, with explicit unavailable states", () => {
+    mocks.inboxState.notifications = [
+      makeNotification("status", "unread", "REEF-001", {
+        event_type: "status_change",
+        issue_context: {
+          availability: "available",
+          title: "A long issue title that must wrap instead of disappearing",
+        },
+        status_change_context: {
+          availability: "available",
+          from: "todo",
+          to: "in_progress",
+        },
+      }),
+      makeNotification("missing", "read", "REEF-002", {
+        event_type: "status_change",
+        issue_context: { availability: "unavailable", title: null },
+        status_change_context: {
+          availability: "unavailable",
+          from: null,
+          to: null,
+        },
+      }),
+    ];
+    renderPage();
+
+    const [availableRow, unavailableRow] =
+      screen.getAllByTestId("notification-item");
+    expect(availableRow?.textContent?.indexOf("REEF-001")).toBeLessThan(
+      availableRow?.textContent?.indexOf(
+        "A long issue title that must wrap instead of disappearing",
+      ),
+    );
+    expect(
+      within(availableRow as HTMLElement).getByText("Todo"),
+    ).toBeInTheDocument();
+    expect(
+      within(availableRow as HTMLElement).getByText("In Progress"),
+    ).toBeInTheDocument();
+    expect(
+      within(availableRow as HTMLElement).getByText("Status changed"),
+    ).toBeInTheDocument();
+    expect(
+      within(availableRow as HTMLElement).getByTestId("notification-open"),
+    ).toHaveAccessibleName(
+      /REEF-001\s*A long issue title that must wrap instead of disappearing\s*Status changed\s*Todo\s*In Progress\s*bob\s*reef-acme\s*Jul 28, 2026, 00:00\s*Unread/u,
+    );
+    expect(
+      within(unavailableRow as HTMLElement).getByText(
+        "Issue title unavailable",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(unavailableRow as HTMLElement).getByText(
+        "Status change details unavailable",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(unavailableRow as HTMLElement).queryByText("Todo"),
+    ).toBeNull();
+    expect(
+      screen.getByText(
+        "Recent collaboration changes across your workspaces · up to 100 unread and 100 read notifications.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("keeps matching notification keys distinct by source workspace", async () => {
     mocks.inboxState.notifications = [
       makeNotification("duplicate", "unread", "REEF-001"),
@@ -127,10 +213,11 @@ describe("NotificationInboxPage", () => {
         .getAllByTestId("notification-workspace")
         .map((item) => item.textContent),
     ).toEqual(["reef-acme", "odd_workspace"]);
+    const oddWorkspaceRow = screen
+      .getAllByTestId("notification-item")
+      .find((row) => row.getAttribute("data-workspace") === "odd_workspace");
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-001 in odd_workspace",
-      }),
+      within(oddWorkspaceRow as HTMLElement).getByTestId("notification-open"),
     );
 
     await waitFor(() =>
@@ -150,10 +237,9 @@ describe("NotificationInboxPage", () => {
     mocks.mutateAsync.mockReturnValueOnce(read.promise);
     renderPage();
 
+    const firstRow = screen.getAllByTestId("notification-item")[0];
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-001 in reef-acme",
-      }),
+      within(firstRow as HTMLElement).getByTestId("notification-open"),
     );
 
     await waitFor(() =>
@@ -165,9 +251,7 @@ describe("NotificationInboxPage", () => {
     );
     expect(mocks.push).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-001 in reef-acme",
-      }),
+      within(firstRow as HTMLElement).getByTestId("notification-open"),
     ).toBeDisabled();
     read.resolve({});
     await waitFor(() => expect(mocks.push).toHaveBeenCalledOnce());
@@ -188,11 +272,7 @@ describe("NotificationInboxPage", () => {
     expect(
       screen.getByText("You were mentioned in an issue"),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-003 in reef-acme",
-      }),
-    );
+    fireEvent.click(screen.getByTestId("notification-open"));
 
     await waitFor(() =>
       expect(mocks.mutateAsync).toHaveBeenCalledWith({
@@ -226,11 +306,7 @@ describe("NotificationInboxPage", () => {
     mocks.mutateAsync.mockRejectedValueOnce(new Error("read failed"));
     renderPage();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-005 in reef-acme",
-      }),
-    );
+    fireEvent.click(screen.getByTestId("notification-open"));
 
     await waitFor(() => expect(mocks.push).not.toHaveBeenCalled());
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -247,11 +323,7 @@ describe("NotificationInboxPage", () => {
     );
     renderPage();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-005 in reef-acme",
-      }),
-    );
+    fireEvent.click(screen.getByTestId("notification-open"));
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
@@ -297,11 +369,7 @@ describe("NotificationInboxPage", () => {
     ];
     renderPage();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-003 in reef-acme",
-      }),
-    );
+    fireEvent.click(screen.getByTestId("notification-open"));
 
     await waitFor(() =>
       expect(mocks.mutateAsync).toHaveBeenCalledWith({
@@ -325,11 +393,7 @@ describe("NotificationInboxPage", () => {
     ];
     renderPage();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Open activity for REEF-004 in reef-acme",
-      }),
-    );
+    fireEvent.click(screen.getByTestId("notification-open"));
 
     await waitFor(() =>
       expect(mocks.push).toHaveBeenCalledWith(
@@ -392,9 +456,7 @@ describe("NotificationInboxPage", () => {
     const busyArchive = within(busyRow).getByRole("button", {
       name: "Archive notification for REEF-001 in reef-acme",
     });
-    const idleOpen = within(idleRow).getByRole("button", {
-      name: "Open activity for REEF-002 in reef-acme",
-    });
+    const idleOpen = within(idleRow).getByTestId("notification-open");
 
     fireEvent.click(busyArchive);
     expect(busyArchive).toBeDisabled();

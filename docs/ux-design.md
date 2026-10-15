@@ -1010,14 +1010,17 @@ caps at `9+`, while assistive text announces `100 or more unread notifications`
 (or the equivalent localized wording) when the boundary is reached. The
 selected workspace in the URL does not filter the Inbox.
 
-The Inbox list is independent from the on-demand AI surfaces. Each row shows
-the event type, actor, related issue, source workspace, occurred time, and read
+The Inbox list is independent from the on-demand AI surfaces. Each row leads
+with the source issue id and title, followed by the event and actor. Status
+changes show the original from/to transition recorded for that event, rather
+than the issue's current status; unavailable source details are labeled
+explicitly. The row also names its source workspace, occurred time, and read
 state. Opening a row marks that workspace's unread notification read before
 navigating to the source issue and its comment, activity, or description
 anchor. Mark unread and Archive are server state transitions; the browser does
 not persist notification data or a last-visit marker. Empty, loading, and
 fetch-failure states remain distinct, and a failed workspace discovery or
-notification source read shows an error instead of a partial list.
+notification list read shows an error instead of a partial list.
 
 ### Ask AI
 

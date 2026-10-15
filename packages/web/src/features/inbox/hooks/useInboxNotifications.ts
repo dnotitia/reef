@@ -3,6 +3,7 @@
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { apiFetch, throwHttpError, type HttpError } from "@/lib/apiClient";
 import {
+  type Notification,
   NotificationRowSchema,
   NotificationStateSchema,
   PersonalNotificationSchema,
@@ -145,7 +146,7 @@ export function useUpdateNotificationState() {
       workspace: string;
       notificationKey: string;
       state: NotificationState;
-    }): Promise<PersonalNotification> => {
+    }): Promise<Notification> => {
       const parsedState = NotificationStateSchema.parse(state);
       const response = await apiFetch(
         `/api/notifications/${encodeURIComponent(notificationKey)}`,
@@ -162,10 +163,7 @@ export function useUpdateNotificationState() {
         );
       }
       const body = (await response.json()) as { notification?: unknown };
-      return PersonalNotificationSchema.parse({
-        ...NotificationRowSchema.parse(body.notification),
-        workspace,
-      });
+      return NotificationRowSchema.parse(body.notification);
     },
     onSuccess: (updated, variables) => {
       if (!login) return;
@@ -175,10 +173,20 @@ export function useUpdateNotificationState() {
         (current) => {
           if (!current) return current;
           const identity = `${variables.workspace}\0${variables.notificationKey}`;
+          const previous = current.find(
+            (notification) => notificationIdentity(notification) === identity,
+          );
           const remaining = current.filter(
             (notification) => notificationIdentity(notification) !== identity,
           );
-          if (updated.state !== "archived") remaining.push(updated);
+          if (updated.state !== "archived" && previous) {
+            remaining.push({
+              ...previous,
+              state: updated.state,
+              read_at: updated.read_at,
+              archived_at: updated.archived_at,
+            });
+          }
           return boundedVisibleList(remaining);
         },
       );

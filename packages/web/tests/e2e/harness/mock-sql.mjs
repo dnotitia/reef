@@ -448,6 +448,20 @@ export function handleSql(state, vault, sql, username) {
   }
 
   if (
+    lower.startsWith("select reef_id, title from reef_issues where reef_id in")
+  ) {
+    const issueIds = new Set(
+      [...normalized.matchAll(/'((?:''|[^'])*)'/gu)].map((match) =>
+        match[1].replaceAll("''", "'"),
+      ),
+    );
+    const rows = vault.issues
+      .filter((issue) => issueIds.has(issue.reef_id))
+      .map(({ reef_id, title }) => ({ reef_id, title }));
+    return tableQuery(["reef_id", "title"], rows);
+  }
+
+  if (
     lower.startsWith(
       'select "reef_id", "status", "depends_on", "issue_type", "parent_id", "title", "rank" from reef_issues',
     )
@@ -1093,6 +1107,47 @@ export function handleSql(state, vault, sql, username) {
     row.original_jira_attachment_id = row.original_jira_attachment_id ?? null;
     vault.attachments.push(row);
     return tableQuery(attachmentColumns(), [row]);
+  }
+
+  if (
+    lower.startsWith(
+      "select id, reef_id, event_type, event_key, payload, meta from reef_activity where",
+    )
+  ) {
+    const sourceKeys = new Set(
+      [
+        ...normalized.matchAll(
+          /\(\s*'((?:''|[^'])*)'\s*,\s*'((?:''|[^'])*)'\s*\)/gu,
+        ),
+      ].map((match) =>
+        JSON.stringify([
+          match[1].replaceAll("''", "'"),
+          match[2].replaceAll("''", "'"),
+        ]),
+      ),
+    );
+    const eventType = matchSqlString(
+      normalized,
+      /event_type\s*=\s*'([^']+)'/iu,
+    );
+    const rows = vault.activity
+      .filter(
+        (event) =>
+          event.event_type === eventType &&
+          sourceKeys.has(JSON.stringify([event.reef_id, event.event_key])),
+      )
+      .map(({ id, reef_id, event_type, event_key, payload, meta }) => ({
+        id,
+        reef_id,
+        event_type,
+        event_key,
+        payload,
+        meta,
+      }));
+    return tableQuery(
+      ["id", "reef_id", "event_type", "event_key", "payload", "meta"],
+      rows,
+    );
   }
 
   // REEF-277: the issue activity timeline (reef_activity).

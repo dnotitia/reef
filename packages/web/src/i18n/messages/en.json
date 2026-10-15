@@ -1327,7 +1327,7 @@
   },
   "inbox": {
     "pageTitle": "Inbox",
-    "scopeDescription": "Across ready workspaces · latest 100 unread and 100 read notifications.",
+    "scopeDescription": "Recent collaboration changes across your workspaces · up to 100 unread and 100 read notifications.",
     "loading": "Loading notifications…",
     "notification": "Notification",
     "issueBodyMention": "You were mentioned in an issue",
@@ -1340,7 +1340,8 @@
     "retry": "Retry",
     "actionError": "Couldn't update this notification. Try again.",
     "permissionActionError": "You don't have permission to change this notification. Ask a workspace administrator for access.",
-    "openNotification": "Open activity for {issue} in {workspace}",
+    "issueTitleUnavailable": "Issue title unavailable",
+    "statusChangeDetailsUnavailable": "Status change details unavailable",
     "markUnread": "Mark unread",
     "markUnreadFor": "Mark {issue} in {workspace} unread",
     "archive": "Archive",

@@ -1960,9 +1960,13 @@ function seedNotifications(vault) {
   vault.notifications = [];
   for (let index = 0; index < 99; index += 1) {
     const isIssueBodyMention = index === 98;
+    const hasMissingSourceIssue = index === 96;
+    const hasStatusHistory = index === 97;
     const issue = isIssueBodyMention
       ? "REEF-001"
-      : `REEF-${String((index % 3) + 1).padStart(3, "0")}`;
+      : hasMissingSourceIssue
+        ? "REEF-999"
+        : `REEF-${String((index % 3) + 1).padStart(3, "0")}`;
     vault.notifications.push(
       notificationRow({
         id: 7000 + index,
@@ -1971,7 +1975,9 @@ function seedNotifications(vault) {
         sourceType: "activity",
         sourceRef: isIssueBodyMention
           ? "issue_body_mentions_change:e2e-issue-body-commit"
-          : `fixture-${index}`,
+          : hasStatusHistory
+            ? "status_change@2026-06-15T00:00:00.000Z"
+            : `fixture-${index}`,
         eventType: isIssueBodyMention
           ? "issue_body_mentions_change"
           : "status_change",
@@ -2034,10 +2040,36 @@ function seedNotifications(vault) {
     "REEF-001",
     "Alpha description from fixture. Alice was mentioned in the issue body.",
   );
+  const primaryStatusIssue = vault.issues.find(
+    (issue) => issue.reef_id === "REEF-002",
+  );
+  if (primaryStatusIssue)
+    primaryStatusIssue.title = "Primary source status event";
+  vault.activity.push(
+    activityRow(
+      "REEF-002",
+      "status_change",
+      NOW,
+      {
+        from: "todo",
+        to: "done",
+      },
+      "bob",
+    ),
+  );
 }
 
 function seedPersonalWorkspaceNotifications(vault, idOffset, includeComment) {
   vault.settings.set("schema_version", "2");
+  const sourceIssue = vault.issues.find(
+    (issue) => issue.reef_id === "REEF-001",
+  );
+  if (sourceIssue) {
+    sourceIssue.title =
+      vault.name === "reef-alpha"
+        ? "Alpha workspace source issue"
+        : "Odd workspace source issue";
+  }
   vault.notifications = [
     notificationRow({
       id: idOffset,
@@ -2094,6 +2126,20 @@ function seedPersonalWorkspaceNotifications(vault, idOffset, includeComment) {
     "REEF-001",
     `${vault.name} description from fixture. Alice was mentioned in the issue body.`,
   );
+  if (!includeComment) {
+    vault.activity.push(
+      activityRow(
+        "REEF-001",
+        "status_change",
+        NOW,
+        {
+          from: "todo",
+          to: "in_progress",
+        },
+        "bob",
+      ),
+    );
+  }
 }
 
 function issueRow(input) {

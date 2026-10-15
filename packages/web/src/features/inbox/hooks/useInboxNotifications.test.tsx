@@ -3,6 +3,7 @@ import {
   createTestQueryClient,
 } from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
+import type { Notification } from "@reef/core";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,6 +56,11 @@ function makeNotification(
     archived_at: null,
     payload: null,
     meta: null,
+    issue_context: {
+      availability: "available",
+      title: `Title for REEF-${index + 1}`,
+    },
+    status_change_context: null,
     workspace,
   };
 }
@@ -147,10 +153,46 @@ describe("useInboxNotifications", () => {
     const alpha = {
       ...makeNotification(0, "unread", "reef-alpha"),
       notification_key: notificationKey,
+      event_type: "status_change",
+      issue_context: {
+        availability: "available" as const,
+        title: "Alpha source title",
+      },
+      status_change_context: {
+        availability: "available" as const,
+        from: "todo" as const,
+        to: "in_progress" as const,
+      },
     };
     const zeta = {
       ...makeNotification(0, "unread", "reef-zeta"),
       notification_key: notificationKey,
+      event_type: "status_change",
+      issue_context: {
+        availability: "available" as const,
+        title: "Zeta source title",
+      },
+      status_change_context: {
+        availability: "available" as const,
+        from: "backlog" as const,
+        to: "done" as const,
+      },
+    };
+    const serverUpdatedNotification: Notification = {
+      id: alpha.id,
+      notification_key: notificationKey,
+      recipient: "alice",
+      reef_id: "REEF-001",
+      source_type: "activity",
+      source_ref: "event-1",
+      event_type: "status_change",
+      actor: "bob",
+      occurred_at: alpha.occurred_at,
+      state: "read",
+      read_at: "2026-07-28T03:00:00.000Z",
+      archived_at: null,
+      payload: null,
+      meta: null,
     };
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(personalNotificationsQueryKey("alice"), [
@@ -159,7 +201,7 @@ describe("useInboxNotifications", () => {
     ]);
     mockedApiFetch.mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ notification: { ...alpha, state: "read" } }),
+        JSON.stringify({ notification: serverUpdatedNotification }),
         { status: 200 },
       ),
     );
@@ -183,9 +225,18 @@ describe("useInboxNotifications", () => {
         body: JSON.stringify({ vault: "reef-alpha", state: "read" }),
       }),
     );
-    expect(
-      queryClient.getQueryData(personalNotificationsQueryKey("alice")),
-    ).toEqual([{ ...alpha, state: "read" }, zeta]);
+    const cachedNotifications = queryClient.getQueryData(
+      personalNotificationsQueryKey("alice"),
+    );
+    expect(cachedNotifications).toEqual([
+      {
+        ...alpha,
+        state: serverUpdatedNotification.state,
+        read_at: serverUpdatedNotification.read_at,
+        archived_at: serverUpdatedNotification.archived_at,
+      },
+      zeta,
+    ]);
   });
 
   it("preserves a resource 403 as a permission-denied inbox error", async () => {

@@ -222,7 +222,9 @@ test.describe("Hermetic notification Inbox", () => {
     await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
-    await expect(page.getByText(/Across ready workspaces/)).toBeVisible();
+    await expect(
+      page.getByText(/Recent collaboration changes across your workspaces/),
+    ).toBeVisible();
     await expect(page.getByText("Comment created")).toHaveCount(2);
     await expect(page.getByText("bob").first()).toBeVisible();
     const alphaRow = page
@@ -235,6 +237,30 @@ test.describe("Hermetic notification Inbox", () => {
       .filter({ hasText: "Comment created" });
     await expect(alphaRow).toHaveCount(1);
     await expect(primaryRow).toHaveCount(1);
+    const originalStatusRow = page
+      .locator(
+        `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"]`,
+      )
+      .filter({ hasText: "Todo" })
+      .filter({ hasText: "Done" });
+    await expect(originalStatusRow).toHaveCount(1);
+    await expect(originalStatusRow).toContainText(
+      "Primary source status event",
+    );
+    await expect(originalStatusRow).toContainText("Todo");
+    await expect(originalStatusRow).toContainText("Done");
+    await expect(
+      page
+        .locator(
+          '[data-testid="notification-item"][data-workspace="reef-alpha"]',
+        )
+        .filter({ hasText: "Alpha workspace source issue" }),
+    ).toHaveCount(1);
+    const unavailableSourceRow = page
+      .getByTestId("notification-item")
+      .filter({ hasText: "Issue title unavailable" })
+      .filter({ hasText: "Status change details unavailable" });
+    await expect(unavailableSourceRow).toHaveCount(1);
 
     const rowsBeforeWorkspaceChange = await page
       .getByTestId("notification-item")
@@ -261,16 +287,10 @@ test.describe("Hermetic notification Inbox", () => {
     await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
 
-    const openNotification = primaryRow.getByRole("button", {
-      name: /Open activity for REEF-001 in reef-e2e|reef-e2e의 REEF-001 활동 열기/u,
-    });
+    const openNotification = primaryRow.getByTestId("notification-open");
     await expect(openNotification).toBeVisible();
 
-    await alphaRow
-      .getByRole("button", {
-        name: /Open activity for REEF-001 in reef-alpha|reef-alpha의 REEF-001 활동 열기/u,
-      })
-      .click();
+    await alphaRow.getByTestId("notification-open").click();
     await expect(page).toHaveURL(
       "/workspace/reef-alpha/issues/REEF-001#comment-comment-primary",
     );

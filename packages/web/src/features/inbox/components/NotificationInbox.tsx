@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-icon";
 import { commentTargetId } from "@/features/issues/lib/commentTarget";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { PageBody } from "@/features/ui/components/PageBody";
@@ -96,6 +97,10 @@ function NotificationItem({
     notification.event_type === ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE
       ? t("issueBodyMention")
       : notificationEventLabel(notification.event_type, translateInbox);
+  const issueTitle =
+    notification.issue_context.availability === "available"
+      ? notification.issue_context.title
+      : t("issueTitleUnavailable");
   const issueHref = notificationIssueHref(notification);
 
   async function updateStateAndRefresh(state: NotificationState) {
@@ -180,23 +185,47 @@ function NotificationItem({
           disabled={busy}
           aria-busy={busy}
           className="min-w-0 flex-1 touch-manipulation rounded-md text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
-          aria-label={t("openNotification", {
-            issue: notification.reef_id,
-            workspace: notification.workspace,
-          })}
         >
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="type-body font-semibold text-foreground">
-              {eventLabel}
-            </span>
-            <span className="type-caption text-muted-foreground" translate="no">
-              {notification.actor}
-            </span>
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <span
               className="rounded border border-border-subtle px-1.5 py-0.5 type-compact-mono text-muted-foreground"
               translate="no"
             >
               {notification.reef_id}
+            </span>
+            <span
+              data-testid="notification-issue-title"
+              className="min-w-0 break-words font-semibold text-foreground [overflow-wrap:anywhere]"
+            >
+              {issueTitle}
+            </span>
+          </span>
+          <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 type-caption text-muted-foreground">
+            <span className="font-medium text-foreground">{eventLabel}</span>
+            {notification.event_type === "status_change" && (
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                {notification.status_change_context?.availability ===
+                "available" ? (
+                  <>
+                    <StatusBadge
+                      status={notification.status_change_context.from}
+                      size={12}
+                    />
+                    <span aria-hidden="true">→</span>
+                    <StatusBadge
+                      status={notification.status_change_context.to}
+                      size={12}
+                    />
+                  </>
+                ) : (
+                  <span>{t("statusChangeDetailsUnavailable")}</span>
+                )}
+              </span>
+            )}
+          </span>
+          <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 type-caption text-muted-foreground">
+            <span className="min-w-0 break-words" translate="no">
+              {notification.actor}
             </span>
             <span
               data-testid="notification-workspace"
@@ -205,8 +234,6 @@ function NotificationItem({
             >
               {notification.workspace}
             </span>
-          </span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 type-caption text-muted-foreground">
             <time
               dateTime={notification.occurred_at}
               title={formatAbsoluteTime(notification.occurred_at, locale)}

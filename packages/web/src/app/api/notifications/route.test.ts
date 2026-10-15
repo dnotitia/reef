@@ -56,7 +56,12 @@ const notification = {
   occurred_at: "2026-07-28T00:00:00.000Z",
   state: "unread",
 };
-const personalNotification = { ...notification, workspace: "reef-acme" };
+const personalNotification = {
+  ...notification,
+  workspace: "reef-acme",
+  issue_context: { availability: "available", title: "Fixture issue title" },
+  status_change_context: null,
+};
 
 describe("notification Route Handlers", () => {
   beforeEach(() => {
