@@ -19,6 +19,12 @@ import {
   type PersonalNotification,
   type PersonalNotificationListInput,
   PersonalNotificationListInputSchema,
+  type PersonalNotificationReadAllInput,
+  type PersonalNotificationReadAllResult,
+  type PersonalNotificationTarget,
+  PersonalNotificationReadAllInputSchema,
+  PersonalNotificationReadAllResultSchema,
+  PersonalNotificationTargetSchema,
   PersonalNotificationSchema,
   type NotificationStateUpdateInput,
   NotificationStateUpdateInputSchema,
@@ -105,6 +111,28 @@ function personalNotificationBaseFromRow(
 
 function activityReferenceKey(reefId: string, eventKey: string): string {
   return JSON.stringify([reefId, eventKey]);
+}
+
+function validatedPersonalWorkspaces(workspaces: string[]): string[] {
+  const sorted = [...new Set(workspaces)].sort();
+  if (sorted.length !== workspaces.length) {
+    throw new SchemaValidationError({
+      issues: ["notification workspaces must be unique"],
+    });
+  }
+  const aliases = new Set<string>();
+  for (const workspace of sorted) {
+    const alias = workspace.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    if (aliases.has(alias)) {
+      throw new SchemaValidationError({
+        issues: [
+          "notification workspaces collide in the cross-vault SQL alias",
+        ],
+      });
+    }
+    aliases.add(alias);
+  }
+  return sorted;
 }
 
 async function readNotificationIssueTitles(
@@ -412,24 +440,7 @@ export async function listPersonalNotifications(
   input: PersonalNotificationListInput,
 ): Promise<PersonalNotification[]> {
   const parsed = parseInput(PersonalNotificationListInputSchema, input);
-  const workspaces = [...new Set(parsed.workspaces)].sort();
-  if (workspaces.length !== parsed.workspaces.length) {
-    throw new SchemaValidationError({
-      issues: ["notification workspaces must be unique"],
-    });
-  }
-  const aliases = new Set<string>();
-  for (const workspace of workspaces) {
-    const alias = workspace.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    if (aliases.has(alias)) {
-      throw new SchemaValidationError({
-        issues: [
-          "notification workspaces collide in the cross-vault SQL alias",
-        ],
-      });
-    }
-    aliases.add(alias);
-  }
+  const workspaces = validatedPersonalWorkspaces(parsed.workspaces);
   return withSpan(
     "akb.notifications.list_personal",
     { workspace_count: workspaces.length },
@@ -483,6 +494,168 @@ export async function listPersonalNotifications(
       });
       span.setAttribute("notification_count", notifications.length);
       return notifications;
+    },
+  );
+}
+
+function personalNotificationTargetKey(
+  target: PersonalNotificationTarget,
+): string {
+  return JSON.stringify([target.workspace, target.notification_key]);
+}
+
+/**
+ * Captures the actor's unread identities at request time, then conditionally
+ * marks only that fixed set as read. Supplying `targets` applies a prior
+ * snapshot's unresolved subset without taking another snapshot.
+ */
+export async function markAllPersonalNotificationsRead(
+  adapter: AkbAdapter,
+  input: PersonalNotificationReadAllInput,
+): Promise<PersonalNotificationReadAllResult> {
+  const parsed = parseInput(PersonalNotificationReadAllInputSchema, input);
+  const workspaces = validatedPersonalWorkspaces(parsed.workspaces);
+  const targetKeys = new Set<string>();
+  for (const target of parsed.targets ?? []) {
+    const key = personalNotificationTargetKey(target);
+    if (targetKeys.has(key)) {
+      throw new SchemaValidationError({
+        issues: ["notification targets must be unique by workspace and key"],
+      });
+    }
+    targetKeys.add(key);
+  }
+
+  return withSpan(
+    "akb.notifications.mark_all_personal_read",
+    { workspace_count: workspaces.length },
+    async (span) => {
+      let targets = parsed.targets;
+      if (targets === undefined) {
+        if (workspaces.length === 0) targets = [];
+        else {
+          const primaryVault = workspaces[0];
+          if (!primaryVault) {
+            throw new SchemaValidationError({
+              issues: ["notification workspaces are required"],
+            });
+          }
+          const params = new SqlParameterBuilder();
+          const recipient = params.add(
+            parsed.recipient,
+            "notification recipient",
+          );
+          const branches = workspaces.map((workspace) => {
+            const workspaceParameter = params.add(
+              workspace,
+              "notification workspace",
+            );
+            const table = crossVaultTableRef(
+              workspace,
+              REEF_NOTIFICATIONS_TABLE,
+            );
+            return `SELECT ${workspaceParameter} AS workspace, notification_rows.notification_key FROM ${table} AS notification_rows WHERE notification_rows.recipient = ${recipient} AND notification_rows.state = 'unread' AND notification_rows.archived_at IS NULL`;
+          });
+          const response = await runSql(
+            adapter,
+            primaryVault,
+            branches.join(" UNION ALL "),
+            params.params,
+            workspaces,
+          );
+          if (response.kind !== "table_query") {
+            throw new SchemaValidationError({
+              issues: ["notification snapshot returned an invalid response"],
+            });
+          }
+          targets = response.items.map((row) =>
+            parseInput(PersonalNotificationTargetSchema, row),
+          );
+        }
+      }
+
+      span.setAttribute("target_count", targets.length);
+      const completed: PersonalNotificationReadAllResult["completed"] = [];
+      const unresolved: PersonalNotificationTarget[] = [];
+      const allowedWorkspaces = new Set(workspaces);
+      const targetsByWorkspace = new Map<
+        string,
+        PersonalNotificationTarget[]
+      >();
+      for (const target of targets) {
+        if (!allowedWorkspaces.has(target.workspace)) {
+          unresolved.push(target);
+          continue;
+        }
+        const workspaceTargets = targetsByWorkspace.get(target.workspace) ?? [];
+        workspaceTargets.push(target);
+        targetsByWorkspace.set(target.workspace, workspaceTargets);
+      }
+
+      for (const [workspace, workspaceTargets] of targetsByWorkspace) {
+        try {
+          const params = new SqlParameterBuilder();
+          const keys = params.addJson(
+            workspaceTargets.map(({ notification_key }) => notification_key),
+            "notification target keys",
+            "jsonb",
+          );
+          const changedAt = params.add(
+            new Date().toISOString(),
+            "notification changed at",
+          );
+          const recipient = params.add(
+            parsed.recipient,
+            "notification recipient",
+          );
+          const response = await runSql(
+            adapter,
+            workspace,
+            `WITH requested AS (SELECT jsonb_array_elements_text(${keys}) AS notification_key), updated AS (UPDATE ${tableRef(
+              REEF_NOTIFICATIONS_TABLE,
+            )} AS notification_rows SET state = 'read', read_at = COALESCE(notification_rows.read_at, ${changedAt}) FROM requested WHERE notification_rows.notification_key = requested.notification_key AND notification_rows.recipient = ${recipient} AND notification_rows.state = 'unread' AND notification_rows.archived_at IS NULL RETURNING notification_rows.notification_key, notification_rows.state, notification_rows.read_at), current AS (SELECT notification_rows.notification_key, notification_rows.state, notification_rows.read_at FROM ${tableRef(
+              REEF_NOTIFICATIONS_TABLE,
+            )} AS notification_rows JOIN requested ON requested.notification_key = notification_rows.notification_key WHERE notification_rows.recipient = ${recipient}) SELECT requested.notification_key, COALESCE(updated.state, current.state) AS state, COALESCE(updated.read_at, current.read_at) AS read_at FROM requested LEFT JOIN updated USING (notification_key) LEFT JOIN current USING (notification_key)`,
+            params.params,
+          );
+          if (response.kind !== "table_query") {
+            throw new SchemaValidationError({
+              issues: ["notification update returned an invalid response"],
+            });
+          }
+          const rowsByKey = new Map(
+            response.items.map((row) => [String(row.notification_key), row]),
+          );
+          for (const target of workspaceTargets) {
+            const row = rowsByKey.get(target.notification_key);
+            const state = row?.state;
+            if (
+              state === "unread" ||
+              (row && !["read", "archived"].includes(String(state)))
+            ) {
+              unresolved.push(target);
+              continue;
+            }
+            const readAt = row?.read_at == null ? null : row.read_at;
+            completed.push({
+              ...target,
+              state: state === "read" || state === "archived" ? state : null,
+              read_at: readAt as string | null,
+            });
+          }
+        } catch {
+          unresolved.push(...workspaceTargets);
+        }
+      }
+
+      const result = parseInput(PersonalNotificationReadAllResultSchema, {
+        targets,
+        completed,
+        unresolved,
+      });
+      span.setAttribute("completed_count", result.completed.length);
+      span.setAttribute("unresolved_count", result.unresolved.length);
+      return result;
     },
   );
 }

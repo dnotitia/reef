@@ -176,6 +176,94 @@ export function handlePersonalNotificationsSql(
   username,
   allowedVaults,
 ) {
+  const snapshotBranches = [
+    ...sql.matchAll(
+      /SELECT\s+'([^']+)'\s+AS\s+workspace,\s*notification_rows\.notification_key\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+AS\s+notification_rows\s+WHERE\s+notification_rows\.recipient\s*=\s*'([^']+)'\s+AND\s+notification_rows\.state\s*=\s*'unread'\s+AND\s+notification_rows\.archived_at\s+IS\s+NULL/gi,
+    ),
+  ].map((match) => ({
+    workspace: match[1],
+    alias: match[2],
+    recipient: match[3],
+  }));
+  if (snapshotBranches.length > 0) {
+    const requested = new Set(allowedVaults);
+    if (
+      snapshotBranches.length !== requested.size ||
+      [...requested].some(
+        (workspace) =>
+          !snapshotBranches.some((branch) => branch.workspace === workspace),
+      )
+    ) {
+      return {
+        kind: "sql_error",
+        status: 400,
+        body: { error: "personal_notification_scope_mismatch" },
+      };
+    }
+    const rows = [];
+    for (const branch of snapshotBranches) {
+      const vault = state.vaults.get(branch.workspace);
+      const expectedAlias = branch.workspace
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "_");
+      if (
+        !vault ||
+        branch.alias !== expectedAlias ||
+        branch.recipient !== username ||
+        !requested.has(branch.workspace)
+      ) {
+        return {
+          kind: "sql_error",
+          status: 400,
+          body: { error: "invalid_personal_notification_query" },
+        };
+      }
+      if (roleForVault(vault, state, username) == null) {
+        return {
+          kind: "sql_error",
+          status: 403,
+          body: { error: "permission_denied" },
+        };
+      }
+      const schemaMode =
+        state.notificationSchemaModes.get(branch.workspace) ??
+        state.notificationSchemaMode;
+      if (schemaMode === "missing" || !vault.tables.has("reef_notifications")) {
+        return { error: 'relation "reef_notifications" does not exist' };
+      }
+      if (schemaMode === "incompatible") {
+        return { error: 'column "archived_at" does not exist' };
+      }
+      const dataMode =
+        state.notificationDataModes.get(branch.workspace) ??
+        state.notificationDataMode;
+      if (dataMode === "forbidden") {
+        return {
+          kind: "sql_error",
+          status: 403,
+          body: { error: "permission_denied" },
+        };
+      }
+      if (dataMode === "error") {
+        return { error: "notification data source unavailable" };
+      }
+      rows.push(
+        ...(vault.notifications ?? [])
+          .filter(
+            (notification) =>
+              notification.recipient === username &&
+              notification.state === "unread" &&
+              notification.archived_at == null,
+          )
+          .map((notification) => ({
+            workspace: branch.workspace,
+            notification_key: notification.notification_key,
+          })),
+      );
+    }
+    return tableQuery(["workspace", "notification_key"], rows);
+  }
+
   if (
     !/WITH\s+scoped_notifications\s+AS\s*\(/i.test(sql) ||
     !/ROW_NUMBER\(\)\s+OVER\s*\(PARTITION BY state/i.test(sql)
@@ -360,8 +448,14 @@ export function handleSql(state, vault, sql, username) {
     if (dataMode === "error") {
       return { error: "notification data source unavailable" };
     }
+    const isNotificationWrite =
+      lower.includes("update reef_notifications") &&
+      (lower.startsWith("with updated as (update reef_notifications") ||
+        lower.startsWith(
+          "with requested as (select jsonb_array_elements_text(",
+        ));
     if (
-      lower.startsWith("with updated as (update reef_notifications") &&
+      isNotificationWrite &&
       ["reader", "none"].includes(roleForVault(vault, state, username))
     ) {
       return {
@@ -611,6 +705,54 @@ export function handleSql(state, vault, sql, username) {
           String(right.id).localeCompare(String(left.id)),
       );
     return tableQuery(notificationColumns(), applyLimit(rows, normalized));
+  }
+
+  if (
+    lower.startsWith("with requested as (select jsonb_array_elements_text(") &&
+    lower.includes("update reef_notifications")
+  ) {
+    const requestedMatch = normalized.match(
+      /jsonb_array_elements_text\('((?:''|[^'])*)'::jsonb\)/i,
+    );
+    const recipient = matchSqlString(normalized, /recipient\s*=\s*'([^']+)'/i);
+    const changedAt = matchSqlString(
+      normalized,
+      /COALESCE\(notification_rows\.read_at,\s*'([^']+)'/i,
+    );
+    if (!requestedMatch || !recipient) {
+      return { error: "invalid bulk notification update" };
+    }
+    let notificationKeys;
+    try {
+      notificationKeys = JSON.parse(requestedMatch[1].replaceAll("''", "'"));
+    } catch {
+      return { error: "invalid bulk notification target list" };
+    }
+    if (
+      !Array.isArray(notificationKeys) ||
+      !notificationKeys.every((key) => typeof key === "string")
+    ) {
+      return { error: "invalid bulk notification target list" };
+    }
+    const rows = [];
+    for (const notificationKey of notificationKeys) {
+      const row = vault.notifications.find(
+        (notification) =>
+          notification.notification_key === notificationKey &&
+          notification.recipient === recipient,
+      );
+      if (!row) continue;
+      if (row.state === "unread" && row.archived_at == null) {
+        row.state = "read";
+        row.read_at = row.read_at ?? changedAt ?? NOW;
+      }
+      rows.push({
+        notification_key: notificationKey,
+        state: row.state,
+        read_at: row.read_at ?? null,
+      });
+    }
+    return tableQuery(["notification_key", "state", "read_at"], rows);
   }
 
   if (lower.startsWith("with updated as (update reef_notifications")) {

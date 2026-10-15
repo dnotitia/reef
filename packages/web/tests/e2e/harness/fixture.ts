@@ -64,6 +64,7 @@ export async function resetFixture(
 export type HeldResponse =
   | "asset-upload"
   | "issue-list"
+  | "notification-write"
   | "planning-catalog"
   | "issue-reorder"
   | "content-search"
@@ -468,6 +469,20 @@ export async function setNotificationControl(
     },
   );
   expect(response.ok()).toBeTruthy();
+}
+
+export async function addLateUnreadNotification(
+  request: APIRequestContext,
+  vault: string,
+  sourceRef: string,
+): Promise<string> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/notification-add`,
+    { data: { vault, source_ref: sourceRef } },
+  );
+  expect(response.ok()).toBeTruthy();
+  const body = (await response.json()) as { notification_key: string };
+  return body.notification_key;
 }
 
 export async function setInstallationControl(

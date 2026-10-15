@@ -40,6 +40,33 @@ export const PersonalNotificationListInputSchema = z.strictObject({
   workspaces: z.array(VaultNameSchema),
 });
 
+export const PersonalNotificationTargetSchema = z.strictObject({
+  workspace: VaultNameSchema,
+  notification_key: NonEmptyIdentitySchema,
+});
+
+export const PersonalNotificationReadAllRequestSchema = z.strictObject({
+  targets: z.array(PersonalNotificationTargetSchema).optional(),
+});
+
+export const PersonalNotificationReadAllInputSchema = z.strictObject({
+  recipient: NonEmptyIdentitySchema,
+  workspaces: z.array(VaultNameSchema),
+  targets: z.array(PersonalNotificationTargetSchema).optional(),
+});
+
+export const PersonalNotificationReadAllCompletedSchema =
+  PersonalNotificationTargetSchema.extend({
+    state: z.enum(["read", "archived"]).nullable(),
+    read_at: IsoDateTimeSchema.nullable(),
+  });
+
+export const PersonalNotificationReadAllResultSchema = z.strictObject({
+  targets: z.array(PersonalNotificationTargetSchema),
+  completed: z.array(PersonalNotificationReadAllCompletedSchema),
+  unresolved: z.array(PersonalNotificationTargetSchema),
+});
+
 export const NotificationStateUpdateInputSchema = z.strictObject({
   notificationKey: NonEmptyIdentitySchema,
   recipient: NonEmptyIdentitySchema,
@@ -154,6 +181,21 @@ export type NotificationCreateInput = z.infer<
 >;
 export type PersonalNotificationListInput = z.infer<
   typeof PersonalNotificationListInputSchema
+>;
+export type PersonalNotificationTarget = z.infer<
+  typeof PersonalNotificationTargetSchema
+>;
+export type PersonalNotificationReadAllRequest = z.infer<
+  typeof PersonalNotificationReadAllRequestSchema
+>;
+export type PersonalNotificationReadAllInput = z.infer<
+  typeof PersonalNotificationReadAllInputSchema
+>;
+export type PersonalNotificationReadAllCompleted = z.infer<
+  typeof PersonalNotificationReadAllCompletedSchema
+>;
+export type PersonalNotificationReadAllResult = z.infer<
+  typeof PersonalNotificationReadAllResultSchema
 >;
 export type NotificationStateUpdateInput = z.infer<
   typeof NotificationStateUpdateInputSchema

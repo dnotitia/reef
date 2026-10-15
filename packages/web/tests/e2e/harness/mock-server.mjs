@@ -42,7 +42,7 @@ import {
   setResponseHold,
   waitForAuthProbeHold,
 } from "./mock-state.mjs";
-import { sha256 } from "./mock-utils.mjs";
+import { sha256, uuidFor } from "./mock-utils.mjs";
 import {
   E2E_REEF_OLD_SCHEMA_FINGERPRINT,
   E2E_REEF_SCHEMA_FINGERPRINT,
@@ -103,6 +103,7 @@ const server = createServer(async (req, res) => {
       const operations = [
         "asset-upload",
         "issue-list",
+        "notification-write",
         "planning-catalog",
         "issue-reorder",
         "content-search",
@@ -689,6 +690,42 @@ const server = createServer(async (req, res) => {
         schema_mode: schemaMode,
         data_mode: dataMode,
       });
+    }
+    if (url.pathname === "/__e2e/notification-add" && req.method === "POST") {
+      const body = await readJson(req);
+      const vaultName = String(body?.vault ?? "");
+      const sourceRef = String(body?.source_ref ?? "").trim();
+      const vault = state.vaults.get(vaultName);
+      if (!vault) return json(res, 404, { error: "vault not found" });
+      if (!sourceRef)
+        return json(res, 400, { error: "source_ref is required" });
+      const recipient = fixtureLogin.username;
+      const sourceType = "activity";
+      const notificationKey = `notification:${recipient.length}:${recipient}:${sourceType.length}:${sourceType}:${sourceRef.length}:${sourceRef}`;
+      if (
+        vault.notifications.some(
+          (notification) => notification.notification_key === notificationKey,
+        )
+      ) {
+        return json(res, 409, { error: "notification already exists" });
+      }
+      vault.notifications.push({
+        id: uuidFor(90_000 + state.calls.length),
+        notification_key: notificationKey,
+        recipient,
+        reef_id: "REEF-001",
+        source_type: sourceType,
+        source_ref: sourceRef,
+        event_type: "status_change",
+        actor: "bob",
+        occurred_at: "2020-01-01T00:00:00.000Z",
+        state: "unread",
+        read_at: null,
+        archived_at: null,
+        payload: null,
+        meta: null,
+      });
+      return json(res, 200, { ok: true, notification_key: notificationKey });
     }
     if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {
       const body = await readJson(req);

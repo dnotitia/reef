@@ -7,6 +7,7 @@ import {
   akbGetEffectiveSubscriptionState,
   akbListPersonalNotifications,
   akbListSubscriptions,
+  akbMarkAllPersonalNotificationsRead,
   akbMuteIssue,
   akbRemoveSubscription,
   akbUpdateNotificationState,
@@ -69,6 +70,156 @@ function subscriptionRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("notification adapter", () => {
+  it("snapshots every unread identity across workspaces before applying state writes", async () => {
+    const targets = Array.from({ length: 101 }, (_, index) => ({
+      workspace: index === 100 ? "reef-zeta" : "reef-alpha",
+      notification_key:
+        index === 100 ? "duplicate-key" : `notification-${index}`,
+    }));
+    targets[0] = { workspace: "reef-alpha", notification_key: "duplicate-key" };
+    const readAt = "2026-10-15T14:00:00.000Z";
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          targets.map(({ workspace, notification_key }) => ({
+            workspace,
+            notification_key,
+          })),
+          ["workspace", "notification_key"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          targets
+            .filter(({ workspace }) => workspace === "reef-alpha")
+            .map(({ notification_key }) => ({
+              notification_key,
+              state: "read",
+              read_at: readAt,
+            })),
+          ["notification_key", "state", "read_at"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              notification_key: "duplicate-key",
+              state: "read",
+              read_at: readAt,
+            },
+          ],
+          ["notification_key", "state", "read_at"],
+        ),
+      },
+    ]);
+
+    const result = await akbMarkAllPersonalNotificationsRead(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef-zeta", "reef-alpha"],
+    });
+
+    expect(result.targets).toHaveLength(101);
+    expect(result.completed).toHaveLength(101);
+    expect(result.unresolved).toEqual([]);
+    expect(result.completed.map(({ workspace }) => workspace)).toContain(
+      "reef-zeta",
+    );
+    const updateSql = sqlRequestBody(calls[1]).sql;
+    const requests = calls.map((call) => sqlRequestBody(call));
+    expect(requests[0]?.sql).not.toContain("occurred_at");
+    expect(requests[0]?.sql).not.toContain("ROW_NUMBER");
+    expect(requests[0]?.sql).not.toContain("LIMIT");
+    expect(requests[0]?.sql).toContain("state = 'unread'");
+    expect(requests[1]?.sql).toContain("state = 'unread'");
+    expect(requests[1]?.sql).not.toContain("archived_at = NULL");
+    expect(requests[1]?.params).toContain("kim");
+    expect(updateSql).toContain("jsonb_array_elements_text($1::jsonb)");
+    expect(updateSql).not.toContain("::jsonb::jsonb");
+  });
+
+  it("retries only the supplied unresolved identities and keeps cross-workspace keys distinct", async () => {
+    const targets = [
+      { workspace: "reef-alpha", notification_key: "same-key" },
+      { workspace: "reef-zeta", notification_key: "same-key" },
+    ];
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              notification_key: "same-key",
+              state: "read",
+              read_at: "2026-10-15T14:00:00.000Z",
+            },
+          ],
+          ["notification_key", "state", "read_at"],
+        ),
+      },
+      {
+        status: 403,
+        body: { error: "permission_denied" },
+      },
+    ]);
+
+    const result = await akbMarkAllPersonalNotificationsRead(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef-alpha", "reef-zeta"],
+      targets,
+    });
+
+    expect(result.targets).toEqual(targets);
+    expect(result.completed).toEqual([
+      {
+        workspace: "reef-alpha",
+        notification_key: "same-key",
+        state: "read",
+        read_at: "2026-10-15T14:00:00.000Z",
+      },
+    ]);
+    expect(result.unresolved).toEqual([targets[1]]);
+    expect(calls).toHaveLength(2);
+    expect(sqlRequestBody(calls[0]).sql).toContain("UPDATE reef_notifications");
+    expect(sqlRequestBody(calls[1]).params).toContain("kim");
+  });
+
+  it("returns the row produced by the conditional update CTE", async () => {
+    const target = {
+      workspace: "reef-alpha",
+      notification_key: "notification-1",
+    };
+    const readAt = "2026-10-15T14:00:00.000Z";
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse([target], ["workspace", "notification_key"]),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              notification_key: target.notification_key,
+              state: "read",
+              read_at: readAt,
+            },
+          ],
+          ["notification_key", "state", "read_at"],
+        ),
+      },
+    ]);
+
+    const result = await akbMarkAllPersonalNotificationsRead(makeAdapter(), {
+      recipient: "kim",
+      workspaces: [target.workspace],
+    });
+
+    expect(sqlRequestBody(calls[1]).sql).toContain("updated.state");
+    expect(sqlRequestBody(calls[1]).sql).toContain("updated.read_at");
+    expect(result.completed).toEqual([
+      { ...target, state: "read", read_at: readAt },
+    ]);
+    expect(result.unresolved).toEqual([]);
+  });
+
   it("creates one identity idempotently and rejects incompatible key reuse", async () => {
     const input = {
       recipient: "kim",

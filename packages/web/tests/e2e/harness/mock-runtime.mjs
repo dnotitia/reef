@@ -36,7 +36,7 @@ export function runtimeDiscovery(state) {
         content_type: "application/json",
         body: {
           operation:
-            "asset-upload|issue-list|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
+            "asset-upload|issue-list|notification-write|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
           hold: "<boolean>",
         },
       },
@@ -488,6 +488,14 @@ export function runtimeDiscovery(state) {
         },
         controls: {
           notification_control: { operation: "notification_control" },
+          notification_add: {
+            method: "POST",
+            path: "/__e2e/notification-add",
+            content_type: "application/json",
+            body: { vault: "<fixture_vault>", source_ref: "<unique_ref>" },
+            occurred_at: "2020-01-01T00:00:00.000Z",
+            recipient: fixtureLogin.username,
+          },
           vault_list_control: { operation: "vault_list_control" },
           installation_control: {
             operation: "installation_control",

@@ -1010,6 +1010,15 @@ caps at `9+`, while assistive text announces `100 or more unread notifications`
 (or the equivalent localized wording) when the boundary is reached. The
 selected workspace in the URL does not filter the Inbox.
 
+The **All** and **Unread** filters only change the current view; the list
+defaults to **All** again after reload. **Mark all read** captures the signed-in
+actor's unread identities across every accessible ready workspace when clicked,
+then updates that fixed snapshot even when it extends beyond the 100-row unread
+list cap. Notifications projected after the click remain unread. If a workspace
+write fails, the Inbox reports the completed and unresolved counts and offers a
+retry limited to those unresolved identities. Successful results update the
+account-scoped in-memory query immediately and are then refreshed from AKB.
+
 The Inbox list is independent from the on-demand AI surfaces. Each row leads
 with the source issue id and title, followed by the event and actor. Status
 changes show the original from/to transition recorded for that event, rather

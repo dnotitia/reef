@@ -12,6 +12,7 @@ import { NotificationInboxPage } from "./NotificationInbox";
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   mutateAsync: vi.fn(),
+  markAllMutateAsync: vi.fn(),
   inboxState: {
     notifications: [] as Array<{
       id: string;
@@ -48,6 +49,10 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 vi.mock("../hooks/useInboxNotifications", () => ({
   useInboxNotifications: () => mocks.inboxState,
   useUpdateNotificationState: () => ({ mutateAsync: mocks.mutateAsync }),
+  useMarkAllPersonalNotificationsRead: () => ({
+    mutateAsync: mocks.markAllMutateAsync,
+    isPending: false,
+  }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -110,6 +115,12 @@ describe("NotificationInboxPage", () => {
     ];
     mocks.inboxState.isLoading = false;
     mocks.inboxState.isError = false;
+    mocks.inboxState.isPermissionDenied = false;
+    mocks.markAllMutateAsync.mockResolvedValue({
+      targets: [],
+      completed: [],
+      unresolved: [],
+    });
     mocks.mutateAsync.mockResolvedValue({});
   });
 
@@ -121,7 +132,7 @@ describe("NotificationInboxPage", () => {
     expect(screen.getAllByText("Comment created")).toHaveLength(2);
     expect(screen.getAllByText("bob")).toHaveLength(2);
     expect(screen.getByText("REEF-001")).toBeInTheDocument();
-    expect(screen.getByText("Unread")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unread" })).toBeInTheDocument();
     expect(screen.getByText("Read")).toBeInTheDocument();
     const time = screen
       .getAllByTestId("notification-item")[0]
@@ -531,6 +542,136 @@ describe("NotificationInboxPage", () => {
     );
     expect(screen.getByTestId("notification-inbox-list")).toHaveClass(
       "max-w-2xl",
+    );
+  });
+
+  it("defaults to All and keeps the selected filter through a failed read and retry", () => {
+    const { rerender } = renderPage();
+    const unreadFilter = screen.getByRole("button", { name: "Unread" });
+
+    expect(screen.getAllByTestId("notification-item")).toHaveLength(2);
+    expect(unreadFilter).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(unreadFilter);
+    expect(unreadFilter).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId("notification-item")).toHaveLength(1);
+
+    mocks.inboxState.isError = true;
+    rerender(
+      <IntlTestProvider>
+        <NotificationInboxPage />
+      </IntlTestProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mocks.inboxState.refetch).toHaveBeenCalledOnce();
+
+    mocks.inboxState.isError = false;
+    rerender(
+      <IntlTestProvider>
+        <NotificationInboxPage />
+      </IntlTestProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Unread" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getAllByTestId("notification-item")).toHaveLength(1);
+  });
+
+  it("shows confirmed bulk results and retries only the original unresolved identities", async () => {
+    const alpha = makeNotification("same", "unread", "REEF-001", {
+      workspace: "reef-alpha",
+    });
+    const zeta = makeNotification("same", "unread", "REEF-002", {
+      workspace: "reef-zeta",
+    });
+    const targets = [
+      { workspace: alpha.workspace, notification_key: alpha.notification_key },
+      { workspace: zeta.workspace, notification_key: zeta.notification_key },
+    ];
+    mocks.inboxState.notifications = [alpha, zeta];
+    mocks.markAllMutateAsync
+      .mockResolvedValueOnce({
+        targets,
+        completed: [
+          {
+            ...targets[0],
+            state: "read",
+            read_at: "2026-10-15T14:00:00.000Z",
+          },
+        ],
+        unresolved: [targets[1]],
+      })
+      .mockResolvedValueOnce({
+        targets: [targets[1]],
+        completed: [
+          {
+            ...targets[1],
+            state: "read",
+            read_at: "2026-10-15T14:01:00.000Z",
+          },
+        ],
+        unresolved: [],
+      });
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Unread" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Marked 1 notifications as read. 1 need to be retried.",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry 1 remaining" }));
+
+    await waitFor(() =>
+      expect(mocks.markAllMutateAsync).toHaveBeenNthCalledWith(2, {
+        targets: [targets[1]],
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Unread" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Marked 2 notifications as read.",
+    );
+  });
+
+  it("reports an empty server snapshot and restores focus when filtering removes an item", async () => {
+    mocks.markAllMutateAsync.mockResolvedValueOnce({
+      targets: [],
+      completed: [],
+      unresolved: [],
+    });
+    const { rerender } = renderPage("ko");
+    const unreadFilter = screen.getByRole("button", { name: "읽지 않음" });
+    fireEvent.click(screen.getByRole("button", { name: "모두 읽기" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "읽음 처리할 미확인 알림이 없습니다.",
+      ),
+    );
+
+    fireEvent.click(unreadFilter);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "reef-acme의 REEF-001 알림 보관",
+      }),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(unreadFilter));
+
+    mocks.inboxState.notifications = [
+      makeNotification("3", "read", "REEF-003"),
+    ];
+    rerender(
+      <IntlTestProvider locale="ko">
+        <NotificationInboxPage />
+      </IntlTestProvider>,
+    );
+    expect(screen.getByTestId("notification-inbox-empty")).toHaveTextContent(
+      "읽지 않은 알림이 없습니다",
     );
   });
 });
