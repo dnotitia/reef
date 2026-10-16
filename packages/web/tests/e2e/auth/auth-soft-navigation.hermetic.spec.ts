@@ -1,7 +1,9 @@
 import { test } from "../harness/workspace-fixture";
 import { expect } from "@playwright/test";
+import { EnrichedVaultSummarySchema } from "@reef/core";
 import {
   openWorkspaceThroughLogin,
+  REEF_E2E_VAULT,
   readFixtureState,
   readIndexedDbConfig,
   releaseAuthProbe,
@@ -72,6 +74,30 @@ function isAuthProbeRequest(request: import("@playwright/test").Request) {
   return (
     new URL(request.url()).pathname === "/api/auth/akb/me" &&
     request.method() === "GET"
+  );
+}
+
+function isWorkspaceVaultsRequest(request: import("@playwright/test").Request) {
+  return (
+    new URL(request.url()).pathname === "/api/vaults" &&
+    request.method() === "GET"
+  );
+}
+
+function selectedFixtureWorkspaceIsActive(body: unknown): boolean | null {
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("vaults" in body) ||
+    !Array.isArray(body.vaults)
+  ) {
+    return null;
+  }
+  const vaults = EnrichedVaultSummarySchema.array().safeParse(body.vaults);
+  if (!vaults.success) return null;
+  return (
+    vaults.data.find((vault) => vault.name === REEF_E2E_VAULT)
+      ?.installation_active ?? null
   );
 }
 
@@ -571,53 +597,153 @@ test.describe("auth soft navigation", () => {
     request,
   }) => {
     test.setTimeout(60_000);
-    await openWorkspaceThroughLogin(page);
-    const currentUrl = page.url();
-    await setAuthControl(request, { probeFailureStatus: 500 });
-
-    let probeFailureCount = 0;
-    const countProbeFailures = (
-      response: import("@playwright/test").Response,
+    const initialRequestsPending = new Set<
+      import("@playwright/test").Request
+    >();
+    let initialRequestRevision = 0;
+    let readinessRequestRevision: number | undefined;
+    let latestVaultResponse:
+      | {
+          installationActive: Promise<boolean | null>;
+        }
+      | undefined;
+    const trackInitialRequest = (
+      initialRequest: import("@playwright/test").Request,
     ) => {
-      if (isAuthProbeRequest(response.request()) && response.status() === 502) {
-        probeFailureCount += 1;
+      if (
+        isAuthProbeRequest(initialRequest) ||
+        isWorkspaceVaultsRequest(initialRequest)
+      ) {
+        initialRequestRevision += 1;
+        initialRequestsPending.add(initialRequest);
       }
     };
-    page.on("response", countProbeFailures);
+    const settleInitialRequest = (
+      initialRequest: import("@playwright/test").Request,
+    ) => {
+      initialRequestsPending.delete(initialRequest);
+    };
+    const settleAuthResponse = (
+      response: import("@playwright/test").Response,
+    ) => {
+      if (isAuthProbeRequest(response.request())) {
+        initialRequestsPending.delete(response.request());
+      }
+    };
+    const trackVaultResponse = (
+      response: import("@playwright/test").Response,
+    ) => {
+      if (!isWorkspaceVaultsRequest(response.request())) return;
+      const installationActive = response.ok()
+        ? response
+            .json()
+            .then((body: unknown) => selectedFixtureWorkspaceIsActive(body))
+            .catch(() => null)
+        : Promise.resolve(null);
+      latestVaultResponse = { installationActive };
+    };
+    page.on("request", trackInitialRequest);
+    page.on("requestfinished", settleInitialRequest);
+    page.on("requestfailed", settleInitialRequest);
+    page.on("response", settleAuthResponse);
+    page.on("response", trackVaultResponse);
 
     try {
-      const firstFailure = page.waitForResponse(
-        (response) =>
-          isAuthProbeRequest(response.request()) && response.status() === 502,
-      );
-      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-      const response = await firstFailure;
-      expect(response.headers()["x-reef-auth-invalidated"] ?? null).toBeNull();
-      expect(response.headers()["set-cookie"] ?? null).toBeNull();
-
-      await expect(
-        page.locator('[data-testid="auth-revalidation-status"]'),
-      ).toBeVisible({ timeout: 10_000 });
-      expect(probeFailureCount).toBe(2);
-      await expect(page).toHaveURL(currentUrl);
+      await openWorkspaceThroughLogin(page);
+      const currentUrl = page.url();
       await expectPersistentShell(page);
       await expect(page.getByTestId("kanban-board")).toBeVisible();
-
-      await setAuthControl(request, { probeFailureStatus: null });
-      const retryResponse = page.waitForResponse(
-        (retry) =>
-          isAuthProbeRequest(retry.request()) && retry.status() === 200,
-      );
-      await page.getByTestId("auth-revalidation-retry").click();
-      await retryResponse;
-
-      await expect(page).toHaveURL(currentUrl);
-      await expect(
-        page.locator('[data-testid="auth-revalidation-status"]'),
-      ).toHaveCount(0);
+      await expect
+        .poll(async () => {
+          const requestRevisionAtStart = initialRequestRevision;
+          const latest = latestVaultResponse;
+          const selectedWorkspaceInstallationActive = latest
+            ? await latest.installationActive
+            : null;
+          const noNewInitialRequests =
+            requestRevisionAtStart === initialRequestRevision;
+          if (
+            selectedWorkspaceInstallationActive === true &&
+            initialRequestsPending.size === 0 &&
+            noNewInitialRequests &&
+            latest === latestVaultResponse
+          ) {
+            readinessRequestRevision = initialRequestRevision;
+          }
+          return {
+            selectedWorkspaceInstallationActive,
+            initialRequestsPending: initialRequestsPending.size,
+            noNewInitialRequests,
+            latestVaultResponseUnchanged: latest === latestVaultResponse,
+          };
+        })
+        .toEqual({
+          selectedWorkspaceInstallationActive: true,
+          initialRequestsPending: 0,
+          noNewInitialRequests: true,
+          latestVaultResponseUnchanged: true,
+        });
+      await expectPersistentShell(page);
       await expect(page.getByTestId("kanban-board")).toBeVisible();
+      expect(initialRequestsPending.size).toBe(0);
+      expect(initialRequestRevision).toBe(readinessRequestRevision);
+      await setAuthControl(request, { probeFailureStatus: 500 });
+
+      let probeFailureCount = 0;
+      const countProbeFailures = (
+        response: import("@playwright/test").Response,
+      ) => {
+        if (
+          isAuthProbeRequest(response.request()) &&
+          response.status() === 502
+        ) {
+          probeFailureCount += 1;
+        }
+      };
+      page.on("response", countProbeFailures);
+
+      try {
+        const firstFailure = page.waitForResponse(
+          (response) =>
+            isAuthProbeRequest(response.request()) && response.status() === 502,
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        const response = await firstFailure;
+        expect(
+          response.headers()["x-reef-auth-invalidated"] ?? null,
+        ).toBeNull();
+        expect(response.headers()["set-cookie"] ?? null).toBeNull();
+
+        await expect(
+          page.locator('[data-testid="auth-revalidation-status"]'),
+        ).toBeVisible({ timeout: 10_000 });
+        expect(probeFailureCount).toBe(2);
+        await expect(page).toHaveURL(currentUrl);
+        await expectPersistentShell(page);
+        await expect(page.getByTestId("kanban-board")).toBeVisible();
+
+        await setAuthControl(request, { probeFailureStatus: null });
+        const retryResponse = page.waitForResponse(
+          (retry) =>
+            isAuthProbeRequest(retry.request()) && retry.status() === 200,
+        );
+        await page.getByTestId("auth-revalidation-retry").click();
+        await retryResponse;
+
+        await expect(page).toHaveURL(currentUrl);
+        await expect(
+          page.locator('[data-testid="auth-revalidation-status"]'),
+        ).toHaveCount(0);
+        await expect(page.getByTestId("kanban-board")).toBeVisible();
+      } finally {
+        page.off("response", countProbeFailures);
+      }
     } finally {
-      page.off("response", countProbeFailures);
+      page.off("request", trackInitialRequest);
+      page.off("requestfinished", settleInitialRequest);
+      page.off("requestfailed", settleInitialRequest);
+      page.off("response", settleAuthResponse);
+      page.off("response", trackVaultResponse);
     }
   });
 
