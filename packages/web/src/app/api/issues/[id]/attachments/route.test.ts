@@ -189,7 +189,7 @@ describe("POST /api/issues/[id]/attachments", () => {
 
   it.each([
     ["reef'\\한글😀.png", "reef'\\\\한글😀.png"],
-    [String.raw`screen[1].png`, String.raw`screen\[1\].png`],
+    ["screen[1].png", String.raw`screen\[1\].png`],
     [String.raw`screen\[1\].png`, String.raw`screen\\\[1\\\].png`],
     [
       String.raw`screen\](https://example.com)![other\].png`,

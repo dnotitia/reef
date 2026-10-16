@@ -9,6 +9,10 @@ import {
   PersonalNotificationSchema,
   type NotificationState,
   type PersonalNotification,
+  type PersonalNotificationReadAllRequest,
+  type PersonalNotificationReadAllResult,
+  PersonalNotificationReadAllRequestSchema,
+  PersonalNotificationReadAllResultSchema,
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -188,6 +192,70 @@ export function useUpdateNotificationState() {
             });
           }
           return boundedVisibleList(remaining);
+        },
+      );
+      void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+}
+
+export function useMarkAllPersonalNotificationsRead() {
+  const queryClient = useQueryClient();
+  const currentUser = useCurrentUser();
+  const login = currentUser.data?.username?.trim() || null;
+
+  return useMutation({
+    mutationFn: async (
+      request: PersonalNotificationReadAllRequest,
+    ): Promise<PersonalNotificationReadAllResult> => {
+      const body = PersonalNotificationReadAllRequestSchema.parse(request);
+      const response = await apiFetch("/api/notifications/read-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        await throwHttpError(
+          response,
+          `Failed to mark notifications as read: ${response.status}`,
+        );
+      }
+      const responseBody = (await response.json()) as { result?: unknown };
+      return PersonalNotificationReadAllResultSchema.parse(responseBody.result);
+    },
+    onSuccess: (result) => {
+      if (!login) return;
+      const queryKey = personalNotificationsQueryKey(login);
+      const completedByIdentity = new Map(
+        result.completed.map((notification) => [
+          `${notification.workspace}\0${notification.notification_key}`,
+          notification,
+        ]),
+      );
+
+      queryClient.setQueryData<PersonalNotification[] | undefined>(
+        queryKey,
+        (current) => {
+          if (!current) return current;
+          const reconciled: PersonalNotification[] = [];
+          for (const notification of current) {
+            const updated = completedByIdentity.get(
+              notificationIdentity(notification),
+            );
+            if (!updated) {
+              reconciled.push(notification);
+              continue;
+            }
+            if (updated.state === "read") {
+              reconciled.push({
+                ...notification,
+                state: "read",
+                read_at: updated.read_at,
+                archived_at: null,
+              });
+            }
+          }
+          return boundedVisibleList(reconciled);
         },
       );
       void queryClient.invalidateQueries({ queryKey });

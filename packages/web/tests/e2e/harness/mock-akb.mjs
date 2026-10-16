@@ -903,6 +903,9 @@ export async function handleAkb(req, res, url, state) {
     const isPlanningCatalogRead =
       /^\s*select \* from reef_(?:sprints|milestones|releases)\b/i.test(sql);
     const isReorder = /^\s*with updated as \(update reef_issues\b/i.test(sql);
+    const isNotificationWrite =
+      /^\s*with requested as \(select jsonb_array_elements_text\(/i.test(sql) &&
+      /\bupdate reef_notifications\b/i.test(sql);
     if (updateKey) beginIssueUpdateRequest(state, updateKey);
     if (issueListKey) beginIssueListRequest(state, issueListKey);
     if (attachmentKey) beginAttachmentReadRequest(state, attachmentKey);
@@ -913,6 +916,8 @@ export async function handleAkb(req, res, url, state) {
       if (issueListKey) await waitForResponseHold(state, "issue-list");
       if (isPlanningCatalogRead)
         await waitForResponseHold(state, "planning-catalog");
+      if (isNotificationWrite)
+        await waitForResponseHold(state, "notification-write");
       const attachmentGate = attachmentKey
         ? state.attachmentReadControls.get(attachmentKey)?.gate
         : null;

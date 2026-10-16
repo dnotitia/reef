@@ -14,16 +14,27 @@ import {
   ACTIVITY_EVENT_ISSUE_BODY_MENTIONS_CHANGE,
   type NotificationState,
   type PersonalNotification as ReefNotification,
+  type PersonalNotificationReadAllResult,
+  type PersonalNotificationTarget,
 } from "@reef/core";
 import { Archive, Bell, MailOpen } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   useInboxNotifications,
+  useMarkAllPersonalNotificationsRead,
   useUpdateNotificationState,
 } from "../hooks/useInboxNotifications";
+
+type InboxFilter = "all" | "unread";
+
+interface BulkReadState {
+  targets: PersonalNotificationTarget[];
+  completed: PersonalNotificationReadAllResult["completed"];
+  unresolved: PersonalNotificationTarget[];
+}
 
 const KNOWN_EVENT_TYPES = [
   "comment_created",
@@ -78,9 +89,11 @@ function notificationIssueHref(notification: ReefNotification): string {
 function NotificationItem({
   notification,
   onActionError,
+  onStateSuccess,
 }: {
   notification: ReefNotification;
   onActionError: (message: string | null) => void;
+  onStateSuccess: (state: NotificationState) => void;
 }) {
   const locale = useLocale();
   const t = useTranslations("inbox");
@@ -112,6 +125,7 @@ function NotificationItem({
         notificationKey: notification.notification_key,
         state,
       });
+      onStateSuccess(state);
       if (state === "archived") {
         toast.success(
           t("archiveSuccess", {
@@ -141,6 +155,7 @@ function NotificationItem({
           notificationKey: notification.notification_key,
           state: "read",
         });
+        onStateSuccess("read");
       } catch (error) {
         setBusy(false);
         onActionError(
@@ -324,6 +339,79 @@ function NotificationInboxContent() {
     useInboxNotifications();
   const [actionError, setActionError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [bulkReadState, setBulkReadState] = useState<BulkReadState | null>(
+    null,
+  );
+  const [bulkReadError, setBulkReadError] = useState<string | null>(null);
+  const markAllRead = useMarkAllPersonalNotificationsRead();
+  const filterButtonRefs = useRef<
+    Record<InboxFilter, HTMLButtonElement | null>
+  >({ all: null, unread: null });
+
+  const visibleNotifications =
+    filter === "unread"
+      ? notifications.filter((notification) => notification.state === "unread")
+      : notifications;
+
+  function handleStateSuccess(state: NotificationState) {
+    if (state === "archived" || (filter === "unread" && state !== "unread")) {
+      filterButtonRefs.current[filter]?.focus();
+    }
+  }
+
+  async function markAllNotificationsRead() {
+    setActionError(null);
+    setBulkReadError(null);
+    setBulkReadState(null);
+    try {
+      const result = await markAllRead.mutateAsync({});
+      setBulkReadState({
+        targets: result.targets,
+        completed: result.completed,
+        unresolved: result.unresolved,
+      });
+    } catch {
+      setBulkReadError(t("markAllError"));
+    }
+  }
+
+  async function retryUnresolvedTargets() {
+    const unresolved = bulkReadState?.unresolved ?? [];
+    if (unresolved.length === 0 || markAllRead.isPending) return;
+    setBulkReadError(null);
+    try {
+      const result = await markAllRead.mutateAsync({ targets: unresolved });
+      setBulkReadState((current) => {
+        if (!current) {
+          return {
+            targets: result.targets,
+            completed: result.completed,
+            unresolved: result.unresolved,
+          };
+        }
+        const completedByIdentity = new Map(
+          current.completed.map((notification) => [
+            `${notification.workspace}\0${notification.notification_key}`,
+            notification,
+          ]),
+        );
+        for (const notification of result.completed) {
+          completedByIdentity.set(
+            `${notification.workspace}\0${notification.notification_key}`,
+            notification,
+          );
+        }
+        return {
+          ...current,
+          completed: [...completedByIdentity.values()],
+          unresolved: result.unresolved,
+        };
+      });
+    } catch {
+      setBulkReadError(t("markAllError"));
+    }
+  }
 
   const retryNotifications = async () => {
     setIsRetrying(true);
@@ -381,11 +469,110 @@ function NotificationInboxContent() {
           {actionError}
         </div>
       )}
-      {notifications.length === 0 ? (
+      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-between gap-2">
+        <div
+          role="group"
+          aria-label={t("filterLabel")}
+          className="flex flex-wrap items-center gap-1 rounded-md border border-border-subtle bg-surface-subtle p-1"
+        >
+          <Button
+            type="button"
+            size="sm"
+            variant={filter === "all" ? "secondary" : "ghost"}
+            aria-pressed={filter === "all"}
+            ref={(element) => {
+              filterButtonRefs.current.all = element;
+            }}
+            onClick={() => setFilter("all")}
+          >
+            {t("filterAll")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={filter === "unread" ? "secondary" : "ghost"}
+            aria-pressed={filter === "unread"}
+            ref={(element) => {
+              filterButtonRefs.current.unread = element;
+            }}
+            onClick={() => setFilter("unread")}
+          >
+            {t("filterUnread")}
+          </Button>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          busy={markAllRead.isPending}
+          disabled={markAllRead.isPending}
+          onClick={() => void markAllNotificationsRead()}
+        >
+          <MailOpen className="h-3.5 w-3.5" aria-hidden="true" />
+          {markAllRead.isPending ? t("markAllPending") : t("markAllRead")}
+        </Button>
+      </div>
+      {bulkReadError && (
+        <p
+          role="alert"
+          className="mx-auto w-full max-w-2xl rounded-md border border-destructive-focus/40 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+        >
+          {bulkReadError}
+        </p>
+      )}
+      {bulkReadState && (
+        <div className="mx-auto w-full max-w-2xl">
+          {bulkReadState.unresolved.length > 0 ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive-focus/40 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
+            >
+              {t("markAllPartial", {
+                completed: bulkReadState.completed.filter(
+                  (notification) => notification.state === "read",
+                ).length,
+                unresolved: bulkReadState.unresolved.length,
+              })}
+            </p>
+          ) : (
+            <p
+              role="status"
+              aria-live="polite"
+              className="rounded-md border border-border-subtle bg-surface-subtle px-3 py-2 text-sm text-muted-foreground"
+            >
+              {bulkReadState.targets.length === 0
+                ? t("noUnreadTargets")
+                : t("markAllSuccess", {
+                    count: bulkReadState.completed.filter(
+                      (notification) => notification.state === "read",
+                    ).length,
+                  })}
+            </p>
+          )}
+          {bulkReadState.unresolved.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              busy={markAllRead.isPending}
+              disabled={markAllRead.isPending}
+              onClick={() => void retryUnresolvedTargets()}
+            >
+              {t("retryUnresolved", {
+                count: bulkReadState.unresolved.length,
+              })}
+            </Button>
+          )}
+        </div>
+      )}
+      {visibleNotifications.length === 0 ? (
         <EmptyState
           data-testid="notification-inbox-empty"
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
+          title={t(filter === "unread" ? "emptyUnreadTitle" : "emptyTitle")}
+          description={t(
+            filter === "unread" ? "emptyUnreadDescription" : "emptyDescription",
+          )}
         />
       ) : (
         <ul
@@ -393,11 +580,12 @@ function NotificationInboxContent() {
           data-testid="notification-inbox-list"
           className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle"
         >
-          {notifications.map((notification) => (
+          {visibleNotifications.map((notification) => (
             <NotificationItem
               key={`${notification.workspace}:${notification.notification_key}`}
               notification={notification}
               onActionError={setActionError}
+              onStateSuccess={handleStateSuccess}
             />
           ))}
         </ul>

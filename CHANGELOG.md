@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- The personal Inbox can filter All or Unread locally and mark read the full
+  click-time unread snapshot across accessible ready workspaces, including rows
+  beyond the visible list cap. Partial failures can retry only unresolved rows.
+
 - The personal Inbox leads with source issue titles and shows the original
   status transition for activity notifications when that history is available.
 

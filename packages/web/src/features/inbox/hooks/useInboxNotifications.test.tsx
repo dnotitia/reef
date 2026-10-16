@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   personalNotificationsQueryKey,
   useInboxNotifications,
+  useMarkAllPersonalNotificationsRead,
   useUnreadNotificationCount,
   useUpdateNotificationState,
 } from "./useInboxNotifications";
@@ -236,6 +237,108 @@ describe("useInboxNotifications", () => {
         archived_at: serverUpdatedNotification.archived_at,
       },
       zeta,
+    ]);
+  });
+
+  it("applies saved bulk results by workspace identity and retries only unresolved targets", async () => {
+    const alpha = makeNotification(0, "unread", "reef-alpha");
+    const zeta = { ...alpha, workspace: "reef-zeta" };
+    const targets = [
+      {
+        workspace: "reef-alpha",
+        notification_key: alpha.notification_key,
+      },
+      {
+        workspace: "reef-zeta",
+        notification_key: zeta.notification_key,
+      },
+    ];
+    const readAt = "2026-10-15T14:00:00.000Z";
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(personalNotificationsQueryKey("alice"), [
+      alpha,
+      zeta,
+    ]);
+    mockedApiFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          result: {
+            targets,
+            completed: [
+              {
+                ...targets[0],
+                state: "read",
+                read_at: readAt,
+              },
+            ],
+            unresolved: [targets[1]],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const { result } = renderHook(() => useMarkAllPersonalNotificationsRead(), {
+      wrapper: createQueryWrapper(queryClient),
+    });
+
+    let firstResult: Awaited<ReturnType<typeof result.current.mutateAsync>>;
+    await act(async () => {
+      firstResult = await result.current.mutateAsync({});
+    });
+
+    expect(mockedApiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/notifications/read-all",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(
+      queryClient.getQueryData(personalNotificationsQueryKey("alice")),
+    ).toEqual([{ ...alpha, state: "read", read_at: readAt }, zeta]);
+
+    mockedApiFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          result: {
+            targets: [targets[1]],
+            completed: [
+              {
+                ...targets[1],
+                state: "read",
+                read_at: "2026-10-15T14:01:00.000Z",
+              },
+            ],
+            unresolved: [],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({ targets: firstResult.unresolved });
+    });
+
+    expect(mockedApiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/notifications/read-all",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ targets: [targets[1]] }),
+      }),
+    );
+    expect(
+      queryClient.getQueryData(personalNotificationsQueryKey("alice")),
+    ).toEqual([
+      { ...alpha, state: "read", read_at: readAt },
+      {
+        ...zeta,
+        state: "read",
+        read_at: "2026-10-15T14:01:00.000Z",
+      },
     ]);
   });
 

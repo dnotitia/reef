@@ -648,7 +648,7 @@ test.describe("Hermetic runtime discovery", () => {
           content_type: "application/json",
           body: {
             operation:
-              "asset-upload|issue-list|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
+              "asset-upload|issue-list|notification-write|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
             hold: "<boolean>",
           },
         },
@@ -1294,6 +1294,17 @@ test.describe("Hermetic runtime discovery", () => {
           };
           controls: {
             notification_control: { operation: string };
+            notification_add: {
+              method: "POST";
+              path: "/__e2e/notification-add";
+              content_type: "application/json";
+              body: {
+                vault: "<fixture_vault>";
+                source_ref: "<unique_ref>";
+              };
+              occurred_at: "2020-01-01T00:00:00.000Z";
+              recipient: string;
+            };
             vault_list_control: { operation: string };
             installation_control: {
               operation: string;
@@ -1328,6 +1339,14 @@ test.describe("Hermetic runtime discovery", () => {
     });
     expect(task.controls).toEqual({
       notification_control: { operation: "notification_control" },
+      notification_add: {
+        method: "POST",
+        path: "/__e2e/notification-add",
+        content_type: "application/json",
+        body: { vault: "<fixture_vault>", source_ref: "<unique_ref>" },
+        occurred_at: "2020-01-01T00:00:00.000Z",
+        recipient: contract.fixture_login.username,
+      },
       vault_list_control: { operation: "vault_list_control" },
       installation_control: {
         operation: "installation_control",

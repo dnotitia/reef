@@ -2,15 +2,18 @@ import { test as workspaceTest } from "../harness/workspace-fixture";
 import { expect, type Page } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  addLateUnreadNotification,
   fixtureReaderLogin,
   fixtureWriterLogin,
   readFixtureState,
   setNotificationControl,
+  setResponseHold,
   setInstallationControl,
   setVaultListControl,
   signInThroughApi,
   continueToWorkspace,
   signInAsUser,
+  waitForResponseHoldPending,
 } from "../harness/fixture";
 
 const test = workspaceTest.extend({ scenario: "notifications_personal" });
@@ -100,6 +103,173 @@ function schemaMutationSql(
 }
 
 test.describe("Hermetic notification Inbox", () => {
+  test("filters the capped list locally and reload resets it to All", async ({
+    page,
+  }) => {
+    await signInThroughApi(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+
+    const allFilter = page.getByRole("button", { name: "All", exact: true });
+    const unreadFilter = page.getByRole("button", {
+      name: "Unread",
+      exact: true,
+    });
+    await expect(allFilter).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("notification-item")).toHaveCount(103);
+    await unreadFilter.click();
+    await expect(unreadFilter).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("notification-item")).toHaveCount(100);
+
+    await page.reload();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect(allFilter).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("notification-item")).toHaveCount(103);
+  });
+
+  test("marks the click-time snapshot across workspaces and retries only unresolved identities", async ({
+    page,
+    request,
+  }) => {
+    await signInThroughApi(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+
+    const initial = await readFixtureState(request);
+    const initialUnread = initial.vaults
+      .filter((vault) =>
+        [REEF_E2E_VAULT, "reef-alpha", "odd_workspace"].includes(vault.name),
+      )
+      .flatMap((vault) =>
+        vault.notifications
+          .filter(
+            (notification) =>
+              notification.recipient === "alice" &&
+              notification.state === "unread" &&
+              notification.archived_at == null,
+          )
+          .map((notification) => ({
+            workspace: vault.name,
+            notification_key: notification.notification_key,
+          })),
+      );
+    expect(initialUnread.length).toBeGreaterThan(100);
+
+    await setResponseHold(request, "notification-write", true);
+    try {
+      const firstResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/notifications/read-all") &&
+          response.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Mark all read" }).click();
+      await waitForResponseHoldPending(request, "notification-write");
+
+      const lateOddKey = await addLateUnreadNotification(
+        request,
+        "odd_workspace",
+        "late-during-read-all",
+      );
+      await setNotificationControl(request, {
+        vault: "reef-alpha",
+        role: "reader",
+      });
+      await setResponseHold(request, "notification-write", false);
+
+      const firstResponse = await firstResponsePromise;
+      expect(firstResponse.status()).toBe(200);
+      const firstBody = (await firstResponse.json()) as {
+        result: {
+          targets: Array<{ workspace: string; notification_key: string }>;
+          completed: Array<{ workspace: string; notification_key: string }>;
+          unresolved: Array<{ workspace: string; notification_key: string }>;
+        };
+      };
+      expect(firstBody.result.targets).toHaveLength(initialUnread.length);
+      expect(
+        firstBody.result.targets.filter(
+          ({ notification_key }) =>
+            notification_key === DUPLICATE_COMMENT_NOTIFICATION_KEY,
+        ),
+      ).toHaveLength(2);
+      expect(
+        new Set(firstBody.result.unresolved.map(({ workspace }) => workspace)),
+      ).toEqual(new Set(["reef-alpha"]));
+      expect(firstBody.result.completed.length).toBeGreaterThan(100);
+      expect(firstBody.result.unresolved).toHaveLength(1);
+
+      const afterFirstAttempt = await readFixtureState(request);
+      expect(
+        workspaceVault(afterFirstAttempt, "odd_workspace").notifications.find(
+          ({ notification_key }) => notification_key === lateOddKey,
+        )?.state,
+      ).toBe("unread");
+      expect(
+        workspaceVault(afterFirstAttempt, "reef-alpha").notifications.find(
+          ({ notification_key }) =>
+            notification_key ===
+            firstBody.result.unresolved[0]?.notification_key,
+        )?.state,
+      ).toBe("unread");
+
+      await setNotificationControl(request, {
+        vault: "reef-alpha",
+        role: "owner",
+      });
+      const lateAlphaKey = await addLateUnreadNotification(
+        request,
+        "reef-alpha",
+        "late-before-unresolved-retry",
+      );
+      const retryResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/notifications/read-all") &&
+          response.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Retry 1 remaining" }).click();
+      const retryResponse = await retryResponsePromise;
+      expect(retryResponse.status()).toBe(200);
+      const retryBody = (await retryResponse.json()) as {
+        result: {
+          targets: Array<{ workspace: string; notification_key: string }>;
+          completed: Array<{ workspace: string; notification_key: string }>;
+          unresolved: Array<{ workspace: string; notification_key: string }>;
+        };
+      };
+      expect(retryBody.result.targets).toEqual(firstBody.result.unresolved);
+      expect(retryBody.result.completed).toHaveLength(1);
+      expect(retryBody.result.unresolved).toEqual([]);
+
+      const final = await readFixtureState(request);
+      expect(
+        workspaceVault(final, "odd_workspace").notifications.find(
+          ({ notification_key }) => notification_key === lateOddKey,
+        )?.state,
+      ).toBe("unread");
+      expect(
+        workspaceVault(final, "reef-alpha").notifications.find(
+          ({ notification_key }) => notification_key === lateAlphaKey,
+        )?.state,
+      ).toBe("unread");
+      expect(
+        initialUnread.every((target) =>
+          workspaceVault(final, target.workspace).notifications.some(
+            (notification) =>
+              notification.notification_key === target.notification_key &&
+              notification.recipient === "alice" &&
+              notification.state === "read",
+          ),
+        ),
+      ).toBe(true);
+    } finally {
+      await setResponseHold(request, "notification-write", false);
+      await setNotificationControl(request, {
+        vault: "reef-alpha",
+        role: "owner",
+      });
+    }
+  });
+
   test("lists the actor's personal notifications without a selected vault", async ({
     page,
   }) => {
