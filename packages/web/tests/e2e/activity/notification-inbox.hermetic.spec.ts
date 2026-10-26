@@ -207,6 +207,9 @@ test.describe("Hermetic notification Inbox", () => {
     await page.waitForTimeout(1_000);
     expect(notificationListReads).toBe(readsBeforeIrrelevantEvent);
 
+    // Start before fixture persistence so this monotonic measurement is a
+    // conservative upper bound on saved-to-visible latency.
+    const savedBeforeStartedAt = performance.now();
     const notificationKey = await addLateUnreadNotification(
       request,
       "reef-alpha",
@@ -217,6 +220,10 @@ test.describe("Hermetic notification Inbox", () => {
       `[data-notification-key="${notificationKey}"]`,
     );
     await expect(insertedRow).toBeVisible();
+    const badgeAndInboxVisibleAt = performance.now();
+    expect(badgeAndInboxVisibleAt - savedBeforeStartedAt).toBeLessThanOrEqual(
+      5_000,
+    );
     expect(notificationListReads).toBeGreaterThan(readsBeforeIrrelevantEvent);
     expect(feedRequests).toHaveLength(1);
 
@@ -248,6 +255,40 @@ test.describe("Hermetic notification Inbox", () => {
       .toBe(3);
     await expect.poll(() => feedRequests.length).toBeGreaterThan(1);
     expect(notificationListReads).toBeGreaterThan(readsBeforeReconnect);
+  });
+
+  test("refreshes the persistent Inbox badge while the Inbox page is unmounted within five seconds", async ({
+    page,
+    request,
+  }) => {
+    await signInThroughApi(page);
+    const cleared = await page.request.post("/api/notifications/read-all", {
+      data: {},
+    });
+    expect(cleared.status()).toBe(200);
+
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues`);
+    await continueToWorkspace(page, REEF_E2E_VAULT);
+    await expect(page.getByTestId("notification-inbox-list")).toHaveCount(0);
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(3);
+
+    // This starts before the fixture commits the row, so the measured interval
+    // is a conservative upper bound on saved-to-badge latency.
+    const savedBeforeStartedAt = performance.now();
+    await addLateUnreadNotification(
+      request,
+      REEF_E2E_VAULT,
+      "badge-refresh-without-inbox-page",
+    );
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    const badgeVisibleAt = performance.now();
+    expect(badgeVisibleAt - savedBeforeStartedAt).toBeLessThanOrEqual(5_000);
   });
 
   test("keeps a delayed notification read from reverting an individual read saved in another Inbox", async ({
@@ -517,6 +558,9 @@ test.describe("Hermetic notification Inbox", () => {
 
     const eventsWhileDisconnected = (await readFixtureState(request))
       .notification_stream.events;
+    // Start while disconnected and before the missed row is committed; this
+    // conservatively bounds persistence, stream recovery, and UI visibility.
+    const recoveryStartedAt = performance.now();
     const recoveredKey = await addLateUnreadNotification(
       request,
       REEF_E2E_VAULT,
@@ -537,6 +581,8 @@ test.describe("Hermetic notification Inbox", () => {
       ),
     ).toBeVisible();
     await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    const recoveredVisibleAt = performance.now();
+    expect(recoveredVisibleAt - recoveryStartedAt).toBeLessThanOrEqual(5_000);
     expect(feedRequests.length).toBeGreaterThan(1);
   });
 
