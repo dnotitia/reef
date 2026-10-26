@@ -648,7 +648,7 @@ test.describe("Hermetic runtime discovery", () => {
           content_type: "application/json",
           body: {
             operation:
-              "asset-upload|issue-list|notification-write|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
+              "asset-upload|issue-list|notification-write|notification-read|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
             hold: "<boolean>",
           },
         },
