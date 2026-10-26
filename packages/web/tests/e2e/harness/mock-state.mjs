@@ -272,6 +272,21 @@ export function createState(scenario) {
     installationLookupModes: new Map(),
     notificationSchemaMode: "healthy",
     notificationDataMode: "healthy",
+    notificationStream: {
+      clients: new Map(),
+      connections: 0,
+      active: 0,
+      disconnects: 0,
+      events: 0,
+      checkpoints: 0,
+      heartbeats: 0,
+      nextCursor: 0,
+      failNextConnections: 0,
+      eventGapNextConnections: 0,
+      eventGapFailures: 0,
+      disconnectAfterNextEvent: false,
+      lastEventByVault: {},
+    },
     accountDenialCode: null,
     authProbeHold: false,
     authProbeHoldCount: 0,
@@ -408,6 +423,19 @@ export function publicState(state) {
       schema_modes: Object.fromEntries(state.notificationSchemaModes),
       data_modes: Object.fromEntries(state.notificationDataModes),
     },
+    notification_stream: {
+      connections: state.notificationStream.connections,
+      active: state.notificationStream.active,
+      disconnects: state.notificationStream.disconnects,
+      events: state.notificationStream.events,
+      checkpoints: state.notificationStream.checkpoints,
+      heartbeats: state.notificationStream.heartbeats,
+      fail_next_connections: state.notificationStream.failNextConnections,
+      event_gap_next_connections:
+        state.notificationStream.eventGapNextConnections,
+      event_gap_failures: state.notificationStream.eventGapFailures,
+      last_event_by_vault: state.notificationStream.lastEventByVault,
+    },
     installation_drift: {
       lookup_modes: Object.fromEntries(
         [...state.vaults.values()]
@@ -525,4 +553,77 @@ export function publicState(state) {
       })),
     })),
   };
+}
+
+export function registerNotificationStreamClient(state, vault, response) {
+  const clients = state.notificationStream.clients.get(vault) ?? new Set();
+  const client = { response, closed: false, heartbeatTimer: null };
+  clients.add(client);
+  state.notificationStream.clients.set(vault, clients);
+  state.notificationStream.connections += 1;
+  state.notificationStream.active += 1;
+  const cursor = `notification-${state.notificationStream.nextCursor}`;
+  response.write(
+    `id: ${cursor}\nevent: checkpoint\ndata: ${JSON.stringify({ version: 1, cursor })}\n\n`,
+  );
+  state.notificationStream.checkpoints += 1;
+  const sendHeartbeat = () => {
+    if (client.closed) return;
+    response.write(": heartbeat\n\n");
+    state.notificationStream.heartbeats += 1;
+  };
+  sendHeartbeat();
+  client.heartbeatTimer = setInterval(sendHeartbeat, 250);
+
+  const cleanup = () => {
+    if (client.closed) return;
+    client.closed = true;
+    if (client.heartbeatTimer) clearInterval(client.heartbeatTimer);
+    clients.delete(client);
+    if (clients.size === 0) state.notificationStream.clients.delete(vault);
+    state.notificationStream.active = Math.max(
+      0,
+      state.notificationStream.active - 1,
+    );
+    state.notificationStream.disconnects += 1;
+  };
+  response.on("close", cleanup);
+  return cleanup;
+}
+
+export function publishNotificationChange(state, vault, table, operation) {
+  if (!["insert", "update", "delete"].includes(operation)) return;
+  const clients = state.notificationStream.clients.get(vault);
+  if (!clients?.size) return;
+  state.notificationStream.nextCursor += 1;
+  const cursor = `notification-${state.notificationStream.nextCursor}`;
+  const event = {
+    version: 1,
+    cursor,
+    occurred_at: NOW,
+    vault,
+    kind: "table.rows_changed",
+    resource_uri: `akb://${vault}/table/${table}`,
+    payload: { operation },
+  };
+  const wire = `id: ${cursor}\nevent: change\ndata: ${JSON.stringify(event)}\n\n`;
+  for (const client of clients) {
+    client.response.write(wire);
+  }
+  state.notificationStream.events += 1;
+  state.notificationStream.lastEventByVault[vault] = {
+    table,
+    operation,
+    cursor,
+  };
+  if (state.notificationStream.disconnectAfterNextEvent) {
+    state.notificationStream.disconnectAfterNextEvent = false;
+    closeNotificationStreams(state);
+  }
+}
+
+export function closeNotificationStreams(state) {
+  for (const clients of state.notificationStream.clients.values()) {
+    for (const client of clients) client.response.end();
+  }
 }

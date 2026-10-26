@@ -4,9 +4,10 @@ import {
 } from "@/test-support/query";
 import { apiFetch } from "@/lib/apiClient";
 import type { Notification } from "@reef/core";
+import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   personalNotificationsQueryKey,
   useInboxNotifications,
@@ -74,6 +75,139 @@ describe("useInboxNotifications", () => {
     mocks.currentUser.isError = false;
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shares one account tab stream across the badge and Inbox and refreshes the same cache", async () => {
+    const unread = makeNotification(3, "unread");
+    const responses = [[], [], [unread]];
+    mockedApiFetch.mockImplementation(async (input) => {
+      if (input !== "/api/notifications") {
+        throw new Error(`Unexpected request: ${String(input)}`);
+      }
+      return new Response(
+        JSON.stringify({ notifications: responses.shift() ?? [unread] }),
+        { status: 200 },
+      );
+    });
+
+    class TestEventSource {
+      static instances: TestEventSource[] = [];
+      readonly listeners = new Map<string, Set<EventListener>>();
+      readonly close = vi.fn();
+
+      constructor(readonly url: string) {
+        TestEventSource.instances.push(this);
+      }
+
+      addEventListener(type: string, listener: EventListener): void {
+        const listeners = this.listeners.get(type) ?? new Set<EventListener>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      emit(type: string): void {
+        const event = new MessageEvent(type, { data: "{}" });
+        for (const listener of this.listeners.get(type) ?? []) {
+          listener(event);
+        }
+      }
+    }
+    vi.stubGlobal("EventSource", TestEventSource);
+
+    const queryClient = createTestQueryClient();
+    const { result, unmount } = renderHook(
+      () => ({
+        badge: useUnreadNotificationCount(),
+        inbox: useInboxNotifications(),
+      }),
+      { wrapper: createQueryWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(result.current.badge).toBe(0));
+    await waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+    const source = TestEventSource.instances[0];
+    expect(source?.url).toBe("/api/notifications/events");
+
+    await act(async () => source?.emit("ready"));
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2));
+
+    await act(async () => source?.emit("notifications_changed"));
+    await waitFor(() => {
+      expect(result.current.badge).toBe(1);
+      expect(result.current.inbox.notifications).toEqual([unread]);
+    });
+    expect(mockedApiFetch).toHaveBeenCalledTimes(3);
+    expect(source?.close).not.toHaveBeenCalled();
+    unmount();
+    expect(source?.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("queues a follow-up refresh when more change signals arrive during a fetch", async () => {
+    let requestCount = 0;
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    let releaseHeldRequest: (() => void) | undefined;
+    const heldRequest = new Promise<void>((resolve) => {
+      releaseHeldRequest = resolve;
+    });
+    mockedApiFetch.mockImplementation(async () => {
+      requestCount += 1;
+      activeRequests += 1;
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+      if (requestCount === 2) await heldRequest;
+      activeRequests -= 1;
+      return new Response(JSON.stringify({ notifications: [] }), {
+        status: 200,
+      });
+    });
+
+    class TestEventSource {
+      static instances: TestEventSource[] = [];
+      readonly listeners = new Map<string, Set<EventListener>>();
+
+      constructor(readonly url: string) {
+        TestEventSource.instances.push(this);
+      }
+
+      addEventListener(type: string, listener: EventListener): void {
+        const listeners = this.listeners.get(type) ?? new Set<EventListener>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      close(): void {}
+
+      emit(type: string): void {
+        const event = new MessageEvent(type, { data: "{}" });
+        for (const listener of this.listeners.get(type) ?? []) listener(event);
+      }
+    }
+    vi.stubGlobal("EventSource", TestEventSource);
+
+    const { result } = renderHook(() => useInboxNotifications(), {
+      wrapper: createQueryWrapper(),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+    const source = TestEventSource.instances[0];
+
+    await act(async () => source?.emit("ready"));
+    await waitFor(() => expect(requestCount).toBe(2));
+    await act(async () => {
+      source?.emit("notifications_changed");
+      source?.emit("notifications_changed");
+    });
+    expect(requestCount).toBe(2);
+    expect(maxActiveRequests).toBe(1);
+
+    await act(async () => releaseHeldRequest?.());
+    await waitFor(() => expect(requestCount).toBe(3));
+    await waitFor(() => expect(activeRequests).toBe(0));
+    expect(maxActiveRequests).toBe(1);
+  });
+
   it("loads one account-scoped response and preserves duplicate keys by workspace", async () => {
     const unread = makeNotification(0, "unread", "reef-alpha");
     const duplicateUnread = { ...unread, workspace: "reef-zeta" };
@@ -105,6 +239,7 @@ describe("useInboxNotifications", () => {
     expect(mockedApiFetch).toHaveBeenCalledTimes(1);
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/notifications", {
       cache: "no-store",
+      signal: expect.any(AbortSignal),
     });
     const cached = queryClient.getQueryCache().find({
       queryKey: personalNotificationsQueryKey("alice"),
@@ -131,6 +266,7 @@ describe("useInboxNotifications", () => {
     await waitFor(() => expect(result.current).toBe(100));
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/notifications", {
       cache: "no-store",
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -356,5 +492,226 @@ describe("useInboxNotifications", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isError).toBe(true);
     expect(result.current.isPermissionDenied).toBe(true);
+  });
+
+  it("keeps a delayed query result in the account generation that started it", async () => {
+    const aliceNotification = makeNotification(0, "unread");
+    const bobNotification = {
+      ...makeNotification(1, "unread"),
+      recipient: "bob",
+    };
+    let resolveAlice: ((response: Response) => void) | undefined;
+    let requestCount = 0;
+    mockedApiFetch.mockImplementation(async () => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return await new Promise<Response>((resolve) => {
+          resolveAlice = resolve;
+        });
+      }
+      return new Response(
+        JSON.stringify({ notifications: [bobNotification] }),
+        { status: 200 },
+      );
+    });
+
+    const queryClient = createTestQueryClient();
+    const { result, rerender } = renderHook(() => useInboxNotifications(), {
+      wrapper: createQueryWrapper(queryClient),
+    });
+    await waitFor(() => expect(requestCount).toBe(1));
+    const aliceSignal = mockedApiFetch.mock.calls[0]?.[1]?.signal;
+
+    act(() => {
+      mocks.currentUser.data = { username: "bob" };
+      rerender();
+    });
+    await waitFor(() =>
+      expect(result.current.notifications[0]?.recipient).toBe("bob"),
+    );
+    await act(async () => {
+      resolveAlice?.(
+        new Response(JSON.stringify({ notifications: [aliceNotification] }), {
+          status: 200,
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(aliceSignal?.aborted).toBe(true);
+    expect(result.current.notifications).toEqual([bobNotification]);
+    expect(
+      queryClient.getQueryData(personalNotificationsQueryKey("bob")),
+    ).toEqual([bobNotification]);
+  });
+
+  it("pauses the shared stream while hidden or offline and resets it on account change", async () => {
+    const visibilityDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "visibilityState",
+    );
+    const onlineDescriptor = Object.getOwnPropertyDescriptor(
+      navigator,
+      "onLine",
+    );
+    const setVisibility = (value: "hidden" | "visible") => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value,
+      });
+    };
+    const setOnline = (value: boolean) => {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value,
+      });
+    };
+    class TestEventSource {
+      static instances: TestEventSource[] = [];
+      readonly close = vi.fn();
+
+      constructor(readonly url: string) {
+        TestEventSource.instances.push(this);
+      }
+
+      addEventListener(): void {}
+    }
+    vi.stubGlobal("EventSource", TestEventSource);
+    mockedApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ notifications: [] }), { status: 200 }),
+    );
+    setVisibility("hidden");
+    setOnline(true);
+
+    const { rerender, unmount } = renderHook(() => useInboxNotifications(), {
+      wrapper: createQueryWrapper(),
+    });
+    try {
+      await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
+      expect(TestEventSource.instances).toHaveLength(0);
+
+      act(() => {
+        setVisibility("visible");
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+      const visibleSource = TestEventSource.instances[0];
+
+      act(() => {
+        setOnline(false);
+        window.dispatchEvent(new Event("offline"));
+      });
+      expect(visibleSource?.close).toHaveBeenCalledOnce();
+
+      act(() => {
+        setOnline(true);
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(() => expect(TestEventSource.instances).toHaveLength(2));
+      const onlineSource = TestEventSource.instances[1];
+
+      act(() => {
+        mocks.currentUser.data = { username: "bob" };
+        window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+        rerender();
+      });
+      await waitFor(() => expect(TestEventSource.instances).toHaveLength(3));
+      expect(onlineSource?.close).toHaveBeenCalledOnce();
+
+      unmount();
+      expect(TestEventSource.instances[2]?.close).toHaveBeenCalledOnce();
+    } finally {
+      unmount();
+      if (visibilityDescriptor) {
+        Object.defineProperty(
+          document,
+          "visibilityState",
+          visibilityDescriptor,
+        );
+      } else {
+        Reflect.deleteProperty(document, "visibilityState");
+      }
+      if (onlineDescriptor) {
+        Object.defineProperty(navigator, "onLine", onlineDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, "onLine");
+      }
+    }
+  });
+
+  it("does not apply an individual mutation result to the account that replaced its caller", async () => {
+    const aliceNotification = {
+      ...makeNotification(0, "unread", "reef-alpha"),
+      notification_key: "shared-key",
+    };
+    const bobNotification = {
+      ...aliceNotification,
+      recipient: "bob",
+      state: "unread" as const,
+      read_at: null,
+    };
+    const aliceUpdated: Notification = {
+      id: aliceNotification.id,
+      notification_key: aliceNotification.notification_key,
+      recipient: "alice",
+      reef_id: aliceNotification.reef_id,
+      source_type: "activity",
+      source_ref: "event-1",
+      event_type: "comment_created",
+      actor: "bob",
+      occurred_at: aliceNotification.occurred_at,
+      state: "read",
+      read_at: "2026-10-26T03:00:00.000Z",
+      archived_at: null,
+      payload: null,
+      meta: null,
+    };
+    let resolveMutation: ((response: Response) => void) | undefined;
+    mockedApiFetch.mockImplementation(async (input) => {
+      if (input !== "/api/notifications/shared-key") {
+        throw new Error(`Unexpected request: ${String(input)}`);
+      }
+      return await new Promise<Response>((resolve) => {
+        resolveMutation = resolve;
+      });
+    });
+
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(personalNotificationsQueryKey("alice"), [
+      aliceNotification,
+    ]);
+    queryClient.setQueryData(personalNotificationsQueryKey("bob"), [
+      bobNotification,
+    ]);
+    const { result, rerender } = renderHook(
+      () => useUpdateNotificationState(),
+      { wrapper: createQueryWrapper(queryClient) },
+    );
+    let mutationPromise: Promise<Notification> | undefined;
+    act(() => {
+      mutationPromise = result.current.mutateAsync({
+        workspace: "reef-alpha",
+        notificationKey: "shared-key",
+        state: "read",
+      });
+    });
+    await waitFor(() => expect(resolveMutation).toBeDefined());
+
+    act(() => {
+      mocks.currentUser.data = { username: "bob" };
+      rerender();
+    });
+    await act(async () => {
+      resolveMutation?.(
+        new Response(JSON.stringify({ notification: aliceUpdated }), {
+          status: 200,
+        }),
+      );
+      await mutationPromise;
+    });
+
+    expect(
+      queryClient.getQueryData(personalNotificationsQueryKey("bob")),
+    ).toEqual([bobNotification]);
   });
 });

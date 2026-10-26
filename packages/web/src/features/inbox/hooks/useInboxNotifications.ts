@@ -3,6 +3,10 @@
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { apiFetch, throwHttpError, type HttpError } from "@/lib/apiClient";
 import {
+  refreshPersonalNotifications,
+  subscribeToNotificationChanges,
+} from "@/features/inbox/notificationChanges";
+import {
   type Notification,
   NotificationRowSchema,
   NotificationStateSchema,
@@ -15,6 +19,7 @@ import {
   PersonalNotificationReadAllResultSchema,
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 const PERSONAL_NOTIFICATIONS_QUERY_KEY = ["notifications", "personal"] as const;
 const NOTIFICATION_LIMIT_PER_STATE = 100;
@@ -62,8 +67,15 @@ function boundedVisibleList(
   return [...unread, ...read].sort(compareNotifications);
 }
 
-async function fetchPersonalNotifications(): Promise<PersonalNotification[]> {
-  const response = await apiFetch("/api/notifications", { cache: "no-store" });
+async function fetchPersonalNotifications({
+  signal,
+}: {
+  signal: AbortSignal;
+}): Promise<PersonalNotification[]> {
+  const response = await apiFetch("/api/notifications", {
+    cache: "no-store",
+    signal,
+  });
   if (!response.ok) {
     await throwHttpError(
       response,
@@ -76,10 +88,11 @@ async function fetchPersonalNotifications(): Promise<PersonalNotification[]> {
 
 function usePersonalNotificationsQuery() {
   const currentUser = useCurrentUser();
+  const queryClient = useQueryClient();
   const login = currentUser.data?.username?.trim() || null;
   const query = useQuery({
     queryKey: personalNotificationsQueryKey(login ?? "anonymous"),
-    queryFn: fetchPersonalNotifications,
+    queryFn: ({ signal }) => fetchPersonalNotifications({ signal }),
     enabled: Boolean(login),
     staleTime: 15_000,
     refetchOnMount: "always",
@@ -87,6 +100,14 @@ function usePersonalNotificationsQuery() {
     retry: false,
     meta: { persist: false },
   });
+  useEffect(() => {
+    if (!login) return;
+    return subscribeToNotificationChanges(
+      login,
+      queryClient,
+      personalNotificationsQueryKey(login),
+    );
+  }, [login, queryClient]);
   return { currentUser, login, query };
 }
 
@@ -169,9 +190,18 @@ export function useUpdateNotificationState() {
       const body = (await response.json()) as { notification?: unknown };
       return NotificationRowSchema.parse(body.notification);
     },
-    onSuccess: (updated, variables) => {
-      if (!login) return;
-      const queryKey = personalNotificationsQueryKey(login);
+    onMutate: async () => {
+      if (login) {
+        await queryClient.cancelQueries({
+          queryKey: personalNotificationsQueryKey(login),
+        });
+      }
+      return { login };
+    },
+    onSuccess: (updated, variables, mutationContext) => {
+      const mutationLogin = mutationContext.login;
+      if (!mutationLogin || updated.recipient !== mutationLogin) return;
+      const queryKey = personalNotificationsQueryKey(mutationLogin);
       queryClient.setQueryData<PersonalNotification[] | undefined>(
         queryKey,
         (current) => {
@@ -194,7 +224,7 @@ export function useUpdateNotificationState() {
           return boundedVisibleList(remaining);
         },
       );
-      void queryClient.invalidateQueries({ queryKey });
+      refreshPersonalNotifications(queryClient, mutationLogin, queryKey);
     },
   });
 }
@@ -223,9 +253,18 @@ export function useMarkAllPersonalNotificationsRead() {
       const responseBody = (await response.json()) as { result?: unknown };
       return PersonalNotificationReadAllResultSchema.parse(responseBody.result);
     },
-    onSuccess: (result) => {
-      if (!login) return;
-      const queryKey = personalNotificationsQueryKey(login);
+    onMutate: async () => {
+      if (login) {
+        await queryClient.cancelQueries({
+          queryKey: personalNotificationsQueryKey(login),
+        });
+      }
+      return { login };
+    },
+    onSuccess: (result, _request, mutationContext) => {
+      const mutationLogin = mutationContext.login;
+      if (!mutationLogin) return;
+      const queryKey = personalNotificationsQueryKey(mutationLogin);
       const completedByIdentity = new Map(
         result.completed.map((notification) => [
           `${notification.workspace}\0${notification.notification_key}`,
@@ -258,7 +297,7 @@ export function useMarkAllPersonalNotificationsRead() {
           return boundedVisibleList(reconciled);
         },
       );
-      void queryClient.invalidateQueries({ queryKey });
+      refreshPersonalNotifications(queryClient, mutationLogin, queryKey);
     },
   });
 }

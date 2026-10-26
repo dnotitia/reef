@@ -22,6 +22,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- The personal Inbox refreshes its badge and list when a notification changes in
+  an active accessible workspace, and refreshes again after the event stream
+  reconnects or resumes.
+
 - The personal Inbox can filter All or Unread locally and mark read the full
   click-time unread snapshot across accessible ready workspaces, including rows
   beyond the visible list cap. Partial failures can retry only unresolved rows.

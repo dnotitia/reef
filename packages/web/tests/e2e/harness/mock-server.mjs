@@ -29,6 +29,7 @@ import { runtimeDiscovery } from "./mock-runtime.mjs";
 import {
   createState,
   attachmentReadKey,
+  closeNotificationStreams,
   installationLookupModes,
   issueUpdateKey,
   markdownLinkSearchKey,
@@ -38,6 +39,7 @@ import {
   releaseAllIssueUpdateHolds,
   releaseIssueUpdate,
   rememberCall,
+  publishNotificationChange,
   setIssueUpdateHold,
   setResponseHold,
   waitForAuthProbeHold,
@@ -104,6 +106,7 @@ const server = createServer(async (req, res) => {
         "asset-upload",
         "issue-list",
         "notification-write",
+        "notification-read",
         "planning-catalog",
         "issue-reorder",
         "content-search",
@@ -130,6 +133,7 @@ const server = createServer(async (req, res) => {
       releaseAllAuthProbeHolds(state);
       releaseAllIssueUpdateHolds(state);
       state.releaseVaultList?.();
+      closeNotificationStreams(state);
       for (const control of state.issueReadControls.values())
         control.release?.();
       for (const control of state.attachmentReadControls.values())
@@ -725,7 +729,74 @@ const server = createServer(async (req, res) => {
         payload: null,
         meta: null,
       });
+      publishNotificationChange(
+        state,
+        vaultName,
+        "reef_notifications",
+        "insert",
+      );
       return json(res, 200, { ok: true, notification_key: notificationKey });
+    }
+    if (
+      url.pathname === "/__e2e/notification-stream-control" &&
+      req.method === "POST"
+    ) {
+      if (state.scenario !== "notifications_personal") {
+        return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      const body = await readJson(req);
+      const failNextConnections = body?.fail_next_connections ?? 0;
+      const eventGapNextConnections = body?.event_gap_next_connections ?? 0;
+      if (
+        !Number.isInteger(failNextConnections) ||
+        failNextConnections < 0 ||
+        failNextConnections > 5 ||
+        !Number.isInteger(eventGapNextConnections) ||
+        eventGapNextConnections < 0 ||
+        eventGapNextConnections > 5 ||
+        (body?.disconnect_after_next_event !== undefined &&
+          typeof body.disconnect_after_next_event !== "boolean") ||
+        (body?.close_existing !== undefined &&
+          typeof body.close_existing !== "boolean")
+      ) {
+        return json(res, 400, { error: "invalid notification stream control" });
+      }
+      state.notificationStream.failNextConnections = failNextConnections;
+      state.notificationStream.eventGapNextConnections =
+        eventGapNextConnections;
+      state.notificationStream.disconnectAfterNextEvent =
+        body?.disconnect_after_next_event === true;
+      if (body?.close_existing === true) closeNotificationStreams(state);
+      return json(res, 200, {
+        ok: true,
+        fail_next_connections: failNextConnections,
+        event_gap_next_connections: eventGapNextConnections,
+        disconnect_after_next_event:
+          state.notificationStream.disconnectAfterNextEvent,
+      });
+    }
+    if (
+      url.pathname === "/__e2e/notification-stream-emit" &&
+      req.method === "POST"
+    ) {
+      if (state.scenario !== "notifications_personal") {
+        return json(res, 409, { error: "unsupported fixture scenario" });
+      }
+      const body = await readJson(req);
+      const vaultName = String(body?.vault ?? "");
+      const table = String(body?.table ?? "");
+      const operation = String(body?.operation ?? "");
+      if (
+        !state.vaults.has(vaultName) ||
+        !["reef_activity", "reef_comments", "reef_notifications"].includes(
+          table,
+        ) ||
+        !["insert", "update", "delete"].includes(operation)
+      ) {
+        return json(res, 400, { error: "invalid notification stream event" });
+      }
+      publishNotificationChange(state, vaultName, table, operation);
+      return json(res, 200, { ok: true });
     }
     if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {
       const body = await readJson(req);

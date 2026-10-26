@@ -39,6 +39,7 @@ import {
   issueUpdateKey,
   waitForResponseHold,
   installationLookupMode,
+  registerNotificationStreamClient,
   markdownLinkSearchKey,
   nextCommit,
   rememberSqlCall,
@@ -196,6 +197,54 @@ export async function handleAkb(req, res, url, state) {
     return accountDenialResponse(res, state.accountDenialCode);
   }
   const user = state.users.get(username);
+
+  const changeEventMatch = path.match(/^\/api\/v1\/events\/([^/]+)$/);
+  if (changeEventMatch && req.method === "GET") {
+    const vaultName = decodeURIComponent(changeEventMatch[1]);
+    const vault = vaultFor(vaultName);
+    if (!vault) return;
+    if (url.searchParams.get("kind") !== "table.rows_changed") {
+      return json(res, 400, { error: "unsupported event kind" });
+    }
+    if (!roleForVault(vault, state, username)) {
+      return json(res, 403, { error: "vault membership required" });
+    }
+    if (!vault.tables.has("reef_notifications")) {
+      return json(res, 404, {
+        error: 'relation "reef_notifications" does not exist',
+      });
+    }
+    if (state.notificationStream.eventGapNextConnections > 0) {
+      state.notificationStream.eventGapNextConnections -= 1;
+      state.notificationStream.eventGapFailures += 1;
+      return json(res, 410, {
+        detail: {
+          message: "Event cursor is outside the retained Vault tail",
+          code: "event_gap",
+          details: {
+            earliest_cursor: "e2e-earliest-cursor",
+            latest_cursor: "e2e-latest-cursor",
+          },
+        },
+      });
+    }
+    if (state.notificationStream.failNextConnections > 0) {
+      state.notificationStream.failNextConnections -= 1;
+      return json(res, 503, {
+        error: "e2e forced notification stream failure",
+      });
+    }
+
+    res.writeHead(200, {
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "X-Accel-Buffering": "no",
+    });
+    res.write(": connected\n\n");
+    registerNotificationStreamClient(state, vaultName, res);
+    return;
+  }
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
     if (!(await waitForAuthProbe(req, state))) return;
@@ -906,6 +955,9 @@ export async function handleAkb(req, res, url, state) {
     const isNotificationWrite =
       /^\s*with requested as \(select jsonb_array_elements_text\(/i.test(sql) &&
       /\bupdate reef_notifications\b/i.test(sql);
+    const isPersonalNotificationListRead =
+      sql.toLowerCase().includes("reef_notifications") &&
+      /^\s*with\s+scoped_notifications\s+as\s*\(/i.test(sql);
     if (updateKey) beginIssueUpdateRequest(state, updateKey);
     if (issueListKey) beginIssueListRequest(state, issueListKey);
     if (attachmentKey) beginAttachmentReadRequest(state, attachmentKey);
@@ -953,6 +1005,11 @@ export async function handleAkb(req, res, url, state) {
       }
       if (result.kind === "sql_error") {
         return json(res, result.status, result.body);
+      }
+      if (isPersonalNotificationListRead) {
+        const responseSnapshot = structuredClone(result);
+        await waitForResponseHold(state, "notification-read");
+        return json(res, 200, responseSnapshot);
       }
       return json(res, 200, result);
     } finally {

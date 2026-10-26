@@ -65,6 +65,7 @@ export type HeldResponse =
   | "asset-upload"
   | "issue-list"
   | "notification-write"
+  | "notification-read"
   | "planning-catalog"
   | "issue-reorder"
   | "content-search"
@@ -228,6 +229,21 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
     data_mode: string;
     schema_modes: Record<string, string>;
     data_modes: Record<string, string>;
+  };
+  notification_stream: {
+    connections: number;
+    active: number;
+    disconnects: number;
+    events: number;
+    checkpoints: number;
+    heartbeats: number;
+    fail_next_connections: number;
+    event_gap_next_connections: number;
+    event_gap_failures: number;
+    last_event_by_vault: Record<
+      string,
+      { table: string; operation: string; cursor: string }
+    >;
   };
   installation_drift: {
     lookup_modes: Record<
@@ -465,6 +481,50 @@ export async function setNotificationControl(
         data_mode: control.dataMode ?? "healthy",
         vault: control.vault,
         role: control.role,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setNotificationStreamControl(
+  request: APIRequestContext,
+  control: {
+    failNextConnections?: number;
+    eventGapNextConnections?: number;
+    disconnectAfterNextEvent?: boolean;
+    closeExisting?: boolean;
+  },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/notification-stream-control`,
+    {
+      data: {
+        fail_next_connections: control.failNextConnections ?? 0,
+        event_gap_next_connections: control.eventGapNextConnections ?? 0,
+        disconnect_after_next_event: control.disconnectAfterNextEvent ?? false,
+        close_existing: control.closeExisting ?? false,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function emitNotificationStreamEvent(
+  request: APIRequestContext,
+  input: {
+    vault: string;
+    table: "reef_activity" | "reef_comments" | "reef_notifications";
+    operation: "insert" | "update" | "delete";
+  },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/notification-stream-emit`,
+    {
+      data: {
+        vault: input.vault,
+        table: input.table,
+        operation: input.operation,
       },
     },
   );

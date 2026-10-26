@@ -106,6 +106,15 @@ function isProtectedApiRequest(request: import("@playwright/test").Request) {
   return pathname.startsWith("/api/") && !pathname.startsWith("/api/auth/");
 }
 
+function isNotificationEventsRequest(
+  request: import("@playwright/test").Request,
+) {
+  return (
+    new URL(request.url()).pathname === "/api/notifications/events" &&
+    request.method() === "GET"
+  );
+}
+
 async function expectLogin(
   page: import("@playwright/test").Page,
   redirect?: string,
@@ -438,20 +447,27 @@ test.describe("auth soft navigation", () => {
     page,
     request,
   }) => {
-    const pendingProtectedRequests = new Set<
+    const pendingFiniteProtectedRequests = new Set<
+      import("@playwright/test").Request
+    >();
+    const activeNotificationStreams = new Set<
       import("@playwright/test").Request
     >();
     const trackProtectedRequest = (
       protectedRequest: import("@playwright/test").Request,
     ) => {
-      if (isProtectedApiRequest(protectedRequest)) {
-        pendingProtectedRequests.add(protectedRequest);
+      if (!isProtectedApiRequest(protectedRequest)) return;
+      if (isNotificationEventsRequest(protectedRequest)) {
+        activeNotificationStreams.add(protectedRequest);
+      } else {
+        pendingFiniteProtectedRequests.add(protectedRequest);
       }
     };
     const settleProtectedRequest = (
       protectedRequest: import("@playwright/test").Request,
     ) => {
-      pendingProtectedRequests.delete(protectedRequest);
+      pendingFiniteProtectedRequests.delete(protectedRequest);
+      activeNotificationStreams.delete(protectedRequest);
     };
     page.on("request", trackProtectedRequest);
     page.on("requestfinished", settleProtectedRequest);
@@ -460,6 +476,7 @@ test.describe("auth soft navigation", () => {
     try {
       await openWorkspaceThroughLogin(page);
       await expect(page.getByTestId("kanban-board")).toBeVisible();
+      await expect.poll(() => activeNotificationStreams.size).toBe(1);
       await expect
         .poll(() => readIndexedDbConfig(page, "vault"))
         .toBe("reef-e2e");
@@ -488,7 +505,7 @@ test.describe("auth soft navigation", () => {
       await activeProbe;
       await expect
         .poll(() =>
-          [...pendingProtectedRequests].map((pendingRequest) => {
+          [...pendingFiniteProtectedRequests].map((pendingRequest) => {
             const route = new URL(pendingRequest.url()).pathname
               .replace(/\/REEF-[A-Z0-9-]+/gi, "/:issue")
               .replace(/\/reef-[a-z0-9-]+/gi, "/:workspace");
@@ -502,6 +519,7 @@ test.describe("auth soft navigation", () => {
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await probe;
       await expectLogin(page, ISSUES_PATH);
+      await expect.poll(() => activeNotificationStreams.size).toBe(0);
 
       await expect
         .poll(() => readIndexedDbConfig(page, "vault"))
@@ -522,10 +540,15 @@ test.describe("auth soft navigation", () => {
 
       await setAuthControl(request, { session: "active" });
       await signInAsAlice(page);
+      const reconnectedNotificationStream = page.waitForRequest(
+        isNotificationEventsRequest,
+      );
       await page.goto(ISSUES_PATH);
       await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible({
         timeout: 15_000,
       });
+      await reconnectedNotificationStream;
+      await expect.poll(() => activeNotificationStreams.size).toBe(1);
       await expect
         .poll(() => readIndexedDbConfig(page, "workspace_favorites"))
         .toBe(JSON.stringify({ version: 1, favorites: ["reef-e2e"] }));
