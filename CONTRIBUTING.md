@@ -5,9 +5,9 @@ checkout running and what to verify before opening a pull request.
 
 ## Prerequisites
 
-- **Node.js 24.15+** (the repo supports `node >= 24.15.0` via the root `engines`
-  field and uses the exact `.node-version` execution pin `24.18.1`).
-- **pnpm 11** (the root `packageManager` field pins the exact version; run
+- **Node.js 24.22.1+** (the repo supports `node >= 24.22.1` via the root `engines`
+  field and uses the exact `.node-version` execution pin `24.22.1`).
+- **pnpm** (the root `packageManager` field pins the exact version; run
   `corepack enable` to let your shell pick it up automatically).
 - A reachable AKB backend for anything beyond unit tests. The
   [README](README.md) describes a local AKB Docker Compose option.

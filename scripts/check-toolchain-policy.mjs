@@ -16,7 +16,8 @@ const DEPENDENCY_FIELDS = [
 ];
 const CATALOG_PROTOCOL = "catalog:";
 const WORKSPACE_PROTOCOL = "workspace:";
-const NODE_VERSION = "24.18.1";
+const NODE_VERSION = "24.22.1";
+const NODE_MIN_VERSION = "24.22.1";
 const NODE_MAJOR = 24;
 
 function isRecord(value) {
@@ -516,11 +517,15 @@ async function validateRuntime({
   const engineRange = rootManifest.engines?.node;
   const engineFloor =
     typeof engineRange === "string" ? parseEngineFloor(engineRange) : null;
-  if (!engineFloor || engineFloor.major !== NODE_MAJOR) {
+  if (
+    !engineFloor ||
+    engineFloor.major !== NODE_MAJOR ||
+    compareVersions(engineFloor, parseVersion(NODE_MIN_VERSION)) < 0
+  ) {
     addViolation(
       violations,
       "node-engine",
-      `root engines.node must have a Node ${NODE_MAJOR} lower bound`,
+      `root engines.node must have a Node ${NODE_MAJOR} lower bound of at least ${NODE_MIN_VERSION}`,
       ["package.json"],
     );
   } else if (nodeVersion && compareVersions(nodeVersion, engineFloor) < 0) {

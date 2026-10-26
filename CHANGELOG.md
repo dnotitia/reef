@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Security
+
+- Raise the Node.js execution pin, Docker build/runtime images, and minimum
+  supported version to 24.22.1 for the October 2026 security release, including
+  CVE-2026-105482, CVE-2026-105483, CVE-2026-106069, and CVE-2026-111497.
+  CI follows the same exact pin, and the toolchain gate rejects lower support
+  floors.
+
 ### Changed
 
 - The personal Inbox can filter All or Unread locally and mark read the full

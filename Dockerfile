@@ -1,6 +1,6 @@
 # Stage 1: builder — install from the full source tree so Git-hosted workspace
 # dependencies can run their prepare/build lifecycle before Next bundles them.
-FROM node:24.18.1-alpine AS builder
+FROM node:24.22.1-alpine AS builder
 WORKDIR /app
 RUN corepack enable
 COPY . .
@@ -10,7 +10,7 @@ RUN pnpm deploy --filter @reef/event-processor --prod --legacy --config.allow-un
 
 
 # Stage 2: runner — minimal runtime image.
-FROM node:24.18.1-alpine AS reef-web
+FROM node:24.22.1-alpine AS reef-web
 WORKDIR /app
 
 # Release builds bind the image contents to the exact source and product
@@ -43,7 +43,7 @@ CMD ["node", "packages/web/server.js"]
 
 # Private event processor image. It shares the exact builder/source identity
 # with reef-web but contains only the Core and processor runtime artifacts.
-FROM node:24.18.1-alpine AS reef-event-processor
+FROM node:24.22.1-alpine AS reef-event-processor
 WORKDIR /app
 
 ARG REEF_VERSION

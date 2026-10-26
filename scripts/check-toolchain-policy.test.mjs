@@ -23,7 +23,7 @@ async function createFixture() {
         name: "fixture-root",
         private: true,
         packageManager: "pnpm@12.11.2",
-        engines: { node: ">=24.15.0" },
+        engines: { node: ">=24.22.1" },
         devDependencies: { "root-tool": "^1.0.0" },
       },
       null,
@@ -34,7 +34,7 @@ async function createFixture() {
     path.join(root, "pnpm-workspace.yaml"),
     `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^24.13.3\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
   );
-  await writeFile(path.join(root, ".node-version"), "24.18.1\n");
+  await writeFile(path.join(root, ".node-version"), "24.22.1\n");
   await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
   await writeFile(
     path.join(root, ".github", "workflows", "ci.yml"),
@@ -42,7 +42,7 @@ async function createFixture() {
   );
   await writeFile(
     path.join(root, "Dockerfile"),
-    "FROM node:24.18.1-alpine\nRUN corepack enable\nRUN pnpm install --frozen-lockfile\n",
+    "FROM node:24.22.1-alpine\nRUN corepack enable\nRUN pnpm install --frozen-lockfile\n",
   );
 
   for (const [directory, manifest] of [
@@ -127,7 +127,7 @@ test("accepts the canonical catalog and runtime baseline", async () => {
 test("rejects a Node execution pin that drifts from the exact runtime pin", async () => {
   await withFixture(
     async (root) => {
-      await writeFile(path.join(root, ".node-version"), "24.18.0\n");
+      await writeFile(path.join(root, ".node-version"), "24.18.1\n");
     },
     async ({ root, pnpmCommand }) => {
       const result = await inspectToolchain({ root, pnpmCommand });
@@ -135,6 +135,26 @@ test("rejects a Node execution pin that drifts from the exact runtime pin", asyn
     },
   );
 });
+
+for (const engineRange of [">=24.15.0", ">=24.22.0"]) {
+  test(`rejects the vulnerable Node support floor ${engineRange}`, async () => {
+    await withFixture(
+      async (root) => {
+        const manifestPath = path.join(root, "package.json");
+        const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+        manifest.engines.node = engineRange;
+        await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      },
+      async ({ root, pnpmCommand }) => {
+        const result = await inspectToolchain({ root, pnpmCommand });
+        assert.deepEqual(
+          result.violations.map(({ code }) => code),
+          ["node-engine"],
+        );
+      },
+    );
+  });
+}
 
 test("rejects a direct version bypass for a catalog dependency", async () => {
   await withFixture(
