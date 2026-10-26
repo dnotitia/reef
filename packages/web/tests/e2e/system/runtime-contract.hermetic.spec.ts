@@ -1275,6 +1275,8 @@ test.describe("Hermetic runtime discovery", () => {
     const contract = (await response.json()) as {
       operations: {
         notification_control: { method: "POST"; path: string };
+        notification_stream_control: { method: "POST"; path: string };
+        notification_stream_emit: { method: "POST"; path: string };
         vault_list_control: { method: "POST"; path: string };
         installation_control: { method: "POST"; path: string };
       };
@@ -1294,6 +1296,8 @@ test.describe("Hermetic runtime discovery", () => {
           };
           controls: {
             notification_control: { operation: string };
+            notification_stream_control: { operation: string };
+            notification_stream_emit: { operation: string };
             notification_add: {
               method: "POST";
               path: "/__e2e/notification-add";
@@ -1328,6 +1332,39 @@ test.describe("Hermetic runtime discovery", () => {
     const task = contract.tasks.notifications_personal;
 
     expect(contract.operations.notification_control.method).toBe("POST");
+    expect(contract.operations.notification_stream_control).toEqual({
+      method: "POST",
+      path: "/__e2e/notification-stream-control",
+      content_type: "application/json",
+      body: {
+        fail_next_connections: "<count, 0..5>",
+        disconnect_after_next_event: "<boolean>",
+        close_existing: "<boolean>",
+      },
+      semantics: {
+        scope: "notifications_personal scenario only",
+        fail_next_connections:
+          "return 503 before opening the next authenticated AKB event stream",
+        disconnect_after_next_event:
+          "end active AKB event streams after publishing the next change",
+        close_existing: "end all active AKB event streams immediately",
+      },
+    });
+    expect(contract.operations.notification_stream_emit).toEqual({
+      method: "POST",
+      path: "/__e2e/notification-stream-emit",
+      content_type: "application/json",
+      body: {
+        vault: "<fixture_vault>",
+        table: "reef_activity|reef_comments|reef_notifications",
+        operation: "insert|update|delete",
+      },
+      semantics: {
+        purpose:
+          "inject a representative committed table change for feed filtering checks",
+        payload: "event envelope only; no notification contents",
+      },
+    });
     expect(contract.operations.vault_list_control.method).toBe("POST");
     expect(contract.operations.installation_control.method).toBe("POST");
     expect(task.recipient_scope).toBe("authenticated_actor");
@@ -1339,6 +1376,10 @@ test.describe("Hermetic runtime discovery", () => {
     });
     expect(task.controls).toEqual({
       notification_control: { operation: "notification_control" },
+      notification_stream_control: {
+        operation: "notification_stream_control",
+      },
+      notification_stream_emit: { operation: "notification_stream_emit" },
       notification_add: {
         method: "POST",
         path: "/__e2e/notification-add",

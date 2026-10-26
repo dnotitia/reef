@@ -3,6 +3,10 @@
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { apiFetch, throwHttpError, type HttpError } from "@/lib/apiClient";
 import {
+  refreshPersonalNotifications,
+  subscribeToNotificationChanges,
+} from "@/features/inbox/notificationChanges";
+import {
   type Notification,
   NotificationRowSchema,
   NotificationStateSchema,
@@ -15,6 +19,7 @@ import {
   PersonalNotificationReadAllResultSchema,
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 const PERSONAL_NOTIFICATIONS_QUERY_KEY = ["notifications", "personal"] as const;
 const NOTIFICATION_LIMIT_PER_STATE = 100;
@@ -62,8 +67,15 @@ function boundedVisibleList(
   return [...unread, ...read].sort(compareNotifications);
 }
 
-async function fetchPersonalNotifications(): Promise<PersonalNotification[]> {
-  const response = await apiFetch("/api/notifications", { cache: "no-store" });
+async function fetchPersonalNotifications({
+  signal,
+}: {
+  signal: AbortSignal;
+}): Promise<PersonalNotification[]> {
+  const response = await apiFetch("/api/notifications", {
+    cache: "no-store",
+    signal,
+  });
   if (!response.ok) {
     await throwHttpError(
       response,
@@ -76,10 +88,11 @@ async function fetchPersonalNotifications(): Promise<PersonalNotification[]> {
 
 function usePersonalNotificationsQuery() {
   const currentUser = useCurrentUser();
+  const queryClient = useQueryClient();
   const login = currentUser.data?.username?.trim() || null;
   const query = useQuery({
     queryKey: personalNotificationsQueryKey(login ?? "anonymous"),
-    queryFn: fetchPersonalNotifications,
+    queryFn: ({ signal }) => fetchPersonalNotifications({ signal }),
     enabled: Boolean(login),
     staleTime: 15_000,
     refetchOnMount: "always",
@@ -87,6 +100,14 @@ function usePersonalNotificationsQuery() {
     retry: false,
     meta: { persist: false },
   });
+  useEffect(() => {
+    if (!login) return;
+    return subscribeToNotificationChanges(
+      login,
+      queryClient,
+      personalNotificationsQueryKey(login),
+    );
+  }, [login, queryClient]);
   return { currentUser, login, query };
 }
 
@@ -169,6 +190,13 @@ export function useUpdateNotificationState() {
       const body = (await response.json()) as { notification?: unknown };
       return NotificationRowSchema.parse(body.notification);
     },
+    onMutate: async () => {
+      if (login) {
+        await queryClient.cancelQueries({
+          queryKey: personalNotificationsQueryKey(login),
+        });
+      }
+    },
     onSuccess: (updated, variables) => {
       if (!login) return;
       const queryKey = personalNotificationsQueryKey(login);
@@ -194,7 +222,7 @@ export function useUpdateNotificationState() {
           return boundedVisibleList(remaining);
         },
       );
-      void queryClient.invalidateQueries({ queryKey });
+      refreshPersonalNotifications(queryClient, login, queryKey);
     },
   });
 }
@@ -222,6 +250,13 @@ export function useMarkAllPersonalNotificationsRead() {
       }
       const responseBody = (await response.json()) as { result?: unknown };
       return PersonalNotificationReadAllResultSchema.parse(responseBody.result);
+    },
+    onMutate: async () => {
+      if (login) {
+        await queryClient.cancelQueries({
+          queryKey: personalNotificationsQueryKey(login),
+        });
+      }
     },
     onSuccess: (result) => {
       if (!login) return;
@@ -258,7 +293,7 @@ export function useMarkAllPersonalNotificationsRead() {
           return boundedVisibleList(reconciled);
         },
       );
-      void queryClient.invalidateQueries({ queryKey });
+      refreshPersonalNotifications(queryClient, login, queryKey);
     },
   });
 }

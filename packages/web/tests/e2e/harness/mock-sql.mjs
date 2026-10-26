@@ -2,6 +2,7 @@ import { ISSUE_TITLE_COLLATOR, NOW, REEF_VAULT } from "./mock-fixtures.mjs";
 import {
   issueUpdateKey,
   nextEditTimestamp,
+  publishNotificationChange,
   roleForVault,
 } from "./mock-state.mjs";
 import { uuidFor } from "./mock-utils.mjs";
@@ -735,6 +736,7 @@ export function handleSql(state, vault, sql, username) {
       return { error: "invalid bulk notification target list" };
     }
     const rows = [];
+    let changed = false;
     for (const notificationKey of notificationKeys) {
       const row = vault.notifications.find(
         (notification) =>
@@ -745,12 +747,21 @@ export function handleSql(state, vault, sql, username) {
       if (row.state === "unread" && row.archived_at == null) {
         row.state = "read";
         row.read_at = row.read_at ?? changedAt ?? NOW;
+        changed = true;
       }
       rows.push({
         notification_key: notificationKey,
         state: row.state,
         read_at: row.read_at ?? null,
       });
+    }
+    if (changed) {
+      publishNotificationChange(
+        state,
+        vault.name,
+        "reef_notifications",
+        "update",
+      );
     }
     return tableQuery(["notification_key", "state", "read_at"], rows);
   }
@@ -769,6 +780,9 @@ export function handleSql(state, vault, sql, username) {
         notification.recipient === recipient,
     );
     if (!row || !status) return tableQuery(notificationColumns(), []);
+    const previousState = row.state;
+    const previousReadAt = row.read_at;
+    const previousArchivedAt = row.archived_at;
     if (status === "unread") {
       row.state = "unread";
       row.read_at = null;
@@ -783,6 +797,18 @@ export function handleSql(state, vault, sql, username) {
       row.archived_at = row.archived_at ?? changedAt ?? NOW;
     } else {
       return tableQuery(notificationColumns(), []);
+    }
+    if (
+      row.state !== previousState ||
+      row.read_at !== previousReadAt ||
+      row.archived_at !== previousArchivedAt
+    ) {
+      publishNotificationChange(
+        state,
+        vault.name,
+        "reef_notifications",
+        "update",
+      );
     }
     return tableQuery(notificationColumns(), [row]);
   }
@@ -805,6 +831,12 @@ export function handleSql(state, vault, sql, username) {
       meta: candidate.meta ?? null,
     };
     vault.notifications.push(row);
+    publishNotificationChange(
+      state,
+      vault.name,
+      "reef_notifications",
+      "insert",
+    );
     return tableQuery(notificationColumns(), [row]);
   }
 
@@ -844,6 +876,7 @@ export function handleSql(state, vault, sql, username) {
         }
       }
     }
+    const previousNotificationCount = vault.notifications.length;
     vault.notifications = vault.notifications.filter(
       (notification) =>
         !(
@@ -855,6 +888,14 @@ export function handleSql(state, vault, sql, username) {
     vault.comments = vault.comments.filter(
       (comment) => !deletedIds.has(comment.id),
     );
+    if (vault.notifications.length !== previousNotificationCount) {
+      publishNotificationChange(
+        state,
+        vault.name,
+        "reef_notifications",
+        "delete",
+      );
+    }
     return tableQuery(
       ["id"],
       [...deletedIds].sort().map((id) => ({ id })),

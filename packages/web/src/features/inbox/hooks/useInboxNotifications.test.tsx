@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/apiClient";
 import type { Notification } from "@reef/core";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   personalNotificationsQueryKey,
   useInboxNotifications,
@@ -74,6 +74,139 @@ describe("useInboxNotifications", () => {
     mocks.currentUser.isError = false;
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shares one account tab stream across the badge and Inbox and refreshes the same cache", async () => {
+    const unread = makeNotification(3, "unread");
+    const responses = [[], [], [unread]];
+    mockedApiFetch.mockImplementation(async (input) => {
+      if (input !== "/api/notifications") {
+        throw new Error(`Unexpected request: ${String(input)}`);
+      }
+      return new Response(
+        JSON.stringify({ notifications: responses.shift() ?? [unread] }),
+        { status: 200 },
+      );
+    });
+
+    class TestEventSource {
+      static instances: TestEventSource[] = [];
+      readonly listeners = new Map<string, Set<EventListener>>();
+      readonly close = vi.fn();
+
+      constructor(readonly url: string) {
+        TestEventSource.instances.push(this);
+      }
+
+      addEventListener(type: string, listener: EventListener): void {
+        const listeners = this.listeners.get(type) ?? new Set<EventListener>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      emit(type: string): void {
+        const event = new MessageEvent(type, { data: "{}" });
+        for (const listener of this.listeners.get(type) ?? []) {
+          listener(event);
+        }
+      }
+    }
+    vi.stubGlobal("EventSource", TestEventSource);
+
+    const queryClient = createTestQueryClient();
+    const { result, unmount } = renderHook(
+      () => ({
+        badge: useUnreadNotificationCount(),
+        inbox: useInboxNotifications(),
+      }),
+      { wrapper: createQueryWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(result.current.badge).toBe(0));
+    await waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+    const source = TestEventSource.instances[0];
+    expect(source?.url).toBe("/api/notifications/events");
+
+    await act(async () => source?.emit("ready"));
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2));
+
+    await act(async () => source?.emit("notifications_changed"));
+    await waitFor(() => {
+      expect(result.current.badge).toBe(1);
+      expect(result.current.inbox.notifications).toEqual([unread]);
+    });
+    expect(mockedApiFetch).toHaveBeenCalledTimes(3);
+    expect(source?.close).not.toHaveBeenCalled();
+    unmount();
+    expect(source?.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("queues a follow-up refresh when more change signals arrive during a fetch", async () => {
+    let requestCount = 0;
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    let releaseHeldRequest: (() => void) | undefined;
+    const heldRequest = new Promise<void>((resolve) => {
+      releaseHeldRequest = resolve;
+    });
+    mockedApiFetch.mockImplementation(async () => {
+      requestCount += 1;
+      activeRequests += 1;
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+      if (requestCount === 2) await heldRequest;
+      activeRequests -= 1;
+      return new Response(JSON.stringify({ notifications: [] }), {
+        status: 200,
+      });
+    });
+
+    class TestEventSource {
+      static instances: TestEventSource[] = [];
+      readonly listeners = new Map<string, Set<EventListener>>();
+
+      constructor(readonly url: string) {
+        TestEventSource.instances.push(this);
+      }
+
+      addEventListener(type: string, listener: EventListener): void {
+        const listeners = this.listeners.get(type) ?? new Set<EventListener>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      close(): void {}
+
+      emit(type: string): void {
+        const event = new MessageEvent(type, { data: "{}" });
+        for (const listener of this.listeners.get(type) ?? []) listener(event);
+      }
+    }
+    vi.stubGlobal("EventSource", TestEventSource);
+
+    const { result } = renderHook(() => useInboxNotifications(), {
+      wrapper: createQueryWrapper(),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await waitFor(() => expect(TestEventSource.instances).toHaveLength(1));
+    const source = TestEventSource.instances[0];
+
+    await act(async () => source?.emit("ready"));
+    await waitFor(() => expect(requestCount).toBe(2));
+    await act(async () => {
+      source?.emit("notifications_changed");
+      source?.emit("notifications_changed");
+    });
+    expect(requestCount).toBe(2);
+    expect(maxActiveRequests).toBe(1);
+
+    await act(async () => releaseHeldRequest?.());
+    await waitFor(() => expect(requestCount).toBe(3));
+    await waitFor(() => expect(activeRequests).toBe(0));
+    expect(maxActiveRequests).toBe(1);
+  });
+
   it("loads one account-scoped response and preserves duplicate keys by workspace", async () => {
     const unread = makeNotification(0, "unread", "reef-alpha");
     const duplicateUnread = { ...unread, workspace: "reef-zeta" };
@@ -105,6 +238,7 @@ describe("useInboxNotifications", () => {
     expect(mockedApiFetch).toHaveBeenCalledTimes(1);
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/notifications", {
       cache: "no-store",
+      signal: expect.any(AbortSignal),
     });
     const cached = queryClient.getQueryCache().find({
       queryKey: personalNotificationsQueryKey("alice"),
@@ -131,6 +265,7 @@ describe("useInboxNotifications", () => {
     await waitFor(() => expect(result.current).toBe(100));
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/notifications", {
       cache: "no-store",
+      signal: expect.any(AbortSignal),
     });
   });
 

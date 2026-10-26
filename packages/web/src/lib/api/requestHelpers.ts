@@ -31,6 +31,7 @@ import {
 import {
   type AkbAccountErrorCode,
   type AkbAdapter,
+  type AkbStreamAdapter,
   type AkbResourceLabel,
   AuthError,
   ISSUE_ID_PATTERN,
@@ -301,7 +302,7 @@ export async function respondWithError(
  */
 export function getAkbAdapter(
   request: Request,
-): { adapter: AkbAdapter } | { response: Promise<Response> } {
+): { adapter: AkbStreamAdapter } | { response: Promise<Response> } {
   const cookies = parseCookieHeader(request.headers.get("cookie"));
   let mode: "local" | "sso";
   try {

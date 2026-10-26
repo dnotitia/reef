@@ -39,6 +39,7 @@ import {
   issueUpdateKey,
   waitForResponseHold,
   installationLookupMode,
+  registerNotificationStreamClient,
   markdownLinkSearchKey,
   nextCommit,
   rememberSqlCall,
@@ -196,6 +197,40 @@ export async function handleAkb(req, res, url, state) {
     return accountDenialResponse(res, state.accountDenialCode);
   }
   const user = state.users.get(username);
+
+  const changeEventMatch = path.match(/^\/api\/v1\/events\/([^/]+)$/);
+  if (changeEventMatch && req.method === "GET") {
+    const vaultName = decodeURIComponent(changeEventMatch[1]);
+    const vault = vaultFor(vaultName);
+    if (!vault) return;
+    if (url.searchParams.get("kind") !== "table.rows_changed") {
+      return json(res, 400, { error: "unsupported event kind" });
+    }
+    if (!roleForVault(vault, state, username)) {
+      return json(res, 403, { error: "vault membership required" });
+    }
+    if (!vault.tables.has("reef_notifications")) {
+      return json(res, 404, {
+        error: 'relation "reef_notifications" does not exist',
+      });
+    }
+    if (state.notificationStream.failNextConnections > 0) {
+      state.notificationStream.failNextConnections -= 1;
+      return json(res, 503, {
+        error: "e2e forced notification stream failure",
+      });
+    }
+
+    res.writeHead(200, {
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "X-Accel-Buffering": "no",
+    });
+    registerNotificationStreamClient(state, vaultName, res);
+    res.write(": connected\n\n");
+    return;
+  }
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
     if (!(await waitForAuthProbe(req, state))) return;

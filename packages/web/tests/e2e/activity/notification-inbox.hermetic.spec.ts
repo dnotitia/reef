@@ -12,8 +12,10 @@ import {
   setVaultListControl,
   signInThroughApi,
   continueToWorkspace,
+  emitNotificationStreamEvent,
   signInAsUser,
   waitForResponseHoldPending,
+  setNotificationStreamControl,
 } from "../harness/fixture";
 
 const test = workspaceTest.extend({ scenario: "notifications_personal" });
@@ -125,6 +127,117 @@ test.describe("Hermetic notification Inbox", () => {
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
     await expect(allFilter).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("notification-item")).toHaveCount(103);
+  });
+
+  test("refreshes the badge and Inbox after a committed notification change", async ({
+    page,
+    request,
+  }) => {
+    const feedRequests: string[] = [];
+    let notificationListReads = 0;
+    page.on("request", (browserRequest) => {
+      const url = new URL(browserRequest.url());
+      if (url.pathname === "/api/notifications/events") {
+        feedRequests.push(browserRequest.url());
+      }
+      if (
+        url.pathname === "/api/notifications" &&
+        browserRequest.method() === "GET"
+      ) {
+        notificationListReads += 1;
+      }
+    });
+
+    await signInThroughApi(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("9+");
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(3);
+    expect(feedRequests).toHaveLength(1);
+
+    await page.getByRole("button", { name: "Mark all read" }).click();
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .flatMap((vault) => vault.notifications)
+          .filter(
+            (notification) =>
+              notification.recipient === "alice" &&
+              notification.state === "unread",
+          ).length;
+      })
+      .toBe(0);
+    await page.getByRole("button", { name: "Unread", exact: true }).click();
+    await expect(page.getByTestId("notification-item")).toHaveCount(0);
+
+    const readsBeforeIrrelevantEvent = notificationListReads;
+    let irrelevantEventCount = (await readFixtureState(request))
+      .notification_stream.events;
+    for (const table of ["reef_activity", "reef_comments"] as const) {
+      await emitNotificationStreamEvent(request, {
+        vault: REEF_E2E_VAULT,
+        table,
+        operation: "insert",
+      });
+      irrelevantEventCount += 1;
+      await expect
+        .poll(
+          async () =>
+            (await readFixtureState(request)).notification_stream.events,
+        )
+        .toBe(irrelevantEventCount);
+    }
+    await page.waitForTimeout(250);
+    expect(notificationListReads).toBe(readsBeforeIrrelevantEvent);
+
+    const notificationKey = await addLateUnreadNotification(
+      request,
+      "reef-alpha",
+      "live-notification-after-save",
+    );
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    const insertedRow = page.locator(
+      `[data-notification-key="${notificationKey}"]`,
+    );
+    await expect(insertedRow).toBeVisible();
+    expect(notificationListReads).toBeGreaterThan(readsBeforeIrrelevantEvent);
+    expect(feedRequests).toHaveLength(1);
+
+    const readsBeforeReconnect = notificationListReads;
+    await setNotificationStreamControl(request, {
+      closeExisting: true,
+      failNextConnections: 1,
+    });
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(0);
+    const missedDuringReconnect = await addLateUnreadNotification(
+      request,
+      "reef-e2e",
+      "live-notification-during-reconnect",
+    );
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("2");
+    await expect(
+      page.locator(`[data-notification-key="${missedDuringReconnect}"]`),
+    ).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(3);
+    await expect.poll(() => feedRequests.length).toBeGreaterThan(1);
+    expect(notificationListReads).toBeGreaterThan(readsBeforeReconnect);
   });
 
   test("marks the click-time snapshot across workspaces and retries only unresolved identities", async ({
