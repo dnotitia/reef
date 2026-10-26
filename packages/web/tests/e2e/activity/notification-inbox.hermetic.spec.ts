@@ -194,7 +194,7 @@ test.describe("Hermetic notification Inbox", () => {
         )
         .toBe(irrelevantEventCount);
     }
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(1_000);
     expect(notificationListReads).toBe(readsBeforeIrrelevantEvent);
 
     const notificationKey = await addLateUnreadNotification(

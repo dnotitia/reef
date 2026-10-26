@@ -139,7 +139,6 @@ export async function openPersonalNotificationChangeFeed(params: {
         for (const source of sources) {
           if (source.next) pendingSources.push({ source, next: source.next });
         }
-        if (pendingSources.length === 0) return false;
         const settled = await Promise.race(
           pendingSources.map(async ({ source, next }) => ({
             source,
