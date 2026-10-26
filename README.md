@@ -41,8 +41,8 @@ client-ephemeral until the user explicitly applies or approves them.
 
 ## Try reef locally
 
-reef requires Node.js 24.15+ and pnpm 11. The root `.node-version` pins the
-exact Node.js 24.18.1 runtime, and the root `packageManager` field pins the
+reef requires Node.js 24.22.1 or later. The root `.node-version` pins the
+exact Node.js 24.22.1 runtime, and the root `packageManager` field pins the
 exact pnpm version; run `corepack enable` before installing so your shell uses
 those versions.
 

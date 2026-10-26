@@ -3,14 +3,14 @@ import { test } from "node:test";
 
 import { verifyDockerBuildContract } from "./check-turbo-contract.mjs";
 
-const FULL_SOURCE_DOCKERFILE = `FROM node:24.18.1-alpine AS builder
+const FULL_SOURCE_DOCKERFILE = `FROM node:24.22.1-alpine AS builder
 WORKDIR /app
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm run build
 RUN pnpm deploy --filter @reef/event-processor --prod /tmp/reef-event-processor
-FROM node:24.18.1-alpine AS reef-web
-FROM node:24.18.1-alpine AS reef-event-processor
+FROM node:24.22.1-alpine AS reef-web
+FROM node:24.22.1-alpine AS reef-event-processor
 USER 1001
 `;
 
@@ -19,9 +19,9 @@ test("accepts the full-source Docker build contract", () => {
 });
 
 test("rejects the retired pruned-manifest Docker build contract", () => {
-  const retired = `FROM node:24.18.1-alpine AS builder
+  const retired = `FROM node:24.22.1-alpine AS builder
 RUN turbo prune @reef/web --docker
-FROM node:24.18.1-alpine AS runner
+FROM node:24.22.1-alpine AS runner
 USER 1001
 `;
   assert.throws(() => verifyDockerBuildContract(retired), /full source tree/u);
