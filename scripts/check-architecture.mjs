@@ -30,6 +30,7 @@ const rawAdapterRoutes = new Set([
   "packages/web/src/app/api/my-work/route.ts",
   "packages/web/src/app/api/notifications/route.ts",
   "packages/web/src/app/api/notifications/read-all/route.ts",
+  "packages/web/src/app/api/notifications/events/route.ts",
   "packages/web/src/app/api/vaults/route.ts",
   "packages/web/src/app/api/vaults/[vault]/installation/route.ts",
   "packages/web/src/app/api/vaults/[vault]/members/route.ts",

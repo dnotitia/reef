@@ -1274,6 +1274,11 @@ test.describe("Hermetic runtime discovery", () => {
     expect(response.ok()).toBeTruthy();
     const contract = (await response.json()) as {
       operations: {
+        response_hold: {
+          method: "POST";
+          path: string;
+          body: { operation: string; hold: string };
+        };
         notification_control: { method: "POST"; path: string };
         notification_stream_control: { method: "POST"; path: string };
         notification_stream_emit: { method: "POST"; path: string };
@@ -1296,6 +1301,11 @@ test.describe("Hermetic runtime discovery", () => {
           };
           controls: {
             notification_control: { operation: string };
+            notification_read_response_hold: {
+              operation: string;
+              response_operation: string;
+              semantics: string;
+            };
             notification_stream_control: { operation: string };
             notification_stream_emit: { operation: string };
             notification_add: {
@@ -1331,6 +1341,16 @@ test.describe("Hermetic runtime discovery", () => {
     };
     const task = contract.tasks.notifications_personal;
 
+    expect(contract.operations.response_hold).toEqual({
+      method: "POST",
+      path: "/__e2e/response-hold",
+      content_type: "application/json",
+      body: {
+        operation:
+          "asset-upload|issue-list|notification-write|notification-read|planning-catalog|issue-reorder|content-search|tool-search|llm-text|llm-tool-call|installation-execution",
+        hold: "<boolean>",
+      },
+    });
     expect(contract.operations.notification_control.method).toBe("POST");
     expect(contract.operations.notification_stream_control).toEqual({
       method: "POST",
@@ -1338,6 +1358,7 @@ test.describe("Hermetic runtime discovery", () => {
       content_type: "application/json",
       body: {
         fail_next_connections: "<count, 0..5>",
+        event_gap_next_connections: "<count, 0..5>",
         disconnect_after_next_event: "<boolean>",
         close_existing: "<boolean>",
       },
@@ -1345,6 +1366,8 @@ test.describe("Hermetic runtime discovery", () => {
         scope: "notifications_personal scenario only",
         fail_next_connections:
           "return 503 before opening the next authenticated AKB event stream",
+        event_gap_next_connections:
+          "return the AKB event_tail event_gap 410 response before opening the next authenticated stream",
         disconnect_after_next_event:
           "end active AKB event streams after publishing the next change",
         close_existing: "end all active AKB event streams immediately",
@@ -1376,6 +1399,12 @@ test.describe("Hermetic runtime discovery", () => {
     });
     expect(task.controls).toEqual({
       notification_control: { operation: "notification_control" },
+      notification_read_response_hold: {
+        operation: "response_hold",
+        response_operation: "notification-read",
+        semantics:
+          "hold an already computed personal notification read response and release that snapshot unchanged",
+      },
       notification_stream_control: {
         operation: "notification_stream_control",
       },

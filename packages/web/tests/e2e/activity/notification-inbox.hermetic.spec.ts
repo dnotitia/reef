@@ -159,6 +159,16 @@ test.describe("Hermetic notification Inbox", () => {
       )
       .toBe(3);
     expect(feedRequests).toHaveLength(1);
+    const openedStreams = (await readFixtureState(request)).notification_stream;
+    expect(openedStreams.checkpoints).toBe(3);
+    const readsDuringIdle = notificationListReads;
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.heartbeats,
+      )
+      .toBeGreaterThan(openedStreams.heartbeats + 1);
+    expect(notificationListReads).toBe(readsDuringIdle);
 
     await page.getByRole("button", { name: "Mark all read" }).click();
     await expect(page.getByTestId("inbox-unread-badge")).toHaveCount(0);
@@ -238,6 +248,385 @@ test.describe("Hermetic notification Inbox", () => {
       .toBe(3);
     await expect.poll(() => feedRequests.length).toBeGreaterThan(1);
     expect(notificationListReads).toBeGreaterThan(readsBeforeReconnect);
+  });
+
+  test("keeps a delayed notification read from reverting an individual read saved in another Inbox", async ({
+    page,
+    request,
+  }) => {
+    await signInThroughApi(page);
+    const otherInbox = await page.context().newPage();
+    try {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+      await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+      await otherInbox.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+      await expect(
+        otherInbox.getByTestId("notification-inbox-list"),
+      ).toBeVisible();
+
+      const target = primaryNotification(await readFixtureState(request));
+      const targetRow = page.locator(
+        `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"][data-notification-key="${target.notification_key}"]`,
+      );
+      await expect(targetRow).toHaveAttribute("data-state", "unread");
+      await expect
+        .poll(
+          async () =>
+            (await readFixtureState(request)).notification_stream.active,
+        )
+        .toBe(6);
+
+      await setResponseHold(request, "notification-read", true);
+      const delayedReadPromise = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/notifications" &&
+          response.request().method() === "GET",
+      );
+      await emitNotificationStreamEvent(request, {
+        vault: REEF_E2E_VAULT,
+        table: "reef_notifications",
+        operation: "update",
+      });
+      await waitForResponseHoldPending(request, "notification-read");
+
+      const savedResponsePromise = otherInbox.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname ===
+            `/api/notifications/${encodeURIComponent(target.notification_key)}` &&
+          response.request().method() === "PATCH",
+      );
+      await otherInbox
+        .locator(
+          `[data-testid="notification-item"][data-workspace="${REEF_E2E_VAULT}"][data-notification-key="${target.notification_key}"]`,
+        )
+        .getByTestId("notification-open")
+        .click();
+      expect((await savedResponsePromise).status()).toBe(200);
+
+      await setResponseHold(request, "notification-read", false);
+      const delayedRead = await delayedReadPromise;
+      expect(delayedRead.status()).toBe(200);
+      const delayedBody = (await delayedRead.json()) as {
+        notifications: Array<{
+          notification_key: string;
+          workspace: string;
+          state: string;
+        }>;
+      };
+      expect(
+        delayedBody.notifications.find(
+          (notification) =>
+            notification.notification_key === target.notification_key &&
+            notification.workspace === REEF_E2E_VAULT,
+        )?.state,
+      ).toBe("unread");
+
+      await expect(targetRow).toHaveAttribute("data-state", "read");
+      expect(
+        workspaceVault(
+          await readFixtureState(request),
+          REEF_E2E_VAULT,
+        ).notifications.find(
+          ({ notification_key }) =>
+            notification_key === target.notification_key,
+        )?.state,
+      ).toBe("read");
+    } finally {
+      await setResponseHold(request, "notification-read", false);
+      await otherInbox.close();
+    }
+  });
+
+  test("keeps a delayed notification read from reverting bulk-read and preserves its click-time target", async ({
+    page,
+    request,
+  }) => {
+    await signInThroughApi(page);
+    const otherInbox = await page.context().newPage();
+    try {
+      await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+      await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+      await otherInbox.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+      await expect(
+        otherInbox.getByTestId("notification-inbox-list"),
+      ).toBeVisible();
+
+      const initial = await readFixtureState(request);
+      const initialUnread = initial.vaults
+        .filter((vault) =>
+          [REEF_E2E_VAULT, "reef-alpha", "odd_workspace"].includes(vault.name),
+        )
+        .flatMap((vault) =>
+          vault.notifications
+            .filter(
+              (notification) =>
+                notification.recipient === "alice" &&
+                notification.state === "unread" &&
+                notification.archived_at == null,
+            )
+            .map((notification) => ({
+              workspace: vault.name,
+              notification_key: notification.notification_key,
+            })),
+        );
+      expect(initialUnread.length).toBeGreaterThan(100);
+      const staleTarget = primaryNotification(initial);
+      await expect
+        .poll(
+          async () =>
+            (await readFixtureState(request)).notification_stream.active,
+        )
+        .toBe(6);
+
+      await setResponseHold(request, "notification-read", true);
+      await setResponseHold(request, "notification-write", true);
+      const delayedReadPromise = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/notifications" &&
+          response.request().method() === "GET",
+      );
+      await emitNotificationStreamEvent(request, {
+        vault: REEF_E2E_VAULT,
+        table: "reef_notifications",
+        operation: "update",
+      });
+      await waitForResponseHoldPending(request, "notification-read");
+
+      const readAllResponsePromise = otherInbox.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/notifications/read-all" &&
+          response.request().method() === "POST",
+      );
+      await otherInbox.getByRole("button", { name: "Mark all read" }).click();
+      await waitForResponseHoldPending(request, "notification-write");
+      const lateKey = await addLateUnreadNotification(
+        request,
+        "odd_workspace",
+        "late-after-bulk-snapshot",
+      );
+      await setResponseHold(request, "notification-write", false);
+
+      const readAllResponse = await readAllResponsePromise;
+      expect(readAllResponse.status()).toBe(200);
+      const readAllBody = (await readAllResponse.json()) as {
+        result: {
+          targets: Array<{ workspace: string; notification_key: string }>;
+        };
+      };
+      const targetIdentity = (target: {
+        workspace: string;
+        notification_key: string;
+      }) => `${target.workspace}\u0000${target.notification_key}`;
+      expect(readAllBody.result.targets.map(targetIdentity).toSorted()).toEqual(
+        initialUnread.map(targetIdentity).toSorted(),
+      );
+      expect(
+        readAllBody.result.targets.some(
+          ({ workspace, notification_key }) =>
+            workspace === "odd_workspace" && notification_key === lateKey,
+        ),
+      ).toBe(false);
+
+      await setResponseHold(request, "notification-read", false);
+      const delayedRead = await delayedReadPromise;
+      expect(delayedRead.status()).toBe(200);
+      const delayedBody = (await delayedRead.json()) as {
+        notifications: Array<{
+          notification_key: string;
+          workspace: string;
+          state: string;
+        }>;
+      };
+      expect(
+        delayedBody.notifications.find(
+          (notification) =>
+            notification.notification_key === staleTarget.notification_key &&
+            notification.workspace === REEF_E2E_VAULT,
+        )?.state,
+      ).toBe("unread");
+
+      await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+      const lateRow = page.locator(
+        `[data-testid="notification-item"][data-workspace="odd_workspace"][data-notification-key="${lateKey}"]`,
+      );
+      await expect(lateRow).toHaveAttribute("data-state", "unread");
+      const final = await readFixtureState(request);
+      expect(
+        workspaceVault(final, "odd_workspace").notifications.find(
+          ({ notification_key }) => notification_key === lateKey,
+        )?.state,
+      ).toBe("unread");
+      expect(
+        workspaceVault(final, REEF_E2E_VAULT).notifications.find(
+          ({ notification_key }) =>
+            notification_key === staleTarget.notification_key,
+        )?.state,
+      ).toBe("read");
+    } finally {
+      await setResponseHold(request, "notification-read", false);
+      await setResponseHold(request, "notification-write", false);
+      await otherInbox.close();
+    }
+  });
+
+  test("rechecks notifications after an AKB event_gap without waiting for another change", async ({
+    page,
+    request,
+  }) => {
+    await signInThroughApi(page);
+    const cleared = await page.request.post("/api/notifications/read-all", {
+      data: {},
+    });
+    expect(cleared.status()).toBe(200);
+    const noUnread = await readFixtureState(request);
+    expect(
+      noUnread.vaults
+        .flatMap((vault) => vault.notifications)
+        .filter(
+          (notification) =>
+            notification.recipient === "alice" &&
+            notification.state === "unread",
+        ),
+    ).toHaveLength(0);
+
+    await setNotificationStreamControl(request, {
+      eventGapNextConnections: 1,
+    });
+    const feedRequests: string[] = [];
+    page.on("request", (browserRequest) => {
+      if (
+        new URL(browserRequest.url()).pathname === "/api/notifications/events"
+      )
+        feedRequests.push(browserRequest.url());
+    });
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream
+            .event_gap_failures,
+      )
+      .toBe(1);
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(0);
+
+    const eventsWhileDisconnected = (await readFixtureState(request))
+      .notification_stream.events;
+    const recoveredKey = await addLateUnreadNotification(
+      request,
+      REEF_E2E_VAULT,
+      "notification-created-during-event-gap",
+    );
+    expect((await readFixtureState(request)).notification_stream.events).toBe(
+      eventsWhileDisconnected,
+    );
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(3);
+    await expect(
+      page.locator(
+        `[data-testid="notification-item"][data-notification-key="${recoveredKey}"]`,
+      ),
+    ).toBeVisible();
+    await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
+    expect(feedRequests.length).toBeGreaterThan(1);
+  });
+
+  test("drops a delayed response from the previous accessible-source generation", async ({
+    page,
+    request,
+  }) => {
+    const feedRequests: string[] = [];
+    let notificationListReads = 0;
+    page.on("request", (browserRequest) => {
+      const url = new URL(browserRequest.url());
+      if (url.pathname === "/api/notifications/events")
+        feedRequests.push(browserRequest.url());
+      if (
+        url.pathname === "/api/notifications" &&
+        browserRequest.method() === "GET"
+      ) {
+        notificationListReads += 1;
+      }
+    });
+    await openNotificationWorkspace(page);
+    await page.getByRole("link", { name: /Inbox/ }).click();
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    const target = alphaCommentNotification(await readFixtureState(request));
+    const alphaRows = page.locator(
+      '[data-testid="notification-item"][data-workspace="reef-alpha"]',
+    );
+    await expect(alphaRows).toHaveCount(2);
+    const readsBeforeGenerationChange = notificationListReads;
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(3);
+
+    await setResponseHold(request, "notification-read", true);
+    const delayedReadPromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/notifications" &&
+        response.request().method() === "GET",
+    );
+    await emitNotificationStreamEvent(request, {
+      vault: "reef-alpha",
+      table: "reef_notifications",
+      operation: "update",
+    });
+    await waitForResponseHoldPending(request, "notification-read");
+
+    await setNotificationControl(request, {
+      vault: "reef-alpha",
+      role: "none",
+    });
+    await setNotificationStreamControl(request, { closeExisting: true });
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(0);
+    await expect
+      .poll(
+        async () =>
+          (await readFixtureState(request)).notification_stream.active,
+      )
+      .toBe(2);
+    await expect.poll(() => feedRequests.length).toBeGreaterThan(1);
+
+    await setResponseHold(request, "notification-read", false);
+    const delayedRead = await delayedReadPromise;
+    expect(delayedRead.status()).toBe(200);
+    const delayedBody = (await delayedRead.json()) as {
+      notifications: Array<{
+        notification_key: string;
+        workspace: string;
+        state: string;
+      }>;
+    };
+    expect(
+      delayedBody.notifications.some(
+        (notification) =>
+          notification.notification_key === target.notification_key &&
+          notification.workspace === "reef-alpha",
+      ),
+    ).toBe(true);
+
+    await expect(alphaRows).toHaveCount(0);
+    expect(notificationListReads).toBeGreaterThan(
+      readsBeforeGenerationChange + 1,
+    );
   });
 
   test("marks the click-time snapshot across workspaces and retries only unresolved identities", async ({

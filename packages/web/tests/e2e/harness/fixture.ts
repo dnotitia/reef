@@ -65,6 +65,7 @@ export type HeldResponse =
   | "asset-upload"
   | "issue-list"
   | "notification-write"
+  | "notification-read"
   | "planning-catalog"
   | "issue-reorder"
   | "content-search"
@@ -234,7 +235,11 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
     active: number;
     disconnects: number;
     events: number;
+    checkpoints: number;
+    heartbeats: number;
     fail_next_connections: number;
+    event_gap_next_connections: number;
+    event_gap_failures: number;
     last_event_by_vault: Record<
       string,
       { table: string; operation: string; cursor: string }
@@ -486,6 +491,7 @@ export async function setNotificationStreamControl(
   request: APIRequestContext,
   control: {
     failNextConnections?: number;
+    eventGapNextConnections?: number;
     disconnectAfterNextEvent?: boolean;
     closeExisting?: boolean;
   },
@@ -495,6 +501,7 @@ export async function setNotificationStreamControl(
     {
       data: {
         fail_next_connections: control.failNextConnections ?? 0,
+        event_gap_next_connections: control.eventGapNextConnections ?? 0,
         disconnect_after_next_event: control.disconnectAfterNextEvent ?? false,
         close_existing: control.closeExisting ?? false,
       },

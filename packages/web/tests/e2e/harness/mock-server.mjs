@@ -106,6 +106,7 @@ const server = createServer(async (req, res) => {
         "asset-upload",
         "issue-list",
         "notification-write",
+        "notification-read",
         "planning-catalog",
         "issue-reorder",
         "content-search",
@@ -745,10 +746,14 @@ const server = createServer(async (req, res) => {
       }
       const body = await readJson(req);
       const failNextConnections = body?.fail_next_connections ?? 0;
+      const eventGapNextConnections = body?.event_gap_next_connections ?? 0;
       if (
         !Number.isInteger(failNextConnections) ||
         failNextConnections < 0 ||
         failNextConnections > 5 ||
+        !Number.isInteger(eventGapNextConnections) ||
+        eventGapNextConnections < 0 ||
+        eventGapNextConnections > 5 ||
         (body?.disconnect_after_next_event !== undefined &&
           typeof body.disconnect_after_next_event !== "boolean") ||
         (body?.close_existing !== undefined &&
@@ -757,12 +762,15 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: "invalid notification stream control" });
       }
       state.notificationStream.failNextConnections = failNextConnections;
+      state.notificationStream.eventGapNextConnections =
+        eventGapNextConnections;
       state.notificationStream.disconnectAfterNextEvent =
         body?.disconnect_after_next_event === true;
       if (body?.close_existing === true) closeNotificationStreams(state);
       return json(res, 200, {
         ok: true,
         fail_next_connections: failNextConnections,
+        event_gap_next_connections: eventGapNextConnections,
         disconnect_after_next_event:
           state.notificationStream.disconnectAfterNextEvent,
       });

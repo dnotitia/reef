@@ -196,10 +196,12 @@ export function useUpdateNotificationState() {
           queryKey: personalNotificationsQueryKey(login),
         });
       }
+      return { login };
     },
-    onSuccess: (updated, variables) => {
-      if (!login) return;
-      const queryKey = personalNotificationsQueryKey(login);
+    onSuccess: (updated, variables, mutationContext) => {
+      const mutationLogin = mutationContext.login;
+      if (!mutationLogin || updated.recipient !== mutationLogin) return;
+      const queryKey = personalNotificationsQueryKey(mutationLogin);
       queryClient.setQueryData<PersonalNotification[] | undefined>(
         queryKey,
         (current) => {
@@ -222,7 +224,7 @@ export function useUpdateNotificationState() {
           return boundedVisibleList(remaining);
         },
       );
-      refreshPersonalNotifications(queryClient, login, queryKey);
+      refreshPersonalNotifications(queryClient, mutationLogin, queryKey);
     },
   });
 }
@@ -257,10 +259,12 @@ export function useMarkAllPersonalNotificationsRead() {
           queryKey: personalNotificationsQueryKey(login),
         });
       }
+      return { login };
     },
-    onSuccess: (result) => {
-      if (!login) return;
-      const queryKey = personalNotificationsQueryKey(login);
+    onSuccess: (result, _request, mutationContext) => {
+      const mutationLogin = mutationContext.login;
+      if (!mutationLogin) return;
+      const queryKey = personalNotificationsQueryKey(mutationLogin);
       const completedByIdentity = new Map(
         result.completed.map((notification) => [
           `${notification.workspace}\0${notification.notification_key}`,
@@ -293,7 +297,7 @@ export function useMarkAllPersonalNotificationsRead() {
           return boundedVisibleList(reconciled);
         },
       );
-      refreshPersonalNotifications(queryClient, login, queryKey);
+      refreshPersonalNotifications(queryClient, mutationLogin, queryKey);
     },
   });
 }
