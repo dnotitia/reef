@@ -76,8 +76,9 @@ export function useIssueSheetDismiss({
   // that `drill()` just recorded. The first callback still wins; remounted
   // relation routes are ignored by the store.
   useEffect(() => {
+    if (currentId !== issueId) return;
     registerExitOwner(onExit, entryRoute);
-  }, [entryRoute, onExit, registerExitOwner]);
+  }, [currentId, entryRoute, issueId, onExit, registerExitOwner]);
 
   // Solely trust the trail when it actually describes the on-screen issue, so the
   // outgoing sheet does not flash a Back to itself the instant a hop moves the

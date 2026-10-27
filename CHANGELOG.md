@@ -35,6 +35,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- Closing an issue opened from a direct link no longer lets its outgoing detail
+  sheet reclaim navigation ownership, so reopening the same or another issue
+  from the workspace renders the requested detail again.
+
 - Dashboard navigation becomes interactive only after hydration and global
   shortcut registration, so the first shortcut does not depend on opening a
   dialog to warm up the shell.
