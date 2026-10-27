@@ -66,6 +66,11 @@ export async function startSsoFixture(getState) {
       oidc.reset();
       redis.reset();
     },
+    expireSessions() {
+      for (const key of redis.records.keys()) {
+        if (key.includes(":session:")) redis.records.delete(key);
+      }
+    },
     observation() {
       const sessions = [...redis.records].filter(([key]) =>
         key.includes(":session:"),

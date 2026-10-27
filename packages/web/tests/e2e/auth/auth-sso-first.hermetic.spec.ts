@@ -3,6 +3,7 @@ import { expect } from "@playwright/test";
 import { E2E_MOCK_URL } from "../harness/fixture";
 
 const test = workspaceTest.extend({ scenario: "empty" });
+const issueTest = workspaceTest.extend({ scenario: "demo_board" });
 
 /** Real Reef companion flow with external OIDC/Redis wire fixtures. */
 test.describe("SSO companion cutover", { tag: "@sso" }, () => {
@@ -170,4 +171,116 @@ test.describe("SSO companion cutover", { tag: "@sso" }, () => {
       expect(geometry.ssoContained, `viewport ${width}px`).toBe(true);
     }
   });
+});
+
+issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
+  const issueListPath = "/workspace/reef-e2e/issues?view=list";
+  const detailPath = "/workspace/reef-e2e/issues/REEF-101?view=list";
+  const restoredDetailPath = "/workspace/reef-e2e/issues/REEF-101";
+
+  async function completeSsoLogin(
+    page: import("@playwright/test").Page,
+    expectedPath: string,
+  ) {
+    await page.waitForURL(
+      (url) => url.pathname === "/realms/reef/protocol/openid-connect/auth",
+      { timeout: 15_000 },
+    );
+    await expect(
+      page.locator('[data-testid="fixture-keycloak-authorize"]'),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Continue", exact: true }).click();
+    await page.waitForURL(
+      (url) => `${url.pathname}${url.search}` === expectedPath,
+      { timeout: 15_000 },
+    );
+  }
+
+  issueTest(
+    "restores an expired detail through SSO and can reopen other and same issues",
+    async ({ page, request }) => {
+      await page.goto(`/login?redirect=${encodeURIComponent(issueListPath)}`);
+      await completeSsoLogin(page, issueListPath);
+      await page
+        .getByText("Review monitored-repo findings", { exact: true })
+        .click();
+      await page.waitForURL(
+        (url) => `${url.pathname}${url.search}` === detailPath,
+        { timeout: 15_000 },
+      );
+      await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+      await expect(
+        page.locator('[data-testid="issue-title-input"]'),
+      ).toHaveValue("Review monitored-repo findings");
+
+      const expiredSessions = await request.post(`${E2E_MOCK_URL}/__e2e/sso`, {
+        data: { expire_sessions: true },
+      });
+      expect(expiredSessions.ok()).toBeTruthy();
+      expect(await expiredSessions.json()).toMatchObject({ sessionRecords: 0 });
+
+      const invalidSessionProbe = page.waitForRequest((probeRequest) => {
+        const url = new URL(probeRequest.url());
+        return (
+          url.pathname === "/api/auth/akb/me" && probeRequest.method() === "GET"
+        );
+      });
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await invalidSessionProbe;
+      await completeSsoLogin(page, restoredDetailPath);
+      await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+      await expect(
+        page.locator('[data-testid="issue-title-input"]'),
+      ).toHaveValue("Review monitored-repo findings");
+      expect(
+        await (await request.get(`${E2E_MOCK_URL}/__e2e/sso`)).json(),
+      ).toMatchObject({ exchanges: 2, sessionRecords: 1 });
+
+      await page.locator('[data-testid="issue-close"]').click();
+      await page.waitForURL(
+        (url) =>
+          url.pathname === "/workspace/reef-e2e/issues" && url.search === "",
+        { timeout: 10_000 },
+      );
+      await page
+        .getByText("Wire board filters into shareable URL state", {
+          exact: true,
+        })
+        .click();
+      await page.waitForURL(
+        (url) =>
+          url.pathname === "/workspace/reef-e2e/issues/REEF-104" &&
+          url.search === "",
+        { timeout: 10_000 },
+      );
+      await expect(
+        page.locator('[data-testid="issue-detail-modal"]'),
+      ).toHaveCount(1);
+      await expect(
+        page.locator('[data-testid="issue-title-input"]'),
+      ).toHaveValue("Wire board filters into shareable URL state");
+
+      await page.locator('[data-testid="issue-close"]').click();
+      await page.waitForURL(
+        (url) =>
+          url.pathname === "/workspace/reef-e2e/issues" && url.search === "",
+        { timeout: 10_000 },
+      );
+      await page
+        .getByText("Review monitored-repo findings", { exact: true })
+        .click();
+      await page.waitForURL(
+        (url) =>
+          url.pathname === "/workspace/reef-e2e/issues/REEF-101" &&
+          url.search === "",
+        { timeout: 10_000 },
+      );
+      await expect(
+        page.locator('[data-testid="issue-detail-modal"]'),
+      ).toHaveCount(1);
+      await expect(
+        page.locator('[data-testid="issue-title-input"]'),
+      ).toHaveValue("Review monitored-repo findings");
+    },
+  );
 });

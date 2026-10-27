@@ -68,8 +68,11 @@ const server = createServer(async (req, res) => {
     if (sso && url.pathname.startsWith("/realms/reef/"))
       return sso.oidc.handle(req, res, url);
     if (sso && url.pathname === "/__e2e/sso") {
-      if (req.method === "POST")
-        sso.oidc.setInvalidNonce((await readJson(req))?.invalid_nonce === true);
+      if (req.method === "POST") {
+        const body = await readJson(req);
+        sso.oidc.setInvalidNonce(body?.invalid_nonce === true);
+        if (body?.expire_sessions === true) sso.expireSessions();
+      }
       return json(res, 200, sso.observation());
     }
     if (

@@ -623,6 +623,58 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await page.waitForURL(/\/issues$/, { timeout: 10_000 });
   });
 
+  async function reopenAfterDirectClose(
+    page: import("@playwright/test").Page,
+    issueId: string,
+    title: string,
+  ) {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-101?view=list&sort=updated_at&order=desc",
+    );
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      ROOT_TITLE,
+    );
+
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(
+      /\/workspace\/reef-e2e\/issues\?view=list&sort=updated_at&order=desc$/,
+      { timeout: 10_000 },
+    );
+    await expect(page.locator('[data-testid="issue-detail"]')).toHaveCount(0);
+
+    await page.getByText(title, { exact: true }).click();
+    await page.waitForURL(
+      new RegExp(
+        `/workspace/reef-e2e/issues/${issueId}\\?view=list&sort=updated_at&order=desc$`,
+      ),
+      { timeout: 10_000 },
+    );
+    await expect(
+      page.locator('[data-testid="issue-detail-modal"]'),
+    ).toHaveCount(1);
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      title,
+    );
+  }
+
+  test("direct detail close then reopen a different issue keeps URL and title aligned", async ({
+    page,
+  }) => {
+    await reopenAfterDirectClose(
+      page,
+      "REEF-104",
+      "Wire board filters into shareable URL state",
+    );
+  });
+
+  test("direct detail close then reopen the same issue keeps URL and title aligned", async ({
+    page,
+  }) => {
+    await reopenAfterDirectClose(page, "REEF-101", ROOT_TITLE);
+  });
+
   async function openDeepLeafAndDrillToParent(
     page: import("@playwright/test").Page,
     { reload = false } = {},

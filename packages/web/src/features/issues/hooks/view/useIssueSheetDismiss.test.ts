@@ -155,6 +155,24 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
+  it("does not re-register the outgoing sheet as exit owner after Close", () => {
+    const onExit = vi.fn();
+    const { result } = renderHook(() =>
+      useIssueSheetDismiss({
+        entryRoute: "base",
+        issueId: "REEF-C",
+        vault: "reef-test",
+        onExit: () => onExit(),
+      }),
+    );
+
+    act(() => result.current.exit());
+
+    expect(useIssueNavStack.getState().entryRoute).toBeNull();
+    expect(useIssueNavStack.getState().exitOwner).toBeNull();
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the deep-link exit owner when a relation route remounts the sheet", () => {
     const deepLinkExit = vi.fn();
     const interceptedRouteExit = vi.fn();

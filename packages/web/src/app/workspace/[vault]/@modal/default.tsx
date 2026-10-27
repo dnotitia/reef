@@ -1,26 +1,28 @@
 "use client";
 
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 /**
  * Required by App Router for parallel routes with no match at the current URL.
  * Returning null prevents a 404 when no intercepting route is active.
  *
- * It also owns one drill-nav session boundary (REEF-270): this slot is mounted
- * exactly when no issue detail is intercepted — i.e. the list/backdrop is what's
- * showing — and it is *unmounted* throughout a drill (the `(.)issues/[id]` slot
- * stays matched as the panel swaps issue to issue). So mounting here means the
- * sheet just left and the list came back, by any path including a browser Back
- * that pops the modal without running Close. Clearing the in-memory trail here
- * guarantees the next fresh open starts at depth 0 even when it reopens the very
- * issue a stale trail was last left on. `clear()` is idempotent, so StrictMode's
- * double-invoked mount effect is harmless.
+ * This slot also owns the drill-nav session boundary (REEF-270). It mounts when
+ * no intercepted child matches, including on a cold base detail route, so clear
+ * the session only after the pathname leaves issue detail. That catches Close
+ * and browser Back to the list while preserving the base route's issue and exit
+ * owner during a direct-detail relationship drill.
  */
 export default function ModalDefault() {
   const clear = useIssueNavStack((state) => state.clear);
+  const pathname = usePathname();
+  const isIssueDetailPath =
+    pathname !== null && /^\/workspace\/[^/]+\/issues\/[^/]+$/.test(pathname);
+
   useEffect(() => {
-    clear();
-  }, [clear]);
+    if (!isIssueDetailPath) clear();
+  }, [clear, isIssueDetailPath]);
+
   return null;
 }
