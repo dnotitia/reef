@@ -76,9 +76,13 @@ export function useIssueSheetDismiss({
   // that `drill()` just recorded. The first callback still wins; remounted
   // relation routes are ignored by the store.
   useEffect(() => {
-    if (currentId !== issueId) return;
+    // The reconcile effect above may have updated the live store while this
+    // render's selected currentId is still stale. Read the store now so the
+    // initial sheet captures its exit owner in the same commit; a sheet cleared
+    // by Close sees null and cannot reclaim ownership.
+    if (useIssueNavStack.getState().currentId !== issueId) return;
     registerExitOwner(onExit, entryRoute);
-  }, [currentId, entryRoute, issueId, onExit, registerExitOwner]);
+  }, [entryRoute, issueId, onExit, registerExitOwner]);
 
   // Solely trust the trail when it actually describes the on-screen issue, so the
   // outgoing sheet does not flash a Back to itself the instant a hop moves the
