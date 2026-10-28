@@ -283,7 +283,7 @@ async function upsertDocument(
         normalizedDocumentText(existing.content) !==
         normalizedDocumentText(doc.content)
       )
-        throw new ConflictError({ path: doc.path });
+        await patchDocument(adapter, vault, doc, existing.current_commit);
     } else {
       if (existing.content.includes("## Reef PM Workspace Instructions"))
         throw new ConflictError({ path: doc.path });

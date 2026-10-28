@@ -90,6 +90,41 @@ describe("installReefVaultSkill", () => {
     vi.unstubAllGlobals();
   });
 
+  it("updates a markerless managed root after an explicit install", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const root = {
+      ...documentResponse(docs[0], "OUTDATED MANUAL SKILL CONTENT"),
+      current_commit: "old-root-commit",
+    };
+    const { calls } = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: root },
+      { body: putResponse(docs[0].path) },
+      ...docs.slice(1).map((doc) => ({
+        body: { ...documentResponse(doc), current_commit: "existing" },
+      })),
+      ...stampResponses(),
+    ]);
+    await expect(
+      installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).resolves.toBeUndefined();
+    const patch = calls.find(
+      (call) =>
+        call.url.endsWith(docs[0].path) && call.init?.method === "PATCH",
+    );
+    if (!patch) throw new Error("Expected root update");
+    expect(bodyOf(patch)).toMatchObject({
+      content: docs[0].content,
+      expected_commit: "old-root-commit",
+      title: docs[0].title,
+      type: "skill",
+      tags: docs[0].tags,
+    });
+    const stamp = calls.at(-1);
+    if (!stamp) throw new Error("Expected completion stamp");
+    expect(bodyOf(stamp).sql).toContain("INSERT INTO reef_settings");
+  });
+
   it("updates stale managed guidance without replacing custom root content or metadata", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
     const root = {
