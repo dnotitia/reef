@@ -854,6 +854,7 @@ export async function continueToWorkspace(
 export async function signInThroughApi(page: Page): Promise<void> {
   const response = await page.request.post("/api/auth/akb/login", {
     data: fixtureLogin,
+    maxRetries: 1,
   });
   expect(response.status()).toBe(200);
 }

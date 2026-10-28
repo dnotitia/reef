@@ -268,6 +268,7 @@ test.describe("Hermetic settings workflows", () => {
     page,
     request,
   }) => {
+    await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
