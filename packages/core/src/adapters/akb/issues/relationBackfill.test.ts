@@ -26,6 +26,63 @@ const VAULT_INFO = {
 };
 
 describe("issue relation backfill", () => {
+  it("rechecks an early stale edge after a slow first complete graph scan", async () => {
+    const row = {
+      reef_id: "REEF-001",
+      document_uri: "akb://reef-sample/doc/a.md",
+      depends_on: [],
+      related_to: [],
+      blocks: [],
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    let clock = 0;
+    let relationReads = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const path = new URL(url).pathname;
+        let body: unknown;
+        if (path.includes("/vaults/")) body = VAULT_INFO;
+        else if (path.endsWith("/auth/me")) body = VAULT_ACTOR;
+        else if (path.includes("/tables/"))
+          body = makeSqlQueryResponse([row], Object.keys(row));
+        else if (path.endsWith("/relations")) {
+          relationReads++;
+          clock += 6_000;
+          body = {
+            uri: row.document_uri,
+            relations:
+              relationReads === 1
+                ? [
+                    {
+                      relation: "depends_on",
+                      uri: "akb://reef-sample/doc/stale.md",
+                      kind: "implicit",
+                    },
+                  ]
+                : [],
+          };
+        } else if (init?.method === "PATCH") body = makePutResponse();
+        else
+          body = {
+            ...makeDocumentResponse(),
+            uri: row.document_uri,
+            current_commit: "head",
+          };
+        return Response.json(body);
+      }),
+    );
+    try {
+      await expect(
+        backfillIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
+      ).resolves.toEqual({ count: 1 });
+      expect(relationReads).toBe(4);
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
   it.each([
     [
       "archived vault",

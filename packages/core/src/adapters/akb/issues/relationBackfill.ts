@@ -324,7 +324,7 @@ export async function backfillIssueRelationUris({
     }
     if (changed) continue;
     const issueUris = new Set(targets.values());
-    const deadline = Date.now() + 10_000;
+    let deadline: number | undefined;
     for (;;) {
       let matches = true;
       for (const row of rows) {
@@ -355,6 +355,7 @@ export async function backfillIssueRelationUris({
         completed = true;
         break;
       }
+      deadline ??= Date.now() + 10_000;
       if (Date.now() >= deadline)
         throw new SchemaValidationError({
           issues: ["Issue relation graph verification timed out"],
