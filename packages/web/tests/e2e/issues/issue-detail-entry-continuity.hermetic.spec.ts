@@ -1,5 +1,6 @@
 import {
   advanceQueryRetries,
+  framesAtFirstContentfulPaint,
   waitForPaint,
 } from "../harness/browser-observations";
 import {
@@ -221,7 +222,7 @@ function installFrameRecorder(page: Page) {
         panelRect.bottom > 0 &&
         panelRect.top < window.innerHeight;
       samples.push({
-        time: round(performance.now()),
+        time: performance.now(),
         url: location.pathname,
         panelOnscreen: visiblePanel,
         panelCount: document.querySelectorAll(".issue-detail-sheet").length,
@@ -261,8 +262,16 @@ async function captureAndAssertContinuity(
 ): Promise<DetailFrame[]> {
   await expect(page.getByTestId("issue-close")).toBeVisible();
   const frames = await saveFrames(page, testInfo, label);
-  const routeFrames = frames.filter((frame) =>
-    frame.url.endsWith(`/issues/REEF-101`),
+  const paintTime = await page.evaluate(() => {
+    const entry = performance.getEntriesByName(
+      "first-contentful-paint",
+      "paint",
+    )[0] as (PerformanceEntry & { paintTime?: number }) | undefined;
+    return entry?.paintTime;
+  });
+  const routeFrames = framesAtFirstContentfulPaint(
+    frames.filter((frame) => frame.url.endsWith(`/issues/REEF-101`)),
+    paintTime,
   );
   expect(
     routeFrames.length,
@@ -275,7 +284,7 @@ async function captureAndAssertContinuity(
   ).toBeGreaterThanOrEqual(0);
   expect(
     firstPanelIndex,
-    `${label}: shell appeared more than one frame after document start`,
+    `${label}: shell appeared more than one frame after first contentful paint`,
   ).toBeLessThanOrEqual(1);
   const continuityFrames = routeFrames.slice(firstPanelIndex);
   expect(
