@@ -160,93 +160,85 @@ async function checkVaultWriteAccess(
   ) {
     throw new SchemaValidationError({ issues: ["Vault is not writable"] });
   }
-  if (info.managed_by !== null) {
-    const actor = z
-      .object({
-        auth_method: z.string(),
-        is_admin: z.boolean(),
-        key_class: z.enum(["pat", "service"]).nullable().optional(),
-      })
-      .parse(await adapter.request("/api/v1/auth/me", { resource: "account" }));
-    if (!actor.is_admin) {
+  const actor = z
+    .object({
+      auth_method: z.string(),
+      is_admin: z.boolean(),
+      key_class: z.enum(["pat", "service"]).nullable().optional(),
+    })
+    .parse(await adapter.request("/api/v1/auth/me", { resource: "account" }));
+  if (!actor.is_admin || !["jwt", "pat", "oauth"].includes(actor.auth_method)) {
+    throw new SchemaValidationError({
+      issues: [
+        "Cannot verify write authority for a managed vault with this credential",
+      ],
+    });
+  }
+  if (info.managed_by !== null && actor.auth_method === "pat") {
+    const scopeSchema = z.object({
+      prefixes: z.array(z.string()),
+      extra_vaults: z.array(z.string()),
+    });
+    const tokenSchema = z.object({
+      token_id: z.uuid(),
+      prefix: z.string().length(12),
+      scopes: z.array(z.string()),
+      vault_scope: scopeSchema.nullable(),
+      key_class: z.enum(["pat", "service"]),
+    });
+    const { tokens } = z.object({ tokens: z.array(tokenSchema) }).parse(
+      await adapter.request("/api/v1/auth/tokens", {
+        resource: "token metadata",
+      }),
+    );
+    const matching = tokens.filter((token) =>
+      credential.startsWith(token.prefix),
+    );
+    if (
+      matching.length !== 1 ||
+      !matching[0] ||
+      matching[0].key_class !== actor.key_class ||
+      !matching[0].scopes.some(
+        (scope) => scope === "write" || scope === "admin",
+      )
+    )
       throw new SchemaValidationError({
-        issues: [
-          "Cannot verify write authority for a managed vault with this credential",
-        ],
+        issues: ["Cannot verify current token authority"],
       });
-    }
-    if (actor.auth_method === "pat") {
-      const scopeSchema = z.object({
-        prefixes: z.array(z.string()),
-        extra_vaults: z.array(z.string()),
-      });
-      const tokenSchema = z.object({
-        token_id: z.uuid(),
-        prefix: z.string().length(12),
-        scopes: z.array(z.string()),
-        vault_scope: scopeSchema.nullable(),
-        key_class: z.enum(["pat", "service"]),
-      });
-      const { tokens } = z.object({ tokens: z.array(tokenSchema) }).parse(
-        await adapter.request("/api/v1/auth/tokens", {
-          resource: "token metadata",
-        }),
-      );
-      const matching = tokens.filter((token) =>
-        credential.startsWith(token.prefix),
-      );
+    const token = matching[0];
+    if (token.vault_scope !== null) {
+      const verified = z
+        .object({
+          token_id: z.uuid(),
+          vault_scope: scopeSchema,
+          authorities: z.array(
+            z.object({
+              vault: z.string(),
+              role: z.literal("writer"),
+              action: z.literal("*"),
+            }),
+          ),
+        })
+        .parse(
+          await adapter.request("/api/v1/auth/authority/verify", {
+            method: "POST",
+            body: {
+              vault_scope: token.vault_scope,
+              writer_authorities: [{ vault, action: "*" }],
+            },
+            resource: "authority",
+          }),
+        );
       if (
-        matching.length !== 1 ||
-        !matching[0] ||
-        matching[0].key_class !== actor.key_class ||
-        !matching[0].scopes.some(
-          (scope) => scope === "write" || scope === "admin",
-        )
+        verified.token_id !== token.token_id ||
+        JSON.stringify(verified.vault_scope) !==
+          JSON.stringify(token.vault_scope) ||
+        verified.authorities.length !== 1 ||
+        verified.authorities[0]?.vault !== vault
       )
         throw new SchemaValidationError({
           issues: ["Cannot verify current token authority"],
         });
-      const token = matching[0];
-      if (token.vault_scope !== null) {
-        const verified = z
-          .object({
-            token_id: z.uuid(),
-            vault_scope: scopeSchema,
-            authorities: z.array(
-              z.object({
-                vault: z.string(),
-                role: z.literal("writer"),
-                action: z.literal("*"),
-              }),
-            ),
-          })
-          .parse(
-            await adapter.request("/api/v1/auth/authority/verify", {
-              method: "POST",
-              body: {
-                vault_scope: token.vault_scope,
-                writer_authorities: [{ vault, action: "*" }],
-              },
-              resource: "authority",
-            }),
-          );
-        if (
-          verified.token_id !== token.token_id ||
-          JSON.stringify(verified.vault_scope) !==
-            JSON.stringify(token.vault_scope) ||
-          verified.authorities.length !== 1 ||
-          verified.authorities[0]?.vault !== vault
-        )
-          throw new SchemaValidationError({
-            issues: ["Cannot verify current token authority"],
-          });
-      }
-    } else if (actor.auth_method !== "jwt") {
-      throw new SchemaValidationError({
-        issues: [
-          "Cannot verify write authority for a managed vault with this credential",
-        ],
-      });
     }
   }
 }

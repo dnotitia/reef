@@ -15,6 +15,8 @@ const BACKFILL_CONFIG = {
   credential: "jwt.example.token",
 };
 
+const VAULT_ACTOR = { auth_method: "jwt", is_admin: true };
+
 const VAULT_INFO = {
   status: "active",
   is_archived: false,
@@ -71,6 +73,7 @@ describe("issue relation backfill", () => {
           role_source: "system_admin",
         },
       },
+      { body: VAULT_ACTOR },
       { status: 403, body: { detail: { code: "insufficient_scope" } } },
     ]);
     await expect(
@@ -79,7 +82,18 @@ describe("issue relation backfill", () => {
         vault: "reef-sample",
       }),
     ).rejects.toThrow();
-    expect(calls[1]?.url).toContain("/tables/reef-sample/sql");
+    expect(calls[2]?.url).toContain("/tables/reef-sample/sql");
+    expect(calls.every((call) => call.init?.method !== "PATCH")).toBe(true);
+  });
+  it("does not treat an unknown credential kind as verified", async () => {
+    const { calls } = setupFetch([
+      { body: VAULT_INFO },
+      { body: { auth_method: "unknown", is_admin: true } },
+    ]);
+    await expect(
+      preflightIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
+    ).rejects.toThrow();
+    expect(calls[1]?.url).toContain("/auth/me");
     expect(calls.every((call) => call.init?.method !== "PATCH")).toBe(true);
   });
   it("accepts the documented unscoped administrator bypass for a managed vault", async () => {
@@ -107,6 +121,28 @@ describe("issue relation backfill", () => {
       }),
     ).resolves.toEqual({ count: 0 });
     expect(calls[1]?.url).toContain("/auth/me");
+  });
+  it("accepts an OAuth administrator with the same AKB write-policy bypass", async () => {
+    setupFetch([
+      { body: { ...VAULT_INFO, managed_by: "owner:example" } },
+      { body: { auth_method: "oauth", is_admin: true } },
+      {
+        body: makeSqlQueryResponse(
+          [],
+          [
+            "reef_id",
+            "document_uri",
+            "depends_on",
+            "related_to",
+            "blocks",
+            "updated_at",
+          ],
+        ),
+      },
+    ]);
+    await expect(
+      preflightIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
+    ).resolves.toEqual({ count: 0 });
   });
 
   it("fails closed when managed vault write authority cannot be established", async () => {
@@ -251,6 +287,7 @@ describe("issue relation backfill", () => {
   it("rejects a missing target before writing any documents", async () => {
     const { calls } = setupFetch([
       { body: VAULT_INFO },
+      { body: VAULT_ACTOR },
       {
         body: makeSqlQueryResponse(
           [
@@ -293,6 +330,7 @@ describe("issue relation backfill", () => {
     };
     const { calls } = setupFetch([
       { body: VAULT_INFO },
+      { body: VAULT_ACTOR },
       { body: makeSqlQueryResponse([row], Object.keys(row)) },
       { status: 404, body: { detail: "missing" } },
     ]);
@@ -321,6 +359,7 @@ describe("issue relation backfill", () => {
     };
     const { calls } = setupFetch([
       { body: VAULT_INFO },
+      { body: VAULT_ACTOR },
       { body: query },
       { body: document },
       { body: query },
@@ -371,6 +410,7 @@ describe("issue relation backfill", () => {
         const address = new URL(url);
         let body: unknown;
         if (address.pathname.includes("/vaults/")) body = VAULT_INFO;
+        else if (address.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
         else if (address.pathname.includes("/tables/")) {
           const query = JSON.parse(String(init?.body));
           const rows = inserted ? [first, second] : [first];
@@ -421,6 +461,7 @@ describe("issue relation backfill", () => {
         const parsed = new URL(url);
         let body: unknown;
         if (parsed.pathname.includes("/vaults/")) body = VAULT_INFO;
+        else if (parsed.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
         else if (parsed.pathname.includes("/tables/"))
           body = makeSqlQueryResponse(
             [
@@ -456,6 +497,129 @@ describe("issue relation backfill", () => {
     ).resolves.toEqual({ count: 1 });
     expect(patches).toBe(2);
   });
+
+  it("converges after a later document fails and the vault is retried", async () => {
+    const rows = ["a", "b"].map((name, index) => ({
+      reef_id: `REEF-00${index + 1}`,
+      document_uri: `akb://reef-sample/doc/${name}.md`,
+      depends_on: index === 0 ? ["REEF-002"] : [],
+      related_to: [],
+      blocks: [],
+      updated_at: "2026-01-01T00:00:00Z",
+    }));
+    const patches: string[] = [];
+    let failSecond = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const parsed = new URL(url);
+        let body: unknown;
+        if (parsed.pathname.includes("/vaults/")) body = VAULT_INFO;
+        else if (parsed.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
+        else if (parsed.pathname.includes("/tables/")) {
+          const query = JSON.parse(String(init?.body));
+          body = makeSqlQueryResponse(
+            query.sql.includes(" IN ")
+              ? rows.filter((row) => query.params.includes(row.reef_id))
+              : rows,
+            Object.keys(rows[0]),
+          );
+        } else if (parsed.pathname.endsWith("/relations")) {
+          const uri = parsed.searchParams.get("uri");
+          body = {
+            uri,
+            relations:
+              uri === rows[0].document_uri &&
+              parsed.searchParams.get("type") === "depends_on"
+                ? [
+                    {
+                      relation: "depends_on",
+                      uri: rows[1].document_uri,
+                      kind: "implicit",
+                    },
+                  ]
+                : [],
+          };
+        } else if (init?.method === "PATCH") {
+          patches.push(parsed.pathname);
+          expect(Object.keys(JSON.parse(String(init.body))).sort()).toEqual([
+            "depends_on",
+            "expected_commit",
+            "message",
+            "related_to",
+          ]);
+          if (parsed.pathname.endsWith("b.md") && failSecond)
+            return Response.json({ detail: "interrupted" }, { status: 500 });
+          body = makePutResponse();
+        } else {
+          const uri = parsed.pathname.endsWith("b.md")
+            ? rows[1].document_uri
+            : rows[0].document_uri;
+          body = { ...makeDocumentResponse(), uri, current_commit: "head" };
+        }
+        return Response.json(body);
+      }),
+    );
+    await expect(
+      backfillIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
+    ).rejects.toThrow();
+    failSecond = false;
+    await expect(
+      backfillIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
+    ).resolves.toEqual({ count: 2 });
+    expect(patches).toEqual([
+      "/api/v1/documents/reef-sample/a.md",
+      "/api/v1/documents/reef-sample/b.md",
+      "/api/v1/documents/reef-sample/a.md",
+      "/api/v1/documents/reef-sample/b.md",
+    ]);
+  });
+
+  it("fails after bounded retries when the source keeps changing", async () => {
+    const row = {
+      reef_id: "REEF-001",
+      document_uri: "akb://reef-sample/doc/a.md",
+      depends_on: [],
+      related_to: [],
+      blocks: [],
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    let attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const parsed = new URL(url);
+        let body: unknown;
+        if (parsed.pathname.includes("/vaults/")) body = VAULT_INFO;
+        else if (parsed.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
+        else if (parsed.pathname.includes("/tables/")) {
+          const query = JSON.parse(String(init?.body));
+          body = makeSqlQueryResponse(
+            [
+              {
+                ...row,
+                updated_at: query.sql.includes(" IN ")
+                  ? "2026-01-02T00:00:00Z"
+                  : row.updated_at,
+              },
+            ],
+            Object.keys(row),
+          );
+          if (query.sql.includes(" IN ")) attempts++;
+        } else
+          body = {
+            ...makeDocumentResponse(),
+            uri: row.document_uri,
+            current_commit: "head",
+          };
+        return Response.json(body);
+      }),
+    );
+    await expect(
+      backfillIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
+    ).rejects.toThrow();
+    expect(attempts).toBe(3);
+  });
   it("checks relationships beyond the first page before any document write", async () => {
     const rows = Array.from({ length: 201 }, (_, index) => ({
       reef_id: `REEF-${String(index + 1).padStart(3, "0")}`,
@@ -469,6 +633,8 @@ describe("issue relation backfill", () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (new URL(url).pathname.includes("/vaults/"))
         return Response.json(VAULT_INFO);
+      if (new URL(url).pathname.endsWith("/auth/me"))
+        return Response.json(VAULT_ACTOR);
       const request = JSON.parse(String(init?.body));
       queries.push(request.sql);
       const page = rows
@@ -486,7 +652,7 @@ describe("issue relation backfill", () => {
         vault: "reef-sample",
       }),
     ).rejects.toThrow();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(queries.every((sql) => !sql.includes("archived_at"))).toBe(true);
   });
 
@@ -506,6 +672,7 @@ describe("issue relation backfill", () => {
         const parsed = new URL(url);
         let body: unknown;
         if (parsed.pathname.includes("/vaults/")) body = VAULT_INFO;
+        else if (parsed.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
         else if (parsed.pathname.includes("/tables/")) {
           const request = JSON.parse(String(init?.body));
           body = makeSqlQueryResponse(
@@ -556,6 +723,7 @@ describe("issue relation backfill", () => {
     const empty = { uri: row.document_uri, relations: [] };
     setupFetch([
       { body: VAULT_INFO },
+      { body: VAULT_ACTOR },
       { body: query },
       { body: document },
       { body: query },
@@ -619,6 +787,7 @@ describe("issue relation backfill", () => {
         methods.push(method);
         let body: unknown;
         if (parsed.pathname.includes("/vaults/")) body = VAULT_INFO;
+        else if (parsed.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
         else if (parsed.pathname.includes("/tables/")) {
           const query = JSON.parse(String(init?.body));
           const rows = [first, second];
@@ -687,6 +856,7 @@ describe("issue relation backfill", () => {
           const parsed = new URL(url);
           let body: unknown;
           if (parsed.pathname.includes("/vaults/")) body = VAULT_INFO;
+          else if (parsed.pathname.endsWith("/auth/me")) body = VAULT_ACTOR;
           else if (parsed.pathname.includes("/tables/"))
             body = makeSqlQueryResponse([row], Object.keys(row));
           else if (parsed.pathname.endsWith("/relations"))

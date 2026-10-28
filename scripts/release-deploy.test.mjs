@@ -987,6 +987,9 @@ spec:
     const url = String(input);
     requests.push({ url, init });
     const parsedUrl = new URL(url);
+    if (backfillTarget && parsedUrl.pathname === "/api/v1/auth/me") {
+      return Response.json({ auth_method: "jwt", is_admin: true });
+    }
     if (
       backfillTarget &&
       parsedUrl.pathname === "/api/v1/vaults/reef-sample/info"
