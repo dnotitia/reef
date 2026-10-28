@@ -1826,7 +1826,7 @@ async function runDeploy({
   const releaseCore = core ?? (await loadCore(rootDir));
   const identity = await readSourceIdentity(rootDir, runCommand, env);
   const receiptPath = options.receipt ?? env.REEF_RELEASE_RECEIPT;
-  if (identity.version === "0.17.6" && !receiptPath) {
+  if (identity.version === "0.17.7" && !receiptPath) {
     throw new DeploymentError("Relation backfill requires a receipt", {
       stage: "input_validation",
     });
@@ -1865,7 +1865,7 @@ async function runDeploy({
     receipt: previousReceipt,
   });
   const backfill =
-    identity.version === "0.17.6"
+    identity.version === "0.17.7"
       ? (previousReceipt?.receipt.issue_relation_backfill ?? { targets: null })
       : null;
   if (backfill && previousReceipt?.registration && !reused) {
@@ -2127,7 +2127,7 @@ async function runResume({
     );
   }
   const backfill =
-    registration.version === "0.17.6"
+    registration.version === "0.17.7"
       ? (saved.receipt.issue_relation_backfill ?? { targets: null })
       : null;
   if (backfill) {

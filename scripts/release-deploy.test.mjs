@@ -1444,7 +1444,7 @@ spec:
     await mkdir(path.join(otherRoot, "release"), { recursive: true });
     await writeFile(
       path.join(otherRoot, "package.json"),
-      JSON.stringify({ version: "0.17.7" }),
+      JSON.stringify({ version: "0.17.8" }),
     );
     await copyFile(
       "release/reef-release-blueprint.json",
@@ -1460,7 +1460,7 @@ spec:
         const result = await runCommand(...args);
         return {
           ...result,
-          stdout: result.stdout.replaceAll(PRODUCT_VERSION, "0.17.7"),
+          stdout: result.stdout.replaceAll(PRODUCT_VERSION, "0.17.8"),
         };
       },
     });
@@ -1881,7 +1881,7 @@ ${EVENT_PROCESSOR_MANIFEST}`,
       const url = String(input);
       if (
         url.endsWith(`/rollouts/${sourceJobId}/resume`) &&
-        version === "0.17.6"
+        version === "0.17.7"
       ) {
         assert.deepEqual(
           JSON.parse(await readFile(receiptPath, "utf8"))
@@ -1892,7 +1892,7 @@ ${EVENT_PROCESSOR_MANIFEST}`,
       if (new URL(url).pathname.endsWith(`/apps/${APP_ID}/inventory`)) {
         assert.equal(
           version,
-          "0.17.6",
+          "0.17.7",
           "other releases must not run the repair",
         );
         return Response.json({ items: [], next_cursor: null });
@@ -1970,7 +1970,7 @@ ${EVENT_PROCESSOR_MANIFEST}`,
       assert.equal(result.outcome, "deployed");
       assert.deepEqual(
         result.issue_relation_backfill,
-        version === "0.17.6" ? { targets: [] } : undefined,
+        version === "0.17.7" ? { targets: [] } : undefined,
       );
       await assert.rejects(
         runReleaseDeployment({

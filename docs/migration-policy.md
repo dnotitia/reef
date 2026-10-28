@@ -124,7 +124,7 @@ creation.
 
 ## Operational Migration
 
-Release `0.17.6` automatically performs the issue relationship URI repair on
+Release `0.17.7` automatically performs the issue relationship URI repair on
 deploy or resume, not at startup. Follow `docs/deployment.md` for the required
 receipt, retry and rollback steps. This operation reinstalls
 the managed vault instructions and verifies the public relationship graph;
