@@ -54,8 +54,9 @@ explicitly in the entries below.
 
 - Vault skill version 24 corrects the agent relationship instructions. Existing
   vaults require managed instruction reinstallation and a one-time relationship
-  repair: deploy with `--backfill-issue-relation-uris` and a receipt. Retry a
-  failed repair with the same receipt; verified vaults are skipped. See
+  repair automatically during release 0.17.6 deployment or resume, using a
+  required receipt. Retry a failed repair with the same receipt; verified vaults
+  are skipped. See
   `docs/deployment.md` for blocked rollout recovery and rollback. Older writers
   can reintroduce raw IDs, so redeploy the corrected release and repeat the
   backfill after rollback. No issue row or schema migration is required.

@@ -59,7 +59,6 @@ Options:
   --request-key <uuid>        idempotency key; reuse it to replay a request
   --source-rollout-id <uuid>  blocked rollout id for resume
   --receipt <path>            safe registration/rollout receipt to read/write
-  --backfill-issue-relation-uris  repair and verify existing issue relationships
   --namespace <name>          Kubernetes namespace (default: reef)
   --kustomize-dir <path>      overlay directory (default: deploy/k8s/overlays/example)
   --rollout-deadline-ms <ms>  AKB observation deadline (default: 120000)
@@ -257,16 +256,6 @@ function parseArgs(argv) {
       });
     }
     const name = argument.slice(2);
-    if (name === "backfill-issue-relation-uris") {
-      if (mode !== "deploy" && mode !== "resume") {
-        throw new DeploymentError(
-          "Backfill is only available for deploy and resume",
-          { stage: "input_validation" },
-        );
-      }
-      options.backfill_issue_relation_uris = true;
-      continue;
-    }
     if (!valueFlags.has(name)) {
       throw new DeploymentError(`Unknown option: --${name}`, {
         stage: "input_validation",
@@ -861,7 +850,8 @@ async function readReceipt(receiptPath, core) {
   try {
     if (parsed.kind === "reef-release-intent") {
       if (
-        parsed.issue_relation_backfill?.selected !== true ||
+        !parsed.issue_relation_backfill ||
+        "selected" in parsed.issue_relation_backfill ||
         parsed.issue_relation_backfill.targets !== null ||
         typeof parsed.source_revision !== "string" ||
         typeof parsed.version !== "string" ||
@@ -882,7 +872,7 @@ async function readReceipt(receiptPath, core) {
       const backfill = parsed.issue_relation_backfill;
       if (
         !backfill ||
-        backfill.selected !== true ||
+        "selected" in backfill ||
         !(backfill.targets === null || Array.isArray(backfill.targets))
       )
         throw new Error("invalid backfill receipt");
@@ -1835,8 +1825,13 @@ async function runDeploy({
   );
   const releaseCore = core ?? (await loadCore(rootDir));
   const identity = await readSourceIdentity(rootDir, runCommand, env);
-  const registry = validateRegistry(options.registry ?? env.REGISTRY);
   const receiptPath = options.receipt ?? env.REEF_RELEASE_RECEIPT;
+  if (identity.version === "0.17.6" && !receiptPath) {
+    throw new DeploymentError("Relation backfill requires a receipt", {
+      stage: "input_validation",
+    });
+  }
+  const registry = validateRegistry(options.registry ?? env.REGISTRY);
   const previousReceipt = await readReceiptIfPresent(receiptPath, releaseCore);
   const rolloutDeadlineMs = parsePositiveInteger(
     options.rollout_deadline_ms ?? env.REEF_ROLLOUT_DEADLINE_MS,
@@ -1870,10 +1865,9 @@ async function runDeploy({
     receipt: previousReceipt,
   });
   const backfill =
-    previousReceipt?.receipt.issue_relation_backfill ??
-    (options.backfill_issue_relation_uris
-      ? { selected: true, targets: null }
-      : null);
+    identity.version === "0.17.6"
+      ? (previousReceipt?.receipt.issue_relation_backfill ?? { targets: null })
+      : null;
   if (backfill && previousReceipt?.registration && !reused) {
     throw new DeploymentError("Backfill receipt does not match this release", {
       stage: "receipt_validation",
@@ -2133,10 +2127,9 @@ async function runResume({
     );
   }
   const backfill =
-    saved.receipt.issue_relation_backfill ??
-    (options.backfill_issue_relation_uris
-      ? { selected: true, targets: null }
-      : null);
+    registration.version === "0.17.6"
+      ? (saved.receipt.issue_relation_backfill ?? { targets: null })
+      : null;
   if (backfill) {
     saved.receipt.issue_relation_backfill = backfill;
     await writeReceipt(receiptPath, saved.receipt);
@@ -2352,24 +2345,6 @@ export async function runReleaseDeployment({
   fetchImpl = globalThis.fetch,
   core,
 } = {}) {
-  if (
-    options.backfill_issue_relation_uris &&
-    !options.receipt &&
-    !env.REEF_RELEASE_RECEIPT
-  ) {
-    throw new DeploymentError("Relation backfill requires a receipt", {
-      stage: "input_validation",
-    });
-  }
-  if (
-    options.backfill_issue_relation_uris &&
-    !["deploy", "resume"].includes(options.mode)
-  ) {
-    throw new DeploymentError(
-      "Backfill is only available for deploy and resume",
-      { stage: "input_validation" },
-    );
-  }
   if (options.mode === "build") {
     return runBuildOnly({ rootDir, env, options, core, runCommand });
   }
