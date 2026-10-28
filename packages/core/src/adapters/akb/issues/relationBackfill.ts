@@ -197,10 +197,7 @@ async function checkVaultWriteAccess(
     if (
       matching.length !== 1 ||
       !matching[0] ||
-      matching[0].key_class !== actor.key_class ||
-      !matching[0].scopes.some(
-        (scope) => scope === "write" || scope === "admin",
-      )
+      matching[0].key_class !== actor.key_class
     )
       throw new SchemaValidationError({
         issues: ["Cannot verify current token authority"],

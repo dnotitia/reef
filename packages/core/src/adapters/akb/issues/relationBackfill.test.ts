@@ -144,6 +144,46 @@ describe("issue relation backfill", () => {
       preflightIssueRelationUris({ ...BACKFILL_CONFIG, vault: "reef-sample" }),
     ).resolves.toEqual({ count: 0 });
   });
+  it("accepts legacy unscoped PAT metadata after SQL confirms its write scope", async () => {
+    const credential = "akb_abcdefgh-synthetic-secret";
+    setupFetch([
+      { body: { ...VAULT_INFO, managed_by: "owner:example" } },
+      { body: { auth_method: "pat", is_admin: true, key_class: "pat" } },
+      {
+        body: {
+          tokens: [
+            {
+              token_id: "11111111-1111-4111-8111-111111111111",
+              prefix: credential.slice(0, 12),
+              scopes: [],
+              vault_scope: null,
+              key_class: "pat",
+            },
+          ],
+        },
+      },
+      {
+        body: makeSqlQueryResponse(
+          [],
+          [
+            "reef_id",
+            "document_uri",
+            "depends_on",
+            "related_to",
+            "blocks",
+            "updated_at",
+          ],
+        ),
+      },
+    ]);
+    await expect(
+      preflightIssueRelationUris({
+        ...BACKFILL_CONFIG,
+        credential,
+        vault: "reef-sample",
+      }),
+    ).resolves.toEqual({ count: 0 });
+  });
 
   it("fails closed when managed vault write authority cannot be established", async () => {
     const { calls } = setupFetch([
