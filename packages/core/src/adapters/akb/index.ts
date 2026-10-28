@@ -219,6 +219,10 @@ export {
   type AkbAppInstallationInventoryReaderConfig,
 } from "./controlPlane/installationInventoryReader";
 export {
+  preflightIssueRelationUris,
+  backfillIssueRelationUris,
+} from "./issues/relationBackfill";
+export {
   readMemberInstallationActive,
   readInstallation,
   requestInstallation,

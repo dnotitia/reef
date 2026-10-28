@@ -32,6 +32,18 @@ const RUNTIME_IMAGES = {
   },
 };
 const TOKEN = "system-admin-secret";
+
+test("selected relation backfill requires a receipt before deployment", async () => {
+  await assert.rejects(
+    runReleaseDeployment({
+      options: { mode: "deploy", backfill_issue_relation_uris: true },
+      env: {},
+      core,
+      runCommand: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
+    }),
+    /receipt/i,
+  );
+});
 const PRODUCT_VERSION = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
@@ -712,6 +724,11 @@ test("register-only rejects a build artifact from another source revision or pro
 });
 
 test("deploy observes AKB applied before applying the immutable Kubernetes revision", async () => {
+  let backfillTarget = false;
+  let checkIntent = false;
+  let intentSeen = false;
+  let failBackfill = true;
+  let issuePatches = 0;
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "reef-deploy-test-"),
   );
@@ -757,7 +774,20 @@ spec:
     created_at: "2026-09-04T06:00:00.000Z",
     updated_at: "2026-09-04T06:00:00.000Z",
     completed_at: status === "applied" ? "2026-09-04T06:01:00.000Z" : null,
-    targets: [],
+    targets: backfillTarget
+      ? [
+          {
+            target_id: "33333333-3333-4333-8333-333333333333",
+            installation_id: "44444444-4444-4444-8444-444444444444",
+            vault_id: "55555555-5555-4555-8555-555555555555",
+            ordinal: 0,
+            batch: 0,
+            canary: false,
+            state: "applied",
+            steps: [],
+          },
+        ]
+      : [],
     ...extra,
   });
   const runCommand = async (command, args, options) => {
@@ -956,7 +986,129 @@ spec:
   const fetchImpl = async (input, init = {}) => {
     const url = String(input);
     requests.push({ url, init });
+    const parsedUrl = new URL(url);
+    if (
+      backfillTarget &&
+      parsedUrl.pathname === "/api/v1/vaults/reef-sample/info"
+    ) {
+      return Response.json({
+        status: "active",
+        is_archived: false,
+        is_external_git: false,
+        managed_by: null,
+        role: "admin",
+      });
+    }
+    if (
+      backfillTarget &&
+      parsedUrl.pathname.endsWith(`/apps/${APP_ID}/inventory`)
+    ) {
+      return Response.json({
+        items: [
+          {
+            installation_id: "44444444-4444-4444-8444-444444444444",
+            app_id: APP_ID,
+            vault_id: "55555555-5555-4555-8555-555555555555",
+            vault_name: "reef-sample",
+            lifecycle: "active",
+          },
+        ],
+        next_cursor: null,
+      });
+    }
+    if (
+      backfillTarget &&
+      parsedUrl.pathname === "/api/v1/tables/reef-sample/sql"
+    ) {
+      const { sql } = JSON.parse(String(init.body));
+      if (sql.startsWith("SELECT reef_id"))
+        return Response.json({
+          kind: "table_query",
+          columns: [
+            "reef_id",
+            "document_uri",
+            "depends_on",
+            "blocks",
+            "related_to",
+            "updated_at",
+          ],
+          items: [
+            {
+              reef_id: "REEF-001",
+              document_uri: "akb://reef-sample/doc/issue.md",
+              depends_on: [],
+              blocks: [],
+              related_to: [],
+              updated_at: "2026-01-01T00:00:00Z",
+            },
+          ],
+          total: 1,
+        });
+      return Response.json({ kind: "table_sql", result: "UPDATE 1" });
+    }
+    if (backfillTarget && parsedUrl.pathname === "/api/v1/relations")
+      return Response.json({
+        uri: parsedUrl.searchParams.get("uri"),
+        relations: [],
+      });
+    if (
+      backfillTarget &&
+      parsedUrl.pathname.startsWith("/api/v1/documents/reef-sample/")
+    ) {
+      const documentPath = parsedUrl.pathname.slice(
+        "/api/v1/documents/reef-sample/".length,
+      );
+      if (documentPath === "issue.md" && init.method === "PATCH") {
+        issuePatches++;
+        if (failBackfill)
+          return Response.json({ detail: "repair failed" }, { status: 500 });
+        return Response.json({
+          uri: "akb://reef-sample/doc/issue.md",
+          vault: "reef-sample",
+          path: "issue.md",
+          commit_hash: "patched",
+        });
+      }
+      if (documentPath === "issue.md")
+        return Response.json({
+          uri: "akb://reef-sample/doc/issue.md",
+          vault: "reef-sample",
+          path: "issue.md",
+          title: "REEF-001",
+          type: "task",
+          status: "active",
+          content: "body",
+          current_commit: "head",
+          tags: [],
+        });
+      const document = core
+        .akbBuildReefVaultSkillDocuments("reef-sample")
+        .find((item) => item.path === documentPath);
+      if (!document) throw new Error(`Unexpected document ${documentPath}`);
+      return Response.json({
+        uri: `akb://reef-sample/doc/${documentPath}`,
+        vault: "reef-sample",
+        path: documentPath,
+        title: document.title,
+        type: document.type,
+        status: "active",
+        summary: document.summary,
+        tags: document.tags,
+        content: document.content,
+        current_commit: "head",
+      });
+    }
     if (url.endsWith("/apps")) {
+      if (checkIntent) {
+        try {
+          intentSeen =
+            JSON.parse(await readFile(receiptPath, "utf8"))
+              .issue_relation_backfill?.selected === true;
+        } catch {
+          intentSeen = false;
+        }
+        throw new Error("registration interrupted");
+      }
       return new Response(
         JSON.stringify({
           id: APP_ID,
@@ -1194,6 +1346,60 @@ spec:
       ).length,
       registrationRequestCount,
     );
+    backfillTarget = true;
+    const backfillArgs = {
+      rootDir: path.resolve("."),
+      env: {
+        AKB_BACKEND_URL: "https://akb.example.test",
+        REEF_CONTROL_PLANE_TOKEN: TOKEN,
+        REGISTRY: "registry.example",
+      },
+      options: {
+        mode: "deploy",
+        receipt: receiptPath,
+        backfill_issue_relation_uris: true,
+      },
+      runCommand,
+      fetchImpl,
+      core,
+    };
+    await assert.rejects(runReleaseDeployment(backfillArgs));
+    const failed = JSON.parse(await readFile(receiptPath, "utf8"));
+    assert.equal(failed.outcome, "data_backfill_failed");
+    assert.equal(failed.deployment_status, "ready");
+    assert.equal(failed.issue_relation_backfill.targets[0].status, "failed");
+    failBackfill = false;
+    const recovered = await runReleaseDeployment({
+      ...backfillArgs,
+      options: { mode: "deploy", receipt: receiptPath },
+    });
+    assert.equal(
+      recovered.issue_relation_backfill.targets[0].status,
+      "verified",
+    );
+    assert.equal(recovered.outcome, "deployed");
+    await runReleaseDeployment({
+      ...backfillArgs,
+      options: { mode: "deploy", receipt: receiptPath },
+    });
+    assert.equal(issuePatches, 2);
+    await rm(receiptPath);
+    checkIntent = true;
+    await assert.rejects(runReleaseDeployment({ ...backfillArgs, core }));
+    assert.equal(
+      intentSeen,
+      true,
+      "selection must be durable before the first AKB registration request",
+    );
+    checkIntent = false;
+    const fromIntent = await runReleaseDeployment({
+      ...backfillArgs,
+      options: { mode: "deploy", receipt: receiptPath },
+    });
+    assert.equal(
+      fromIntent.issue_relation_backfill.targets[0].status,
+      "verified",
+    );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -1415,6 +1621,7 @@ test("resume uses a new key for the blocked source and then deploys the resumed 
     rollout_status: "blocked",
     deployment_status: "not_applied",
     outcome: "rollout_failed",
+    issue_relation_backfill: { selected: true, targets: null },
   };
   await writeFile(receiptPath, `${JSON.stringify(registration)}\n`);
   const commands = [];
@@ -1603,6 +1810,9 @@ ${EVENT_PROCESSOR_MANIFEST}`,
   };
   const fetchImpl = async (input, init = {}) => {
     const url = String(input);
+    if (new URL(url).pathname.endsWith(`/apps/${APP_ID}/inventory`)) {
+      return Response.json({ items: [], next_cursor: null });
+    }
     if (url.endsWith(`/rollouts/${sourceJobId}/resume`)) {
       const sentKey = new Headers(init.headers).get("idempotency-key");
       assert.equal(sentKey, resumeRequestKey);
@@ -1674,6 +1884,27 @@ ${EVENT_PROCESSOR_MANIFEST}`,
     assert.equal(result.source_rollout_id, sourceJobId);
     assert.equal(result.rollout_job_id, resumedJobId);
     assert.equal(result.outcome, "deployed");
+    assert.deepEqual(result.issue_relation_backfill, {
+      selected: true,
+      targets: [],
+    });
+    await assert.rejects(
+      runReleaseDeployment({
+        rootDir: path.resolve("."),
+        env: {
+          AKB_BACKEND_URL: "https://akb.example.test",
+          REEF_CONTROL_PLANE_TOKEN: TOKEN,
+          REGISTRY: "registry.example",
+        },
+        options: { mode: "resume", receipt: receiptPath },
+        runCommand,
+        fetchImpl,
+        core,
+      }),
+      (error) =>
+        error?.stage === "input_validation" &&
+        error.message.includes("use deploy"),
+    );
     assert.equal(appliedInput.includes(IMAGE_DIGEST), true);
     assert.equal(
       commands.some(({ command }) => command === "docker"),

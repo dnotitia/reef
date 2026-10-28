@@ -76,12 +76,13 @@ async function patchDocument(
   adapter: AkbAdapter,
   vault: string,
   doc: ReefVaultSkillDocument,
+  expectedCommit: string,
 ): Promise<void> {
   const payload = await adapter.request(
     `/api/v1/documents/${encodeURIComponent(vault)}/${doc.path}`,
     {
       method: "PATCH",
-      body: updateBody(doc),
+      body: { ...updateBody(doc), expected_commit: expectedCommit },
       resource: doc.path,
     },
   );
@@ -237,18 +238,78 @@ async function upsertDocument(
     return true;
   }
 
+  let existing: ReturnType<typeof ensureDocumentResponse>;
   try {
-    await patchDocument(adapter, vault, doc);
-    return true;
+    existing = ensureDocumentResponse(
+      await adapter.request(
+        `/api/v1/documents/${encodeURIComponent(vault)}/${doc.path}`,
+        { resource: doc.path },
+      ),
+    );
   } catch (err) {
     if (!(err instanceof NotFoundError)) throw err;
-  }
-
-  try {
     await putDocument(adapter, vault, doc);
-  } catch (err) {
-    if (!(err instanceof ConflictError)) throw err;
-    await patchDocument(adapter, vault, doc);
+    return true;
+  }
+  if (!existing.current_commit) throw new ConflictError({ path: doc.path });
+  if (doc.path === ROOT_SKILL_PATH) {
+    if (existing.type !== "skill" || existing.content == null)
+      throw new ConflictError({ path: doc.path });
+    const stored = existingRootGuidance(existing.content);
+    const hasMarkers =
+      existing.content.includes(ROOT_GUIDANCE_START) ||
+      existing.content.includes(ROOT_GUIDANCE_END);
+    const expected = currentRootGuidance(vault);
+    if (hasMarkers) {
+      if (
+        stored === null ||
+        (existing.content.match(/## Reef PM Workspace Instructions/g) ?? [])
+          .length > 1
+      )
+        throw new ConflictError({ path: doc.path });
+      if (normalizedDocumentText(stored) !== normalizedDocumentText(expected)) {
+        await patchRootGuide(
+          adapter,
+          vault,
+          existing.current_commit,
+          existing.content.replace(stored, expected),
+        );
+      }
+    } else if (
+      existing.title === doc.title &&
+      existing.tags.includes("reef:pm-workspace")
+    ) {
+      if (
+        normalizedDocumentText(existing.content) !==
+        normalizedDocumentText(doc.content)
+      )
+        throw new ConflictError({ path: doc.path });
+    } else {
+      if (existing.content.includes("## Reef PM Workspace Instructions"))
+        throw new ConflictError({ path: doc.path });
+      await patchRootGuide(
+        adapter,
+        vault,
+        existing.current_commit,
+        `${normalizedDocumentText(existing.content)}\n\n${expected}\n`,
+      );
+    }
+  } else {
+    if (
+      existing.type !== "reference" ||
+      !existing.tags.includes("reef:pm-workspace") ||
+      !existing.tags.includes("reef:runbook")
+    )
+      throw new ConflictError({ path: doc.path });
+    if (
+      normalizedDocumentText(existing.content ?? "") !==
+        normalizedDocumentText(doc.content) ||
+      existing.title !== doc.title ||
+      existing.summary !== doc.summary ||
+      JSON.stringify(existing.tags) !== JSON.stringify(doc.tags)
+    ) {
+      await patchDocument(adapter, vault, doc, existing.current_commit);
+    }
   }
   return true;
 }
@@ -369,9 +430,7 @@ export async function installReefVaultSkill(
     const docs = buildReefVaultSkillDocuments(vault);
     span.setAttribute("document_count", docs.length);
     span.setAttribute("preserve_existing", preserveExisting);
-    if (preserveExisting) {
-      await clearVaultSkillVersion(adapter, vault);
-    }
+    await clearVaultSkillVersion(adapter, vault);
     let allDocumentsCurrent = true;
     for (const doc of docs) {
       const documentIsCurrent = await upsertDocument(

@@ -213,6 +213,28 @@ rollout key, while a receipt with an existing key replays that logical rollout.
 The key is persisted before the first rollout request, and a blocked retry
 never resumes automatically — use the explicit `resume` command with a new key.
 
+For the release that repairs issue relationship URIs, select the one-time
+backfill with `--backfill-issue-relation-uris` and provide `--receipt` (or
+`REEF_RELEASE_RECEIPT`). The selection is saved before AKB registration and is
+retained when retrying the same receipt without the flag. The command checks
+the active installation inventory and documents, deploys and verifies the new
+runtime, reinstalls the managed vault instructions, then repairs and verifies
+outgoing relationships before reporting `deployed`. A zero-target inventory is
+recorded but does not demonstrate repair of existing data.
+
+On `data_backfill_failed`, keep the receipt and retry `deploy` with the same
+release and receipt; an applied AKB rollout does not need `resume`. Verified
+vaults are skipped and unfinished vaults are retried. Partial document writes
+can produce additional revisions on retry; convergence does not mean exactly
+one revision. For a blocked AKB rollout, use `resume` with the same receipt;
+the saved backfill selection follows the resumed job. Inspect access, missing
+documents, concurrent edits, or graph mismatch before retrying a failed vault.
+
+Rollback does not require a database migration, but an older Reef writer can
+again write raw IDs into document relationships. Redeploy the corrected release
+and repeat the backfill with a new receipt after such a rollback. Do not run
+old and corrected writers concurrently during the repair.
+
 ```bash
 REGISTRY=ghcr.io/myorg \
 AKB_BACKEND_URL=https://akb.example.com \

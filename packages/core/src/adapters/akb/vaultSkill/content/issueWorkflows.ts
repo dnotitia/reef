@@ -23,8 +23,9 @@ Use this runbook for requests such as "Create an issue for...", "Update REEF-001
    - type: task -- ALWAYS task. This is the AKB document type, not the reef issue_type. Every reef issue, even a bug or epic, is an AKB document of type task; the reef kind lives only in the reef_issues.issue_type column. (The AKB document-type enum has no bug/epic/etc., so passing one is rejected.)
    - summary: the human-readable issue title
    - tags: labels, as plain strings
-   - depends_on: depends_on issue ids, as plain reef ids (REEF-002), not akb:// URIs
-   - related_to: the deduped union of blocks and related_to ids, as plain reef ids
+   - depends_on: the stored document_uri of each depends_on target row in the same vault
+   - related_to: the deduplicated union of stored document_uri values for blocks and related_to target rows in the same vault
+   Resolve each ID using reef_issues before the document write. Reject missing rows or invalid/cross-vault document URIs; never guess a path or use an ID as a fallback. Keep the original IDs in the row.
    - content: the issue body in markdown, seeded from the template in step 4
    Keep the akb:// URI from the response; that is the document_uri.
 6. Insert the reef_issues row with the same reef_id and the document_uri from akb_put.

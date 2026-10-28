@@ -331,6 +331,16 @@ const assertIssueWireValues = () => {
       `issue document projection: ${id}`,
     );
   }
+  const relationPatch = state.akbRequests.find(
+    (entry) =>
+      entry.method === "PATCH" &&
+      entry.path === "/akb/api/v1/documents/reef-contract/issues/reef-1.md" &&
+      entry.body?.related_to?.length,
+  );
+  assert.deepEqual(relationPatch?.body?.related_to, [
+    "akb://reef-contract/coll/issues/doc/reef-2.md",
+  ]);
+  assert.deepEqual(state.issues.get("REEF-1")?.issue.blocks, ["REEF-2"]);
 };
 const applyIssueSqlUpdate = (statement, id) => {
   const current = state.issues.get(id) ?? {
@@ -609,6 +619,18 @@ const server = createServer(async (request, response) => {
       );
     }
     if (statement.includes("FROM reef_issues")) {
+      const batch = /"?reef_id"? IN \(([^)]+)\)/u.exec(statement)?.[1];
+      if (batch) {
+        const ids = [...batch.matchAll(/'(REEF-\d+)'/gu)].map(
+          (match) => match[1],
+        );
+        return respond(
+          response,
+          sqlResult(
+            ids.filter((id) => state.issues.has(id)).map((id) => issueRow(id)),
+          ),
+        );
+      }
       const id = /"?reef_id"? = '(REEF-\d+)'/u.exec(statement)?.[1];
       return respond(
         response,
@@ -646,6 +668,7 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "PATCH") {
       const body = await readBody(request);
+      state.akbRequests.at(-1).body = body;
       stored.content = body.content ?? stored.content;
       stored.documented = true;
       state.issues.set(id, stored);

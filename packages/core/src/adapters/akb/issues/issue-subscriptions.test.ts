@@ -87,6 +87,9 @@ describe("automatic issue-participant subscriptions (REEF-429)", () => {
   it("creates requester and assignee sources", async () => {
     const issue = {
       ...SAMPLE_ISSUE,
+      depends_on: [],
+      blocks: [],
+      related_to: [],
       requester: "requester",
       assigned_to: "assignee",
     };

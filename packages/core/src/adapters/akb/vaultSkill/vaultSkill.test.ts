@@ -90,36 +90,159 @@ describe("installReefVaultSkill", () => {
     vi.unstubAllGlobals();
   });
 
+  it("updates stale managed guidance without replacing custom root content or metadata", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const root = {
+      ...documentResponse(docs[0]),
+      title: "Owner guide",
+      summary: "Owner summary",
+      tags: ["owner"],
+      current_commit: "root-head",
+      content:
+        "Before\n<!-- reef-pm-workspace:start -->\nOld Reef text\n<!-- reef-pm-workspace:end -->\nAfter",
+    };
+    const calls: FetchCall[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const call = { url, init };
+        calls.push(call);
+        const path = new URL(url).pathname;
+        const doc = docs.find((entry) => path.endsWith(`/${entry.path}`));
+        if (!doc && !path.includes("/tables/"))
+          throw new Error("Unexpected document");
+        let payload: unknown;
+        if (path.includes("/tables/"))
+          payload = { kind: "table_sql", result: "UPDATE 1" };
+        else if (init?.method === "GET")
+          payload =
+            doc?.path === docs[0].path
+              ? root
+              : {
+                  ...documentResponse(
+                    doc as (typeof docs)[number],
+                    "stale managed text",
+                  ),
+                  current_commit: "runbook-head",
+                };
+        else if (init?.method === "PATCH" && doc)
+          payload = putResponse(doc.path);
+        else throw new Error("Unexpected request");
+        return new Response(JSON.stringify(payload), {
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
+    const rootPatch = calls.find(
+      (call) =>
+        call.url.endsWith(docs[0].path) && call.init?.method === "PATCH",
+    );
+    if (!rootPatch) throw new Error("Missing root patch");
+    const body = bodyOf(rootPatch);
+    expect(body.content).toContain("Before\n<!-- reef-pm-workspace:start -->");
+    expect(body.content).toContain("<!-- reef-pm-workspace:end -->\nAfter");
+    expect(body.content).not.toContain("Old Reef text");
+    expect(body.expected_commit).toBe("root-head");
+    for (const key of ["title", "summary", "tags", "type"])
+      expect(body).not.toHaveProperty(key);
+    const runbookPatch = calls.find(
+      (call) =>
+        call.url.endsWith(docs[1].path) && call.init?.method === "PATCH",
+    );
+    if (!runbookPatch) throw new Error("Missing runbook patch");
+    expect(bodyOf(runbookPatch).expected_commit).toBe("runbook-head");
+  });
+
+  it("rejects an unowned runbook without overwriting it or stamping completion", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const { calls } = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: { ...documentResponse(docs[0]), current_commit: "root" } },
+      {
+        body: {
+          ...documentResponse(docs[1], "owner document"),
+          tags: ["owner"],
+          current_commit: "owner",
+        },
+      },
+    ]);
+    await expect(
+      installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(calls.some((call) => call.init?.method === "PATCH")).toBe(false);
+    expect(
+      calls
+        .filter((call) => call.url.includes("/tables/"))
+        .map(bodyOf)
+        .some((body) => body.sql?.startsWith("INSERT")),
+    ).toBe(false);
+  });
+
+  it("propagates a managed runbook's document precondition conflict", async () => {
+    const docs = buildReefVaultSkillDocuments("reef-new");
+    const { calls } = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: { ...documentResponse(docs[0]), current_commit: "root" } },
+      {
+        body: {
+          ...documentResponse(docs[1], "stale"),
+          current_commit: "runbook-head",
+        },
+      },
+      { status: 409, body: { detail: "changed" } },
+    ]);
+    await expect(
+      installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(bodyOf(calls[3]).expected_commit).toBe("runbook-head");
+    expect(calls.filter((call) => call.url.includes("/tables/"))).toHaveLength(
+      1,
+    );
+  });
+
   it("updates managed documents before stamping the current skill version", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
     const { calls } = setupFetch([
-      ...docs.map((doc) => ({ body: putResponse(doc.path) })),
+      { body: { kind: "table_sql", result: "DELETE 1" } },
+      { body: { ...documentResponse(docs[0]), current_commit: "old" } },
+      ...docs.slice(1).flatMap((doc) => [
+        {
+          body: { ...documentResponse(doc, "stale"), current_commit: "old" },
+        },
+        { body: putResponse(doc.path) },
+      ]),
       ...stampResponses(),
     ]);
 
     await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
 
-    // 6 document upserts, then the version stamp (DELETE + INSERT).
-    expect(calls).toHaveLength(8);
+    // Clear the old stamp, read and update each document, then stamp last.
+    expect(calls).toHaveLength(14);
     expect(
-      calls.slice(0, 6).every((call) => call.init?.method === "PATCH"),
+      calls.slice(1, 12).filter((call) => call.init?.method === "PATCH"),
+    ).toHaveLength(5);
+    expect(
+      calls.slice(1, 12).filter((call) => call.init?.method === "GET"),
+    ).toHaveLength(6);
+    expect(
+      calls
+        .slice(2, 12)
+        .filter((call) => call.init?.method === "PATCH")
+        .every((call) => bodyOf(call).expected_commit === "old"),
     ).toBe(true);
-    expect(calls[0].url).toBe(
+    expect(calls[1].url).toBe(
       "https://akb.test/api/v1/documents/reef-new/overview/vault-skill.md",
     );
-    expect(bodyOf(calls[0])).toMatchObject({
-      type: "skill",
-      tags: ["akb:skill", "reef:pm-workspace"],
-    });
-    expect(calls[1].url).toBe(
+    expect(calls[3].url).toBe(
       "https://akb.test/api/v1/documents/reef-new/reef/runbooks/pm-model.md",
     );
-    expect(bodyOf(calls[1])).toMatchObject({
+    expect(bodyOf(calls[3])).toMatchObject({
       type: "reference",
     });
     // The stamp runs last so a partial document failure leaves the old version.
-    const del = calls[6];
-    const insert = calls[7];
+    const del = calls[12];
+    const insert = calls[13];
     expect(del.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
     expect(bodyOf(del)).toEqual({
       sql: "DELETE FROM reef_settings WHERE key = $1",
@@ -284,21 +407,24 @@ describe("installReefVaultSkill", () => {
     });
   });
 
-  it("creates a document when PATCH returns 404", async () => {
+  it("creates a document when GET returns 404", async () => {
     const docs = buildReefVaultSkillDocuments("reef-new");
     const { calls } = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
       { status: 404, body: { detail: "missing" } },
       { body: putResponse(docs[0].path) },
-      ...docs.slice(1).map((doc) => ({ body: putResponse(doc.path) })),
+      ...docs.slice(1).map((doc) => ({
+        body: { ...documentResponse(doc), current_commit: "old" },
+      })),
       ...stampResponses(),
     ]);
 
     await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
 
-    expect(calls[0].init?.method).toBe("PATCH");
-    expect(calls[1].init?.method).toBe("POST");
-    expect(calls[1].url).toBe("https://akb.test/api/v1/documents");
-    expect(bodyOf(calls[1])).toMatchObject({
+    expect(calls[1].init?.method).toBe("GET");
+    expect(calls[2].init?.method).toBe("POST");
+    expect(calls[2].url).toBe("https://akb.test/api/v1/documents");
+    expect(bodyOf(calls[2])).toMatchObject({
       vault: "reef-new",
       collection: "overview",
       slug: "vault-skill",
@@ -306,24 +432,19 @@ describe("installReefVaultSkill", () => {
     });
   });
 
-  it("retries PATCH when POST races with an existing document", async () => {
-    const docs = buildReefVaultSkillDocuments("reef-new");
+  it("does not overwrite a document created concurrently", async () => {
     const { calls } = setupFetch([
+      { body: { kind: "table_sql", result: "DELETE 1" } },
       { status: 404, body: { detail: "missing" } },
       { status: 409, body: { detail: "already exists" } },
-      { body: putResponse(docs[0].path) },
-      ...docs.slice(1).map((doc) => ({ body: putResponse(doc.path) })),
-      ...stampResponses(),
     ]);
 
-    await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
-
-    expect(calls[0].init?.method).toBe("PATCH");
-    expect(calls[1].init?.method).toBe("POST");
-    expect(calls[2].init?.method).toBe("PATCH");
-    expect(calls[2].url).toBe(
-      "https://akb.test/api/v1/documents/reef-new/overview/vault-skill.md",
-    );
+    await expect(
+      installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(calls[1].init?.method).toBe("GET");
+    expect(calls[2].init?.method).toBe("POST");
+    expect(calls.some((call) => call.init?.method === "PATCH")).toBe(false);
   });
 
   it("does not duplicate current Guide instructions when AKB trims the final newline", async () => {

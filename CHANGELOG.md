@@ -47,6 +47,19 @@ explicitly in the entries below.
   after a missing-document read. Creation conflicts stop initialization without
   overwriting the new document or stamping the current instruction version.
 
+- Issue document relationships now reference each target's stored AKB document
+  URI while Reef rows continue to store issue IDs.
+
+### Migration
+
+- Vault skill version 24 corrects the agent relationship instructions. Existing
+  vaults require managed instruction reinstallation and a one-time relationship
+  repair: deploy with `--backfill-issue-relation-uris` and a receipt. Retry a
+  failed repair with the same receipt; verified vaults are skipped. See
+  `docs/deployment.md` for blocked rollout recovery and rollback. Older writers
+  can reintroduce raw IDs, so redeploy the corrected release and repeat the
+  backfill after rollback. No issue row or schema migration is required.
+
 ## v0.17.6 - 2026-10-13
 
 ### Fixed
