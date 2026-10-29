@@ -995,6 +995,7 @@ test.describe("Hermetic issue route surfaces", () => {
     ).toHaveCount(0);
     expect((await readCurrentSprintSpacing(page)).gap).toBeLessThanOrEqual(16);
 
+    await page.goto("about:blank");
     await resetFixture(request, "configured_empty");
     await openExistingWorkspace(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=list`);

@@ -78,6 +78,63 @@ function bodyOf(call: FetchCall): Record<string, unknown> {
 describe("updateIssue → row-update compensation", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("restores prior relationship URIs after a row write fails", async () => {
+    const issue = makeIssue({
+      depends_on: ["REEF-002"],
+      blocks: ["REEF-003"],
+      related_to: ["REEF-003"],
+    });
+    const targets = makeSqlQueryResponse(
+      [
+        {
+          reef_id: "REEF-002",
+          document_uri: `akb://${VAULT}/doc/custom-two.md`,
+        },
+        {
+          reef_id: "REEF-003",
+          document_uri: `akb://${VAULT}/doc/custom-three.md`,
+        },
+      ],
+      ["reef_id", "document_uri"],
+    );
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([issue]) },
+      { body: targets },
+      { body: putResponse("commit-new") },
+      { status: 500, body: { error: "sql boom" } },
+      {
+        body: {
+          ...(docGetResponse("new body") as Record<string, unknown>),
+          current_commit: "commit-new",
+        },
+      },
+      { body: makeIssueQueryResponse([issue]) },
+      { body: targets },
+      { body: putResponse("commit-revert") },
+    ]);
+    await expect(
+      updateIssue({
+        adapter: makeAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new body",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    const patches = patchCalls(calls);
+    expect(patches).toHaveLength(2);
+    for (const patch of patches) {
+      expect(bodyOf(patch).depends_on).toEqual([
+        `akb://${VAULT}/doc/custom-two.md`,
+      ]);
+      expect(bodyOf(patch).related_to).toEqual([
+        `akb://${VAULT}/doc/custom-three.md`,
+      ]);
+    }
+    expect(bodyOf(patches[1]).expected_commit).toBe("commit-new");
+  });
+
   it("re-PATCHes the document to its prior values when the row UPDATE fails", async () => {
     const { calls } = setupFetch([
       { body: docGetResponse("old body") }, // readIssue GET

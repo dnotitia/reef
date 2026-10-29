@@ -77,6 +77,21 @@ describe("updateIssue", () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              reef_id: "REEF-002",
+              document_uri: "akb://reef-sample/doc/two.md",
+            },
+            {
+              reef_id: "REEF-010",
+              document_uri: "akb://reef-sample/doc/ten.md",
+            },
+          ],
+          ["reef_id", "document_uri"],
+        ),
+      },
       { body: makePutResponse({ commit_hash: "deadbeef" }) }, // PATCH document
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
     ]);
@@ -90,9 +105,9 @@ describe("updateIssue", () => {
     });
     expect(result.commit_hash).toBe("deadbeef");
     expect(result.content).toBe("rewritten body");
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
 
-    const patchCall = calls[2];
+    const patchCall = calls[3];
     expect(patchCall?.init?.method).toBe("PATCH");
     const patchBody = JSON.parse(patchCall?.init?.body as string);
     expect(patchBody.content).toBe("rewritten body");
@@ -100,11 +115,13 @@ describe("updateIssue", () => {
     expect(patchBody.title).toBe("REEF-001");
     expect(patchBody.summary).toBe("Fix the login flow");
     expect(patchBody.tags).toEqual(["bug", "frontend"]);
+    expect(patchBody.depends_on).toEqual(["akb://reef-sample/doc/two.md"]);
+    expect(patchBody.related_to).toEqual(["akb://reef-sample/doc/ten.md"]);
     expect(patchCall?.url).toContain(
       "/api/v1/documents/reef-sample/issues/reef-001.md",
     );
 
-    const updateBody = sqlRequestBody(calls[3]);
+    const updateBody = sqlRequestBody(calls[4]);
     expect(updateBody.sql).toContain('"status" = $2');
     expect(updateBody.params).toContain("done");
   });
@@ -567,9 +584,24 @@ describe("writeMultipleIssues", () => {
       adapter,
       vault: "reef-sample",
       issues: [
-        { issue: SAMPLE_ISSUE, content: SAMPLE_BODY },
         {
-          issue: { ...SAMPLE_ISSUE, id: "REEF-002", title: "Another" },
+          issue: {
+            ...SAMPLE_ISSUE,
+            depends_on: [],
+            blocks: [],
+            related_to: [],
+          },
+          content: SAMPLE_BODY,
+        },
+        {
+          issue: {
+            ...SAMPLE_ISSUE,
+            id: "REEF-002",
+            title: "Another",
+            depends_on: [],
+            blocks: [],
+            related_to: [],
+          },
           content: "second body",
         },
       ],
@@ -605,9 +637,35 @@ describe("writeMultipleIssues", () => {
       adapter,
       vault: "reef-sample",
       issues: [
-        { issue: { ...SAMPLE_ISSUE, id: "REEF-101" } },
-        { issue: { ...SAMPLE_ISSUE, id: "REEF-102", title: "Another" } },
-        { issue: { ...SAMPLE_ISSUE, id: "REEF-103", title: "Third" } },
+        {
+          issue: {
+            ...SAMPLE_ISSUE,
+            id: "REEF-101",
+            depends_on: [],
+            blocks: [],
+            related_to: [],
+          },
+        },
+        {
+          issue: {
+            ...SAMPLE_ISSUE,
+            id: "REEF-102",
+            title: "Another",
+            depends_on: [],
+            blocks: [],
+            related_to: [],
+          },
+        },
+        {
+          issue: {
+            ...SAMPLE_ISSUE,
+            id: "REEF-103",
+            title: "Third",
+            depends_on: [],
+            blocks: [],
+            related_to: [],
+          },
+        },
       ],
     });
     expect(result.results.map((r) => r.success)).toEqual([true, false, true]);

@@ -109,7 +109,7 @@ Use issue_type values: epic, story, task, bug, spike, chore. This is the reef_is
 
 ## Relationship representation
 
-- All relationship values are reef ids as plain strings, for example REEF-002. They are NOT akb:// URIs. Do not translate them.
+- The reef_issues row stores relationship values as plain reef ids, for example REEF-002. The AKB document relationship fields use the target rows' stored document_uri values, validated as document URIs in the same vault. Do not guess paths or fall back to IDs.
 - The reef_issues row is the source of truth and keeps four separate json-array columns: labels, depends_on, related_to, and blocks. Reads come from the row.
 - The AKB document carries only depends_on and related_to (plus tags, which mirror labels). blocks has no document field of its own: it is folded into the document's related_to as the deduped union of blocks and related_to. Never rely on the document to recover blocks; read the row.
 

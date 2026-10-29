@@ -124,6 +124,14 @@ creation.
 
 ## Operational Migration
 
+Release `0.17.7` automatically performs the issue relationship URI repair on
+deploy or resume, not at startup. Follow `docs/deployment.md` for the required
+receipt, retry and rollback steps. This operation reinstalls
+the managed vault instructions and verifies the public relationship graph;
+existing vaults need that installation before agents rely on the corrected
+runbook. A rollback to an older writer can reintroduce raw IDs and requires a
+corrected redeployment and another backfill. Source issue rows are not changed.
+
 Operational migrations include changes to:
 
 - Kubernetes manifests.

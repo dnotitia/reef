@@ -2,7 +2,8 @@ import { ZodError, z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import type { AkbDocumentReference } from "../../../schemas/issues/references";
-import { buildIssueAkbTitle, uniqueStrings } from "../issues/issueRows";
+import { buildIssueAkbTitle } from "../issues/issueRows";
+import type { IssueRelationUris } from "../issues/relationUris";
 import { ISSUES_COLLECTION } from "./constants";
 import { assertNoNul } from "./sql";
 import {
@@ -221,6 +222,7 @@ export function buildPutRequestBody(
   vault: string,
   issue: IssueMetadata,
   body: string,
+  relations: IssueRelationUris,
 ): Record<string, unknown> {
   return {
     vault,
@@ -239,11 +241,7 @@ export function buildPutRequestBody(
     status: "active",
     summary: issue.title,
     tags: issue.labels ?? [],
-    depends_on: issue.depends_on ?? [],
-    related_to: uniqueStrings([
-      ...(issue.blocks ?? []),
-      ...(issue.related_to ?? []),
-    ]),
+    ...relations,
   };
 }
 
@@ -257,17 +255,14 @@ export function buildPutRequestBody(
 export function buildIssueDocPatchBody(
   issue: IssueMetadata,
   content: string,
+  relations: IssueRelationUris,
 ): Record<string, unknown> {
   return {
     title: buildIssueAkbTitle(issue),
     content,
     summary: issue.title,
     tags: issue.labels ?? [],
-    depends_on: issue.depends_on ?? [],
-    related_to: uniqueStrings([
-      ...(issue.blocks ?? []),
-      ...(issue.related_to ?? []),
-    ]),
+    ...relations,
   };
 }
 

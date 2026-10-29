@@ -40,6 +40,13 @@ function subscriptionRow(subscriber: string, source: "assignee") {
   };
 }
 
+const unrelatedIssue = {
+  ...SAMPLE_ISSUE,
+  depends_on: [],
+  blocks: [],
+  related_to: [],
+};
+
 // ── readIssue ────────────────────────────────────────────────────────────────
 
 describe("readIssue", () => {
@@ -222,8 +229,82 @@ describe("readIssue", () => {
 // ── writeIssue ───────────────────────────────────────────────────────────────
 
 describe("writeIssue", () => {
+  it.each([
+    ["missing target", []],
+    [
+      "cross-vault target",
+      [{ reef_id: "REEF-002", document_uri: "akb://other/doc/target.md" }],
+    ],
+  ])("rejects %s before creating a document", async (_name, rows) => {
+    const { calls } = setupFetch([
+      { body: makeSqlQueryResponse(rows, ["reef_id", "document_uri"]) },
+    ]);
+    await expect(
+      writeIssue({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        issue: { ...unrelatedIssue, depends_on: ["REEF-002"] },
+      }),
+    ).rejects.toThrow();
+    expect(calls.every((call) => !call.url.includes("/documents"))).toBe(true);
+  });
+  it("writes stored target document URIs while retaining row IDs", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              reef_id: "REEF-002",
+              document_uri: "akb://reef-sample/coll/custom/doc/target.md",
+            },
+          ],
+          ["reef_id", "document_uri"],
+        ),
+      },
+      { status: 201, body: makePutResponse() },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+    ]);
+    await writeIssue({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      issue: {
+        ...SAMPLE_ISSUE,
+        assigned_to: undefined,
+        depends_on: ["REEF-002"],
+        blocks: [],
+        related_to: [],
+      },
+    });
+    const document = calls.find(
+      (call) => call.init?.method === "POST" && call.url.includes("/documents"),
+    );
+    expect(JSON.parse(String(document?.init?.body)).depends_on).toEqual([
+      "akb://reef-sample/coll/custom/doc/target.md",
+    ]);
+    const row = calls.find((call) =>
+      String(call.init?.body).includes("INSERT INTO reef_issues"),
+    );
+    expect(JSON.parse(String(row?.init?.body)).params).toContain(
+      '["REEF-002"]',
+    );
+  });
   it("POSTs a plain-markdown document then INSERTs the projection row", async () => {
     const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              reef_id: "REEF-002",
+              document_uri: "akb://reef-sample/doc/target-two.md",
+            },
+            {
+              reef_id: "REEF-010",
+              document_uri: "akb://reef-sample/doc/target-ten.md",
+            },
+          ],
+          ["reef_id", "document_uri"],
+        ),
+      },
       { status: 201, body: makePutResponse() }, // POST document
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT row
       {
@@ -242,9 +323,9 @@ describe("writeIssue", () => {
     });
     expect(result.path).toBe("issues/reef-001-fix-the-login-flow.md");
     expect(result.commit_hash).toBe("abc1234");
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
 
-    const docCall = calls[0];
+    const docCall = calls[1];
     expect(docCall?.init?.method).toBe("POST");
     const requestBody = JSON.parse(docCall?.init?.body as string);
     expect(requestBody.vault).toBe("reef-sample");
@@ -252,14 +333,18 @@ describe("writeIssue", () => {
     expect(requestBody.title).toBe("REEF-001");
     expect(requestBody.summary).toBe("Fix the login flow");
     expect(requestBody.tags).toEqual(["bug", "frontend"]);
-    expect(requestBody.depends_on).toEqual(["REEF-002"]);
-    expect(requestBody.related_to).toEqual(["REEF-010"]);
+    expect(requestBody.depends_on).toEqual([
+      "akb://reef-sample/doc/target-two.md",
+    ]);
+    expect(requestBody.related_to).toEqual([
+      "akb://reef-sample/doc/target-ten.md",
+    ]);
     expect(requestBody.type).toBe("task");
     // Body is now plain markdown — no fenced reef frontmatter.
     expect(requestBody.content).toBe(SAMPLE_BODY);
     expect(requestBody.content).not.toContain("```yaml");
 
-    const insertCall = calls[1];
+    const insertCall = calls[2];
     expect(insertCall?.url).toContain("/api/v1/tables/reef-sample/sql");
     const insertBody = JSON.parse(insertCall?.init?.body as string);
     const insertSql = insertBody.sql;
@@ -309,7 +394,7 @@ describe("writeIssue", () => {
       { body: makeSqlQueryResponse([{ id: "mention-event" }], ["id"]) },
     ]);
     const issue: IssueMetadata = {
-      ...SAMPLE_ISSUE,
+      ...unrelatedIssue,
       assigned_to: undefined,
       mention_recipients: ["client-controlled"],
     };
@@ -353,7 +438,7 @@ describe("writeIssue", () => {
       writeIssue({
         adapter,
         vault: "reef-sample",
-        issue: SAMPLE_ISSUE,
+        issue: unrelatedIssue,
         content: SAMPLE_BODY,
       }),
     ).rejects.toBeInstanceOf(AkbApiError);
@@ -382,7 +467,7 @@ describe("writeIssue", () => {
       writeIssue({
         adapter: makeAdapter(),
         vault: "reef-sample",
-        issue: SAMPLE_ISSUE,
+        issue: unrelatedIssue,
         content: "Owner @alice",
       }),
     ).rejects.toBeInstanceOf(AkbApiError);
@@ -398,7 +483,7 @@ describe("writeIssue", () => {
     setupFetch([{ status: 409, body: { detail: "path already exists" } }]);
     const adapter = makeAdapter();
     await expect(
-      writeIssue({ adapter, vault: "reef-sample", issue: SAMPLE_ISSUE }),
+      writeIssue({ adapter, vault: "reef-sample", issue: unrelatedIssue }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });

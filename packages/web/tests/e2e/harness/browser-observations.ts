@@ -54,3 +54,24 @@ export async function advanceQueryRetries(
     )
     .toBe(true);
 }
+
+/** Include the frame immediately preceding the first contentful paint and all later frames. */
+export function framesAtFirstContentfulPaint<T extends { time: number }>(
+  frames: T[],
+  paintTime: number | undefined,
+): T[] {
+  if (
+    typeof paintTime !== "number" ||
+    !Number.isFinite(paintTime) ||
+    paintTime <= 0
+  ) {
+    throw new Error("First contentful paintTime is unavailable or invalid");
+  }
+  const firstAtOrAfter = frames.findIndex((frame) => frame.time >= paintTime);
+  if (firstAtOrAfter < 0) {
+    throw new Error(
+      "No animation frame was observed at or after first contentful paint",
+    );
+  }
+  return frames.slice(Math.max(0, firstAtOrAfter - 1));
+}

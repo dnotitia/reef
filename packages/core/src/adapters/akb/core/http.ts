@@ -213,6 +213,7 @@ function makeRequest(
   baseUrl: string,
   credential: AkbCredential,
   requestPolicy?: AkbRequestPolicy,
+  requestFetch: typeof fetch = fetch,
 ): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
@@ -246,7 +247,7 @@ function makeRequest(
           ? AbortSignal.timeout(requestPolicy.timeoutMs)
           : undefined;
         try {
-          response = await fetch(url, {
+          response = await requestFetch(url, {
             method,
             headers,
             body,
@@ -339,6 +340,7 @@ function makeRequest(
 function makeStreamRequest(
   baseUrl: string,
   credential: AkbCredential,
+  requestFetch: typeof fetch = fetch,
 ): AkbStreamRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
@@ -350,7 +352,7 @@ function makeStreamRequest(
         let response: Response;
         const bearerToken = await resolveCredential(credential);
         try {
-          response = await fetch(url, {
+          response = await requestFetch(url, {
             method: "GET",
             headers: {
               Authorization: `Bearer ${bearerToken}`,
@@ -399,6 +401,7 @@ export function createAkbAdapter(input: {
   baseUrl: string;
   credential: AkbCredential;
   requestPolicy?: AkbRequestPolicy;
+  fetch?: typeof fetch;
 }): AkbStreamAdapter {
   if (
     input.requestPolicy &&
@@ -410,7 +413,12 @@ export function createAkbAdapter(input: {
     throw new Error("AKB request policy must use positive integer bounds");
   }
   return {
-    request: makeRequest(input.baseUrl, input.credential, input.requestPolicy),
-    stream: makeStreamRequest(input.baseUrl, input.credential),
+    request: makeRequest(
+      input.baseUrl,
+      input.credential,
+      input.requestPolicy,
+      input.fetch,
+    ),
+    stream: makeStreamRequest(input.baseUrl, input.credential, input.fetch),
   };
 }

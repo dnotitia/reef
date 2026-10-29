@@ -397,6 +397,8 @@ export {
   createAkbAppInstallationReader,
   createAkbAppInstallationInventoryReader,
   listAdminActiveInstallations as akbListAdminActiveInstallations,
+  preflightIssueRelationUris as akbPreflightIssueRelationUris,
+  backfillIssueRelationUris as akbBackfillIssueRelationUris,
   readMemberInstallationActive as akbReadMemberInstallationActive,
   readInstallation as akbReadInstallation,
   requestInstallation as akbRequestInstallation,

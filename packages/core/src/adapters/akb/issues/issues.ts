@@ -68,6 +68,7 @@ import {
   diffFieldActivityEvents,
 } from "./activity";
 import { listVaultMembers } from "../workspace/vaults";
+import { readRelationUris } from "./relationUris";
 export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
@@ -244,7 +245,12 @@ export async function writeIssue(
     };
     // Workspace readiness checks required Reef tables before application
     // operations reach this adapter. A missing table still surfaces from SQL.
-    const body = buildPutRequestBody(vault, issue, content);
+    const body = buildPutRequestBody(
+      vault,
+      issue,
+      content,
+      await readRelationUris(adapter, vault, issue),
+    );
     let claimBeforeIssue: IssueMetadata | null = null;
     let claimDisposition: "created" | "existing" | null = null;
     if (claimFirst) {
@@ -613,7 +619,11 @@ export async function updateIssue(
     const docPath = `/api/v1/documents/${encodeURIComponent(vault)}/${issuePathFor(id)}`;
     let commitHash = current.commit_hash ?? "";
     if (docDirty) {
-      const updateBody = buildIssueDocPatchBody(mergedIssue, mergedBody);
+      const updateBody = buildIssueDocPatchBody(
+        mergedIssue,
+        mergedBody,
+        await readRelationUris(adapter, vault, mergedIssue),
+      );
       if (message !== undefined) {
         updateBody.message = message;
       }
@@ -664,7 +674,11 @@ export async function updateIssue(
       mergedIssue.rank == null;
     const restoreDocument = async (reason: string): Promise<void> => {
       if (!docDirty) return;
-      const revertBody = buildIssueDocPatchBody(current.issue, current.content);
+      const revertBody = buildIssueDocPatchBody(
+        current.issue,
+        current.content,
+        await readRelationUris(adapter, vault, current.issue),
+      );
       revertBody.message = `Revert ${id} document: ${reason}`;
       revertBody.expected_commit = commitHash;
       await adapter.request(docPath, {

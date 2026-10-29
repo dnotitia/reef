@@ -425,10 +425,6 @@ export function stringArraysEqual(
   return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
-export function uniqueStrings(values: Array<string | undefined>): string[] {
-  return [...new Set(values.filter((v): v is string => !!v))];
-}
-
 /**
  * Per-status row counts under an optional `WHERE`, for board column headers.
  * Tolerates a does not-onboarded vault (missing table → `{}`). Any status absent

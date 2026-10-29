@@ -12,6 +12,15 @@ import { pmModelContent } from "./pmModel";
 describe("pm-model data-model manifest (REEF-252)", () => {
   const content = pmModelContent("reef-test");
 
+  it("distinguishes stored row IDs from document relationship URIs", () => {
+    expect(content).toContain(
+      "The AKB document relationship fields use the target rows' stored document_uri values",
+    );
+    expect(content).not.toContain(
+      "They are NOT akb:// URIs. Do not translate them.",
+    );
+  });
+
   it("lists reef_comments and reef_activity in Core tables", () => {
     expect(content).toContain("- reef_comments: per-issue discussion thread");
     expect(content).toContain(

@@ -362,6 +362,19 @@ describe("born-correct backlog rank (REEF-176)", () => {
       updated_at: "2026-05-01T00:00:01.000Z",
     });
     const { calls } = setupFetch([
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id", "document_uri"],
+          items: [
+            { reef_id: "REEF-098", document_uri: `akb://${VAULT}/doc/a.md` },
+            { reef_id: "REEF-097", document_uri: `akb://${VAULT}/doc/b.md` },
+            { reef_id: "REEF-096", document_uri: `akb://${VAULT}/doc/c.md` },
+          ],
+          total: 3,
+          vaults: [VAULT],
+        },
+      },
       { status: 409, body: { error: "duplicate reef_id" } },
       { body: rowsForIssue(reservation) },
       { body: rowsForIssue(reservation) },
@@ -396,7 +409,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
         4096,
       ]),
     );
-    expect(calls[4]?.init?.method).toBe("POST");
+    expect(calls[5]?.init?.method).toBe("POST");
   });
 
   it("preserves an owned row claim after an ambiguous document failure", async () => {
