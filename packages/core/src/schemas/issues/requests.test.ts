@@ -103,6 +103,8 @@ describe("IssueListQuerySchema", () => {
       severity_unset: true,
       assigned_to: ["__none__"],
       assigned_to_unset: true,
+      requester: ["alice"],
+      requester_unset: true,
       due_unset: true,
     });
 
@@ -112,6 +114,8 @@ describe("IssueListQuerySchema", () => {
       severity_unset: true,
       assigned_to: ["__none__"],
       assigned_to_unset: true,
+      requester: ["alice"],
+      requester_unset: true,
       due_unset: true,
     });
   });
@@ -243,6 +247,9 @@ describe("hasAnyFilter", () => {
       hasAnyFilter(IssueListQuerySchema.parse({ assigned_to: ["alice"] })),
     ).toBe(true);
     expect(hasAnyFilter(IssueListQuerySchema.parse({ q: "login" }))).toBe(true);
+    expect(
+      hasAnyFilter(IssueListQuerySchema.parse({ requester_unset: true })),
+    ).toBe(true);
     expect(
       hasAnyFilter(IssueListQuerySchema.parse({ priority_unset: true })),
     ).toBe(true);

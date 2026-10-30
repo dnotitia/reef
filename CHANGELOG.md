@@ -11,6 +11,10 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+### Added
+
+- Filter issues with no requester, alone or alongside selected requesters.
+
 ### Changed
 
 - Unset issue filters appear first and use consistent summaries and individual clear controls.

@@ -48,6 +48,8 @@ describe("useIssueFilterPersistence", () => {
         severityUnset: true,
         assignee: ["__none__"],
         assigneeUnset: true,
+        requester: ["alice"],
+        requesterUnset: true,
         due: ["no_due"],
       }),
     );
@@ -59,6 +61,8 @@ describe("useIssueFilterPersistence", () => {
         severityUnset: true,
         assignee: ["__none__"],
         assigneeUnset: true,
+        requester: ["alice"],
+        requesterUnset: true,
         due: ["no_due"],
       });
     });

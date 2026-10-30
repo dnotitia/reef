@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { applyMyViewSnapshot } from "../../lib/myViewSnapshot";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -58,28 +59,31 @@ beforeEach(() => {
 
 function renderFilterBar(
   props: Partial<ComponentProps<typeof FilterBar>> = {},
+  locale: "en" | "ko" = "en",
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <FilterBar
-        {...props}
-        applyMyViewSnapshot={
-          props.applyMyViewSnapshot ??
-          ((snapshot) => {
-            const applied = applyMyViewSnapshot(snapshot);
-            useIssueStore.setState({
-              filter: applied.filter,
-              searchQuery: "",
-              filterVault: "reef-acme",
-              listOptionalColumns: applied.listOptionalColumns,
-            });
-          })
-        }
-      />
-    </QueryClientProvider>,
+    <IntlTestProvider locale={locale}>
+      <QueryClientProvider client={client}>
+        <FilterBar
+          {...props}
+          applyMyViewSnapshot={
+            props.applyMyViewSnapshot ??
+            ((snapshot) => {
+              const applied = applyMyViewSnapshot(snapshot);
+              useIssueStore.setState({
+                filter: applied.filter,
+                searchQuery: "",
+                filterVault: "reef-acme",
+                listOptionalColumns: applied.listOptionalColumns,
+              });
+            })
+          }
+        />
+      </QueryClientProvider>
+    </IntlTestProvider>,
   );
 }
 
@@ -194,6 +198,74 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
       "3 filters",
     );
+  });
+
+  it("selects and clears absent requester together with a user", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ users: [{ login: "alice", name: "Alice Example" }] }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+    await user.click(screen.getByTestId("requester-dropdown-trigger"));
+    const panel = screen.getByTestId("requester-dropdown-content");
+    expect(within(panel).getAllByRole("option")[0]).toHaveAttribute(
+      "data-testid",
+      "requester-option-unset",
+    );
+    await user.click(screen.getByTestId("requester-option-unset"));
+    await user.click(await within(panel).findByText("Alice Example"));
+    expect(screen.getByTestId("requester-dropdown-trigger")).toHaveTextContent(
+      "Requester (2)",
+    );
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "1 filter",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Requester filter" }),
+    );
+    expect(useIssueStore.getState().filter.requesterUnset).toBeUndefined();
+    expect(useIssueStore.getState().filter.requester).toBeUndefined();
+  });
+
+  it("offers the localized requester absence option to keyboard users", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    renderFilterBar({}, "ko");
+    await user.click(screen.getByTestId("requester-dropdown-trigger"));
+    expect(screen.getByTestId("requester-option-unset")).toHaveTextContent(
+      "요청자 없음",
+    );
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(useIssueStore.getState().filter.requesterUnset).toBe(true);
+  });
+
+  it("does not count the auxiliary requester option as a member search result", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    renderFilterBar();
+    await user.click(screen.getByTestId("requester-dropdown-trigger"));
+    await user.type(screen.getByRole("combobox"), "zzzz-no-member");
+    await waitFor(() => {
+      expect(screen.queryByTestId("requester-option-unset")).toBeNull();
+      expect(screen.getByText("No vault members found.")).toBeTruthy();
+      expect(screen.getByText("0 results")).toBeTruthy();
+    });
   });
 
   it("shows an assignee display name and includes unassigned in its count", async () => {

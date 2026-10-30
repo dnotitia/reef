@@ -22,6 +22,7 @@ export interface IssueFilter {
   /** filter-specific selection for issues with no assigned_to value. */
   assigneeUnset?: boolean;
   requester?: string[];
+  requesterUnset?: boolean;
   reporter?: string;
   severity?: string[];
   /** filter-specific selection for issues with no severity value. */

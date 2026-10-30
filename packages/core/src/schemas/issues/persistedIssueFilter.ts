@@ -125,6 +125,7 @@ export const PersistedIssueFilterSchema = z.object({
   assignee: multiStringFacet(),
   assigneeUnset: z.literal(true).optional().catch(undefined),
   requester: multiStringFacet(),
+  requesterUnset: z.literal(true).optional().catch(undefined),
   reporter: z.string().optional().catch(undefined),
   severity: multiEnumFacet(SeverityEnum),
   severityUnset: z.literal(true).optional().catch(undefined),
@@ -166,6 +167,7 @@ const FILTER_KEYS = [
   "assignee",
   "assigneeUnset",
   "requester",
+  "requesterUnset",
   "reporter",
   "severity",
   "severityUnset",
@@ -242,6 +244,7 @@ export function normalizePersistedIssueFilter(
   if (input.priorityUnset === true) normalized.priorityUnset = true;
   if (input.severityUnset === true) normalized.severityUnset = true;
   if (input.assigneeUnset === true) normalized.assigneeUnset = true;
+  if (input.requesterUnset === true) normalized.requesterUnset = true;
   if (input.showArchived === true) normalized.showArchived = true;
   if (input.showStale === true) normalized.showStale = true;
 

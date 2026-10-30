@@ -143,6 +143,24 @@ describe("buildIssueWhere", () => {
     });
   });
 
+  it("OR-combines absent and exact requesters while AND-combining status", () => {
+    expect(
+      issueWhere({
+        requester: ["Alice"],
+        requester_unset: true,
+        status: ["todo"],
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `"status" IN ($1) AND (LOWER("requester") IN ($2) OR COALESCE(BTRIM("requester"), '') = '')`,
+      params: ["todo", "alice"],
+    });
+    expect(issueWhere({ requester_unset: true, archived: true })).toEqual({
+      sql: `COALESCE(BTRIM("requester"), '') = ''`,
+      params: [],
+    });
+  });
+
   it("uses a case-insensitive exact IN for requester (REEF-267)", () => {
     expect(
       issueWhere({ requester: ["carol", "dave"], archived: true }).sql,

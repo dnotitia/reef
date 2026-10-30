@@ -54,6 +54,7 @@ export function hasScopeFilters(
       filter.assignee?.length ||
       filter.assigneeUnset ||
       filter.requester?.length ||
+      filter.requesterUnset ||
       (scope === "active" && filter.sprint_id?.length) ||
       filter.milestone_id ||
       (scope === "active" && filter.release_id?.length) ||

@@ -1311,6 +1311,7 @@
       "unarchived": "{id} 보관 해제됨"
     },
     "filters": {
+      "noRequester": "요청자 없음",
       "activeCount": "필터 {count}개",
       "clearMilestone": "마일스톤 필터 해제",
       "searchPlaceholder": "이슈 검색…",

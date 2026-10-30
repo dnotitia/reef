@@ -98,6 +98,16 @@ describe("buildIssueQuery", () => {
     ).toEqual({ sort_field: "rank", sort_order: "asc" });
   });
 
+  it("combines unset requester with selected users in the wire query", () => {
+    expect(
+      buildIssueQuery({ requester: ["alice"], requesterUnset: true }),
+    ).toEqual({
+      requester: ["alice"],
+      requester_unset: "true",
+      ...DEFAULT_SORT,
+    });
+  });
+
   it("maps unset filter flags separately from real values", () => {
     expect(
       buildIssueQuery({

@@ -89,6 +89,31 @@ describe("hasActiveIssueFilters", () => {
   });
 });
 
+describe("requester absence", () => {
+  it("matches blank and null, combines named users by OR and status by AND", () => {
+    const candidates = [
+      makeIssue({ id: "A", requester: null }),
+      makeIssue({ id: "B", requester: "  " }),
+      makeIssue({ id: "C", requester: "Alice" }),
+      makeIssue({ id: "D", requester: "alice2" }),
+      makeIssue({ id: "E", requester: null, status: "done" }),
+    ];
+    expect(
+      filterIssues(candidates, { requesterUnset: true, status: ["todo"] }).map(
+        (i) => i.id,
+      ),
+    ).toEqual(["A", "B"]);
+    expect(
+      filterIssues(candidates, {
+        requesterUnset: true,
+        requester: ["alice"],
+        status: ["todo"],
+      }).map((i) => i.id),
+    ).toEqual(["A", "B", "C"]);
+    expect(hasActiveIssueFilters({ requesterUnset: true }, "")).toBe(true);
+  });
+});
+
 describe("sortIssues", () => {
   it("returns copy with original order when no field specified", () => {
     const sorted = sortIssues(issues, undefined, undefined);

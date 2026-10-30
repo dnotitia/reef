@@ -92,6 +92,8 @@ function Harness() {
             severityUnset: true,
             assignee: ["__none__"],
             assigneeUnset: true,
+            requester: ["alice"],
+            requesterUnset: true,
             due: ["no_due"],
           })
         }
@@ -276,7 +278,7 @@ describe("useIssueUrlSync", () => {
 
   it("restores unset and real mixed selections from the URL without a username sentinel", async () => {
     navigationState.searchParams = new URLSearchParams(
-      "priority=high&priority_unset=1&severity_unset=true&assignee=__none__&assignee_unset=1&due=no_due",
+      "priority=high&priority_unset=1&severity_unset=true&assignee=__none__&assignee_unset=1&requester=alice&requester_unset=1&due=no_due",
     );
 
     render(<Harness />);
@@ -291,6 +293,8 @@ describe("useIssueUrlSync", () => {
       severityUnset: true,
       assignee: ["__none__"],
       assigneeUnset: true,
+      requester: ["alice"],
+      requesterUnset: true,
       due: ["no_due"],
     });
   });
@@ -304,7 +308,7 @@ describe("useIssueUrlSync", () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
         expect.stringContaining(
-          "priority=high&priority_unset=1&assignee=__none__&assignee_unset=1&severity_unset=1&due=no_due",
+          "priority=high&priority_unset=1&assignee=__none__&assignee_unset=1&requester_unset=1&requester=alice&severity_unset=1&due=no_due",
         ),
         { scroll: false },
       );

@@ -27,9 +27,12 @@ interface MultiAssigneeComboboxProps {
   placeholder?: string;
   /** Filter affordance — paints the brand ring when set. */
   active?: boolean;
-  /** Include the filter-specific choice for NULL/blank assigned_to values. */
-  unassigned?: boolean;
-  onUnassignedToggle?: (checked: boolean) => void;
+  auxiliaryOption?: {
+    label: string;
+    selected: boolean;
+    onToggle: (checked: boolean) => void;
+    testId: string;
+  };
   triggerTestId?: string;
   contentTestId?: string;
   /** Extra classes for the opened panel (a readable floor for long names). */
@@ -60,8 +63,7 @@ export function MultiAssigneeCombobox({
   label,
   placeholder,
   active,
-  unassigned,
-  onUnassignedToggle,
+  auxiliaryOption,
   triggerTestId,
   contentTestId,
   panelClassName,
@@ -114,16 +116,7 @@ export function MultiAssigneeCombobox({
       triggerTestId={triggerTestId}
       contentTestId={contentTestId}
       contentClassName={panelClassName}
-      auxiliaryOption={
-        onUnassignedToggle
-          ? {
-              label: t("unassigned"),
-              selected: Boolean(unassigned),
-              onToggle: onUnassignedToggle,
-              testId: "assignee-option-unassigned",
-            }
-          : undefined
-      }
+      auxiliaryOption={auxiliaryOption}
       align={align}
     />
   );

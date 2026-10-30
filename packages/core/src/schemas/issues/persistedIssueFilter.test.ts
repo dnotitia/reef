@@ -15,6 +15,7 @@ describe("PersistedIssueFilterSchema", () => {
       // (REEF-267); milestone_id stays a single scalar.
       assignee: ["alice", "carol"],
       requester: ["bob"],
+      requesterUnset: true,
       reporter: "carol",
       severity: ["major"],
       severityUnset: true,

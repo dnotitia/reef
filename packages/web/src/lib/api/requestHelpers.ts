@@ -123,6 +123,7 @@ const ISSUE_LIST_BOOLEAN_KEYS = [
   "priority_unset",
   "severity_unset",
   "assigned_to_unset",
+  "requester_unset",
   "due_unset",
 ] as const;
 

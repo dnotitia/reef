@@ -186,6 +186,11 @@ export function listInvalidationPredicate(
       return true;
     if (archivedChanged && variant.archived !== "true") return true;
     if (explicitFacets.some((facet) => facet in variant)) return true;
+    if (
+      membershipKeys.includes("requester") &&
+      variant.requester_unset === "true"
+    )
+      return true;
     // Every successful edit bumps the server-stamped `updated_at`, so a variant
     // sorted by it reorders on any edit; otherwise a variant reorders when
     // sorted by a changed key (membership `priority`, or a content field like

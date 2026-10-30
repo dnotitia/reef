@@ -120,6 +120,13 @@ describe("listInvalidationPredicate", () => {
       ).toBe(true);
     });
 
+    it("refetches an unset requester query when the requester changes", () => {
+      const predicate = listInvalidationPredicate({ requester: "alice" });
+      expect(
+        predicate(key({ requester_unset: "true", sort_field: "created_at" })),
+      ).toBe(true);
+    });
+
     it("skips a variant whose facets do not include any changed key", () => {
       // assignee edit; this variant filters by status and sorts by created_at,
       // so it neither gains/loses the issue nor reorders — stays patched.

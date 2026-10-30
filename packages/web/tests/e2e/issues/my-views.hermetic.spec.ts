@@ -504,3 +504,43 @@ test.describe("Hermetic My Views", () => {
     }
   });
 });
+
+test.describe("requester absence", () => {
+  test.use({ scenario: "requester_unset" });
+
+  test("restores absent and mixed requester results through URL and My View", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByTestId("requester-dropdown-trigger").click();
+    await page.getByTestId("requester-option-unset").click();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/requester_unset=1/);
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("requester-dropdown-trigger").click();
+    await page
+      .getByTestId("requester-dropdown-content")
+      .getByText("Alice", { exact: false })
+      .first()
+      .click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
+    await dialog.getByTestId("my-view-name-input").fill("Requester view");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Clear Requester filter" }).click();
+    const menu = await openMyViewMenu(page);
+    await menu.getByRole("menuitem", { name: /^Requester view/ }).click();
+    await expect(page).toHaveURL(/requester_unset=1/);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+  });
+});

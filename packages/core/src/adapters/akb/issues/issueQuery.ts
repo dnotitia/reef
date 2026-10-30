@@ -183,10 +183,21 @@ export function buildIssueWhere(
     }
     clauses.push(orGroup(parts));
   }
-  if (filter.requester?.length) {
-    clauses.push(
-      lowerInClause("requester", filter.requester, "requester filter", params),
-    );
+  if (filter.requester?.length || filter.requester_unset) {
+    const parts: string[] = [];
+    if (filter.requester?.length) {
+      parts.push(
+        lowerInClause(
+          "requester",
+          filter.requester,
+          "requester filter",
+          params,
+        ),
+      );
+    }
+    if (filter.requester_unset)
+      parts.push(`COALESCE(BTRIM("requester"), '') = ''`);
+    clauses.push(orGroup(parts));
   }
   if (filter.sprint_id?.length) {
     clauses.push(inClause("sprint_id", filter.sprint_id, "sprint_id filter"));

@@ -151,7 +151,7 @@ function countActiveFilters(
   if (filter.issueType?.length) count++;
   if (filter.priority?.length || filter.priorityUnset) count++;
   if (filter.assignee?.length || filter.assigneeUnset) count++;
-  if (filter.requester?.length) count++;
+  if (filter.requester?.length || filter.requesterUnset) count++;
   if (!backlogScope && !fixedSprintId && filter.sprint_id?.length) count++;
   if (filter.milestone_id) count++;
   if (!backlogScope && filter.release_id?.length) count++;
@@ -235,6 +235,7 @@ export function FilterBar({
   // facet clear action, and the shared full filter reset action.
   const t = useTranslations("issues.filters");
   const c = useTranslations("common");
+  const assigneeCopy = useTranslations("components.assignee");
 
   const labelValues = useMemo(
     () => parseLabelFilter(filter.label),
@@ -440,10 +441,13 @@ export function FilterBar({
           onClear={() =>
             setFilter({ assignee: undefined, assigneeUnset: undefined })
           }
-          unassigned={filter.assigneeUnset}
-          onUnassignedToggle={(checked) =>
-            setFilter({ assigneeUnset: checked ? true : undefined })
-          }
+          auxiliaryOption={{
+            label: assigneeCopy("unassigned"),
+            selected: Boolean(filter.assigneeUnset),
+            onToggle: (checked) =>
+              setFilter({ assigneeUnset: checked ? true : undefined }),
+            testId: "assignee-option-unassigned",
+          }}
           vault={vault}
           label={fieldNames.assignee}
           active={Boolean(filter.assignee?.length || filter.assigneeUnset)}
@@ -462,9 +466,19 @@ export function FilterBar({
               requester: toggleFacet(filter.requester, login, checked),
             })
           }
+          onClear={() =>
+            setFilter({ requester: undefined, requesterUnset: undefined })
+          }
+          auxiliaryOption={{
+            label: t("noRequester"),
+            selected: Boolean(filter.requesterUnset),
+            onToggle: (checked) =>
+              setFilter({ requesterUnset: checked ? true : undefined }),
+            testId: "requester-option-unset",
+          }}
           vault={vault}
           label={fieldNames.requester}
-          active={Boolean(filter.requester?.length)}
+          active={Boolean(filter.requester?.length || filter.requesterUnset)}
           triggerTestId="requester-dropdown-trigger"
           contentTestId="requester-dropdown-content"
           panelClassName={USER_FILTER_PANEL_CLASS}

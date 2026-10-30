@@ -140,6 +140,7 @@ export function hasActiveIssueFilters(
       filter.assignee?.length ||
       filter.assigneeUnset ||
       filter.requester?.length ||
+      filter.requesterUnset ||
       filter.sprint_id?.length ||
       filter.milestone_id ||
       filter.release_id?.length ||
@@ -259,9 +260,15 @@ export function filterIssues(
     if (!matchesDateRange(issue)) return false;
     // Requester mirrors assignee: case-insensitive exact match, OR-combined
     // across the selected logins (REEF-267 — no longer a substring).
-    if (filter.requester?.length) {
+    if (filter.requester?.length || filter.requesterUnset) {
       const who = issue.requester?.toLowerCase() ?? "";
-      if (!filter.requester.some((r) => r.toLowerCase() === who)) return false;
+      if (
+        !(
+          (filter.requesterUnset && !who.trim()) ||
+          filter.requester?.some((r) => r.toLowerCase() === who)
+        )
+      )
+        return false;
     }
     if (filter.due?.length) {
       if (issue.due_date == null) {

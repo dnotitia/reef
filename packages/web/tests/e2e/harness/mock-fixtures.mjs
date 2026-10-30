@@ -140,6 +140,7 @@ export const SUPPORTED_SCENARIOS = [
   "configured_caught_up",
   "updated_at_range",
   "configured_multi",
+  "requester_unset",
   "my_work_multi",
   "assignee_picker",
   "backlog_bulk_partial_failure",
@@ -183,6 +184,7 @@ const CONFIGURED_SCENARIOS = new Set([
   "configured_caught_up",
   "updated_at_range",
   "configured_multi",
+  "requester_unset",
   "my_work_multi",
   "assignee_picker",
   "backlog_bulk_partial_failure",
@@ -231,6 +233,7 @@ export function createScenarioVaults(scenario) {
                           : scenario === "typography"
                             ? typographyVault(REEF_VAULT)
                             : configuredVault(REEF_VAULT);
+    if (scenario === "requester_unset") vault.issues[1].requester = null;
     if (scenario === "reports_outliers") seedReportOutlierIssues(vault);
     if (scenario === "notifications_personal") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);

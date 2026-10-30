@@ -1096,6 +1096,7 @@
       "unarchived": "{id} unarchived"
     },
     "filters": {
+      "noRequester": "No requester",
       "activeCount": "{count, plural, one {# filter} other {# filters}}",
       "clearMilestone": "Clear milestone filter",
       "searchPlaceholder": "Search issues...",

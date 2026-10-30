@@ -48,6 +48,7 @@ const ISSUE_QUERY_KEYS = [
   "priority_unset",
   "assignee",
   "assignee_unset",
+  "requester_unset",
   "requester",
   "sprint_id",
   "milestone_id",
@@ -126,6 +127,7 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   const priorityUnset = searchParams.get("priority_unset");
   const severityUnset = searchParams.get("severity_unset");
   const assigneeUnset = searchParams.get("assignee_unset");
+  const requesterUnset = searchParams.get("requester_unset");
   const archived = searchParams.get("archived");
   const stale = searchParams.get("stale");
   const columns = new Set(
@@ -146,6 +148,8 @@ function readIssueUrlState(searchParams: URLSearchParams): {
     filter.assigneeUnset = true;
   }
   if (requester.length) filter.requester = requester;
+  if (requesterUnset === "1" || requesterUnset === "true")
+    filter.requesterUnset = true;
   if (sprintId.length) filter.sprint_id = sprintId;
   if (milestoneId) filter.milestone_id = milestoneId;
   if (releaseId.length) filter.release_id = releaseId;
@@ -256,6 +260,7 @@ function buildIssueSearchParams(
   if (filter.assignee)
     for (const v of filter.assignee) params.append("assignee", v);
   if (filter.assigneeUnset) params.set("assignee_unset", "1");
+  if (filter.requesterUnset) params.set("requester_unset", "1");
   if (filter.requester)
     for (const v of filter.requester) params.append("requester", v);
   if (filter.sprint_id)

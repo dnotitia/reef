@@ -89,6 +89,7 @@ export function buildIssueQuery(
   if (scopedFilter.assigneeUnset) q.assigned_to_unset = "true";
   const requester = scopedFilter.requester?.filter((v) => v.trim());
   if (requester?.length) q.requester = requester;
+  if (scopedFilter.requesterUnset) q.requester_unset = "true";
   const sprintId = scopedFilter.sprint_id?.filter((v) => v.trim());
   if (sprintId?.length) q.sprint_id = sprintId;
   if (scopedFilter.milestone_id) q.milestone_id = scopedFilter.milestone_id;

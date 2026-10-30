@@ -1836,6 +1836,20 @@ function filterIssueRows(rows, sql, vault) {
     if (value) out = out.filter((row) => row[column] === value);
   }
 
+  const requesterValues = sql.match(/LOWER\("requester"\)\s+IN\s+\(([^)]*)\)/i);
+  const requesterUnset =
+    /COALESCE\(BTRIM\("requester"\),\s*''\)\s*=\s*''/i.test(sql);
+  if (requesterValues || requesterUnset) {
+    const names = requesterValues
+      ? sqlValues(requesterValues[1]).map((value) => value.toLowerCase())
+      : [];
+    out = out.filter(
+      (row) =>
+        (requesterUnset && !row.requester?.trim()) ||
+        names.includes(row.requester?.toLowerCase()),
+    );
+  }
+
   const qMatch = sql.match(/ILIKE\s+'%([^']+)%'/i);
   if (qMatch) {
     const needle = qMatch[1].toLowerCase();
