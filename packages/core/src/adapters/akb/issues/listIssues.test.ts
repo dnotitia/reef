@@ -266,6 +266,50 @@ describe("listIssues pagination", () => {
     }
   });
 
+  it("keeps mixed planning absence predicates on both sorted cursor pages", async () => {
+    const rows = [
+      makeIssue({ id: "REEF-001", title: "A" }),
+      makeIssue({ id: "REEF-002", title: "B" }),
+      makeIssue({ id: "REEF-003", title: "C" }),
+    ];
+    const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
+    const query = {
+      sprint_id: ["s1"],
+      sprint_unset: true,
+      release_id: ["r1"],
+      release_unset: true,
+      sort_field: "title",
+      sort_order: "asc",
+      limit: 2,
+    };
+    const first = await listIssues({
+      adapter: makeAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse(query),
+    });
+    const secondFetch = setupFetch([
+      { body: makeIssueQueryResponse(rows.slice(2)) },
+    ]);
+    const second = await listIssues({
+      adapter: makeAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        ...query,
+        cursor: first.next_cursor,
+      }),
+    });
+    expect(
+      [...first.issues, ...second.issues].map((issue) => issue.id),
+    ).toEqual(["REEF-001", "REEF-002", "REEF-003"]);
+    for (const calls of [firstFetch.calls, secondFetch.calls]) {
+      expect(capturedSql(calls)).toContain(`COALESCE("sprint_id", '') = ''`);
+      expect(capturedSql(calls)).toContain(`COALESCE("release_id", '') = ''`);
+      expect(capturedParams(calls)).toEqual(
+        expect.arrayContaining(["s1", "r1"]),
+      );
+    }
+  });
+
   it("fetches limit+1 and returns next_cursor when a full extra row exists", async () => {
     const rows = [
       makeIssue({ id: "REEF-003", created_at: "2026-05-03T00:00:00.000Z" }),
