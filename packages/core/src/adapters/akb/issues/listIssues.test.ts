@@ -276,6 +276,8 @@ describe("listIssues pagination", () => {
     const query = {
       sprint_id: ["s1"],
       sprint_unset: true,
+      milestone_id: ["m1", "m2"],
+      milestone_unset: true,
       release_id: ["r1"],
       release_unset: true,
       sort_field: "title",
@@ -303,9 +305,11 @@ describe("listIssues pagination", () => {
     ).toEqual(["REEF-001", "REEF-002", "REEF-003"]);
     for (const calls of [firstFetch.calls, secondFetch.calls]) {
       expect(capturedSql(calls)).toContain(`COALESCE("sprint_id", '') = ''`);
+      expect(capturedSql(calls)).toContain(`COALESCE("milestone_id", '') = ''`);
+      expect(capturedSql(calls)).toContain(`"milestone_id" IN (`);
       expect(capturedSql(calls)).toContain(`COALESCE("release_id", '') = ''`);
       expect(capturedParams(calls)).toEqual(
-        expect.arrayContaining(["s1", "r1"]),
+        expect.arrayContaining(["s1", "m1", "m2", "r1"]),
       );
     }
   });

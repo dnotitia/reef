@@ -37,8 +37,7 @@ interface PlanningItemMultiComboboxProps {
  * Multi-select sprint / release filter (REEF-267) — the multi-select sibling of
  * `PlanningItemCombobox`. The planning catalog is a short static list, so this is
  * a plain non-searchable `MultiSelectCombobox`; several ids OR-combine within
- * the facet and the closed trigger shows the shared "(N)" summary. Milestone is
- * deliberately NOT given a multi-select variant (out of scope, REEF-267).
+ * the facet and the closed trigger shows the shared "(N)" summary.
  */
 export function PlanningItemMultiCombobox({
   kind,
@@ -75,7 +74,12 @@ export function PlanningItemMultiCombobox({
         value: item.id,
         label: item.name,
         content: (
-          <PlanningOption kind={kind} name={item.name} status={item.status} />
+          <PlanningOption
+            kind={kind}
+            name={item.name}
+            status={item.status}
+            overflowTooltip
+          />
         ),
       })),
     [items, kind],

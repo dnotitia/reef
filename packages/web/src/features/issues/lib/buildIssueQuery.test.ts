@@ -21,6 +21,11 @@ describe("buildIssueQuery", () => {
     });
   });
   afterEach(() => vi.restoreAllMocks());
+  it("serializes milestone IDs and absence for field ordering", () => {
+    expect(
+      buildIssueQuery({ milestone_id: ["m1", "m2", ""], milestoneUnset: true }),
+    ).toMatchObject({ milestone_id: ["m1", "m2"], milestone_unset: "true" });
+  });
   it("maps an explicitly selected Manual mode to rank order", () => {
     expect(buildIssueQuery({ orderingMode: "manual" })).toEqual({
       sort_field: "rank",

@@ -1098,9 +1098,9 @@
     "filters": {
       "noRequester": "No requester",
       "noSprint": "No sprint",
+      "noMilestone": "No milestone",
       "noRelease": "No release",
       "activeCount": "{count, plural, one {# filter} other {# filters}}",
-      "clearMilestone": "Clear milestone filter",
       "searchPlaceholder": "Search issues...",
       "searchLabel": "Search issues",
       "clearSearch": "Clear search",

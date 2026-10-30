@@ -129,6 +129,11 @@ describe("listInvalidationPredicate", () => {
 
     it("refetches unset planning queries when their reference changes", () => {
       expect(
+        listInvalidationPredicate({ milestone_id: "m1" })(
+          key({ milestone_unset: "true", sort_field: "created_at" }),
+        ),
+      ).toBe(true);
+      expect(
         listInvalidationPredicate({ sprint_id: "s1" })(
           key({ sprint_unset: "true", sort_field: "created_at" }),
         ),

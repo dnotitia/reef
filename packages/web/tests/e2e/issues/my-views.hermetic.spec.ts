@@ -548,6 +548,63 @@ test.describe("requester absence", () => {
 test.describe("planning absence", () => {
   test.use({ scenario: "requester_unset" });
 
+  test("restores absent and multiple milestone selections through URL and My View", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues?view=list&sort=updated_at&order=desc",
+    );
+    await page.getByTestId("milestone-dropdown-trigger").click();
+    await expect(
+      page
+        .getByTestId("milestone-dropdown-content")
+        .getByRole("option")
+        .first(),
+    ).toHaveAttribute("data-testid", "milestone-option-unset");
+    await page.getByTestId("milestone-option-unset").click();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/milestone_unset=1/);
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("milestone-dropdown-trigger").click();
+    await page
+      .getByTestId("milestone-dropdown-content")
+      .getByText("Coverage Complete")
+      .click();
+    await page
+      .getByTestId("milestone-dropdown-content")
+      .getByText("Second milestone")
+      .click();
+    await page.keyboard.press("Escape");
+    await expect
+      .poll(
+        () => new URL(page.url()).searchParams.getAll("milestone_id").length,
+      )
+      .toBe(2);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
+    await dialog.getByTestId("my-view-name-input").fill("Milestone view");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Clear Milestone filter" }).click();
+    const menu = await openMyViewMenu(page);
+    await menu.getByRole("menuitem", { name: /^Milestone view/ }).click();
+    await expect(page).toHaveURL(/milestone_unset=1/);
+    await expect
+      .poll(
+        () => new URL(page.url()).searchParams.getAll("milestone_id").length,
+      )
+      .toBe(2);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+  });
+
   test("filters a field-sorted list using unset planning flags", async ({
     page,
   }) => {

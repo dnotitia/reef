@@ -212,7 +212,8 @@ export function BacklogView({
     backlogFilter.assigneeUnset ||
     backlogFilter.requester ||
     backlogFilter.requesterUnset ||
-    backlogFilter.milestone_id ||
+    backlogFilter.milestone_id?.length ||
+    backlogFilter.milestoneUnset ||
     backlogFilter.severity?.length ||
     backlogFilter.severityUnset ||
     backlogFilter.label ||

@@ -12,7 +12,6 @@ import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
-import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { PlanningItemMultiCombobox } from "@/features/planning/components/PlanningItemMultiCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import {
@@ -52,19 +51,11 @@ import type { IssueScope } from "../../lib/viewMode";
 const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
 
 /**
- * Shared width policy for Milestone and Labels: hug the selected value, keep an
+ * Width policy for Labels: hug the selected value, keep an
  * empty field readable, and cap long values before they push the bar wide
  * (REEF-269). Multi-select facets use chip triggers instead.
  */
 const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
-
-/**
- * Wrapper for the single-select Milestone value field. The width token lives on
- * the inner combobox (`FILTER_FIELD_CLASS`, passed as its `className`), matching
- * REEF-246; this wrapper provides the relative box and a viewport cap so the
- * field can wrap without overflowing the bar.
- */
-const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
 /**
  * Static multi-select facet options. Status remains dynamic because board and
@@ -158,7 +149,7 @@ function countActiveFilters(
     (filter.sprint_id?.length || filter.sprintUnset)
   )
     count++;
-  if (filter.milestone_id) count++;
+  if (filter.milestone_id?.length || filter.milestoneUnset) count++;
   if (!backlogScope && (filter.release_id?.length || filter.releaseUnset))
     count++;
   if (filter.severity?.length || filter.severityUnset) count++;
@@ -532,35 +523,31 @@ export function FilterBar({
       {/* Milestone filter — kept in the backlog view: a milestone is a
           long-horizon theme that legitimately groups unscheduled backlog work
           (REEF-177). */}
-      <div
-        className={PLANNING_FILTER_WRAPPER_CLASS}
-        data-testid="milestone-filter"
-      >
-        <div className="flex items-center gap-1">
-          <PlanningItemCombobox
-            kind="milestones"
-            vault={vault}
-            value={filter.milestone_id ?? ""}
-            onChange={(id) => setFilter({ milestone_id: id || undefined })}
-            label={fieldNames.milestone}
-            placeholder={fieldNames.milestone}
-            showNoneOption={false}
-            active={Boolean(filter.milestone_id)}
-            className={FILTER_FIELD_CLASS}
-          />
-          {filter.milestone_id ? (
-            <button
-              type="button"
-              aria-label={t("clearMilestone")}
-              title={t("clearMilestone")}
-              data-testid="milestone-clear-button"
-              onClick={() => setFilter({ milestone_id: undefined })}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus"
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
+      <div data-testid="milestone-filter">
+        <PlanningItemMultiCombobox
+          kind="milestones"
+          vault={vault}
+          values={filter.milestone_id}
+          onToggle={(id, checked) =>
+            setFilter({
+              milestone_id: toggleFacet(filter.milestone_id, id, checked),
+            })
+          }
+          onClear={() =>
+            setFilter({ milestone_id: undefined, milestoneUnset: undefined })
+          }
+          unsetOption={{
+            label: t("noMilestone"),
+            selected: Boolean(filter.milestoneUnset),
+            onToggle: (checked) =>
+              setFilter({ milestoneUnset: checked ? true : undefined }),
+            testId: "milestone-option-unset",
+          }}
+          label={fieldNames.milestone}
+          active={Boolean(filter.milestone_id?.length || filter.milestoneUnset)}
+          triggerTestId="milestone-dropdown-trigger"
+          contentTestId="milestone-dropdown-content"
+        />
       </div>
 
       {/* Release filter — multi-select (REEF-267). Dropped in the backlog view:

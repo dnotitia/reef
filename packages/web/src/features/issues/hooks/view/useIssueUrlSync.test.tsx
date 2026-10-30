@@ -189,7 +189,7 @@ describe("useIssueUrlSync", () => {
 
   it("initializes issue filter state from URL params", async () => {
     navigationState.searchParams = new URLSearchParams(
-      "status=todo&type=bug&priority=high&assignee=alice&requester=bob&sprint_id=spr-1&milestone_id=mil-1&release_id=rel-1&severity=major&due=overdue&labels=ui&dep=blocked&sort=updated_at&order=desc&q=auth",
+      "status=todo&type=bug&priority=high&assignee=alice&requester=bob&sprint_id=spr-1&milestone_id=mil-1&milestone_id=mil-2&milestone_unset=1&release_id=rel-1&severity=major&due=overdue&labels=ui&dep=blocked&sort=updated_at&order=desc&q=auth",
     );
 
     render(<Harness />);
@@ -201,12 +201,12 @@ describe("useIssueUrlSync", () => {
     const { filter, searchQuery } = useIssueStore.getState();
     expect(filter.issueType).toEqual(["bug"]);
     expect(filter.priority).toEqual(["high"]);
-    // Multi-select people/planning facets parse as arrays (REEF-267); milestone
-    // stays a single scalar.
+    // Multi-select people and planning facets parse as arrays.
     expect(filter.assignee).toEqual(["alice"]);
     expect(filter.requester).toEqual(["bob"]);
     expect(filter.sprint_id).toEqual(["spr-1"]);
-    expect(filter.milestone_id).toBe("mil-1");
+    expect(filter.milestone_id).toEqual(["mil-1", "mil-2"]);
+    expect(filter.milestoneUnset).toBe(true);
     expect(filter.release_id).toEqual(["rel-1"]);
     expect(filter.severity).toEqual(["major"]);
     expect(filter.due).toEqual(["overdue"]);

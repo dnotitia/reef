@@ -166,12 +166,14 @@ describe("parseIssueListQueryParams", () => {
     expect(
       parseIssueListQueryParams(
         new URLSearchParams(
-          "sprint_id=s1&sprint_id=s2&sprint_unset=1&release_id=r1&release_unset=true",
+          "sprint_id=s1&sprint_id=s2&sprint_unset=1&milestone_id=m1&milestone_id=m2&milestone_unset=1&release_id=r1&release_unset=true",
         ),
       ),
     ).toEqual({
       sprint_id: ["s1", "s2"],
       sprint_unset: true,
+      milestone_id: ["m1", "m2"],
+      milestone_unset: true,
       release_id: ["r1"],
       release_unset: true,
     });

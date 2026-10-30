@@ -113,7 +113,7 @@ function buildIssueDateRangeWhere(
  * / `severity` / `sprint_id` / `release_id` by exact value, `assigned_to` /
  * `requester` by case-insensitive exact match (`lowerInClause`, REEF-267 — the
  * same exact predicate the My-Issues default view already uses). `milestone_id`
- * stays a single exact `=` (multi-select out of scope, REEF-267). `issue_type =
+ * also uses exact multi-value matching. `issue_type =
  * 'task'` also matches NULL rows, mirroring the client `(issue_type ?? "task")`
  * default. `archived: false` (the default) adds the `archived_at IS NULL` floor;
  * `archived: true` widens and omits it.
@@ -206,13 +206,14 @@ export function buildIssueWhere(
     if (filter.sprint_unset) parts.push(`COALESCE("sprint_id", '') = ''`);
     clauses.push(orGroup(parts));
   }
-  if (filter.milestone_id) {
-    clauses.push(
-      `"milestone_id" = ${params.add(
-        filter.milestone_id,
-        "milestone_id filter",
-      )}`,
-    );
+  if (filter.milestone_id?.length || filter.milestone_unset) {
+    const parts: string[] = [];
+    if (filter.milestone_id?.length)
+      parts.push(
+        inClause("milestone_id", filter.milestone_id, "milestone_id filter"),
+      );
+    if (filter.milestone_unset) parts.push(`COALESCE("milestone_id", '') = ''`);
+    clauses.push(orGroup(parts));
   }
   if (filter.release_id?.length || filter.release_unset) {
     const parts: string[] = [];

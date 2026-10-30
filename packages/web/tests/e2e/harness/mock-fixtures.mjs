@@ -233,7 +233,14 @@ export function createScenarioVaults(scenario) {
                           : scenario === "typography"
                             ? typographyVault(REEF_VAULT)
                             : configuredVault(REEF_VAULT);
-    if (scenario === "requester_unset") vault.issues[1].requester = null;
+    if (scenario === "requester_unset") {
+      vault.issues[1].requester = null;
+      vault.milestones.push({
+        ...vault.milestones[0],
+        id: uuidFor(99),
+        name: "Second milestone",
+      });
+    }
     if (scenario === "reports_outliers") seedReportOutlierIssues(vault);
     if (scenario === "notifications_personal") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);

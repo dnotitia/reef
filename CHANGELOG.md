@@ -15,6 +15,7 @@ issues, not public GitHub issues.
 
 - Filter issues with no requester, alone or alongside selected requesters.
 - Filter issues with no sprint or release, alone or alongside selected plans.
+- Select multiple milestones and include issues without a milestone in issue filters.
 
 ### Changed
 

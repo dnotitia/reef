@@ -1836,7 +1836,7 @@ function filterIssueRows(rows, sql, vault) {
     if (value) out = out.filter((row) => row[column] === value);
   }
 
-  for (const column of ["sprint_id", "release_id"]) {
+  for (const column of ["sprint_id", "milestone_id", "release_id"]) {
     const values = sql.match(
       new RegExp(`"${column}"\\s+IN\\s+\\(([^)]*)\\)`, "i"),
     );

@@ -15,6 +15,8 @@ describe("My View workspace snapshot codec", () => {
         requesterUnset: true,
         sprint_id: ["s1"],
         sprintUnset: true,
+        milestone_id: ["m1", "m2"],
+        milestoneUnset: true,
         releaseUnset: true,
         due: ["no_due"],
         dateRange: {
@@ -44,6 +46,8 @@ describe("My View workspace snapshot codec", () => {
         requesterUnset: true,
         sprint_id: ["s1"],
         sprintUnset: true,
+        milestone_id: ["m1", "m2"],
+        milestoneUnset: true,
         releaseUnset: true,
         due: ["no_due"],
         dateRange: {

@@ -1313,9 +1313,9 @@
     "filters": {
       "noRequester": "요청자 없음",
       "noSprint": "스프린트 없음",
+      "noMilestone": "마일스톤 없음",
       "noRelease": "릴리즈 없음",
       "activeCount": "필터 {count}개",
-      "clearMilestone": "마일스톤 필터 해제",
       "searchPlaceholder": "이슈 검색…",
       "searchLabel": "이슈 검색",
       "clearSearch": "검색 지우기",

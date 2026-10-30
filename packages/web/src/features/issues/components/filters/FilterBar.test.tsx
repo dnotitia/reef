@@ -89,11 +89,11 @@ function renderFilterBar(
 
 describe("FilterBar", () => {
   it.each([
-    ["en", "No sprint", "No release"],
-    ["ko", "스프린트 없음", "릴리즈 없음"],
+    ["en", "No sprint", "No milestone", "No release"],
+    ["ko", "스프린트 없음", "마일스톤 없음", "릴리즈 없음"],
   ] as const)(
     "selects and clears planning absence in %s with an empty catalog",
-    async (locale, sprintLabel, releaseLabel) => {
+    async (locale, sprintLabel, milestoneLabel, releaseLabel) => {
       const user = userEvent.setup();
       vi.mocked(useActiveVault).mockReturnValue({
         vault: "reef-acme",
@@ -114,6 +114,13 @@ describe("FilterBar", () => {
       await user.keyboard("{ArrowDown}{Enter}");
       expect(useIssueStore.getState().filter.sprintUnset).toBe(true);
       await user.keyboard("{Escape}");
+      await user.click(screen.getByTestId("milestone-dropdown-trigger"));
+      expect(
+        await screen.findByTestId("milestone-option-unset"),
+      ).toHaveTextContent(milestoneLabel);
+      await user.keyboard("{ArrowDown}{Enter}");
+      expect(useIssueStore.getState().filter.milestoneUnset).toBe(true);
+      await user.keyboard("{Escape}");
       await user.click(screen.getByTestId("release-dropdown-trigger"));
       expect(
         await screen.findByTestId("release-option-unset"),
@@ -121,7 +128,7 @@ describe("FilterBar", () => {
       await user.click(screen.getByTestId("release-option-unset"));
       expect(useIssueStore.getState().filter.releaseUnset).toBe(true);
       await user.keyboard("{Escape}");
-      expect(screen.getByTestId("active-filter-count")).toHaveTextContent("2");
+      expect(screen.getByTestId("active-filter-count")).toHaveTextContent("3");
       await user.click(
         within(screen.getByTestId("sprint-filter")).getAllByRole("button")[1],
       );
@@ -492,7 +499,7 @@ describe("FilterBar", () => {
     expect(screen.queryByTestId("sort-control")).toBeNull();
   });
 
-  it("keeps Milestone single-select without a none option and Sprint/Release multi-select (REEF-267)", async () => {
+  it("uses the shared multi-select planning control for Milestone", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
@@ -534,9 +541,8 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("release-dropdown-trigger")).toBeTruthy();
     expect(screen.queryByTestId("sprint-input")).toBeNull();
 
-    // Milestone remains single-select and deliberately omits a none option.
-    // PlanningItemCombobox owns the shared panel-width contract.
-    await user.click(screen.getByLabelText("Milestone"));
+    // Milestone uses the shared multi-select planning panel.
+    await user.click(screen.getByTestId("milestone-dropdown-trigger"));
     const listbox = screen.getByRole("listbox");
     expect(listbox).toBeInTheDocument();
     expect(listbox.closest('[role="dialog"]')).toHaveClass(
@@ -586,17 +592,19 @@ describe("FilterBar", () => {
 
     renderFilterBar();
 
-    await user.click(screen.getByLabelText("Milestone"));
+    await user.click(screen.getByTestId("milestone-dropdown-trigger"));
     await user.click(await screen.findByText("Milestone 1"));
-    expect(useIssueStore.getState().filter.milestone_id).toBe(
+    expect(useIssueStore.getState().filter.milestone_id).toEqual([
       "11111111-1111-4111-8111-111111111113",
-    );
+    ]);
 
-    await user.click(screen.getByTestId("milestone-clear-button"));
+    await user.keyboard("{Escape}");
+    await user.click(
+      within(screen.getByTestId("milestone-filter")).getAllByRole("button")[1],
+    );
 
     expect(useIssueStore.getState().filter.milestone_id).toBeUndefined();
     expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
-    expect(screen.queryByTestId("milestone-clear-button")).toBeNull();
     expect(screen.getByTestId("active-filter-count").textContent).toContain(
       "1 filter",
     );
@@ -639,7 +647,7 @@ describe("FilterBar", () => {
     expect(screen.queryByTestId("release-dropdown-trigger")).toBeNull();
     // Kept — Milestone (a long-horizon theme grooms unscheduled backlog work)
     // plus every triage axis.
-    expect(screen.getByLabelText("Milestone")).toBeTruthy();
+    expect(screen.getByTestId("milestone-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("type-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("priority-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("severity-dropdown-trigger")).toBeTruthy();
@@ -816,13 +824,6 @@ describe("FilterBar", () => {
 
     // Labels field: the token is on the field wrapper.
     expect(screen.getByTestId("labels-filter")).toHaveClass(
-      "w-fit",
-      "min-w-[9rem]",
-      "max-w-[16rem]",
-    );
-    // Milestone (the one single-select planning field): the token is on the
-    // inner combobox root (the trigger's parent), per REEF-246's placement.
-    expect(screen.getByLabelText("Milestone").parentElement).toHaveClass(
       "w-fit",
       "min-w-[9rem]",
       "max-w-[16rem]",

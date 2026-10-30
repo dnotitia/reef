@@ -6,7 +6,8 @@ export interface SharedIssueFacets {
   assigneeUnset?: boolean;
   sprint_id?: string | readonly string[];
   sprintUnset?: boolean;
-  milestone_id?: string;
+  milestone_id?: string | readonly string[];
+  milestoneUnset?: boolean;
   release_id?: string | readonly string[];
   releaseUnset?: boolean;
   parent_id?: string;
@@ -54,7 +55,14 @@ export function matchesSharedFacets(
     )
   )
     return false;
-  if (facets.milestone_id && issue.milestone_id !== facets.milestone_id)
+  const milestones = facetValues(facets.milestone_id);
+  if (
+    (milestones.length || facets.milestoneUnset) &&
+    !(
+      (issue.milestone_id && milestones.includes(issue.milestone_id)) ||
+      (facets.milestoneUnset && !issue.milestone_id)
+    )
+  )
     return false;
   const releases = facetValues(facets.release_id);
   if (

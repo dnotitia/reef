@@ -191,6 +191,11 @@ export function listInvalidationPredicate(
       variant.requester_unset === "true"
     )
       return true;
+    if (
+      membershipKeys.includes("milestone_id") &&
+      variant.milestone_unset === "true"
+    )
+      return true;
     if (membershipKeys.includes("sprint_id") && variant.sprint_unset === "true")
       return true;
     if (
