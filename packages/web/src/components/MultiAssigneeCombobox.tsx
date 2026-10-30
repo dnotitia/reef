@@ -85,6 +85,7 @@ export function MultiAssigneeCombobox({
 
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const { data: users, isPending } = useUserSearch(debouncedQuery, vault);
+  const { data: roster } = useUserSearch("", vault);
   const currentLogin = useCurrentUserLogin();
 
   const options = useMemo<ComboboxOption<string>[]>(
@@ -102,7 +103,7 @@ export function MultiAssigneeCombobox({
       onToggle={onToggle}
       onClear={onClear}
       summarizeValue={(value) =>
-        options.find((option) => option.value === value)?.label ?? value
+        roster?.find((user) => user.login === value)?.name?.trim() || value
       }
       options={options}
       searchable

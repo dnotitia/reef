@@ -120,6 +120,28 @@ describe("listInvalidationPredicate", () => {
       ).toBe(true);
     });
 
+    it.each([
+      [{ priority: null }, "priority_unset"],
+      [{ severity: null }, "severity_unset"],
+      [{ assigned_to: null }, "assignee_unset"],
+    ] satisfies Array<
+      [IssueUpdatePatch, "priority_unset" | "severity_unset" | "assignee_unset"]
+    >)(
+      "refetches pure unset %s in finite and infinite lists only for related edits",
+      (patch, facet) => {
+        const params = { [facet]: "true", sort_field: "created_at" };
+        for (const queryKey of [
+          key(params).queryKey,
+          issueListInfiniteKey("v", params),
+        ]) {
+          expect(listInvalidationPredicate(patch)({ queryKey })).toBe(true);
+          expect(
+            listInvalidationPredicate({ title: "renamed" })({ queryKey }),
+          ).toBe(false);
+        }
+      },
+    );
+
     it("refetches an unset requester query when the requester changes", () => {
       const predicate = listInvalidationPredicate({ requester: "alice" });
       expect(

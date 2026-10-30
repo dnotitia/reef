@@ -187,6 +187,21 @@ export function listInvalidationPredicate(
     if (archivedChanged && variant.archived !== "true") return true;
     if (explicitFacets.some((facet) => facet in variant)) return true;
     if (
+      membershipKeys.includes("priority") &&
+      variant.priority_unset === "true"
+    )
+      return true;
+    if (
+      membershipKeys.includes("severity") &&
+      variant.severity_unset === "true"
+    )
+      return true;
+    if (
+      membershipKeys.includes("assigned_to") &&
+      variant.assignee_unset === "true"
+    )
+      return true;
+    if (
       membershipKeys.includes("requester") &&
       variant.requester_unset === "true"
     )

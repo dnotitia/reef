@@ -316,6 +316,43 @@ describe("FilterBar", () => {
     });
   });
 
+  it("keeps the selected assignee name while searching other members", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockImplementation(async (input) => {
+      const bobSearch = String(input).includes("q=Bob");
+      const users = bobSearch
+        ? [{ login: "bob", name: "Bob Example" }]
+        : [
+            { login: "alice", name: "Alice Example" },
+            { login: "bob", name: "Bob Example" },
+          ];
+      return new Response(JSON.stringify({ users }), { status: 200 });
+    });
+    renderFilterBar();
+    const trigger = screen.getByTestId("assignee-dropdown-trigger");
+    await user.click(trigger);
+    await user.click(await screen.findByText("Alice Example"));
+    await user.type(screen.getByRole("combobox"), "Bob");
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(apiFetch)
+          .mock.calls.some(([input]) => String(input).includes("q=Bob")),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(screen.queryByText("Alice Example")).toBeNull());
+    expect(trigger).toHaveTextContent("Alice Example");
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveTextContent("Alice Example");
+    await user.click(trigger);
+    expect(trigger).toHaveTextContent("Alice Example");
+  });
+
   it("shows an assignee display name and includes unassigned in its count", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({
