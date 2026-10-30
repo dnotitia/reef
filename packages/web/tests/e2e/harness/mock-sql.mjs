@@ -1836,6 +1836,22 @@ function filterIssueRows(rows, sql, vault) {
     if (value) out = out.filter((row) => row[column] === value);
   }
 
+  for (const column of ["sprint_id", "release_id"]) {
+    const values = sql.match(
+      new RegExp(`"${column}"\\s+IN\\s+\\(([^)]*)\\)`, "i"),
+    );
+    const unset = new RegExp(
+      `COALESCE\\("${column}",\\s*''\\)\\s*=\\s*''`,
+      "i",
+    ).test(sql);
+    if (values || unset) {
+      const ids = values ? sqlValues(values[1]) : [];
+      out = out.filter(
+        (row) => (unset && !row[column]) || ids.includes(row[column]),
+      );
+    }
+  }
+
   const requesterValues = sql.match(/LOWER\("requester"\)\s+IN\s+\(([^)]*)\)/i);
   const requesterUnset =
     /COALESCE\(BTRIM\("requester"\),\s*''\)\s*=\s*''/i.test(sql);

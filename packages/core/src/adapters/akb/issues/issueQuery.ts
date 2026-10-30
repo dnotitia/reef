@@ -199,8 +199,12 @@ export function buildIssueWhere(
       parts.push(`COALESCE(BTRIM("requester"), '') = ''`);
     clauses.push(orGroup(parts));
   }
-  if (filter.sprint_id?.length) {
-    clauses.push(inClause("sprint_id", filter.sprint_id, "sprint_id filter"));
+  if (filter.sprint_id?.length || filter.sprint_unset) {
+    const parts: string[] = [];
+    if (filter.sprint_id?.length)
+      parts.push(inClause("sprint_id", filter.sprint_id, "sprint_id filter"));
+    if (filter.sprint_unset) parts.push(`COALESCE("sprint_id", '') = ''`);
+    clauses.push(orGroup(parts));
   }
   if (filter.milestone_id) {
     clauses.push(
@@ -210,10 +214,14 @@ export function buildIssueWhere(
       )}`,
     );
   }
-  if (filter.release_id?.length) {
-    clauses.push(
-      inClause("release_id", filter.release_id, "release_id filter"),
-    );
+  if (filter.release_id?.length || filter.release_unset) {
+    const parts: string[] = [];
+    if (filter.release_id?.length)
+      parts.push(
+        inClause("release_id", filter.release_id, "release_id filter"),
+      );
+    if (filter.release_unset) parts.push(`COALESCE("release_id", '') = ''`);
+    clauses.push(orGroup(parts));
   }
   if (filter.date_range) {
     clauses.push(buildIssueDateRangeWhere(filter.date_range, params));

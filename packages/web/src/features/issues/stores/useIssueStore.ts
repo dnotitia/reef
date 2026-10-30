@@ -28,8 +28,10 @@ export interface IssueFilter {
   /** filter-specific selection for issues with no severity value. */
   severityUnset?: boolean;
   sprint_id?: string[];
+  sprintUnset?: boolean;
   milestone_id?: string;
   release_id?: string[];
+  releaseUnset?: boolean;
   due?: ("overdue" | "due_soon" | "no_due")[];
   label?: string;
   /** Retired: Use top-level searchQuery instead */

@@ -130,9 +130,11 @@ export const PersistedIssueFilterSchema = z.object({
   severity: multiEnumFacet(SeverityEnum),
   severityUnset: z.literal(true).optional().catch(undefined),
   sprint_id: multiStringFacet(),
+  sprintUnset: z.literal(true).optional().catch(undefined),
   // milestone_id stays a single scalar — multi-select out of scope (REEF-267).
   milestone_id: z.string().optional().catch(undefined),
   release_id: multiStringFacet(),
+  releaseUnset: z.literal(true).optional().catch(undefined),
   due: multiEnumFacet(z.enum(["overdue", "due_soon", "no_due"])),
   label: z.string().optional().catch(undefined),
   dependencyFilter: multiEnumFacet(z.enum(["blocked", "blocking"])),
@@ -172,8 +174,10 @@ const FILTER_KEYS = [
   "severity",
   "severityUnset",
   "sprint_id",
+  "sprintUnset",
   "milestone_id",
   "release_id",
+  "releaseUnset",
   "due",
   "label",
   "dependencyFilter",
@@ -245,6 +249,8 @@ export function normalizePersistedIssueFilter(
   if (input.severityUnset === true) normalized.severityUnset = true;
   if (input.assigneeUnset === true) normalized.assigneeUnset = true;
   if (input.requesterUnset === true) normalized.requesterUnset = true;
+  if (input.sprintUnset === true) normalized.sprintUnset = true;
+  if (input.releaseUnset === true) normalized.releaseUnset = true;
   if (input.showArchived === true) normalized.showArchived = true;
   if (input.showStale === true) normalized.showStale = true;
 

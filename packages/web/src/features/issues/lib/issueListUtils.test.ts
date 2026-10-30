@@ -70,6 +70,29 @@ const issues: IssueMetadata[] = [
   }),
 ];
 
+describe("planning absence filters", () => {
+  it("ORs missing and selected values within a facet and ANDs facets", () => {
+    const candidates = [
+      makeIssue({ id: "A", sprint_id: null, release_id: "r1" }),
+      makeIssue({ id: "B", sprint_id: "s1", release_id: null }),
+      makeIssue({ id: "C", sprint_id: "s2", release_id: null }),
+      makeIssue({ id: "D", sprint_id: null, release_id: "r2" }),
+      makeIssue({ id: "E", sprint_id: "", release_id: "" }),
+    ];
+    expect(
+      filterIssues(candidates, {
+        sprint_id: ["s1"],
+        sprintUnset: true,
+        release_id: ["r1"],
+        releaseUnset: true,
+      }).map((issue) => issue.id),
+    ).toEqual(["A", "B", "E"]);
+    expect(
+      filterIssues(candidates, { sprintUnset: true }).map((issue) => issue.id),
+    ).toEqual(["A", "D", "E"]);
+  });
+});
+
 describe("hasActiveIssueFilters", () => {
   it("recognizes real facets and search while ignoring empty values", () => {
     expect(hasActiveIssueFilters({}, "   ")).toBe(false);

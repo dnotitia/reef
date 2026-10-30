@@ -278,7 +278,7 @@ describe("useIssueUrlSync", () => {
 
   it("restores unset and real mixed selections from the URL without a username sentinel", async () => {
     navigationState.searchParams = new URLSearchParams(
-      "priority=high&priority_unset=1&severity_unset=true&assignee=__none__&assignee_unset=1&requester=alice&requester_unset=1&due=no_due",
+      "priority=high&priority_unset=1&severity_unset=true&assignee=__none__&assignee_unset=1&requester=alice&requester_unset=1&sprint_id=s1&sprint_unset=1&release_unset=true&due=no_due",
     );
 
     render(<Harness />);
@@ -295,6 +295,9 @@ describe("useIssueUrlSync", () => {
       assigneeUnset: true,
       requester: ["alice"],
       requesterUnset: true,
+      sprint_id: ["s1"],
+      sprintUnset: true,
+      releaseUnset: true,
       due: ["no_due"],
     });
   });

@@ -544,3 +544,51 @@ test.describe("requester absence", () => {
     await expect(page.getByText("Initial issue Beta")).toBeVisible();
   });
 });
+
+test.describe("planning absence", () => {
+  test.use({ scenario: "requester_unset" });
+
+  test("restores mixed sprint and release selections through URL and My View", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByTestId("sprint-dropdown-trigger").click();
+    await page.getByTestId("sprint-option-unset").click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+    await expect(page).toHaveURL(/sprint_unset=1/);
+    await page.reload();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("sprint-dropdown-trigger").click();
+    await page
+      .getByTestId("sprint-dropdown-content")
+      .getByText("Sprint Alpha")
+      .click();
+    await page.keyboard.press("Escape");
+    await page.getByTestId("release-dropdown-trigger").click();
+    await page.getByTestId("release-option-unset").click();
+    await page
+      .getByTestId("release-dropdown-content")
+      .getByText("June E2E")
+      .click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
+    await dialog.getByTestId("my-view-name-input").fill("Planning view");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Clear Sprint filter" }).click();
+    await page.getByRole("button", { name: "Clear Release filter" }).click();
+    const menu = await openMyViewMenu(page);
+    await menu.getByRole("menuitem", { name: /^Planning view/ }).click();
+    await expect(page).toHaveURL(/sprint_unset=1/);
+    await expect(page).toHaveURL(/release_unset=1/);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+  });
+});

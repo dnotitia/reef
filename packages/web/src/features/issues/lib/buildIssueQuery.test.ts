@@ -248,7 +248,12 @@ describe("buildIssueQuery", () => {
   it("overrides the shared sprint facet for a fixed sprint surface", () => {
     expect(
       buildIssueQuery(
-        { sprint_id: ["other-sprint"], priority: ["high"] },
+        {
+          sprint_id: ["other-sprint"],
+          sprintUnset: true,
+          releaseUnset: true,
+          priority: ["high"],
+        },
         "auth",
         "active",
         "fixed-sprint",
@@ -257,6 +262,7 @@ describe("buildIssueQuery", () => {
       status: ["todo", "in_progress", "in_review", "done", "closed"],
       priority: ["high"],
       sprint_id: ["fixed-sprint"],
+      release_unset: "true",
       q: "auth",
       ...DEFAULT_SORT,
     });

@@ -50,6 +50,7 @@ export function buildIssueQuery(
     ? {
         ...(scope ? filterForIssueScope(filter, scope) : filter),
         sprint_id: [fixedSprintId],
+        sprintUnset: undefined,
       }
     : scope
       ? filterForIssueScope(filter, scope)
@@ -92,9 +93,11 @@ export function buildIssueQuery(
   if (scopedFilter.requesterUnset) q.requester_unset = "true";
   const sprintId = scopedFilter.sprint_id?.filter((v) => v.trim());
   if (sprintId?.length) q.sprint_id = sprintId;
+  if (scopedFilter.sprintUnset) q.sprint_unset = "true";
   if (scopedFilter.milestone_id) q.milestone_id = scopedFilter.milestone_id;
   const releaseId = scopedFilter.release_id?.filter((v) => v.trim());
   if (releaseId?.length) q.release_id = releaseId;
+  if (scopedFilter.releaseUnset) q.release_unset = "true";
   // Free-text search → server `q`. Trim so a whitespace box does not sends a
   // facet (the server schema rejects an empty `q`).
   const trimmedSearch = searchQuery?.trim();

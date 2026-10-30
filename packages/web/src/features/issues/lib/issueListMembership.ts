@@ -191,6 +191,13 @@ export function listInvalidationPredicate(
       variant.requester_unset === "true"
     )
       return true;
+    if (membershipKeys.includes("sprint_id") && variant.sprint_unset === "true")
+      return true;
+    if (
+      membershipKeys.includes("release_id") &&
+      variant.release_unset === "true"
+    )
+      return true;
     // Every successful edit bumps the server-stamped `updated_at`, so a variant
     // sorted by it reorders on any edit; otherwise a variant reorders when
     // sorted by a changed key (membership `priority`, or a content field like

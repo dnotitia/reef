@@ -14,6 +14,7 @@ issues, not public GitHub issues.
 ### Added
 
 - Filter issues with no requester, alone or alongside selected requesters.
+- Filter issues with no sprint or release, alone or alongside selected plans.
 
 ### Changed
 

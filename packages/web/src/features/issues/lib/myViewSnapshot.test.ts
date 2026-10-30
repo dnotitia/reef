@@ -13,6 +13,9 @@ describe("My View workspace snapshot codec", () => {
         assigneeUnset: true,
         requester: ["alice"],
         requesterUnset: true,
+        sprint_id: ["s1"],
+        sprintUnset: true,
+        releaseUnset: true,
         due: ["no_due"],
         dateRange: {
           field: "updated_at",
@@ -39,6 +42,9 @@ describe("My View workspace snapshot codec", () => {
         assigneeUnset: true,
         requester: ["alice"],
         requesterUnset: true,
+        sprint_id: ["s1"],
+        sprintUnset: true,
+        releaseUnset: true,
         due: ["no_due"],
         dateRange: {
           field: "updated_at",

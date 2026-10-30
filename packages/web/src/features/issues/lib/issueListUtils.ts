@@ -142,8 +142,10 @@ export function hasActiveIssueFilters(
       filter.requester?.length ||
       filter.requesterUnset ||
       filter.sprint_id?.length ||
+      filter.sprintUnset ||
       filter.milestone_id ||
       filter.release_id?.length ||
+      filter.releaseUnset ||
       filter.severity?.length ||
       filter.severityUnset ||
       filter.due?.length ||

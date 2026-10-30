@@ -17,6 +17,13 @@ interface PlanningItemMultiComboboxProps {
   values: readonly string[] | undefined;
   /** Reports a row toggle; the caller folds `[] → undefined` for its store. */
   onToggle: (id: string, checked: boolean) => void;
+  onClear?: () => void;
+  unsetOption?: {
+    label: string;
+    selected: boolean;
+    onToggle: (checked: boolean) => void;
+    testId?: string;
+  };
   label?: string;
   /** Filter affordance — paints the brand ring when set. */
   active?: boolean;
@@ -38,6 +45,8 @@ export function PlanningItemMultiCombobox({
   vault,
   values,
   onToggle,
+  onClear,
+  unsetOption,
   label,
   active,
   triggerTestId,
@@ -77,6 +86,8 @@ export function PlanningItemMultiCombobox({
       label={resolvedLabel}
       values={values}
       onToggle={onToggle}
+      onClear={onClear}
+      auxiliaryOption={unsetOption}
       options={options}
       loading={isPending}
       emptyState={t("empty")}

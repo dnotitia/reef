@@ -127,6 +127,19 @@ describe("listInvalidationPredicate", () => {
       ).toBe(true);
     });
 
+    it("refetches unset planning queries when their reference changes", () => {
+      expect(
+        listInvalidationPredicate({ sprint_id: "s1" })(
+          key({ sprint_unset: "true", sort_field: "created_at" }),
+        ),
+      ).toBe(true);
+      expect(
+        listInvalidationPredicate({ release_id: "r1" })(
+          key({ release_unset: "true", sort_field: "created_at" }),
+        ),
+      ).toBe(true);
+    });
+
     it("skips a variant whose facets do not include any changed key", () => {
       // assignee edit; this variant filters by status and sorts by created_at,
       // so it neither gains/loses the issue nor reorders — stays patched.

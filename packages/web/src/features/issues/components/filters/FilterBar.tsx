@@ -152,9 +152,15 @@ function countActiveFilters(
   if (filter.priority?.length || filter.priorityUnset) count++;
   if (filter.assignee?.length || filter.assigneeUnset) count++;
   if (filter.requester?.length || filter.requesterUnset) count++;
-  if (!backlogScope && !fixedSprintId && filter.sprint_id?.length) count++;
+  if (
+    !backlogScope &&
+    !fixedSprintId &&
+    (filter.sprint_id?.length || filter.sprintUnset)
+  )
+    count++;
   if (filter.milestone_id) count++;
-  if (!backlogScope && filter.release_id?.length) count++;
+  if (!backlogScope && (filter.release_id?.length || filter.releaseUnset))
+    count++;
   if (filter.severity?.length || filter.severityUnset) count++;
   if (!backlogScope && filter.due?.length) count++;
   if (filter.label?.trim()) count++;
@@ -505,8 +511,18 @@ export function FilterBar({
                 sprint_id: toggleFacet(filter.sprint_id, id, checked),
               })
             }
+            onClear={() =>
+              setFilter({ sprint_id: undefined, sprintUnset: undefined })
+            }
+            unsetOption={{
+              label: t("noSprint"),
+              selected: Boolean(filter.sprintUnset),
+              onToggle: (checked) =>
+                setFilter({ sprintUnset: checked ? true : undefined }),
+              testId: "sprint-option-unset",
+            }}
             label={fieldNames.sprint}
-            active={Boolean(filter.sprint_id?.length)}
+            active={Boolean(filter.sprint_id?.length || filter.sprintUnset)}
             triggerTestId="sprint-dropdown-trigger"
             contentTestId="sprint-dropdown-content"
           />
@@ -561,8 +577,18 @@ export function FilterBar({
                 release_id: toggleFacet(filter.release_id, id, checked),
               })
             }
+            onClear={() =>
+              setFilter({ release_id: undefined, releaseUnset: undefined })
+            }
+            unsetOption={{
+              label: t("noRelease"),
+              selected: Boolean(filter.releaseUnset),
+              onToggle: (checked) =>
+                setFilter({ releaseUnset: checked ? true : undefined }),
+              testId: "release-option-unset",
+            }}
             label={fieldNames.release}
-            active={Boolean(filter.release_id?.length)}
+            active={Boolean(filter.release_id?.length || filter.releaseUnset)}
             triggerTestId="release-dropdown-trigger"
             contentTestId="release-dropdown-content"
           />

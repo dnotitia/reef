@@ -36,6 +36,30 @@ function keyset(
 }
 
 describe("buildIssueWhere", () => {
+  it("ORs unset planning references with selected ids and ANDs the facets", () => {
+    expect(
+      issueWhere({
+        sprint_id: ["s1"],
+        sprint_unset: true,
+        release_id: ["r1"],
+        release_unset: true,
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `("sprint_id" IN ($1) OR COALESCE("sprint_id", '') = '') AND ("release_id" IN ($2) OR COALESCE("release_id", '') = '')`,
+      params: ["s1", "r1"],
+    });
+  });
+
+  it("matches only missing planning references when no IDs are selected", () => {
+    expect(
+      issueWhere({ sprint_unset: true, release_unset: true, archived: true }),
+    ).toEqual({
+      sql: `COALESCE("sprint_id", '') = '' AND COALESCE("release_id", '') = ''`,
+      params: [],
+    });
+  });
+
   it("adds the archived_at IS NULL floor by default (no facets)", () => {
     expect(issueWhere({}).sql).toBe(`"archived_at" IS NULL`);
     expect(issueWhere({}).params).toEqual([]);

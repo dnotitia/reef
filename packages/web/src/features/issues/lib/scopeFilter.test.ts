@@ -18,7 +18,9 @@ describe("issue scope projection", () => {
       {
         status: ["done"],
         sprint_id: ["sprint-1"],
+        sprintUnset: true,
         release_id: ["release-1"],
+        releaseUnset: true,
         due: ["overdue"],
         showStale: true,
       },
@@ -26,7 +28,9 @@ describe("issue scope projection", () => {
     );
     expect(projected).toMatchObject({ status: ["backlog"] });
     expect(projected.sprint_id).toBeUndefined();
+    expect(projected.sprintUnset).toBeUndefined();
     expect(projected.release_id).toBeUndefined();
+    expect(projected.releaseUnset).toBeUndefined();
     expect(projected.due).toBeUndefined();
     expect(projected.showStale).toBeUndefined();
     expect(buildIssueQuery(projected, "", "backlog").status).toEqual([

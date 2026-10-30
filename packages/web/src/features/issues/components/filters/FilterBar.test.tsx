@@ -88,6 +88,47 @@ function renderFilterBar(
 }
 
 describe("FilterBar", () => {
+  it.each([
+    ["en", "No sprint", "No release"],
+    ["ko", "스프린트 없음", "릴리즈 없음"],
+  ] as const)(
+    "selects and clears planning absence in %s with an empty catalog",
+    async (locale, sprintLabel, releaseLabel) => {
+      const user = userEvent.setup();
+      vi.mocked(useActiveVault).mockReturnValue({
+        vault: "reef-acme",
+        isLoading: false,
+        refetch: vi.fn(),
+      });
+      vi.mocked(apiFetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+          { status: 200 },
+        ),
+      );
+      renderFilterBar({}, locale);
+      await user.click(screen.getByTestId("sprint-dropdown-trigger"));
+      expect(
+        await screen.findByTestId("sprint-option-unset"),
+      ).toHaveTextContent(sprintLabel);
+      await user.keyboard("{ArrowDown}{Enter}");
+      expect(useIssueStore.getState().filter.sprintUnset).toBe(true);
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByTestId("release-dropdown-trigger"));
+      expect(
+        await screen.findByTestId("release-option-unset"),
+      ).toHaveTextContent(releaseLabel);
+      await user.click(screen.getByTestId("release-option-unset"));
+      expect(useIssueStore.getState().filter.releaseUnset).toBe(true);
+      await user.keyboard("{Escape}");
+      expect(screen.getByTestId("active-filter-count")).toHaveTextContent("2");
+      await user.click(
+        within(screen.getByTestId("sprint-filter")).getAllByRole("button")[1],
+      );
+      expect(useIssueStore.getState().filter.sprintUnset).toBeUndefined();
+    },
+  );
+
   it("renders all filter controls", () => {
     renderFilterBar();
     expect(screen.getByTestId("status-dropdown-trigger")).toBeTruthy();

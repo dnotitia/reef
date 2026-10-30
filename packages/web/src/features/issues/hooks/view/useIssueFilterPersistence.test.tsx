@@ -50,6 +50,9 @@ describe("useIssueFilterPersistence", () => {
         assigneeUnset: true,
         requester: ["alice"],
         requesterUnset: true,
+        sprintUnset: true,
+        release_id: ["r1"],
+        releaseUnset: true,
         due: ["no_due"],
       }),
     );
@@ -63,6 +66,9 @@ describe("useIssueFilterPersistence", () => {
         assigneeUnset: true,
         requester: ["alice"],
         requesterUnset: true,
+        sprintUnset: true,
+        release_id: ["r1"],
+        releaseUnset: true,
         due: ["no_due"],
       });
     });
