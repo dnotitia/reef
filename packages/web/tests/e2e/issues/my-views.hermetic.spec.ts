@@ -548,6 +548,17 @@ test.describe("requester absence", () => {
 test.describe("planning absence", () => {
   test.use({ scenario: "requester_unset" });
 
+  test("filters a field-sorted list using unset planning flags", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues?view=list&sort=updated_at&order=desc&sprint_unset=1&release_unset=1",
+    );
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+  });
+
   test("restores mixed sprint and release selections through URL and My View", async ({
     page,
   }) => {
