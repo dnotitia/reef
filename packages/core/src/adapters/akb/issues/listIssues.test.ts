@@ -224,6 +224,48 @@ describe("listIssues pagination", () => {
     expect(capturedParams(secondFetch.calls)).toEqual(["가나다 031", 100, 101]);
   });
 
+  it("keeps the mixed requester predicate on both sorted cursor pages", async () => {
+    const rows = [
+      makeIssue({ id: "REEF-001", title: "A" }),
+      makeIssue({ id: "REEF-002", title: "B" }),
+      makeIssue({ id: "REEF-003", title: "C" }),
+    ];
+    const firstFetch = setupFetch([{ body: makeIssueQueryResponse(rows) }]);
+    const query = {
+      requester: ["Alice"],
+      requester_unset: true,
+      sort_field: "title",
+      sort_order: "asc",
+      limit: 2,
+    };
+    const first = await listIssues({
+      adapter: makeAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse(query),
+    });
+    const secondFetch = setupFetch([
+      { body: makeIssueQueryResponse(rows.slice(2)) },
+    ]);
+    const second = await listIssues({
+      adapter: makeAdapter(),
+      vault: "reef-acme",
+      query: IssueListQuerySchema.parse({
+        ...query,
+        cursor: first.next_cursor,
+      }),
+    });
+    expect(
+      [...first.issues, ...second.issues].map((issue) => issue.id),
+    ).toEqual(["REEF-001", "REEF-002", "REEF-003"]);
+    for (const calls of [firstFetch.calls, secondFetch.calls]) {
+      expect(capturedSql(calls)).toContain(
+        `COALESCE(BTRIM("requester"), '') = ''`,
+      );
+      expect(capturedSql(calls)).toContain('LOWER("requester") IN (');
+      expect(capturedParams(calls)).toContain("alice");
+    }
+  });
+
   it("fetches limit+1 and returns next_cursor when a full extra row exists", async () => {
     const rows = [
       makeIssue({ id: "REEF-003", created_at: "2026-05-03T00:00:00.000Z" }),
