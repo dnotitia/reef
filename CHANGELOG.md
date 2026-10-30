@@ -18,16 +18,24 @@ issues, not public GitHub issues.
 
 ### Operational
 
-- Run relationship preflight before requesting the AKB rollout and collect all
-  source-data failures in the receipt. Bound requests and vault concurrency,
-  checkpoint each acknowledged document write, and finish all writes before
-  waiting for graph projection. Successful vaults survive sibling failures.
-- Add `deploy/k8s/deploy.sh repair --receipt <path>` to resume data repair after
-  verifying the deployed immutable release, without rebuilding or redeploying.
-  Graph verification defaults to 30 minutes and reports progress.
+- Use receipts for registration, deployment retries, and rollout resume across
+  all release versions. Save release intent and resume keys before requests,
+  reuse acknowledged rollout jobs, and reject mismatched release receipts.
+- Add explicit `deploy/k8s/deploy.sh repair --receipt <path>` for relationship
+  backfill. It verifies the deployed immutable release and preflights source
+  references before repair writes, without rebuilding or redeploying. Bound
+  requests and vault concurrency, checkpoint each acknowledged write, and
+  finish all writes before graph verification. Successful vaults survive
+  sibling failures. Verification defaults to 30 minutes and reports progress.
 
 ### Migration
 
+- **Breaking:** `register`, `deploy`, `resume`, and `repair` require a receipt
+  path for every version. Automatic release-specific relationship backfill is
+  removed from `deploy` and `resume`; run `repair` explicitly with an applied,
+  runtime-ready deployment receipt. Successful repair reports `repaired`.
+- Pre-registration intents containing relationship repair selection are no
+  longer accepted. Use a new receipt path for each different release identity.
 - Keep each repair receipt together with its `<receipt>.relations/` directory.
   Checkpoints record acknowledged commits and target URIs; missing acknowledged
   files stop repair. Documents without checkpoints receive a guarded write

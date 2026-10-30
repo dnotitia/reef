@@ -41,27 +41,25 @@ const RUNTIME_IMAGES = {
 };
 const TOKEN = "system-admin-secret";
 
-test("the repair release requires a receipt before any AKB request", async () => {
-  await assert.rejects(
-    runReleaseDeployment({
-      options: { mode: "deploy" },
-      env: { REGISTRY: "registry.example" },
-      core,
-      runCommand: async (command, args) => ({
-        exitCode: 0,
-        stdout:
-          command === "git" && args[0] === "rev-parse"
-            ? `${"a".repeat(40)}\n`
-            : "",
-        stderr: "",
+for (const mode of ["register", "deploy", "resume", "repair"]) {
+  test(`${mode} requires a receipt before commands or AKB requests`, async () => {
+    await assert.rejects(
+      runReleaseDeployment({
+        options: { mode },
+        env: { REGISTRY: "registry.example" },
+        core,
+        runCommand: async () => {
+          throw new Error("must not execute commands");
+        },
+        fetchImpl: async () => {
+          throw new Error("must not contact AKB");
+        },
       }),
-      fetchImpl: async () => {
-        throw new Error("AKB must not be called");
-      },
-    }),
-    /receipt/i,
-  );
-});
+      (error) =>
+        error.stage === "input_validation" && /receipt/i.test(error.message),
+    );
+  });
+}
 test("the obsolete repair option is rejected", () => {
   const result = spawnSync(
     process.execPath,
@@ -74,6 +72,8 @@ test("the obsolete repair option is rejected", () => {
 const PRODUCT_VERSION = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
+const [productMajor, productMinor] = PRODUCT_VERSION.split(".");
+const OTHER_VERSION = `${productMajor}.${Number(productMinor) + 1}.0`;
 const EVENT_PROCESSOR_MANIFEST = `---
 apiVersion: apps/v1
 kind: Deployment
@@ -606,7 +606,11 @@ test("register-only rejects a mutable image reference before image build or AKB 
           AKB_BACKEND_URL: "https://akb.example.test",
           REEF_CONTROL_PLANE_TOKEN: TOKEN,
         },
-        options: { mode: "register", build_artifact: buildArtifactPath },
+        options: {
+          mode: "register",
+          build_artifact: buildArtifactPath,
+          receipt: path.join(temporaryDirectory, "receipt.json"),
+        },
         runCommand: async (command, args, options) => {
           commands.push({ command, args, options });
           if (command === "pnpm")
@@ -660,7 +664,11 @@ test("register-only rejects a build artifact missing the processor image", async
           AKB_BACKEND_URL: "https://akb.example.test",
           REEF_CONTROL_PLANE_TOKEN: TOKEN,
         },
-        options: { mode: "register", build_artifact: buildArtifactPath },
+        options: {
+          mode: "register",
+          build_artifact: buildArtifactPath,
+          receipt: path.join(temporaryDirectory, "receipt.json"),
+        },
         runCommand: async (command, args, options) => {
           commands.push({ command, args, options });
           if (command === "pnpm")
@@ -714,7 +722,11 @@ test("register-only rejects a build artifact from another source revision or pro
             AKB_BACKEND_URL: "https://akb.example.test",
             REEF_CONTROL_PLANE_TOKEN: TOKEN,
           },
-          options: { mode: "register", build_artifact: buildArtifactPath },
+          options: {
+            mode: "register",
+            build_artifact: buildArtifactPath,
+            receipt: path.join(temporaryDirectory, "receipt.json"),
+          },
           runCommand: async (command, args, options) => {
             commands.push({ command, args, options });
             if (command === "pnpm")
@@ -750,8 +762,9 @@ test("register-only rejects a build artifact from another source revision or pro
   }
 });
 
-test("deploy observes AKB applied before applying the immutable Kubernetes revision", async () => {
-  let backfillTarget = false;
+async function exerciseDeploymentAndRepair(version) {
+  const backfillTarget = true;
+  let failRuntimeOnce = false;
   let checkIntent = false;
   let intentSeen = false;
   let failBackfill = true;
@@ -761,6 +774,15 @@ test("deploy observes AKB applied before applying the immutable Kubernetes revis
   let invalidIssueRelations = false;
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "reef-deploy-test-"),
+  );
+  await mkdir(path.join(temporaryDirectory, "release"));
+  await copyFile(
+    "release/reef-release-blueprint.json",
+    path.join(temporaryDirectory, "release/reef-release-blueprint.json"),
+  );
+  await writeFile(
+    path.join(temporaryDirectory, "package.json"),
+    JSON.stringify({ version }),
   );
   const receiptPath = path.join(temporaryDirectory, "receipt.json");
   const buildArtifactPath = path.join(temporaryDirectory, "build.json");
@@ -850,6 +872,10 @@ spec:
       return { exitCode: 0, stdout: "configured\n", stderr: "" };
     }
     if (command === "kubectl" && args[0] === "rollout") {
+      if (failRuntimeOnce) {
+        failRuntimeOnce = false;
+        return { exitCode: 1, stdout: "", stderr: "not ready" };
+      }
       return {
         exitCode: 0,
         stdout: "deployment successfully rolled out\n",
@@ -867,7 +893,7 @@ spec:
           metadata: {
             annotations: {
               "kubernetes.io/change-cause": [
-                `Deploy reef v${PRODUCT_VERSION}`,
+                `Deploy reef v${version}`,
                 `source ${sourceRevision}`,
                 `app ${APP_ID}`,
                 `release ${RELEASE_ID}`,
@@ -882,7 +908,7 @@ spec:
               metadata: {
                 annotations: {
                   "kubernetes.io/change-cause": [
-                    `Deploy reef v${PRODUCT_VERSION}`,
+                    `Deploy reef v${version}`,
                     `source ${sourceRevision}`,
                     `app ${APP_ID}`,
                     `release ${RELEASE_ID}`,
@@ -900,7 +926,7 @@ spec:
                     env: [
                       { name: "REEF_APP_ID", value: APP_ID },
                       { name: "REEF_RELEASE_ID", value: RELEASE_ID },
-                      { name: "REEF_RELEASE_VERSION", value: PRODUCT_VERSION },
+                      { name: "REEF_RELEASE_VERSION", value: version },
                       {
                         name: "REEF_RELEASE_SOURCE_REVISION",
                         value: sourceRevision,
@@ -931,7 +957,12 @@ spec:
       return {
         exitCode: 0,
         stdout: JSON.stringify(
-          processorDeploymentFixture(sourceRevision, manifestChecksum),
+          processorDeploymentFixture(
+            sourceRevision,
+            manifestChecksum,
+            IMAGE_DIGEST,
+            version,
+          ),
         ),
         stderr: "",
       };
@@ -947,7 +978,7 @@ spec:
           data: {
             REEF_APP_ID: APP_ID,
             REEF_RELEASE_ID: RELEASE_ID,
-            REEF_RELEASE_VERSION: PRODUCT_VERSION,
+            REEF_RELEASE_VERSION: version,
             REEF_RELEASE_SOURCE_REVISION: sourceRevision,
             REEF_RELEASE_IMAGE_DIGEST: IMAGE_DIGEST,
             REEF_RELEASE_MANIFEST_CHECKSUM: manifestChecksum,
@@ -979,7 +1010,7 @@ spec:
                     env: [
                       { name: "REEF_APP_ID", value: APP_ID },
                       { name: "REEF_RELEASE_ID", value: RELEASE_ID },
-                      { name: "REEF_RELEASE_VERSION", value: PRODUCT_VERSION },
+                      { name: "REEF_RELEASE_VERSION", value: version },
                       {
                         name: "REEF_RELEASE_SOURCE_REVISION",
                         value: sourceRevision,
@@ -1134,9 +1165,12 @@ spec:
     if (url.endsWith("/apps")) {
       if (checkIntent) {
         try {
+          const intent = JSON.parse(await readFile(receiptPath, "utf8"));
           intentSeen =
-            JSON.parse(await readFile(receiptPath, "utf8"))
-              .issue_relation_backfill?.targets === null;
+            intent.kind === "reef-release-intent" &&
+            intent.version === version &&
+            intent.issue_relation_backfill === undefined &&
+            Boolean(intent.request_key);
         } catch {
           intentSeen = false;
         }
@@ -1219,7 +1253,7 @@ spec:
 
   try {
     const result = await runReleaseDeployment({
-      rootDir: path.resolve("."),
+      rootDir: temporaryDirectory,
       env: {
         AKB_BACKEND_URL: "https://akb.example.test",
         REEF_CONTROL_PLANE_TOKEN: TOKEN,
@@ -1246,6 +1280,17 @@ spec:
     assert.equal(result.outcome, "deployed");
     assert.equal(result.rollout_status, "applied");
     assert.equal(result.deployment_status, "ready");
+    assert.equal(result.issue_relation_backfill, undefined);
+    assert.equal(issuePatches, 0);
+    assert.equal(
+      requests.some(
+        ({ url }) =>
+          url.includes("/inventory") ||
+          url.includes("/documents/") ||
+          url.includes("/tables/"),
+      ),
+      false,
+    );
     assert.equal(appliedInput.includes(TOKEN), false);
     assert.equal(appliedInput.includes(IMAGE_DIGEST), true);
     assert.match(appliedInput, /REEF_RELEASE_ID/u);
@@ -1264,7 +1309,7 @@ spec:
         },
       },
       source_revision: sourceRevision,
-      version: PRODUCT_VERSION,
+      version,
     });
     assert.deepEqual(JSON.parse(await readFile(receiptPath, "utf8")), result);
     assert.equal(
@@ -1295,8 +1340,33 @@ spec:
     for (const { options } of commands) {
       assert.equal(options.env.REEF_CONTROL_PLANE_TOKEN, undefined);
     }
+    const retryArgs = {
+      rootDir: temporaryDirectory,
+      env: {
+        AKB_BACKEND_URL: "https://akb.example.test",
+        REEF_CONTROL_PLANE_TOKEN: TOKEN,
+        REGISTRY: "registry.example",
+      },
+      options: { mode: "deploy", receipt: receiptPath },
+      runCommand,
+      fetchImpl,
+      core,
+    };
+    const eventsBeforeRetry = events.length;
+    const rolloutPostsBeforeRetry = requests.filter(({ url }) =>
+      url.endsWith("/rollouts"),
+    ).length;
+    failRuntimeOnce = true;
+    await assert.rejects(
+      runReleaseDeployment(retryArgs),
+      (error) => error.stage === "runtime_readiness",
+    );
+    assert.equal(
+      JSON.parse(await readFile(receiptPath, "utf8")).outcome,
+      "runtime_failed",
+    );
     const replayed = await runReleaseDeployment({
-      rootDir: path.resolve("."),
+      rootDir: temporaryDirectory,
       env: {
         AKB_BACKEND_URL: "https://akb.example.test",
         REEF_CONTROL_PLANE_TOKEN: TOKEN,
@@ -1313,7 +1383,16 @@ spec:
       fetchImpl,
       core,
     });
-    assert.deepEqual(events.slice(3), ["rollout:applied", "kubernetes"]);
+    assert.deepEqual(events.slice(eventsBeforeRetry), [
+      "rollout:applied",
+      "kubernetes",
+      "rollout:applied",
+      "kubernetes",
+    ]);
+    assert.equal(
+      requests.filter(({ url }) => url.endsWith("/rollouts")).length,
+      rolloutPostsBeforeRetry,
+    );
     assert.equal(replayed.request_key, requestKey);
     assert.equal(
       commands.filter(({ command }) => command === "docker").length,
@@ -1348,8 +1427,9 @@ spec:
         outcome: "registered",
       })}\n`,
     );
+    const eventsBeforeRegistered = events.length;
     const registeredReceiptDeployment = await runReleaseDeployment({
-      rootDir: path.resolve("."),
+      rootDir: temporaryDirectory,
       env: {
         AKB_BACKEND_URL: "https://akb.example.test",
         REEF_CONTROL_PLANE_TOKEN: TOKEN,
@@ -1365,7 +1445,7 @@ spec:
       fetchImpl,
       core,
     });
-    assert.deepEqual(events.slice(5), [
+    assert.deepEqual(events.slice(eventsBeforeRegistered), [
       "rollout:running",
       "rollout:applied",
       "kubernetes",
@@ -1386,17 +1466,15 @@ spec:
       ).length,
       registrationRequestCount,
     );
-    await rm(receiptPath);
-    backfillTarget = true;
-    const backfillArgs = {
-      rootDir: path.resolve("."),
+    const repairArgs = {
+      rootDir: temporaryDirectory,
       env: {
         AKB_BACKEND_URL: "https://akb.example.test",
         REEF_CONTROL_PLANE_TOKEN: TOKEN,
         REGISTRY: "registry.example",
       },
       options: {
-        mode: "deploy",
+        mode: "repair",
         receipt: receiptPath,
       },
       runCommand,
@@ -1410,7 +1488,7 @@ spec:
       ({ command, args }) => command === "kubectl" && args[0] === "apply",
     ).length;
     invalidIssueRelations = true;
-    await assert.rejects(runReleaseDeployment(backfillArgs));
+    await assert.rejects(runReleaseDeployment(repairArgs));
     const invalidReceipt = JSON.parse(await readFile(receiptPath, "utf8"));
     assert.equal(
       invalidReceipt.issue_relation_backfill.targets[0].failure.code,
@@ -1429,18 +1507,18 @@ spec:
       runtimeWritesBeforePreflight,
     );
     invalidIssueRelations = false;
-    await assert.rejects(runReleaseDeployment(backfillArgs));
+    await assert.rejects(runReleaseDeployment(repairArgs));
     const failed = JSON.parse(await readFile(receiptPath, "utf8"));
     assert.equal(failed.outcome, "data_backfill_failed");
     assert.equal(failed.deployment_status, "ready");
     assert.equal(failed.issue_relation_backfill.targets[0].status, "failed");
     failBackfill = false;
-    const rolloutPostsBeforeRetry = requests.filter(
+    const rolloutPostsBeforeRepair = requests.filter(
       ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",
     ).length;
     const commandsBeforeRepair = commands.length;
     const recovered = await runReleaseDeployment({
-      ...backfillArgs,
+      ...repairArgs,
       options: { mode: "repair", receipt: receiptPath },
     });
     assert.equal(
@@ -1458,74 +1536,96 @@ spec:
       recovered.issue_relation_backfill.targets[0].status,
       "verified",
     );
-    assert.equal(recovered.outcome, "deployed");
+    assert.equal(recovered.outcome, "repaired");
     assert.equal(
       requests.filter(
         ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",
       ).length,
-      rolloutPostsBeforeRetry,
+      rolloutPostsBeforeRepair,
     );
     assert.equal(
       requests.some(({ url }) => url.includes("/resume")),
       false,
     );
     await runReleaseDeployment({
-      ...backfillArgs,
+      ...repairArgs,
       options: { mode: "deploy", receipt: receiptPath },
     });
     assert.equal(issuePatches, 2);
     await rm(receiptPath);
     checkIntent = true;
-    await assert.rejects(runReleaseDeployment({ ...backfillArgs, core }));
+    await assert.rejects(
+      runReleaseDeployment({
+        ...repairArgs,
+        options: { mode: "deploy", receipt: receiptPath },
+        core,
+      }),
+    );
     assert.equal(
       intentSeen,
       true,
-      "required migration must be durable before the first AKB registration request",
+      "release intent must be durable before the first AKB registration request",
     );
     checkIntent = false;
     const fromIntent = await runReleaseDeployment({
-      ...backfillArgs,
+      ...repairArgs,
       options: { mode: "deploy", receipt: receiptPath },
     });
-    assert.equal(
-      fromIntent.issue_relation_backfill.targets[0].status,
-      "verified",
-    );
-    await rm(receiptPath);
-    backfillTarget = false;
+    assert.equal(fromIntent.issue_relation_backfill, undefined);
+    assert.equal(issuePatches, 2);
     const otherRoot = path.join(temporaryDirectory, "other-release");
     await mkdir(path.join(otherRoot, "release"), { recursive: true });
     await writeFile(
       path.join(otherRoot, "package.json"),
-      JSON.stringify({ version: "0.18.1" }),
+      JSON.stringify({ version: `${Number(version.split(".")[0]) + 1}.0.0` }),
     );
     await copyFile(
       "release/reef-release-blueprint.json",
       path.join(otherRoot, "release/reef-release-blueprint.json"),
     );
-    const inventoryBefore = requests.filter(({ url }) =>
-      url.includes("/inventory"),
+    const requestsBeforeMismatch = requests.length;
+    const buildsBeforeMismatch = commands.filter(
+      ({ command }) => command === "docker",
     ).length;
-    const otherRelease = await runReleaseDeployment({
-      ...backfillArgs,
-      rootDir: otherRoot,
-      runCommand: async (...args) => {
-        const result = await runCommand(...args);
-        return {
-          ...result,
-          stdout: result.stdout.replaceAll(PRODUCT_VERSION, "0.18.1"),
-        };
+    for (const changedIdentity of [
+      { rootDir: otherRoot },
+      {
+        runCommand: async (command, args, options) =>
+          command === "git" && args[0] === "rev-parse"
+            ? { exitCode: 0, stdout: `${"f".repeat(40)}\n`, stderr: "" }
+            : runCommand(command, args, options),
       },
-    });
-    assert.equal(otherRelease.issue_relation_backfill, undefined);
+    ]) {
+      await assert.rejects(
+        runReleaseDeployment({ ...retryArgs, ...changedIdentity }),
+        (error) => error.stage === "receipt_validation",
+      );
+    }
+    await assert.rejects(
+      runReleaseDeployment({
+        ...retryArgs,
+        options: {
+          mode: "deploy",
+          receipt: receiptPath,
+          request_key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        },
+      }),
+      (error) => error.stage === "input_validation",
+    );
+    assert.equal(requests.length, requestsBeforeMismatch);
     assert.equal(
-      requests.filter(({ url }) => url.includes("/inventory")).length,
-      inventoryBefore,
+      commands.filter(({ command }) => command === "docker").length,
+      buildsBeforeMismatch,
     );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
-});
+}
+
+for (const version of [PRODUCT_VERSION, OTHER_VERSION]) {
+  test(`deploy retries and explicit repair stay separate for ${version}`, () =>
+    exerciseDeploymentAndRepair(version));
+}
 
 test("blocked AKB rollout writes a receipt and never invokes kubectl", async () => {
   const temporaryDirectory = await mkdtemp(
@@ -1702,10 +1802,19 @@ test("blocked AKB rollout writes a receipt and never invokes kubectl", async () 
   }
 });
 
-for (const version of [PRODUCT_VERSION, "0.14.1"]) {
-  test(`resume applies the correct migration contract for ${version}`, async () => {
+for (const version of [PRODUCT_VERSION, OTHER_VERSION]) {
+  test(`resume retries and explicit repair use the receipt for ${version}`, async () => {
     const temporaryDirectory = await mkdtemp(
       path.join(os.tmpdir(), "reef-resume-test-"),
+    );
+    await mkdir(path.join(temporaryDirectory, "release"));
+    await copyFile(
+      "release/reef-release-blueprint.json",
+      path.join(temporaryDirectory, "release/reef-release-blueprint.json"),
+    );
+    await writeFile(
+      path.join(temporaryDirectory, "package.json"),
+      JSON.stringify({ version }),
     );
     const receiptPath = path.join(temporaryDirectory, "receipt.json");
     const sourceRevision = "a".repeat(40);
@@ -1750,9 +1859,20 @@ for (const version of [PRODUCT_VERSION, "0.14.1"]) {
     await writeFile(receiptPath, `${JSON.stringify(registration)}\n`);
     const commands = [];
     let appliedInput = "";
+    let repairStarted = false;
+    let interrupted = true;
+    let failRuntimeOnce = false;
+    const resumeIntents = [];
+    let resumePosts = 0;
     const runCommand = async (command, args, options) => {
       commands.push({ command, args, options });
       if (command === "pnpm") return { exitCode: 0, stdout: "", stderr: "" };
+      if (command === "git")
+        return {
+          exitCode: 0,
+          stdout: args[0] === "rev-parse" ? `${sourceRevision}\n` : "",
+          stderr: "",
+        };
       if (command === "kubectl" && args[0] === "kustomize") {
         return {
           exitCode: 0,
@@ -1781,6 +1901,10 @@ ${EVENT_PROCESSOR_MANIFEST}`,
         return { exitCode: 0, stdout: "", stderr: "" };
       }
       if (command === "kubectl" && args[0] === "rollout") {
+        if (failRuntimeOnce) {
+          failRuntimeOnce = false;
+          return { exitCode: 1, stdout: "", stderr: "not ready" };
+        }
         return { exitCode: 0, stdout: "", stderr: "" };
       }
       if (
@@ -1934,25 +2058,21 @@ ${EVENT_PROCESSOR_MANIFEST}`,
     };
     const fetchImpl = async (input, init = {}) => {
       const url = String(input);
-      if (
-        url.endsWith(`/rollouts/${sourceJobId}/resume`) &&
-        version === "0.18.0"
-      ) {
-        assert.deepEqual(
-          JSON.parse(await readFile(receiptPath, "utf8"))
-            .issue_relation_backfill,
-          { targets: [] },
-        );
-      }
       if (new URL(url).pathname.endsWith(`/apps/${APP_ID}/inventory`)) {
         assert.equal(
-          version,
-          "0.18.0",
-          "other releases must not run the repair",
+          repairStarted,
+          true,
+          "only explicit repair may inspect relationship inventory",
         );
         return Response.json({ items: [], next_cursor: null });
       }
       if (url.endsWith(`/rollouts/${sourceJobId}/resume`)) {
+        resumePosts++;
+        resumeIntents.push(JSON.parse(await readFile(receiptPath, "utf8")));
+        if (interrupted) {
+          interrupted = false;
+          throw new Error("resume response interrupted");
+        }
         const sentKey = new Headers(init.headers).get("idempotency-key");
         assert.equal(sentKey, resumeRequestKey);
         assert.notEqual(sentKey, originalRequestKey);
@@ -2002,8 +2122,8 @@ ${EVENT_PROCESSOR_MANIFEST}`,
     };
 
     try {
-      const result = await runReleaseDeployment({
-        rootDir: path.resolve("."),
+      const resumeArgs = {
+        rootDir: temporaryDirectory,
         env: {
           AKB_BACKEND_URL: "https://akb.example.test",
           REEF_CONTROL_PLANE_TOKEN: TOKEN,
@@ -2018,18 +2138,43 @@ ${EVENT_PROCESSOR_MANIFEST}`,
         runCommand,
         fetchImpl,
         core,
+      };
+      await assert.rejects(
+        runReleaseDeployment(resumeArgs),
+        (error) => error.stage === "rollout_resume",
+      );
+      assert.equal(resumeIntents[0].resume_request_key, resumeRequestKey);
+      assert.equal(resumeIntents[0].source_rollout_id, sourceJobId);
+      assert.equal(resumeIntents[0].issue_relation_backfill, undefined);
+      const result = await runReleaseDeployment({
+        ...resumeArgs,
+        options: { mode: "resume", receipt: receiptPath },
       });
       assert.equal(result.resume_request_key, resumeRequestKey);
       assert.equal(result.source_rollout_id, sourceJobId);
       assert.equal(result.rollout_job_id, resumedJobId);
       assert.equal(result.outcome, "deployed");
-      assert.deepEqual(
-        result.issue_relation_backfill,
-        version === "0.18.0" ? { targets: [] } : undefined,
+      assert.equal(result.issue_relation_backfill, undefined);
+      const postsBeforeRuntimeRetry = resumePosts;
+      failRuntimeOnce = true;
+      const deployArgs = {
+        ...resumeArgs,
+        options: { mode: "deploy", receipt: receiptPath },
+      };
+      await assert.rejects(
+        runReleaseDeployment(deployArgs),
+        (error) => error.stage === "runtime_readiness",
       );
+      const retried = await runReleaseDeployment(deployArgs);
+      assert.equal(retried.rollout_job_id, resumedJobId);
+      assert.equal(retried.resume_request_key, resumeRequestKey);
+      assert.equal(retried.source_rollout_id, sourceJobId);
+      assert.equal(retried.request_key, originalRequestKey);
+      assert.equal(retried.issue_relation_backfill, undefined);
+      assert.equal(resumePosts, postsBeforeRuntimeRetry);
       await assert.rejects(
         runReleaseDeployment({
-          rootDir: path.resolve("."),
+          rootDir: temporaryDirectory,
           env: {
             AKB_BACKEND_URL: "https://akb.example.test",
             REEF_CONTROL_PLANE_TOKEN: TOKEN,
@@ -2043,6 +2188,27 @@ ${EVENT_PROCESSOR_MANIFEST}`,
         (error) =>
           error?.stage === "input_validation" &&
           error.message.includes("use deploy"),
+      );
+      repairStarted = true;
+      const beforeRepair = commands.length;
+      const repaired = await runReleaseDeployment({
+        ...resumeArgs,
+        options: { mode: "repair", receipt: receiptPath },
+      });
+      assert.equal(repaired.outcome, "repaired");
+      assert.deepEqual(repaired.issue_relation_backfill, { targets: [] });
+      assert.equal(resumePosts, postsBeforeRuntimeRetry);
+      assert.equal(
+        commands
+          .slice(beforeRepair)
+          .some(
+            ({ command, args }) =>
+              command === "git" ||
+              command === "docker" ||
+              (command === "kubectl" &&
+                ["apply", "kustomize"].includes(args[0])),
+          ),
+        false,
       );
       assert.equal(appliedInput.includes(IMAGE_DIGEST), true);
       assert.equal(

@@ -3,7 +3,6 @@ import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export async function writePrivateJson(file, value) {
-  if (!file) return;
   const absolute = path.resolve(file);
   await mkdir(path.dirname(absolute), { recursive: true, mode: 0o700 });
   const temporary = `${absolute}.${process.pid}-${randomUUID()}.tmp`;

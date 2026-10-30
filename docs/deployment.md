@@ -210,64 +210,22 @@ version, and image repository, a retry reuses its immutable image and Release
 coordinates before contacting Docker or registering again. A receipt produced
 by `register` can therefore continue into deployment; it receives a new
 rollout key, while a receipt with an existing key replays that logical rollout.
-The key is persisted before the first rollout request, and a blocked retry
-never resumes automatically — use the explicit `resume` command with a new key.
+The key is persisted before the first rollout request. Retries observe an
+acknowledged job or replay the saved request key. A blocked retry never resumes
+automatically. Use `resume` with a new key to start another attempt.
 
-Release `0.18.0` automatically repairs issue relationship URIs during `deploy`
-or `resume`. Provide `--receipt` (or `REEF_RELEASE_RECEIPT`); the required
-work is recorded before the first AKB write and retained for retries. The command checks
-the active installation inventory and documents, deploys and verifies the new
-runtime, reinstalls the managed vault instructions, then repairs and verifies
-outgoing relationships before reporting `deployed`. A zero-target inventory is
-recorded but does not demonstrate repair of existing data.
+Every AKB command (`register`, `deploy`, `resume`, and `repair`) requires
+`--receipt` or `REEF_RELEASE_RECEIPT`. A release intent records immutable image
+coordinates before the first registration request. Use the same receipt for a
+retry and a new receipt path for a different source, version, or image registry.
+A mismatched or unreadable receipt stops the command before new release work.
 
-The relation preflight runs before the AKB rollout request and reports all
-invalid source references in `issue_relation_backfill.targets[].failure`.
-Each report identifies the issue, field, array position, and failure reason;
-exact stored-URI matches also identify the replacement issue ID. Resolve these
-source-data problems before retrying the same receipt.
-
-After runtime readiness, the CLI installs instructions and finishes every
-vault's document writes before polling graphs. It runs two vaults at a time.
-Reads have a 20-second request bound and document PATCHes have a 120-second
-bound. Known transient transport/429/502/503/504 failures get at most three
-attempts. Authentication and semantic failures retain their failure result.
-
-Keep the receipt together with its `<receipt>.relations/` directory. Successful
-document PATCH responses are atomically checkpointed there with private file
-permissions. A matching current document commit and target URI set skips a
-repeat write; a source or document change requires a fresh guarded pass.
-Graph polling defaults to a 30-minute budget, reports progress, and preserves
-independent explicit AKB links while checking required and implicit relations.
-Missing acknowledged checkpoints stop recovery before more document writes.
-
-On `data_backfill_failed` with `deployment_status=ready`, use the data-only
-repair command. It validates the immutable registration, applied rollout,
-runtime images, and readiness; it does not build images, change rollouts, or
-apply Kubernetes resources. It can run from an updated operator checkout
-against the immutable coordinates in an older receipt:
-
-```bash
-AKB_BACKEND_URL=https://akb.example.com \
-REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
-NAMESPACE=my-namespace \
-  deploy/k8s/deploy.sh repair --receipt /secure/reef-release.json
-```
-
-Verified vaults are skipped; other vaults resume from their document
-checkpoints. `count` records the successful verification snapshot and can grow
-when an issue appears during recovery. Each new snapshot still receives the
-source, document-head, and graph checks. For a blocked AKB rollout, use `resume`
-with the same receipt. For incomplete runtime readiness, retry `deploy`.
-Run one CLI process per receipt.
+`deploy` and `resume` finish when the runtime is ready. They do not run
+relationship backfills. Version values identify the release and never select
+a repair workflow.
 
 Kubernetes readback excludes terminating and terminal (`Failed`/`Succeeded`)
 Pods, and still rejects missing ready Pods or live image/identity mismatches.
-
-Rollback does not require a database migration, but an older Reef writer can
-again write raw IDs into document relationships. Redeploy the corrected release
-and repeat the backfill with a new receipt after such a rollback. Do not run
-old and corrected writers concurrently during the repair.
 
 ```bash
 REGISTRY=ghcr.io/myorg \
@@ -328,6 +286,12 @@ REEF_RELEASE_RECEIPT=/tmp/reef-release.json \
     --request-key <new-resume-uuid>
 ```
 
+Before sending a resume request, the CLI saves the resume key and source job
+in the receipt. If the response is interrupted, rerun `resume` with the same
+receipt to replay that attempt. After a resumed rollout reaches `applied`, use
+`deploy` with that receipt to retry a failed runtime deployment. The resumed
+job and its keys remain in the receipt.
+
 The CLI derives provenance from the root package version and full `HEAD`; it
 does not accept version/commit identity overrides or deploy a mutable `latest`
 reference. `kubernetes.io/change-cause` and the `REEF_RELEASE_*` PodTemplate
@@ -338,6 +302,56 @@ for stable workload settings and is not rewritten with release identity, so an
 older ReplicaSet cannot observe a later release's coordinates. The control-
 plane credential is used only by the one-shot process and is removed from child
 command environments and rendered workload configuration.
+
+### Repair issue relationships
+
+Run `repair` explicitly when existing issue documents need relationship URI
+backfill. Use a deployment receipt with `rollout_status=applied` and
+`deployment_status=ready`. Repair selection is independent of the release
+version. The command validates the registered immutable Manifest, applied
+rollout, runtime images, and readiness before recording the repair task. It can run from an updated
+operator checkout against the coordinates in the receipt.
+
+```bash
+AKB_BACKEND_URL=https://akb.example.com \
+REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
+NAMESPACE=my-namespace \
+  deploy/k8s/deploy.sh repair --receipt /secure/reef-release.json
+```
+
+The first invocation freezes the active installation inventory and compares it
+with the applied rollout's targets. Preflight collects invalid source
+references in `issue_relation_backfill.targets[].failure` before any backfill
+write. Reports identify the issue, field, array position, and failure reason;
+exact stored-URI matches also identify the replacement issue ID. Resolve
+source-data errors before retrying the same receipt. A zero-target inventory
+is recorded but does not demonstrate repair of existing data.
+
+The command installs managed vault instructions, finishes all document writes,
+then polls public graphs. It runs two vaults at a time. Reads have a 20-second
+request bound and document PATCHes have a 120-second bound. Known transient
+transport/429/502/503/504 failures get at most three attempts. Authentication
+and semantic failures retain their failure result. It does not build images,
+change rollouts, or apply Kubernetes resources.
+
+Keep the receipt with its `<receipt>.relations/` directory. A successful PATCH
+response is atomically checkpointed with private file permissions. A matching
+current document commit and target URI set skips a repeat write. Source or
+document changes require a fresh guarded pass. Missing acknowledged
+checkpoints stop recovery before more writes.
+
+Graph verification defaults to 30 minutes, reports progress, and preserves
+independent explicit AKB links while checking required and implicit relations.
+Success records `outcome=repaired`. On `data_backfill_failed`, retry `repair`
+with the same receipt and checkpoints. Verified vaults are skipped, and other
+vaults resume their saved work. `count` records the successful verification
+snapshot and can grow when an issue appears during recovery. Run one CLI
+process per receipt.
+
+An older writer can reintroduce raw IDs into document relationships after a
+rollback. Deploy a corrected runtime with a new deployment receipt, then run
+`repair` with that receipt to start a fresh repair. Keep old and corrected
+writers from running concurrently during repair. AKB schema v4 is unchanged.
 
 ---
 
@@ -455,7 +469,7 @@ These inputs belong to the operator process, not the reef-web Deployment:
 | `REGISTRY` | build/deploy | OCI image repository prefix, without a tag. The CLI pushes one unique build tag per image build and applies the returned digest; it never moves version/source aliases. |
 | `REEF_APP_ID` | no | Previously recorded App Definition UUID. When set, the CLI reads it and verifies `app_key=reef` before registering a Release. |
 | `REEF_BUILD_ARTIFACT` | register-only or optional deploy output | Path for the build identity artifact containing the repository, digest, full source revision, and root version. |
-| `REEF_RELEASE_RECEIPT` | repair and the 0.18.0 repair release | Private receipt path for handoff and replay; keep its adjacent `.relations/` directory for document checkpoints. |
+| `REEF_RELEASE_RECEIPT` | register/deploy/resume/repair | Private receipt path for handoff and replay; keep its adjacent `.relations/` directory for document checkpoints. |
 | `REEF_ROLLOUT_REQUEST_KEY` | no | UUID idempotency key. Reuse it for a process retry of the same rollout input; resume requires a different UUID. |
 | `REEF_ROLLOUT_DEADLINE_MS` / `REEF_ROLLOUT_POLL_MS` | no | Positive AKB observation bounds; defaults are 120000 ms and 1000 ms. |
 | `REEF_KUBERNETES_TIMEOUT_MS` | no | Positive Kubernetes readiness timeout; defaults to 120000 ms. |
