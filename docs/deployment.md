@@ -213,7 +213,7 @@ rollout key, while a receipt with an existing key replays that logical rollout.
 The key is persisted before the first rollout request, and a blocked retry
 never resumes automatically — use the explicit `resume` command with a new key.
 
-Release `0.17.7` automatically repairs issue relationship URIs during `deploy`
+Release `0.18.0` automatically repairs issue relationship URIs during `deploy`
 or `resume`. Provide `--receipt` (or `REEF_RELEASE_RECEIPT`); the required
 work is recorded before the first AKB write and retained for retries. The command checks
 the active installation inventory and documents, deploys and verifies the new
