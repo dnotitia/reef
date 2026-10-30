@@ -263,8 +263,6 @@ Run one CLI process per receipt.
 
 Kubernetes readback excludes terminating and terminal (`Failed`/`Succeeded`)
 Pods, and still rejects missing ready Pods or live image/identity mismatches.
-The [v0.18.0 recovery review](release-0.18.0-recovery.md) records the observed
-failures, ownership boundaries, and recovery decisions.
 
 Rollback does not require a database migration, but an older Reef writer can
 again write raw IDs into document relationships. Redeploy the corrected release

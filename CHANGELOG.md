@@ -25,8 +25,6 @@ issues, not public GitHub issues.
 - Add `deploy/k8s/deploy.sh repair --receipt <path>` to resume data repair after
   verifying the deployed immutable release, without rebuilding or redeploying.
   Graph verification defaults to 30 minutes and reports progress.
-- Document the v0.18.0 manual recovery causes and the AKB/Reef responsibility
-  boundary in `docs/release-0.18.0-recovery.md`.
 
 ### Migration
 
