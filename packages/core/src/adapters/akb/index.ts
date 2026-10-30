@@ -220,7 +220,8 @@ export {
 } from "./controlPlane/installationInventoryReader";
 export {
   preflightIssueRelationUris,
-  backfillIssueRelationUris,
+  applyIssueRelationUris,
+  verifyIssueRelationUris,
 } from "./issues/relationBackfill";
 export {
   readMemberInstallationActive,

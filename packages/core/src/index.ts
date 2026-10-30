@@ -368,6 +368,7 @@ export type {
 export {
   ReefError,
   SchemaValidationError,
+  IssueRelationBackfillError,
   GitHubApiError,
   AkbApiError,
   AkbReservedSystemPathError,
@@ -398,7 +399,8 @@ export {
   createAkbAppInstallationInventoryReader,
   listAdminActiveInstallations as akbListAdminActiveInstallations,
   preflightIssueRelationUris as akbPreflightIssueRelationUris,
-  backfillIssueRelationUris as akbBackfillIssueRelationUris,
+  applyIssueRelationUris as akbApplyIssueRelationUris,
+  verifyIssueRelationUris as akbVerifyIssueRelationUris,
   readMemberInstallationActive as akbReadMemberInstallationActive,
   readInstallation as akbReadInstallation,
   requestInstallation as akbRequestInstallation,
@@ -795,3 +797,11 @@ export {
 export { extractErrorDetail } from "./utils/extractErrorDetail";
 export { parseLenientJson } from "./utils/parseLenientJson";
 export { stripTrailingSlashes } from "./adapters/url";
+
+export {
+  IssueRelationVerificationTimeoutSchema,
+  IssueRelationCheckpointSchema,
+  IssueRelationBackfillReportSchema,
+  type IssueRelationCheckpoint,
+  type IssueRelationBackfillReport,
+} from "./schemas/issueRelationBackfill";
