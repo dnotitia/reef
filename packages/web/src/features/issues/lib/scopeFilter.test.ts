@@ -18,15 +18,24 @@ describe("issue scope projection", () => {
       {
         status: ["done"],
         sprint_id: ["sprint-1"],
+        sprintUnset: true,
+        milestone_id: ["m1", "m2"],
+        milestoneUnset: true,
         release_id: ["release-1"],
+        releaseUnset: true,
         due: ["overdue"],
         showStale: true,
       },
       "backlog",
     );
     expect(projected).toMatchObject({ status: ["backlog"] });
+    expect(projected.milestone_id).toEqual(["m1", "m2"]);
+    expect(projected.milestoneUnset).toBe(true);
+    expect(hasScopeFilters(projected, "", "backlog")).toBe(true);
     expect(projected.sprint_id).toBeUndefined();
+    expect(projected.sprintUnset).toBeUndefined();
     expect(projected.release_id).toBeUndefined();
+    expect(projected.releaseUnset).toBeUndefined();
     expect(projected.due).toBeUndefined();
     expect(projected.showStale).toBeUndefined();
     expect(buildIssueQuery(projected, "", "backlog").status).toEqual([

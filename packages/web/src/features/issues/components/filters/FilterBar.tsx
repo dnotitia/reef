@@ -12,7 +12,6 @@ import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
-import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { PlanningItemMultiCombobox } from "@/features/planning/components/PlanningItemMultiCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import {
@@ -52,19 +51,11 @@ import type { IssueScope } from "../../lib/viewMode";
 const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
 
 /**
- * Shared width policy for Milestone and Labels: hug the selected value, keep an
+ * Width policy for Labels: hug the selected value, keep an
  * empty field readable, and cap long values before they push the bar wide
  * (REEF-269). Multi-select facets use chip triggers instead.
  */
 const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
-
-/**
- * Wrapper for the single-select Milestone value field. The width token lives on
- * the inner combobox (`FILTER_FIELD_CLASS`, passed as its `className`), matching
- * REEF-246; this wrapper provides the relative box and a viewport cap so the
- * field can wrap without overflowing the bar.
- */
-const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
 /**
  * Static multi-select facet options. Status remains dynamic because board and
@@ -98,7 +89,9 @@ const SEVERITY_FACET_OPTIONS: ComboboxOption<
 }));
 
 const DUE_FACET_OPTIONS: ComboboxOption<(typeof DUE_OPTIONS)[number]>[] =
-  DUE_OPTIONS.map((value) => ({
+  DUE_OPTIONS.toSorted(
+    (a, b) => Number(b === "no_due") - Number(a === "no_due"),
+  ).map((value) => ({
     value,
     label: value,
     content: <DueBadge due={value} />,
@@ -149,10 +142,16 @@ function countActiveFilters(
   if (filter.issueType?.length) count++;
   if (filter.priority?.length || filter.priorityUnset) count++;
   if (filter.assignee?.length || filter.assigneeUnset) count++;
-  if (filter.requester?.length) count++;
-  if (!backlogScope && !fixedSprintId && filter.sprint_id?.length) count++;
-  if (filter.milestone_id) count++;
-  if (!backlogScope && filter.release_id?.length) count++;
+  if (filter.requester?.length || filter.requesterUnset) count++;
+  if (
+    !backlogScope &&
+    !fixedSprintId &&
+    (filter.sprint_id?.length || filter.sprintUnset)
+  )
+    count++;
+  if (filter.milestone_id?.length || filter.milestoneUnset) count++;
+  if (!backlogScope && (filter.release_id?.length || filter.releaseUnset))
+    count++;
   if (filter.severity?.length || filter.severityUnset) count++;
   if (!backlogScope && filter.due?.length) count++;
   if (filter.label?.trim()) count++;
@@ -233,6 +232,7 @@ export function FilterBar({
   // facet clear action, and the shared full filter reset action.
   const t = useTranslations("issues.filters");
   const c = useTranslations("common");
+  const assigneeCopy = useTranslations("components.assignee");
 
   const labelValues = useMemo(
     () => parseLabelFilter(filter.label),
@@ -326,6 +326,9 @@ export function FilterBar({
             priority: toggleFacet(filter.priority, value, checked),
           })
         }
+        onClear={() =>
+          setFilter({ priority: undefined, priorityUnset: undefined })
+        }
         options={PRIORITY_FACET_OPTIONS}
         summarizeValue={(value) =>
           priorityLabels[value as keyof typeof priorityLabels]
@@ -352,6 +355,9 @@ export function FilterBar({
           setFilter({
             severity: toggleFacet(filter.severity, value, checked),
           })
+        }
+        onClear={() =>
+          setFilter({ severity: undefined, severityUnset: undefined })
         }
         options={SEVERITY_FACET_OPTIONS}
         summarizeValue={(value) =>
@@ -386,6 +392,7 @@ export function FilterBar({
           onToggle={(value, checked) =>
             setFilter({ due: toggleFacet(filter.due, value, checked) })
           }
+          onClear={() => setFilter({ due: undefined })}
           options={DUE_FACET_OPTIONS}
           summarizeValue={(d) => dueLabels[d as keyof typeof dueLabels]}
           active={Boolean(filter.due?.length)}
@@ -428,10 +435,16 @@ export function FilterBar({
               assignee: toggleFacet(filter.assignee, login, checked),
             })
           }
-          unassigned={filter.assigneeUnset}
-          onUnassignedToggle={(checked) =>
-            setFilter({ assigneeUnset: checked ? true : undefined })
+          onClear={() =>
+            setFilter({ assignee: undefined, assigneeUnset: undefined })
           }
+          auxiliaryOption={{
+            label: assigneeCopy("unassigned"),
+            selected: Boolean(filter.assigneeUnset),
+            onToggle: (checked) =>
+              setFilter({ assigneeUnset: checked ? true : undefined }),
+            testId: "assignee-option-unassigned",
+          }}
           vault={vault}
           label={fieldNames.assignee}
           active={Boolean(filter.assignee?.length || filter.assigneeUnset)}
@@ -450,9 +463,19 @@ export function FilterBar({
               requester: toggleFacet(filter.requester, login, checked),
             })
           }
+          onClear={() =>
+            setFilter({ requester: undefined, requesterUnset: undefined })
+          }
+          auxiliaryOption={{
+            label: t("noRequester"),
+            selected: Boolean(filter.requesterUnset),
+            onToggle: (checked) =>
+              setFilter({ requesterUnset: checked ? true : undefined }),
+            testId: "requester-option-unset",
+          }}
           vault={vault}
           label={fieldNames.requester}
-          active={Boolean(filter.requester?.length)}
+          active={Boolean(filter.requester?.length || filter.requesterUnset)}
           triggerTestId="requester-dropdown-trigger"
           contentTestId="requester-dropdown-content"
           panelClassName={USER_FILTER_PANEL_CLASS}
@@ -479,8 +502,18 @@ export function FilterBar({
                 sprint_id: toggleFacet(filter.sprint_id, id, checked),
               })
             }
+            onClear={() =>
+              setFilter({ sprint_id: undefined, sprintUnset: undefined })
+            }
+            unsetOption={{
+              label: t("noSprint"),
+              selected: Boolean(filter.sprintUnset),
+              onToggle: (checked) =>
+                setFilter({ sprintUnset: checked ? true : undefined }),
+              testId: "sprint-option-unset",
+            }}
             label={fieldNames.sprint}
-            active={Boolean(filter.sprint_id?.length)}
+            active={Boolean(filter.sprint_id?.length || filter.sprintUnset)}
             triggerTestId="sprint-dropdown-trigger"
             contentTestId="sprint-dropdown-content"
           />
@@ -490,35 +523,31 @@ export function FilterBar({
       {/* Milestone filter — kept in the backlog view: a milestone is a
           long-horizon theme that legitimately groups unscheduled backlog work
           (REEF-177). */}
-      <div
-        className={PLANNING_FILTER_WRAPPER_CLASS}
-        data-testid="milestone-filter"
-      >
-        <div className="flex items-center gap-1">
-          <PlanningItemCombobox
-            kind="milestones"
-            vault={vault}
-            value={filter.milestone_id ?? ""}
-            onChange={(id) => setFilter({ milestone_id: id || undefined })}
-            label={fieldNames.milestone}
-            placeholder={fieldNames.milestone}
-            showNoneOption={false}
-            active={Boolean(filter.milestone_id)}
-            className={FILTER_FIELD_CLASS}
-          />
-          {filter.milestone_id ? (
-            <button
-              type="button"
-              aria-label={t("clearMilestone")}
-              title={t("clearMilestone")}
-              data-testid="milestone-clear-button"
-              onClick={() => setFilter({ milestone_id: undefined })}
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand-focus focus-visible:ring-2 focus-visible:ring-brand-focus"
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
+      <div data-testid="milestone-filter">
+        <PlanningItemMultiCombobox
+          kind="milestones"
+          vault={vault}
+          values={filter.milestone_id}
+          onToggle={(id, checked) =>
+            setFilter({
+              milestone_id: toggleFacet(filter.milestone_id, id, checked),
+            })
+          }
+          onClear={() =>
+            setFilter({ milestone_id: undefined, milestoneUnset: undefined })
+          }
+          unsetOption={{
+            label: t("noMilestone"),
+            selected: Boolean(filter.milestoneUnset),
+            onToggle: (checked) =>
+              setFilter({ milestoneUnset: checked ? true : undefined }),
+            testId: "milestone-option-unset",
+          }}
+          label={fieldNames.milestone}
+          active={Boolean(filter.milestone_id?.length || filter.milestoneUnset)}
+          triggerTestId="milestone-dropdown-trigger"
+          contentTestId="milestone-dropdown-content"
+        />
       </div>
 
       {/* Release filter — multi-select (REEF-267). Dropped in the backlog view:
@@ -535,8 +564,18 @@ export function FilterBar({
                 release_id: toggleFacet(filter.release_id, id, checked),
               })
             }
+            onClear={() =>
+              setFilter({ release_id: undefined, releaseUnset: undefined })
+            }
+            unsetOption={{
+              label: t("noRelease"),
+              selected: Boolean(filter.releaseUnset),
+              onToggle: (checked) =>
+                setFilter({ releaseUnset: checked ? true : undefined }),
+              testId: "release-option-unset",
+            }}
             label={fieldNames.release}
-            active={Boolean(filter.release_id?.length)}
+            active={Boolean(filter.release_id?.length || filter.releaseUnset)}
             triggerTestId="release-dropdown-trigger"
             contentTestId="release-dropdown-content"
           />

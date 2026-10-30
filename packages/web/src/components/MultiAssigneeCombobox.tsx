@@ -17,6 +17,7 @@ interface MultiAssigneeComboboxProps {
   values: readonly string[] | undefined;
   /** Reports a row toggle; the caller folds `[] → undefined` for its store. */
   onToggle: (login: string, checked: boolean) => void;
+  onClear?: () => void;
   /** Active akb vault — drives the vault-members lookup. */
   vault: string;
   /** Field name used for the trigger label and accessible name (Assignee /
@@ -26,9 +27,12 @@ interface MultiAssigneeComboboxProps {
   placeholder?: string;
   /** Filter affordance — paints the brand ring when set. */
   active?: boolean;
-  /** Include the filter-specific choice for NULL/blank assigned_to values. */
-  unassigned?: boolean;
-  onUnassignedToggle?: (checked: boolean) => void;
+  auxiliaryOption?: {
+    label: string;
+    selected: boolean;
+    onToggle: (checked: boolean) => void;
+    testId: string;
+  };
   triggerTestId?: string;
   contentTestId?: string;
   /** Extra classes for the opened panel (a readable floor for long names). */
@@ -54,12 +58,12 @@ interface MultiAssigneeComboboxProps {
 export function MultiAssigneeCombobox({
   values,
   onToggle,
+  onClear,
   vault,
   label,
   placeholder,
   active,
-  unassigned,
-  onUnassignedToggle,
+  auxiliaryOption,
   triggerTestId,
   contentTestId,
   panelClassName,
@@ -81,6 +85,7 @@ export function MultiAssigneeCombobox({
 
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const { data: users, isPending } = useUserSearch(debouncedQuery, vault);
+  const { data: roster } = useUserSearch("", vault);
   const currentLogin = useCurrentUserLogin();
 
   const options = useMemo<ComboboxOption<string>[]>(
@@ -96,6 +101,10 @@ export function MultiAssigneeCombobox({
       label={resolvedLabel}
       values={values}
       onToggle={onToggle}
+      onClear={onClear}
+      summarizeValue={(value) =>
+        roster?.find((user) => user.login === value)?.name?.trim() || value
+      }
       options={options}
       searchable
       onQueryChange={handleQueryChange}
@@ -108,16 +117,7 @@ export function MultiAssigneeCombobox({
       triggerTestId={triggerTestId}
       contentTestId={contentTestId}
       contentClassName={panelClassName}
-      auxiliaryOption={
-        onUnassignedToggle
-          ? {
-              label: t("unassigned"),
-              selected: Boolean(unassigned),
-              onToggle: onUnassignedToggle,
-              testId: "assignee-option-unassigned",
-            }
-          : undefined
-      }
+      auxiliaryOption={auxiliaryOption}
       align={align}
     />
   );

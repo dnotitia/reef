@@ -18,7 +18,9 @@ export function filterForIssueScope(
       ...filter,
       status: ["backlog"],
       sprint_id: undefined,
+      sprintUnset: undefined,
       release_id: undefined,
+      releaseUnset: undefined,
       due: undefined,
       showStale: undefined,
     };
@@ -54,9 +56,13 @@ export function hasScopeFilters(
       filter.assignee?.length ||
       filter.assigneeUnset ||
       filter.requester?.length ||
-      (scope === "active" && filter.sprint_id?.length) ||
-      filter.milestone_id ||
-      (scope === "active" && filter.release_id?.length) ||
+      filter.requesterUnset ||
+      (scope === "active" &&
+        (filter.sprint_id?.length || filter.sprintUnset)) ||
+      filter.milestone_id?.length ||
+      filter.milestoneUnset ||
+      (scope === "active" &&
+        (filter.release_id?.length || filter.releaseUnset)) ||
       filter.severity?.length ||
       filter.severityUnset ||
       (scope === "active" && filter.due?.length) ||

@@ -12,15 +12,19 @@ describe("PersistedIssueFilterSchema", () => {
       priority: ["high"],
       priorityUnset: true,
       // assignee / requester / sprint_id / release_id are multi-select arrays
-      // (REEF-267); milestone_id stays a single scalar.
+      // (REEF-267);
       assignee: ["alice", "carol"],
       requester: ["bob"],
+      requesterUnset: true,
       reporter: "carol",
       severity: ["major"],
       severityUnset: true,
       sprint_id: ["spr-1", "spr-2"],
-      milestone_id: "mil-1",
+      sprintUnset: true,
+      milestone_id: ["mil-1", "mil-2"],
+      milestoneUnset: true,
       release_id: ["rel-1"],
+      releaseUnset: true,
       due: ["overdue", "no_due"],
       assigneeUnset: true,
       label: "ui",

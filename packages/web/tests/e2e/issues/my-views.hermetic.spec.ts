@@ -37,6 +37,75 @@ async function openMyViewMenu(page: Page) {
   return menu;
 }
 
+test("unset filters keep their summary across reload and can be cleared", async ({
+  page,
+}) => {
+  await openExistingWorkspace(page);
+  await page.goto("/workspace/reef-e2e/issues?view=list");
+  await page.getByTestId("due-dropdown-trigger").click();
+  await expect(
+    page.getByTestId("due-dropdown-content").getByRole("option").first(),
+  ).toHaveAttribute("data-testid", "due-option-no_due");
+  await page.getByTestId("due-option-no_due").click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("due-dropdown-trigger")).toContainText(
+    "No due date",
+  );
+  await expect(page).toHaveURL(/due=no_due/);
+  await page.reload();
+  await expect(page.getByTestId("due-dropdown-trigger")).toContainText(
+    "No due date",
+  );
+  await page.getByRole("button", { name: "Clear Due filter" }).click();
+  await expect(page.getByTestId("due-dropdown-trigger")).not.toContainText(
+    "No due date",
+  );
+});
+
+test.describe("empty planning filter placement", () => {
+  test.use({ scenario: "configured_empty" });
+
+  test("keeps the open release menu visible when its selection wraps the trigger", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    await page.getByRole("button", { name: "사이드바 접기" }).click();
+    for (const kind of ["sprint", "milestone"]) {
+      await page.getByTestId(`${kind}-dropdown-trigger`).click();
+      await page.getByTestId(`${kind}-option-unset`).click();
+      await page.keyboard.press("Escape");
+    }
+    const trigger = page.getByTestId("release-dropdown-trigger");
+    await trigger.click();
+    const before = await trigger.boundingBox();
+    await page.getByTestId("release-option-unset").click();
+    const after = await trigger.boundingBox();
+    expect(after?.y).toBeGreaterThan(before?.y ?? 0);
+    const panel = page.getByTestId("release-dropdown-content");
+    await expect(panel).toBeVisible();
+    await expect
+      .poll(async () => (await panel.boundingBox())?.x ?? -1)
+      .toBeGreaterThanOrEqual(0);
+    await expect(page.getByTestId("release-option-unset")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("release-option-unset")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await expect
+      .poll(async () => (await panel.boundingBox())?.x ?? -1)
+      .toBeGreaterThanOrEqual(0);
+  });
+});
+
 test.describe("Hermetic My Views", () => {
   test("saves, applies, reloads, updates, renames, duplicates, rejects duplicates, and deletes", async ({
     page,
@@ -477,5 +546,161 @@ test.describe("Hermetic My Views", () => {
       await page.unroute(isSearchRequest, holdSearchResponse);
       await page.unroute(isZetaIssueRequest, holdZetaResponse);
     }
+  });
+});
+
+test.describe("requester absence", () => {
+  test.use({ scenario: "requester_unset" });
+
+  test("restores absent and mixed requester results through URL and My View", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByTestId("requester-dropdown-trigger").click();
+    await page.getByTestId("requester-option-unset").click();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/requester_unset=1/);
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("requester-dropdown-trigger").click();
+    await page
+      .getByTestId("requester-dropdown-content")
+      .getByText("Alice", { exact: false })
+      .first()
+      .click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
+    await dialog.getByTestId("my-view-name-input").fill("Requester view");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Clear Requester filter" }).click();
+    const menu = await openMyViewMenu(page);
+    await menu.getByRole("menuitem", { name: /^Requester view/ }).click();
+    await expect(page).toHaveURL(/requester_unset=1/);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+  });
+});
+
+test.describe("planning absence", () => {
+  test.use({ scenario: "requester_unset" });
+
+  test("restores absent and multiple milestone selections through URL and My View", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues?view=list&sort=updated_at&order=desc",
+    );
+    await page.getByTestId("milestone-dropdown-trigger").click();
+    await expect(
+      page
+        .getByTestId("milestone-dropdown-content")
+        .getByRole("option")
+        .first(),
+    ).toHaveAttribute("data-testid", "milestone-option-unset");
+    await page.getByTestId("milestone-option-unset").click();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/milestone_unset=1/);
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("milestone-dropdown-trigger").click();
+    await page
+      .getByTestId("milestone-dropdown-content")
+      .getByText("Coverage Complete")
+      .click();
+    await page
+      .getByTestId("milestone-dropdown-content")
+      .getByText("Second milestone")
+      .click();
+    await page.keyboard.press("Escape");
+    await expect
+      .poll(
+        () => new URL(page.url()).searchParams.getAll("milestone_id").length,
+      )
+      .toBe(2);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
+    await dialog.getByTestId("my-view-name-input").fill("Milestone view");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Clear Milestone filter" }).click();
+    const menu = await openMyViewMenu(page);
+    await menu.getByRole("menuitem", { name: /^Milestone view/ }).click();
+    await expect(page).toHaveURL(/milestone_unset=1/);
+    await expect
+      .poll(
+        () => new URL(page.url()).searchParams.getAll("milestone_id").length,
+      )
+      .toBe(2);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+  });
+
+  test("filters a field-sorted list using unset planning flags", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues?view=list&sort=updated_at&order=desc&sprint_unset=1&release_unset=1",
+    );
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+  });
+
+  test("restores mixed sprint and release selections through URL and My View", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByTestId("sprint-dropdown-trigger").click();
+    await page.getByTestId("sprint-option-unset").click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await expect(page.getByText("Initial issue Alpha")).toHaveCount(0);
+    await expect(page).toHaveURL(/sprint_unset=1/);
+    await page.reload();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("sprint-dropdown-trigger").click();
+    await page
+      .getByTestId("sprint-dropdown-content")
+      .getByText("Sprint Alpha")
+      .click();
+    await page.keyboard.press("Escape");
+    await page.getByTestId("release-dropdown-trigger").click();
+    await page.getByTestId("release-option-unset").click();
+    await page
+      .getByTestId("release-dropdown-content")
+      .getByText("June E2E")
+      .click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
+    await page.getByTestId("my-view-trigger").click();
+    await page.getByRole("menuitem", { name: "Save current view…" }).click();
+    const dialog = page.getByTestId("my-view-dialog");
+    await dialog.getByTestId("my-view-name-input").fill("Planning view");
+    await dialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Clear Sprint filter" }).click();
+    await page.getByRole("button", { name: "Clear Release filter" }).click();
+    const menu = await openMyViewMenu(page);
+    await menu.getByRole("menuitem", { name: /^Planning view/ }).click();
+    await expect(page).toHaveURL(/sprint_unset=1/);
+    await expect(page).toHaveURL(/release_unset=1/);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+    await expect(page.getByText("Initial issue Beta")).toBeVisible();
   });
 });

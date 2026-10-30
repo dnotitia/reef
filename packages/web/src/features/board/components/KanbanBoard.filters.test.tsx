@@ -245,6 +245,21 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.queryByText("Backend blocker")).toBeNull();
   });
 
+  it("keeps a fixed sprint narrow when the shared unset filter is selected", async () => {
+    useIssueStore.setState({ filter: { sprintUnset: true } });
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, {
+        issues: [
+          { ...ISSUES[0], title: "Fixed sprint issue", sprint_id: "fixed" },
+          { ...ISSUES[1], title: "Unscheduled issue", sprint_id: null },
+        ],
+      }),
+    );
+    render(wrap(<KanbanBoard vault="reef-acme" fixedSprintId="fixed" />));
+    await screen.findByText("Fixed sprint issue");
+    expect(screen.queryByText("Unscheduled issue")).not.toBeInTheDocument();
+  });
+
   it("applies unset metadata filters through the same board pipeline", async () => {
     useIssueStore.setState({
       filter: { priorityUnset: true, assigneeUnset: true },

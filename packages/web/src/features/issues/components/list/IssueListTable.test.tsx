@@ -104,6 +104,30 @@ describe("IssueListTable", () => {
     useIssueSelectionStore.getState().clear();
   });
 
+  it("keeps fixed sprint results narrow despite a shared unset filter", async () => {
+    useIssueStore.setState({ filter: { sprintUnset: true } });
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).includes("members"))
+        return new Response(JSON.stringify({ members: [], users: [] }), {
+          status: 200,
+        });
+      if (String(url).includes("relations"))
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          issues: [
+            { ...issues[0], title: "Fixed sprint issue", sprint_id: "fixed" },
+            { ...issues[1], title: "Unscheduled issue", sprint_id: null },
+          ],
+        }),
+        { status: 200 },
+      );
+    });
+    render(wrap(<IssueListTable vault="reef-acme" fixedSprintId="fixed" />));
+    await screen.findByText("Fixed sprint issue");
+    expect(screen.queryByText("Unscheduled issue")).not.toBeInTheDocument();
+  });
+
   it("uses the current full-roster display name for rows and assignee groups", async () => {
     const assignedIssues: IssueMetadata[] = [
       { ...issues[0], title: "Assigned task", assigned_to: "alice" },

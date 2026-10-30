@@ -36,6 +36,30 @@ function keyset(
 }
 
 describe("buildIssueWhere", () => {
+  it("ORs unset planning references with selected ids and ANDs the facets", () => {
+    expect(
+      issueWhere({
+        sprint_id: ["s1"],
+        sprint_unset: true,
+        release_id: ["r1"],
+        release_unset: true,
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `("sprint_id" IN ($1) OR COALESCE("sprint_id", '') = '') AND ("release_id" IN ($2) OR COALESCE("release_id", '') = '')`,
+      params: ["s1", "r1"],
+    });
+  });
+
+  it("matches only missing planning references when no IDs are selected", () => {
+    expect(
+      issueWhere({ sprint_unset: true, release_unset: true, archived: true }),
+    ).toEqual({
+      sql: `COALESCE("sprint_id", '') = '' AND COALESCE("release_id", '') = ''`,
+      params: [],
+    });
+  });
+
   it("adds the archived_at IS NULL floor by default (no facets)", () => {
     expect(issueWhere({}).sql).toBe(`"archived_at" IS NULL`);
     expect(issueWhere({}).params).toEqual([]);
@@ -143,6 +167,24 @@ describe("buildIssueWhere", () => {
     });
   });
 
+  it("OR-combines absent and exact requesters while AND-combining status", () => {
+    expect(
+      issueWhere({
+        requester: ["Alice"],
+        requester_unset: true,
+        status: ["todo"],
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `"status" IN ($1) AND (LOWER("requester") IN ($2) OR COALESCE(BTRIM("requester"), '') = '')`,
+      params: ["todo", "alice"],
+    });
+    expect(issueWhere({ requester_unset: true, archived: true })).toEqual({
+      sql: `COALESCE(BTRIM("requester"), '') = ''`,
+      params: [],
+    });
+  });
+
   it("uses a case-insensitive exact IN for requester (REEF-267)", () => {
     expect(
       issueWhere({ requester: ["carol", "dave"], archived: true }).sql,
@@ -170,13 +212,24 @@ describe("buildIssueWhere", () => {
     ).toEqual(["r1", "r2"]);
   });
 
-  it("keeps milestone_id a single exact match (multi-select out of scope, REEF-267)", () => {
-    expect(issueWhere({ milestone_id: "m1", archived: true }).sql).toBe(
-      `"milestone_id" = $1`,
+  it("combines milestone values and absence within the facet and ANDs other facets", () => {
+    expect(
+      issueWhere({
+        milestone_id: ["m1", "m2"],
+        milestone_unset: true,
+        status: ["todo"],
+        archived: true,
+      }),
+    ).toEqual({
+      sql: `"status" IN ($1) AND ("milestone_id" IN ($2, $3) OR COALESCE("milestone_id", '') = '')`,
+      params: ["todo", "m1", "m2"],
+    });
+    expect(issueWhere({ milestone_unset: true, archived: true }).sql).toBe(
+      `COALESCE("milestone_id", '') = ''`,
     );
-    expect(issueWhere({ milestone_id: "m1", archived: true }).params).toEqual([
-      "m1",
-    ]);
+    expect(issueWhere({ milestone_id: ["m1"], archived: true }).sql).toBe(
+      `"milestone_id" IN ($1)`,
+    );
   });
 
   it("escapes LIKE metacharacters in the value", () => {
@@ -293,7 +346,7 @@ describe("buildIssueWhere", () => {
       assigned_to: ["Alice"],
       requester: ["김영로"],
       sprint_id: ["sprint'\\😀"],
-      milestone_id: "milestone",
+      milestone_id: ["milestone"],
       release_id: ["release"],
       due_after: "2026-01-01",
       due_before: "2026-03-31",
@@ -308,7 +361,7 @@ describe("buildIssueWhere", () => {
     expect(result.sql).toContain('LOWER("assigned_to") IN ($5)');
     expect(result.sql).toContain('LOWER("requester") IN ($6)');
     expect(result.sql).toContain('"sprint_id" IN ($7)');
-    expect(result.sql).toContain('"milestone_id" = $8');
+    expect(result.sql).toContain('"milestone_id" IN ($8)');
     expect(result.sql).toContain('"release_id" IN ($9)');
     expect(result.sql).toContain('"due_date" >= $10');
     expect(result.sql).toContain('"due_date" <= $11');

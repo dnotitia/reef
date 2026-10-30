@@ -21,6 +21,11 @@ describe("buildIssueQuery", () => {
     });
   });
   afterEach(() => vi.restoreAllMocks());
+  it("serializes milestone IDs and absence for field ordering", () => {
+    expect(
+      buildIssueQuery({ milestone_id: ["m1", "m2", ""], milestoneUnset: true }),
+    ).toMatchObject({ milestone_id: ["m1", "m2"], milestone_unset: "true" });
+  });
   it("maps an explicitly selected Manual mode to rank order", () => {
     expect(buildIssueQuery({ orderingMode: "manual" })).toEqual({
       sort_field: "rank",
@@ -96,6 +101,16 @@ describe("buildIssueQuery", () => {
         },
       }),
     ).toEqual({ sort_field: "rank", sort_order: "asc" });
+  });
+
+  it("combines unset requester with selected users in the wire query", () => {
+    expect(
+      buildIssueQuery({ requester: ["alice"], requesterUnset: true }),
+    ).toEqual({
+      requester: ["alice"],
+      requester_unset: "true",
+      ...DEFAULT_SORT,
+    });
   });
 
   it("maps unset filter flags separately from real values", () => {
@@ -238,7 +253,12 @@ describe("buildIssueQuery", () => {
   it("overrides the shared sprint facet for a fixed sprint surface", () => {
     expect(
       buildIssueQuery(
-        { sprint_id: ["other-sprint"], priority: ["high"] },
+        {
+          sprint_id: ["other-sprint"],
+          sprintUnset: true,
+          releaseUnset: true,
+          priority: ["high"],
+        },
         "auth",
         "active",
         "fixed-sprint",
@@ -247,6 +267,7 @@ describe("buildIssueQuery", () => {
       status: ["todo", "in_progress", "in_review", "done", "closed"],
       priority: ["high"],
       sprint_id: ["fixed-sprint"],
+      release_unset: "true",
       q: "auth",
       ...DEFAULT_SORT,
     });

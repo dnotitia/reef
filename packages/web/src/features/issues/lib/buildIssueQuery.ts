@@ -50,6 +50,7 @@ export function buildIssueQuery(
     ? {
         ...(scope ? filterForIssueScope(filter, scope) : filter),
         sprint_id: [fixedSprintId],
+        sprintUnset: undefined,
       }
     : scope
       ? filterForIssueScope(filter, scope)
@@ -83,17 +84,22 @@ export function buildIssueQuery(
   // wire params. Drop blank members so a hand-edited/stale `?assignee=` (which
   // reads as `[""]`) is ignored rather than sent — the strict server schema
   // (`min(1)`) would 400 the whole list, where the old scalar truthiness check
-  // simply skipped an empty value. milestone_id stays a single scalar.
+  // simply skipped an empty value.
   const assignee = scopedFilter.assignee?.filter((v) => v.trim());
   if (assignee?.length) q.assigned_to = assignee;
   if (scopedFilter.assigneeUnset) q.assigned_to_unset = "true";
   const requester = scopedFilter.requester?.filter((v) => v.trim());
   if (requester?.length) q.requester = requester;
+  if (scopedFilter.requesterUnset) q.requester_unset = "true";
   const sprintId = scopedFilter.sprint_id?.filter((v) => v.trim());
   if (sprintId?.length) q.sprint_id = sprintId;
-  if (scopedFilter.milestone_id) q.milestone_id = scopedFilter.milestone_id;
+  if (scopedFilter.sprintUnset) q.sprint_unset = "true";
+  const milestoneId = scopedFilter.milestone_id?.filter((v) => v.trim());
+  if (milestoneId?.length) q.milestone_id = milestoneId;
+  if (scopedFilter.milestoneUnset) q.milestone_unset = "true";
   const releaseId = scopedFilter.release_id?.filter((v) => v.trim());
   if (releaseId?.length) q.release_id = releaseId;
+  if (scopedFilter.releaseUnset) q.release_unset = "true";
   // Free-text search → server `q`. Trim so a whitespace box does not sends a
   // facet (the server schema rejects an empty `q`).
   const trimmedSearch = searchQuery?.trim();

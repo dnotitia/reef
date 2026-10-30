@@ -125,13 +125,16 @@ export const PersistedIssueFilterSchema = z.object({
   assignee: multiStringFacet(),
   assigneeUnset: z.literal(true).optional().catch(undefined),
   requester: multiStringFacet(),
+  requesterUnset: z.literal(true).optional().catch(undefined),
   reporter: z.string().optional().catch(undefined),
   severity: multiEnumFacet(SeverityEnum),
   severityUnset: z.literal(true).optional().catch(undefined),
   sprint_id: multiStringFacet(),
-  // milestone_id stays a single scalar — multi-select out of scope (REEF-267).
-  milestone_id: z.string().optional().catch(undefined),
+  sprintUnset: z.literal(true).optional().catch(undefined),
+  milestone_id: z.array(z.string()).optional().catch(undefined),
+  milestoneUnset: z.literal(true).optional().catch(undefined),
   release_id: multiStringFacet(),
+  releaseUnset: z.literal(true).optional().catch(undefined),
   due: multiEnumFacet(z.enum(["overdue", "due_soon", "no_due"])),
   label: z.string().optional().catch(undefined),
   dependencyFilter: multiEnumFacet(z.enum(["blocked", "blocking"])),
@@ -151,13 +154,14 @@ const ARRAY_FILTER_SCHEMAS: Record<string, z.ZodType<string>> = {
   requester: z.string(),
   severity: SeverityEnum,
   sprint_id: z.string(),
+  milestone_id: z.string(),
   release_id: z.string(),
   due: z.enum(["overdue", "due_soon", "no_due"]),
   dependencyFilter: z.enum(["blocked", "blocking"]),
 };
 
 const ARRAY_FILTER_KEYS = Object.keys(ARRAY_FILTER_SCHEMAS);
-const SCALAR_FILTER_KEYS = ["reporter", "milestone_id"] as const;
+const SCALAR_FILTER_KEYS = ["reporter"] as const;
 const FILTER_KEYS = [
   "status",
   "issueType",
@@ -166,12 +170,16 @@ const FILTER_KEYS = [
   "assignee",
   "assigneeUnset",
   "requester",
+  "requesterUnset",
   "reporter",
   "severity",
   "severityUnset",
   "sprint_id",
+  "sprintUnset",
   "milestone_id",
+  "milestoneUnset",
   "release_id",
+  "releaseUnset",
   "due",
   "label",
   "dependencyFilter",
@@ -214,7 +222,12 @@ export function normalizePersistedIssueFilter(
   for (const key of ARRAY_FILTER_KEYS) {
     const fieldValue = input[key];
     if (fieldValue === undefined || fieldValue === null) continue;
-    const candidates = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
+    const candidates =
+      key === "milestone_id" && !Array.isArray(fieldValue)
+        ? []
+        : Array.isArray(fieldValue)
+          ? fieldValue
+          : [fieldValue];
     const memberSchema = ARRAY_FILTER_SCHEMAS[key];
     const members = candidates.flatMap((candidate) => {
       const parsed = memberSchema.safeParse(candidate);
@@ -242,6 +255,10 @@ export function normalizePersistedIssueFilter(
   if (input.priorityUnset === true) normalized.priorityUnset = true;
   if (input.severityUnset === true) normalized.severityUnset = true;
   if (input.assigneeUnset === true) normalized.assigneeUnset = true;
+  if (input.requesterUnset === true) normalized.requesterUnset = true;
+  if (input.sprintUnset === true) normalized.sprintUnset = true;
+  if (input.milestoneUnset === true) normalized.milestoneUnset = true;
+  if (input.releaseUnset === true) normalized.releaseUnset = true;
   if (input.showArchived === true) normalized.showArchived = true;
   if (input.showStale === true) normalized.showStale = true;
 

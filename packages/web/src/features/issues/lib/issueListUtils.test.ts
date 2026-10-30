@@ -70,6 +70,59 @@ const issues: IssueMetadata[] = [
   }),
 ];
 
+describe("planning absence filters", () => {
+  it("matches multiple milestones and absence without treating an empty ID as a value", () => {
+    const candidates = [
+      makeIssue({ id: "A", milestone_id: "m1", status: "todo" }),
+      makeIssue({ id: "B", milestone_id: "m2", status: "todo" }),
+      makeIssue({ id: "C", milestone_id: "", status: "todo" }),
+      makeIssue({ id: "D", milestone_id: null, status: "in_progress" }),
+      makeIssue({ id: "E", milestone_id: "m3", status: "todo" }),
+    ];
+    expect(
+      filterIssues(candidates, {
+        milestone_id: ["m1", "m2"],
+        milestoneUnset: true,
+        status: ["todo"],
+      }).map((i) => i.id),
+    ).toEqual(["A", "B", "C"]);
+    expect(
+      filterIssues(candidates, { milestone_id: [""] }).map((i) => i.id),
+    ).toEqual([]);
+    expect(
+      filterIssues(candidates, { milestoneUnset: true }).map((i) => i.id),
+    ).toEqual(["C", "D"]);
+    expect(filterIssues(candidates, {}).map((i) => i.id)).toEqual([
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+    ]);
+  });
+
+  it("ORs missing and selected values within a facet and ANDs facets", () => {
+    const candidates = [
+      makeIssue({ id: "A", sprint_id: null, release_id: "r1" }),
+      makeIssue({ id: "B", sprint_id: "s1", release_id: null }),
+      makeIssue({ id: "C", sprint_id: "s2", release_id: null }),
+      makeIssue({ id: "D", sprint_id: null, release_id: "r2" }),
+      makeIssue({ id: "E", sprint_id: "", release_id: "" }),
+    ];
+    expect(
+      filterIssues(candidates, {
+        sprint_id: ["s1"],
+        sprintUnset: true,
+        release_id: ["r1"],
+        releaseUnset: true,
+      }).map((issue) => issue.id),
+    ).toEqual(["A", "B", "E"]);
+    expect(
+      filterIssues(candidates, { sprintUnset: true }).map((issue) => issue.id),
+    ).toEqual(["A", "D", "E"]);
+  });
+});
+
 describe("hasActiveIssueFilters", () => {
   it("recognizes real facets and search while ignoring empty values", () => {
     expect(hasActiveIssueFilters({}, "   ")).toBe(false);
@@ -86,6 +139,31 @@ describe("hasActiveIssueFilters", () => {
         "",
       ),
     ).toBe(true);
+  });
+});
+
+describe("requester absence", () => {
+  it("matches blank and null, combines named users by OR and status by AND", () => {
+    const candidates = [
+      makeIssue({ id: "A", requester: null }),
+      makeIssue({ id: "B", requester: "  " }),
+      makeIssue({ id: "C", requester: "Alice" }),
+      makeIssue({ id: "D", requester: "alice2" }),
+      makeIssue({ id: "E", requester: null, status: "done" }),
+    ];
+    expect(
+      filterIssues(candidates, { requesterUnset: true, status: ["todo"] }).map(
+        (i) => i.id,
+      ),
+    ).toEqual(["A", "B"]);
+    expect(
+      filterIssues(candidates, {
+        requesterUnset: true,
+        requester: ["alice"],
+        status: ["todo"],
+      }).map((i) => i.id),
+    ).toEqual(["A", "B", "C"]);
+    expect(hasActiveIssueFilters({ requesterUnset: true }, "")).toBe(true);
   });
 });
 
@@ -783,9 +861,9 @@ describe("matchesSharedFacets", () => {
     expect(matchesSharedFacets(issue, { release_id: ["rel-1", "rel-2"] })).toBe(
       true,
     );
-    // milestone stays a single scalar (multi-select out of scope, REEF-267).
-    expect(matchesSharedFacets(issue, { milestone_id: "mil-9" })).toBe(false);
-    expect(matchesSharedFacets(issue, { milestone_id: "mil-1" })).toBe(true);
+    // Milestone supports the same exact matching as other planning facets.
+    expect(matchesSharedFacets(issue, { milestone_id: ["mil-9"] })).toBe(false);
+    expect(matchesSharedFacets(issue, { milestone_id: ["mil-1"] })).toBe(true);
   });
 
   it("matches the parent issue id exactly (reports rollup drill, REEF-187)", () => {
