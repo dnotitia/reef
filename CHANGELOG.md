@@ -1,267 +1,226 @@
 # Changelog
 
-All notable product changes to reef are recorded here.
+Product changes to reef-web, reef-event-processor, and the operator packages
+share one repository version. In the `0.x` series, breaking changes ship in
+minor releases and are marked explicitly below.
 
-This project follows a single product-version policy for the deployed reef-web
-application. The repository is still in the `0.x` series, so breaking user,
-storage, or operational changes are released as minor versions and called out
-explicitly in the entries below.
-
-> `REEF-XXX` ids in these entries reference Dnotitia's internal issue tracker and
-> do not resolve as public GitHub issues.
+See the [release policy](docs/release-policy.md) for versioning and the
+[deployment guide](docs/deployment.md#register-and-deploy) for rollout, retry,
+and rollback procedures. `REEF-XXX` references identify Dnotitia's internal
+issues, not public GitHub issues.
 
 ## Unreleased
 
-### Security
+## v0.18.0 - 2026-10-30
 
-- Raise the Node.js execution pin, Docker build/runtime images, and minimum
-  supported version to 24.22.1 for the October 2026 security release, including
-  CVE-2026-105482, CVE-2026-105483, CVE-2026-106069, and CVE-2026-111497.
-  CI follows the same exact pin, and the toolchain gate rejects lower support
-  floors.
+### Added
+
+- Inbox supports All and Unread filters and marking all unread notifications
+  as read across accessible ready workspaces. The action includes notifications
+  beyond the visible list and retries only rows that failed.
 
 ### Changed
 
-- The personal Inbox refreshes its badge and list when a notification changes in
-  an active accessible workspace, and refreshes again after the event stream
-  reconnects or resumes.
-
-- The personal Inbox can filter All or Unread locally and mark read the full
-  click-time unread snapshot across accessible ready workspaces, including rows
-  beyond the visible list cap. Partial failures can retry only unresolved rows.
-
-- The personal Inbox leads with source issue titles and shows the original
-  status transition for activity notifications when that history is available.
+- Inbox refreshes its list and unread badge when notifications change, after
+  reconnecting, and when the event stream resumes. Entries show source issue
+  titles and the original status transition when history is available.
 
 ### Fixed
 
-- Closing an issue opened from a direct link no longer lets its outgoing detail
-  sheet reclaim navigation ownership, so reopening the same or another issue
-  from the workspace renders the requested detail again.
+- Issue details reopen correctly after closing an issue reached through a direct
+  link or SSO entry.
+- Dashboard navigation waits for hydration and global shortcut registration,
+  so shortcuts work on the first interaction.
+- Workspace initialization preserves Guides and runbooks created concurrently
+  instead of overwriting them or recording an incomplete installation as current.
+- Issue document relationships use the target's stored AKB document URI. Issue
+  rows continue to store Reef issue IDs.
 
-- Dashboard navigation becomes interactive only after hydration and global
-  shortcut registration, so the first shortcut does not depend on opening a
-  dialog to warm up the shell.
+### Security
 
-- Workspace initialization preserves a Guide or runbook created concurrently
-  after a missing-document read. Creation conflicts stop initialization without
-  overwriting the new document or stamping the current instruction version.
-
-- Issue document relationships now reference each target's stored AKB document
-  URI while Reef rows continue to store issue IDs.
+- Update the supported Node.js minimum, CI pin, and Docker images to 24.22.1
+  for the October 2026 security fixes, including CVE-2026-105482,
+  CVE-2026-105483, CVE-2026-106069, and CVE-2026-111497.
 
 ### Migration
 
-- Vault skill version 24 corrects the agent relationship instructions. Existing
-  vaults require managed instruction reinstallation and a one-time relationship
-  repair automatically during release 0.17.7 deployment or resume, using a
-  required receipt. Retry a failed repair with the same receipt; verified vaults
-  are skipped. See
-  `docs/deployment.md` for blocked rollout recovery and rollback. Older writers
-  can reintroduce raw IDs, so redeploy the corrected release and repeat the
-  backfill after rollback. No issue row or schema migration is required.
+- Schema v4 is unchanged. Existing exact-v4 installations use an explicit
+  no-op schema transition; no issue-row or browser-storage migration is required.
+- Vault skill version 24 corrects relationship instructions. Deploy or resume
+  with a required release receipt to reinstall managed instructions and repair
+  existing document relationships automatically. Keep the same receipt to retry
+  failed vaults; verified vaults are skipped. Follow the
+  [deployment recovery steps](docs/deployment.md#register-and-deploy) for blocked
+  rollouts and partial repairs.
+
+### Operational
+
+- Deploy both runtime images from the same source revision and retain their
+  separate immutable digests. Preserve the current CPU, SSO, and SSE settings.
+- Roll back both runtimes with the previous release's matching images and
+  identity. Older writers can reintroduce raw relationship IDs. After such a
+  rollback, redeploy this release and repeat the repair with a new receipt.
+  Keep old and corrected writers from running concurrently during repair.
 
 ## v0.17.6 - 2026-10-13
 
 ### Fixed
 
-- **New Reef workspaces finish installation without a manual rollout.** AKB
-  installation commands now durably enqueue one schema job for the accepted
-  installation, and Reef waits for that job to become active before initializing
-  templates and workspace runbooks. On a new AKB Vault, Reef adds its guidance
-  to the seeded Guide while preserving the existing root metadata and body. A
-  blocked job stays out of Ready.
+- New workspaces complete installation automatically. AKB durably enqueues a
+  schema job, and Reef waits for it to become active before initializing
+  templates and runbooks. Initialization preserves the seeded Guide's existing
+  metadata and body. Blocked installations stay out of Ready.
 
 ### Migration
 
-- Schema v4 and vault skill version 23 are unchanged. Existing v4 installations
-  on `0.17.5` use an explicit no-op transition; no table, data, or runbook
-  migration is required.
-- Deploy AKB backend `0.16.2` (API and worker) before applying Reef `0.17.6`
-  to both runtimes with matching image digests and release identities. Preserve
-  the existing CPU, SSO, and streaming settings. Roll back both runtimes with
-  the previous release's matching images and identity.
+- Requires AKB backend 0.16.2 or later on both API and worker before deploying
+  Reef. Schema v4 and vault skill version 23 are unchanged; exact-v4
+  installations on 0.17.5 use a no-op transition.
 
 ## v0.17.5 - 2026-10-12
 
 ### Changed
 
-- **Ordinary workspace reads trust AKB's active installation.** Issue, planning,
-  configuration, and other read APIs no longer preflight table schemas, default
-  templates, or skill/runbook documents. My Work and Inbox aggregate all active
-  installations without repeating readiness per workspace. Integrated SQL and
-  authorization/query failure propagation remain unchanged; installation
-  diagnostics, initialization, and mutations retain their detailed checks.
-- **SSO authentication configuration is shared within one Reef request.**
-  Parallel AKB calls and separately constructed adapters for the same request
-  reuse one authentication runtime. Each AKB boundary still resolves the current
-  Redis session and refreshes credentials when needed. Session records and
-  credentials are never memoized; each new request loads fresh configuration.
+- Ordinary workspace reads trust AKB's active installation instead of checking
+  schemas, templates, and runbooks on each read. Diagnostics, initialization,
+  and mutations retain their detailed checks.
+- Parallel AKB calls within one SSO request share authentication configuration.
+  Each boundary still resolves the current Redis session and refreshes
+  credentials when needed.
 
 ### Migration
 
-- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
-  on `0.17.0` through `0.17.4` use explicit no-op transitions; no table, data,
-  or runbook migration is required. Apply the AKB release before updating both
-  runtime digests and release identities. SSO custody and session settings are
-  unchanged.
+- Schema v4 and vault skill version 23 are unchanged. Exact-v4 installations
+  on 0.17.0 through 0.17.4 use no-op transitions.
 
 ### Operational
 
-- Preserve the deployment's existing CPU allocation and compare signed-in
-  issue-list, My Work, and Inbox latency after both runtimes are ready. A runtime
-  rollback must use the previous release's matching images and identity; rolling
-  back to `0.17.4` restores the repeated readiness and authentication-config
-  reads. Integrated query failures continue to fail the whole response.
-
+- Preserve existing CPU allocation and verify signed-in issue-list, My Work,
+  and Inbox latency. Rolling back to 0.17.4 restores repeated readiness and
+  authentication-configuration reads.
 
 ## v0.17.4 - 2026-10-12
 
 ### Fixed
 
-- **SSO requests reuse the Web process's Redis transport.** Opening and closing
-  a connection for every AKB credential boundary amplified the concurrent
-  readiness reads used by workspace entry and personal menus. Login state and
-  credentials still read from Redis at each operation; AKB authentication
-  configuration, account validation, revocation, and refresh remain current.
-  Request handlers no longer close a process-owned connection.
+- SSO requests reuse the Web process's Redis connection instead of opening and
+  closing a connection at every AKB credential boundary. Session, revocation,
+  and credential refresh checks still read current state.
 
 ### Migration
 
-- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
-  on `0.17.0` through `0.17.3` use explicit no-op transitions. Apply the AKB
-  release before updating both runtime digests and release identities, then
-  verify signed-in workspace entry and API latency through the SSO path.
-
+- Schema v4 and vault skill version 23 are unchanged. Exact-v4 installations
+  on 0.17.0 through 0.17.3 use no-op transitions.
 
 ## v0.17.3 - 2026-10-12
 
 ### Fixed
 
-- **Initial workspace entry avoids querying inactive personal workspaces.**
-  My Work and Inbox verify readiness only for active Reef installations.
-  System administrators use one paginated AKB inventory read instead of an
-  installation-detail request for every accessible vault; workspace listings
-  share this discovery path. Ordinary users retain role-appropriate reads,
-  and account/session and source permission failures still fail closed.
-- **Cross-workspace My Work and Inbox queries align columns by name.**
-  Installations with different physical table column orders now aggregate
-  correctly. My Work also sends its as-of timestamp as a text SQL parameter
-  before converting it in PostgreSQL.
-- **Default issue views match sprint ids using the declared text type.**
-  Active sprint UUID ids are converted to text before comparison with issue
-  sprint links, preventing the initial filtered list from failing in AKB.
+- My Work and Inbox avoid inactive installations. System administrators use a
+  paginated installation inventory, while ordinary users retain member reads.
+- Cross-workspace queries align columns by name, so installations with
+  different physical column orders aggregate correctly. My Work timestamps
+  and default-view sprint IDs use their declared SQL types.
 
 ### Migration
 
-- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
-  on `0.17.0`, `0.17.1`, and `0.17.2` use explicit no-op transitions. Apply the
-  AKB release before updating both runtime digests and release identities;
-  verify the signed-in first issue list, My Work, and Inbox after rollout.
-
+- Schema v4 and vault skill version 23 are unchanged. Exact-v4 installations
+  on 0.17.0 through 0.17.2 use no-op transitions.
 
 ## v0.17.2 - 2026-10-12
 
 ### Fixed
 
-- **System administrators can open installed workspaces again.** Workspace
-  listings use the authorized installation detail read for owners and admins;
-  ordinary members keep the minimal active-status read. AKB intentionally
-  rejects system administrators on the member-only endpoint. Both paths return
-  only the active boolean to the browser, and permission failures remain unknown
-  without a fallback or a sign-out.
+- System administrators can open installed workspaces using the authorized
+  installation-detail endpoint. Ordinary members retain the minimal activity
+  check; resource permission failures do not sign users out.
 
 ### Migration
 
-- Schema v4 and vault skill version 23 are unchanged. Exact v4 installations
-  on `0.17.0` and `0.17.1` use explicit no-op transitions. Complete the AKB rollout
-  before updating both runtime image digests and release identities, then verify
-  workspace entry through the signed-in administrator browser as well as the
-  operator readiness checks.
+- Schema v4 and vault skill version 23 are unchanged. Exact-v4 installations
+  on 0.17.0 and 0.17.1 use no-op transitions.
 
 ## v0.17.1 - 2026-10-12
 
 ### Fixed
 
-- Read AKB installation drift's release versions as strings. Workspace access,
-  Settings diagnostics, and Event Processor installation checks now accept the
-  canonical AKB response instead of rejecting an active installation.
+- Installation checks accept AKB drift responses with release versions encoded
+  as strings, restoring workspace access, Settings diagnostics, and processor
+  installation checks.
 
 ### Migration
 
-- Existing AKB table catalogs must use canonical type metadata. Normalize
-  legacy `json` and `number` aliases through AKB's `jsonb` and `numeric` rules
-  before workspace readiness checks; this preserves the logical schema and
-  physical table types. Reef runtime paths remain read-only for schemas.
-- Schema v4 is unchanged. An explicit no-op transition accepts `0.17.0` with
-  the exact v4 fingerprint; v3 installations still require the v3→v4
-  maintenance procedure documented for `0.17.0`.
+- Normalize legacy AKB catalog type aliases `json` and `number` to `jsonb` and
+  `numeric` before readiness checks. Logical schemas and physical types remain
+  unchanged; Reef runtime paths do not modify schemas.
+- Exact-v4 installations on 0.17.0 use a no-op transition. V3 installations
+  still require the maintenance procedure in the 0.17.0 entry.
 
 ## v0.17.0 - 2026-10-12
 
 ### Added
 
-- **My Work and Inbox span every ready workspace accessible to the signed-in
-  actor.** Both retain source-workspace links even when issue ids overlap;
+- My Work and Inbox span every ready workspace accessible to the signed-in
+  actor. Both retain source-workspace links even when issue ids overlap;
   My Work can filter its queue by workspace, and Inbox has an account-wide
   unread badge. Personal navigation is separate from workspace navigation.
   (REEF-658, REEF-666)
-- **Markdown references search documents and files in the active workspace.**
+- Markdown references search documents and files in the active workspace.
   Link insertion and `@` suggestions save canonical AKB links alongside people
   and issue references; links verify current access before opening, and files
   download through Reef's authenticated proxy. (REEF-629, REEF-635, REEF-636)
-- **Issue images support description editing, removal, and replacement.**
+- Issue images support description editing, removal, and replacement.
   Insertion, paste, drop, and replacement share per-file retry, preserve successful
   uploads, and discard unused unclaimed editor assets. Removing a Markdown image
   preserves its AKB resource. (REEF-632, REEF-633)
-- **Milestones and releases have shareable detail panels** with rendered notes,
+- Milestones and releases have shareable detail panels with rendered notes,
   linked issue previews, and planning rollups. (REEF-597)
 
 ### Changed
 
-- **Breaking: AKB owns Reef installation and schema lifecycle.** Owners and
+- Breaking: AKB owns Reef installation and schema lifecycle. Owners and
   admins explicitly approve installation, restore, and fresh-install commands;
   uninstall retains data. Product and agent requests verify canonical activity,
   required table metadata, and initialized Reef data without modifying schemas.
   Onboarding creates workspaces, while existing workspace access and Settings
   provide task-specific guidance and administrator diagnostics.
   (REEF-418, REEF-419, REEF-422)
-- **Breaking: the Event Processor discovers all active Reef installations**
+- Breaking: the Event Processor discovers all active Reef installations
   through app-scoped inventory instead of a configured single vault. It keeps
   the last verified worker set through inventory failures and reconciles each
   installation independently. (REEF-659)
-- **Large boards virtualize cards within each column**, preserving full counts,
+- Large boards virtualize cards within each column, preserving full counts,
   keyboard traversal, drag targets during auto-scroll, and the focused card's
   position after detail close or workspace reentry. (REEF-616, REEF-661)
-- **Reports use validated server-computed results** for aggregates, flow metrics,
+- Reports use validated server-computed results for aggregates, flow metrics,
   health rollups, pivots, and forecasts instead of loading raw issue and activity
   rows into the browser. (REEF-617)
-- **Markdown editing uses the shared Source surface, toolbar, and localization.**
+- Markdown editing uses the shared Source surface, toolbar, and localization.
   Source supports title links and Undo/Redo; draft synchronization and image
   resolution preserve canonical Markdown instead of saving runtime display URLs.
   (REEF-626, REEF-630, REEF-660)
 
 ### Fixed
 
-- **Participant subscriptions stay synchronized before activity is recorded.**
+- Participant subscriptions stay synchronized before activity is recorded.
   Issue creates and requester/assignee changes update their source subscriptions;
   new comments and replies add a commenter source. Automatic updates preserve
   explicit manual watch/mute choices. (REEF-659)
-- **Concurrent SSO requests reuse the completed refresh** instead of failing
+- Concurrent SSO requests reuse the completed refresh instead of failing
   immediately while another request refreshes the same session. (REEF-668)
-- **Search and board refreshes preserve existing results and position.** Rapid
+- Search and board refreshes preserve existing results and position. Rapid
   queries retain their matching result sets with one progress indicator; card
   saves no longer trigger whole-board loading, and reorder operations preserve
   neighboring issues' status-change times. (REEF-645, REEF-646, REEF-655, REEF-667)
-- **Issue details and workspace entry keep their frame through loading and
-  navigation.** Saved editor dimensions apply immediately, relationship drills
+- Issue details and workspace entry keep their frame through loading and
+  navigation. Saved editor dimensions apply immediately, relationship drills
   keep the detail panel mounted, attachment loads do not shift content, and
   sub-issue failures retain known rows with retry. (REEF-648–652)
-- **Markdown preserves exact mention identities and authored references** across
+- Markdown preserves exact mention identities and authored references across
   Source/WYSIWYG changes and save/reload. Code examples remain untouched, image
   filenames escape special characters, and late reference-menu callbacks no
   longer hide descriptions. (REEF-638, REEF-660)
-- **Workspace favorites survive temporary availability gaps**, and current vault
+- Workspace favorites survive temporary availability gaps, and current vault
   display names appear in activity and people controls. Saved themes apply before
   first paint. (REEF-643, REEF-653, REEF-664)
 
@@ -272,7 +231,7 @@ explicitly in the entries below.
 
 ### Migration
 
-- **Schema v4 requires an AKB-managed transition before deploying Reef.** It adds
+- Schema v4 requires an AKB-managed transition before deploying Reef. It adds
   `UNIQUE (reef_id, event_key)` to `reef_activity` and seven lookup indexes.
   Existing v3 installations have explicit transitions from `0.14.0`, `0.15.0`,
   `0.16.0`, and `0.16.1`, each requiring the exact source fingerprint
@@ -280,28 +239,28 @@ explicitly in the entries below.
   Fresh installs receive complete v4 table descriptors. AKB must expose the
   installation lifecycle, canonical required-table metadata, and rollout APIs;
   Reef no longer repairs or stamps schemas. (REEF-366, REEF-418, REEF-419, REEF-654)
-- **Event Processor configuration changes:** remove
+- Event Processor configuration changes: remove
   `REEF_EVENT_PROCESSOR_VAULT`; retain `REEF_EVENT_PROCESSOR_AKB_TOKEN` and add
   the registered Reef app's `REEF_EVENT_PROCESSOR_APP_CREDENTIAL` to its Secret.
   AKB must support app-scoped active-installation inventory, and the app must
   already have `inventory:read`. (REEF-659)
-- **Refresh existing workspace AI instructions through Settings before agents
-  use the new write rules.** Vault skill version 23 documents source-specific
+- Refresh existing workspace AI instructions through Settings before agents
+  use the new write rules. Vault skill version 23 documents source-specific
   participant subscriptions and conflict-safe activity inserts. Deployment alone
   does not update existing vault documents. (REEF-659, REEF-654)
-- **Persisted query cache advances to `reef-cache-v7`.** The first visit discards
+- Persisted query cache advances to `reef-cache-v7`. The first visit discards
   old cached responses; aggregate personal queues are not persisted. Browser
   preferences and drafts need no data migration. (REEF-658)
 
 ### Operational
 
-- **Use a maintenance window for the v3→v4 transition.** Block Reef access and
+- Use a maintenance window for the v3→v4 transition. Block Reef access and
   stop both old runtimes before the app-wide AKB rollout; old and new versions
   must not run concurrently. After terminal `applied`, deploy both matching image
   digests and release identities, then verify authenticated Workspace Ready for
   every affected installation before restoring access. Health/readiness probes
   alone do not verify workspace schemas.
-- **On partial failure, `blocked`, or timeout, keep maintenance in place** and
+- On partial failure, `blocked`, or timeout, keep maintenance in place and
   preserve the job id and applied results. Duplicate activity keys block the
   target without automatic cleanup; the operator must resolve the cause before
   explicitly resuming the same rollout with a new idempotency key. An image-only
@@ -326,12 +285,12 @@ explicitly in the entries below.
 
 ### Changed
 
-- **Breaking: notification projection runs in a separate private Event
-  Processor.** It recovers from Event Gaps, reconciles source state periodically,
+- Breaking: notification projection runs in a separate private Event
+  Processor. It recovers from Event Gaps, reconciles source state periodically,
   and drains on shutdown. `pnpm dev` starts both processes; `pnpm dev:web`
   starts only the web application. (REEF-583)
-- **Breaking: cluster deployment requires immutable AKB release registration
-  and rollout.** The release CLI verifies and registers the Manifest, waits for
+- Breaking: cluster deployment requires immutable AKB release registration
+  and rollout. The release CLI verifies and registers the Manifest, waits for
   AKB's rollout to reach `applied`, then applies both runtime image digests to
   Kubernetes. Retries reuse verified receipts; blocked rollouts require explicit
   resume. Mutable tags and version/source overrides are no longer deployment
@@ -339,16 +298,16 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Non-admin users can create workspaces and retry partial setup under the
-  same name.** Ordinary runbooks use `reef/runbooks` instead of the reserved
+- Non-admin users can create workspaces and retry partial setup under the
+  same name. Ordinary runbooks use `reef/runbooks` instead of the reserved
   `overview` path. Onboarding preserves existing instructions, issues, settings,
   and user documents rather than overwriting a partially initialized workspace.
   (REEF-642)
-- **Transient auth revalidation no longer signs out an established session.**
+- Transient auth revalidation no longer signs out an established session.
   Refresh contention, temporary failures, and probe timeouts preserve the
   workspace with a retry action; first visits keep protected content hidden
   until verification succeeds. (REEF-641)
-- **Ask AI uses the platform-primary Period shortcut.** `⌘⇧.` on macOS and
+- Ask AI uses the platform-primary Period shortcut. `⌘⇧.` on macOS and
   `Ctrl+Shift+.` on Windows/Linux toggle the panel; shortcut guidance matches
   the action. (REEF-622)
 
@@ -368,7 +327,7 @@ explicitly in the entries below.
 
 ### Operational
 
-- **Release artifacts bind web and processor images to one source revision.**
+- Release artifacts bind web and processor images to one source revision.
   Both digests are recorded in the build artifact and receipt. AKB Manifest v2
   verifies only the web digest; processor identity is verified by Reef's receipt
   and Kubernetes readback, outside the AKB manifest/checksum.
@@ -386,65 +345,65 @@ explicitly in the entries below.
 
 ### Added
 
-- **Timeline planning overlays show sprint bands and milestone/release markers.**
+- Timeline planning overlays show sprint bands and milestone/release markers.
   Read-only planning data shares the existing quarter day grid and catalog cache,
   including clipped sprint ranges, release-date precedence, and same-day marker
   stacks with keyboard-accessible details. (REEF-357)
-- **Planning opens with a combined Overview.** The current sprint, unfinished
+- Planning opens with a combined Overview. The current sprint, unfinished
   milestones, and planned/in-progress releases share stable dates, planning
   statuses, issue rollups, and existing detail links; the complete catalog
   remains available through the List view. (REEF-596)
-- **Planning can close an active sprint and roll unfinished work into an
-  explicitly selected next sprint.** The action persists its target and
+- Planning can close an active sprint and roll unfinished work into an
+  explicitly selected next sprint. The action persists its target and
   per-issue progress so partial failures can be retried without duplicate
   sprint or activity records.
 
 ### Changed
 
-- **Breaking: authentication now requires AKB's schema-v2 capability catalog
-  and one explicit `REEF_AUTH_MODE`.** Local mode accepts only the current local
+- Breaking: authentication now requires AKB's schema-v2 capability catalog
+  and one explicit `REEF_AUTH_MODE`. Local mode accepts only the current local
   session contract. SSO mode is now a Reef companion OIDC BFF with PKCE,
   encrypted Redis token custody, refresh locking, back-channel logout, and an
   opaque httpOnly browser handle; the legacy provider-less exchange and token-
   bearing logout paths have been removed. (REEF-623)
-- **Issue-body Markdown editing now uses the shared AKB editor core and stable
-  document attachments.** Uploaded images are stored as canonical
+- Issue-body Markdown editing now uses the shared AKB editor core and stable
+  document attachments. Uploaded images are stored as canonical
   `/api/assets/<uuid>` targets, resolve through authenticated runtime URLs, and
   retain successful items when a mixed upload batch partially fails; existing
   non-image issue attachments and comment uploads keep their current behavior.
   (REEF-593)
-- **Loading surfaces keep their product chrome visible.** App navigation, issue
+- Loading surfaces keep their product chrome visible. App navigation, issue
   scopes and views, detail and settings labels, planning tabs and headers, My
   Work metrics, and report filters and titles remain in place while values load;
   unknown data and permissions stay deferred until queries resolve. Unused
   dialogs and issue views are loaded on demand. (REEF-613, REEF-614)
-- **Planning view state is URL-owned.** The Overview/List switch restores across
+- Planning view state is URL-owned. The Overview/List switch restores across
   reload and history navigation, while existing `kind`/`detail` links continue
   to open the corresponding List item.
 
 ### Fixed
 
-- **Active SSO sessions and browser-local workspace preferences survive the
-  correct boundaries.** Refresh credentials can rotate throughout Reef's fixed
+- Active SSO sessions and browser-local workspace preferences survive the
+  correct boundaries. Refresh credentials can rotate throughout Reef's fixed
   24-hour session lifetime, and passive expiry preserves same-account workspace,
   My Views, filters, and favorites. Account switches, explicit sign-out, and
   stable account denials still clear them. (REEF-624)
-- **Reader notification access and permission guidance are restored.** Inbox
+- Reader notification access and permission guidance are restored. Inbox
   reads no longer attempt schema reconciliation, and resource-level AKB 403
   responses remain permission failures without signing out the user.
-- **Issue search no longer drops characters or flashes empty results during
-  debounce and result handoff.** Board, List, Backlog, and Timeline retain the
+- Issue search no longer drops characters or flashes empty results during
+  debounce and result handoff. Board, List, Backlog, and Timeline retain the
   prior result and expose accessible update progress. (REEF-615)
-- **Created/updated date filters and timestamp-sorted pagination work across
-  every issue view.** AKB timestamp bounds and cursors are cast without losing
+- Created/updated date filters and timestamp-sorted pagination work across
+  every issue view. AKB timestamp bounds and cursors are cast without losing
   date-only semantics, precision, or tie-break ordering. (REEF-619, REEF-620)
-- **Interrupted sprint rollovers resume safely with clearer validation and
-  conflict guidance.** Persisted targets are reused and partial retries do not
+- Interrupted sprint rollovers resume safely with clearer validation and
+  conflict guidance. Persisted targets are reused and partial retries do not
   create duplicate sprint or activity records.
 
 ### Migration
 
-- **SSO deployments require a coordinated companion-client cutover.** Configure
+- SSO deployments require a coordinated companion-client cutover. Configure
   `REEF_AUTH_MODE=sso`, the public issuer and private transport URL, companion
   client id, AKB audience, authenticated Redis, an independent AES-256-GCM key,
   and a fresh `REEF_AUTH_SESSION_NAMESPACE`. Existing legacy SSO cookies and
@@ -456,12 +415,12 @@ explicitly in the entries below.
 
 ### Operational
 
-- **Kubernetes readiness now uses `/api/readyz`.** In SSO mode it checks the
+- Kubernetes readiness now uses `/api/readyz`. In SSO mode it checks the
   configured auth contract, Redis reachability, and pinned JWKS; `/api/healthz`
   remains the liveness endpoint. The container build now installs and builds
   from the full source tree so Git-hosted workspace dependencies can prepare.
-- **The AKB Document Attachment API is now a runtime prerequisite for issue
-  body image uploads.** Deploy the AKB asset upload, metadata, discard, copy,
+- The AKB Document Attachment API is now a runtime prerequisite for issue
+  body image uploads. Deploy the AKB asset upload, metadata, discard, copy,
   policy, and stable-byte routes before enabling this Reef revision.
 - Publish `reef-web:v0.15.0` and the release commit SHA with an immutable digest.
   Rollback to v0.14.1 in SSO mode also requires restoring its previous AKB and
@@ -472,7 +431,7 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Remove the reserved current-sprint width introduced in v0.14.0.** The
+- Remove the reserved current-sprint width introduced in v0.14.0. The
   Issues header uses the sprint name's natural width and leaves no empty slot
   when a current sprint is unavailable. Existing long-name truncation and
   responsive wrapping remain in place.
@@ -490,78 +449,78 @@ explicitly in the entries below.
 
 ### Added
 
-- **My Views save complete issue-view preferences in the browser.** Named
+- My Views save complete issue-view preferences in the browser. Named
   views capture filters, scope, layout, grouping, ordering, display options,
   and List columns for each account and workspace.
-- **Issue filters support date ranges and unset values.** Filter by updated,
+- Issue filters support date ranges and unset values. Filter by updated,
   created, start, or due date, and find issues without priority, severity,
   due date, or an assignee. Filters work across Board, List, and Backlog and
   persist in URLs and My Views; date criteria use the shared accessible Select.
-- **Sprint detail pages show progress, health, goals, and scoped Board/List
-  views.** Open them from Planning or the current-sprint shortcut in the
+- Sprint detail pages show progress, health, goals, and scoped Board/List
+  views. Open them from Planning or the current-sprint shortcut in the
   shared Issues header.
-- **Planning shows progress and capacity across sprints, milestones, and
-  releases.** Review issue counts, completion, estimated/completed points,
+- Planning shows progress and capacity across sprints, milestones, and
+  releases. Review issue counts, completion, estimated/completed points,
   unestimated work, and sprint capacity, then open the corresponding Issues view.
 
 ### Changed
 
-- **Issues share planning and display controls across layouts.** The current
+- Issues share planning and display controls across layouts. The current
   sprint appears in the Active header, and Active List columns move into
   Display while retaining URL and My View persistence.
-- **Typography, focus, selection, and cursors are consistent across the UI.**
+- Typography, focus, selection, and cursors are consistent across the UI.
   Shared text roles preserve the established heading and compact-control
   hierarchy, with Inter, Noto Sans KR, and Geist Mono for mixed-script text.
   Visible teal focus indicators and state-aware cursors clarify keyboard,
   editing, disabled, and drag interactions.
-- **SSO login copy no longer assumes a particular identity provider.**
-- **Breaking: Reef table artifacts require AKB's canonical `numeric` and
-  `jsonb` types.** Schema manifests and table mutations no longer accept the
+- SSO login copy no longer assumes a particular identity provider.
+- Breaking: Reef table artifacts require AKB's canonical `numeric` and
+  `jsonb` types. Schema manifests and table mutations no longer accept the
   obsolete `number` and `json` aliases.
-- **`@reef/core` supports commit-pinned pnpm Git dependencies.** Consumers can
+- `@reef/core` supports commit-pinned pnpm Git dependencies. Consumers can
   install the `packages/core` subdirectory as a built ESM package. Obsolete
   private execution packages have been removed from the workspace.
 
 ### Fixed
 
-- **Quick edits and manual reordering show saving, saved, and failed states
-  on the affected field, row, or card.** Failed writes retain rollback and
+- Quick edits and manual reordering show saving, saved, and failed states
+  on the affected field, row, or card. Failed writes retain rollback and
   retry feedback, and closing a quick editor restores keyboard focus.
-- **Planning read failures no longer appear as empty lists or zero progress.**
+- Planning read failures no longer appear as empty lists or zero progress.
   Errors provide retry actions, and editor dialogs keep Save and Cancel
   visible in short windows.
-- **Current-user avatars retain their account color across surfaces.**
-- **Monitored-repository selectors retain focus while saving.**
-- **The Issues header stays the same height while the current sprint loads
-  or is removed.** Its shortcut reserves space before planning data arrives.
+- Current-user avatars retain their account color across surfaces.
+- Monitored-repository selectors retain focus while saving.
+- The Issues header stays the same height while the current sprint loads
+  or is removed. Its shortcut reserves space before planning data arrives.
 
 ### Migration
 
-- **My Views replace legacy saved filters.** Existing saved filters are not
+- My Views replace legacy saved filters. Existing saved filters are not
   read or migrated; recreate them as My Views. My Views and date ranges use
   the existing IndexedDB `config` store, so no browser schema upgrade is needed.
-- **Release artifacts describe the existing schema-v3 installation.** Update
+- Release artifacts describe the existing schema-v3 installation. Update
   external table-artifact producers to emit `numeric`/`jsonb`. This release
   adds no storage schema version or data backfill; its Blueprint contains a
   fresh-install plan, not an upgrade plan for older installations.
 
 ### Operational
 
-- **Release Blueprint and Manifest v2 make release provenance verifiable.**
+- Release Blueprint and Manifest v2 make release provenance verifiable.
   Validate the committed Blueprint against Core, then finalize and verify the
   payload with version, full source revision, and immutable OCI image digest
   before registry submission.
-- **Docker builds defer install scripts until source is available.** Core's
+- Docker builds defer install scripts until source is available. Core's
   Git-consumer preparation no longer fails in the manifest-only dependency stage.
-- **The private Event Processor can project notifications from AKB Change
-  Events.** Its deployment host must run the processor with authenticated
+- The private Event Processor can project notifications from AKB Change
+  Events. Its deployment host must run the processor with authenticated
   access to the vault's `table.rows_changed` stream. It is a separate process
   from reef-web and retries interrupted streams and projection failures.
-- **Merge queue CI reuses successful PR checks for unchanged trees.** Changed
+- Merge queue CI reuses successful PR checks for unchanged trees. Changed
   bases or grouped trees run full validation. Live AKB contract coverage now
   includes data-plane, authentication, and installation boundaries.
-- **Publish `reef-web:v0.14.0` and the release commit SHA with an immutable
-  digest.** Roll back reef-web by selecting the v0.13.0 image with the same
+- Publish `reef-web:v0.14.0` and the release commit SHA with an immutable
+  digest. Roll back reef-web by selecting the v0.13.0 image with the same
   deployment environment; stop the new Event Processor separately if enabled.
   Browser My Views are local preferences and are not converted to legacy
   saved filters on rollback.
@@ -570,45 +529,45 @@ explicitly in the entries below.
 
 ### Added
 
-- **Reports now include Cycle Time and Lead Time flow metrics.** The Reports
+- Reports now include Cycle Time and Lead Time flow metrics. The Reports
   page shows measurement coverage, P50/P85/P95 percentiles, P85 SLE, completion
   distributions, outliers, and clear empty or low-sample states for the selected
   window.
 
-- **Manual ordering is now shared across Issue Board and List views.** The
+- Manual ordering is now shared across Issue Board and List views. The
   server-owned rank remains consistent across Active and Backlog workflows,
   filtering, pagination, and grouping, while new issues stay at the
   manual-order tail.
 
-- **Active Issue Board and List can now group work by Epic.** Root Epic headers
+- Active Issue Board and List can now group work by Epic. Root Epic headers
   show status and visible child progress, direct children preserve the current
   filter/sort order, and missing or unsupported parents use localized fallback
   groups. Epic grouping is read-only for Board drag interactions and shareable
   through `group=epic`.
 
-- **The sidebar workspace switcher now supports account-local Favorites.**
+- The sidebar workspace switcher now supports account-local Favorites.
   Favorites persist per account in the existing browser store without taking
   ownership of URL workspace identity.
 
-- **Issue List and Board sorting now supports numeric ticket numbers.** Numeric
+- Issue List and Board sorting now supports numeric ticket numbers. Numeric
   ticket ordering is consistent across shared controls, keyset pages, and
   client-rendered views, including non-padded numbers and gaps; locale-aware
   title ordering and missing-date placement stay aligned across server and UI.
 
 ### Changed
 
-- **Breaking: Active/Backlog scope is now separate from Board/List/Timeline
-  layout.** Backlog has dedicated Priority Board and Rank-ordered List views,
+- Breaking: Active/Backlog scope is now separate from Board/List/Timeline
+  layout. Backlog has dedicated Priority Board and Rank-ordered List views,
   both axes are shareable through URL and browser history, and the old
   `view=backlog` path is removed. Scope and layout controls remain in stable
   header areas when switching.
 
-- **Breaking: Reef now accepts only the provider-neutral `REEF_LLM_*`
-  deployment contract.** `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` are no
+- Breaking: Reef now accepts only the provider-neutral `REEF_LLM_*`
+  deployment contract. `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` are no
   longer read or validated; deployments must provide
   `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together.
 
-- **Breaking: removed unused agent review and prompt surfaces.** The uncalled
+- Breaking: removed unused agent review and prompt surfaces. The uncalled
   agent-artifact approve/edit/dismiss API, issue/status proposal schemas,
   Tauri-era ProjectState prompt, and legacy `/api/enrich` endpoint are gone.
   New Issue enrichment now uses the same `/api/agents/runs` SSE contract as Ask
@@ -617,39 +576,39 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Authentication revalidation and soft navigation now preserve the
-  established workspace experience.** Route changes stay non-blocking, the
+- Authentication revalidation and soft navigation now preserve the
+  established workspace experience. Route changes stay non-blocking, the
   shell remains mounted while revalidation completes, and a resource-level
   workspace 403 no longer clears a valid session or causes a false logout.
 
-- **Manual issue reordering now keeps its related updates consistent.** Assignee
+- Manual issue reordering now keeps its related updates consistent. Assignee
   moves synchronize automatic subscriptions, group changes refresh Activity,
   timestamp-guarded writes no longer fail at the AKB SQL boundary, and stale
   conflicts present the latest order for a fresh retry.
 
 ### Security
 
-- **Breaking: AKB SQL value handling is now parameterized across Reef's core
-  paths.** Dynamic values use `runSql` positional parameters or typed AKB
+- Breaking: AKB SQL value handling is now parameterized across Reef's core
+  paths. Dynamic values use `runSql` positional parameters or typed AKB
   request bodies; manual value-quoting helpers and the public `akbQuoteText`
   export are removed. `quoteIdent` and `tableRef` remain available for
   identifiers.
 
 ### Migration
 
-- **AI-enabled deployments must migrate to the provider-neutral environment
-  variables before rollout.** Set `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
+- AI-enabled deployments must migrate to the provider-neutral environment
+  variables before rollout. Set `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
   `REEF_LLM_MODEL` together; Reef no longer reads `OPENROUTER_API_KEY` or
   `OPENROUTER_BASE_URL`. To roll back to v0.12.0, restore the legacy variables
   before starting the old image.
 
-- **No manual browser-storage migration is required.** Favorites use the
+- No manual browser-storage migration is required. Favorites use the
   existing IndexedDB `config` store, and account or session invalidation removes
   empty persisted query snapshots while preserving non-empty snapshots.
 
 ### Operational
 
-- **Publish immutable release image references alongside the convenience tag.**
+- Publish immutable release image references alongside the convenience tag.
   Use `reef-web:v0.13.0` and the release commit SHA for deployment and
   provenance; `latest` must not be the only deployable reference.
 
@@ -657,18 +616,18 @@ explicitly in the entries below.
 
 ### Added
 
-- **Issue Description edits now appear in the Activity timeline** with the
+- Issue Description edits now appear in the Activity timeline with the
   editor and timestamp, while repeated body updates collapse into an expandable
   group.
 
-- **Issue status saves now expose per-issue pending state.** List, Board, and
+- Issue status saves now expose per-issue pending state. List, Board, and
   detail surfaces keep unrelated issues interactive while a save is in flight,
   and shared async actions provide clearer progress and failure feedback.
 
 ### Changed
 
-- **Breaking: removed the obsolete AI activity-scanning and Suggestions
-  vertical slice from MVP.** The Suggestions and activity-scan pages, routes,
+- Breaking: removed the obsolete AI activity-scanning and Suggestions
+  vertical slice from MVP. The Suggestions and activity-scan pages, routes,
   APIs, task, prompts, scan persistence, workspace setting, browser target and
   watermark state, and generated runbooks are gone. Existing legacy AKB rows
   and documents are left untouched; fresh workspaces no longer create them.
@@ -679,19 +638,19 @@ explicitly in the entries below.
   Notification Inbox, issue Activity, implementation references, and inline
   client-ephemeral field-suggestion review remain available.
 
-- **Removed the vault-less dashboard compatibility routes.** Dashboard links now
+- Removed the vault-less dashboard compatibility routes. Dashboard links now
   require the canonical `/workspace/{vault}/...` form; old flat paths such as
   `/issues`, `/planning`, and `/settings/...` no longer redirect through the
   remembered workspace.
 
-- **Workspace SSO once again delegates browser login and the one-time code
-  exchange to AKB.** Reef stores the resulting AKB-issued JWT in its httpOnly
+- Workspace SSO once again delegates browser login and the one-time code
+  exchange to AKB. Reef stores the resulting AKB-issued JWT in its httpOnly
   session cookie and no longer treats a Keycloak access token as an AKB API
   credential or requires Redis-backed OIDC token custody. The login page remains
   hybrid whenever AKB enables both local authentication and Keycloak.
 
-- **Issue creation and detail Description editors now share an accessible,
-  fine-pointer height grip and a 320px initial frame.** Pointer and keyboard
+- Issue creation and detail Description editors now share an accessible,
+  fine-pointer height grip and a 320px initial frame. Pointer and keyboard
   changes use the existing 200px-to-viewport clamp, WYSIWYG and Source share
   the frame, and the current tab restores one shared session height. A
   maximized create shell may supply a transient preferred height without
@@ -699,27 +658,27 @@ explicitly in the entries below.
   consumers remain opt-out, and narrow/coarse-pointer layouts keep their
   automatic behavior.
 
-- **New Issue now offers a desktop-only two-dimensional maximize/restore
-  toggle.** The create canvas grows from the 1200px default to a capped 1680px
+- New Issue now offers a desktop-only two-dimensional maximize/restore
+  toggle. The create canvas grows from the 1200px default to a capped 1680px
   width and `100dvh - 2rem` height when either axis has at least 32px to gain;
   the Description editor receives only a transient preferred height, while
   REEF-545's persisted user height remains authoritative. The toggle keeps
   draft values, focus, and body scrolling intact, restores within the same
   tab, and stays separate from Issue Detail's shell state.
 
-- **Issue sorting now lives in the shared filter toolbar**, keeping search,
+- Issue sorting now lives in the shared filter toolbar, keeping search,
   facets, grouping, and ordering controls in one predictable place across List
   and Backlog workflows.
 
-- **Dashboard surfaces now use semantic background, border, overlay, and
-  interactive roles across light and dark themes.** Mobile issue, My Work, and
+- Dashboard surfaces now use semantic background, border, overlay, and
+  interactive roles across light and dark themes. Mobile issue, My Work, and
   Settings layouts also contain long content and expose clearer keyboard and
   screen-reader feedback.
 
 ### Migration
 
-- **SSO deployments must remove Reef-owned OIDC and Redis session
-  configuration.** Reef no longer reads `REEF_AUTH_MODE`,
+- SSO deployments must remove Reef-owned OIDC and Redis session
+  configuration. Reef no longer reads `REEF_AUTH_MODE`,
   `REEF_KEYCLOAK_ISSUER`, `REEF_KEYCLOAK_TRANSPORT_URL`,
   `REEF_KEYCLOAK_CLIENT_ID`, `REEF_AKB_API_AUDIENCE`,
   `REEF_SESSION_REDIS_URL`, or `REEF_SESSION_ENCRYPTION_KEY`. Configure SSO in
@@ -727,134 +686,134 @@ explicitly in the entries below.
   use distinct public origins. A hybrid AKB may optionally set
   `REEF_SSO_AUTO_REDIRECT=1` for SSO-first presentation.
 
-- **No destructive storage migration is required for removed Suggestions.**
+- No destructive storage migration is required for removed Suggestions.
   Existing AKB activity rows and documents, plus legacy browser target and
   watermark values, remain untouched and inert.
 
 ### Operational
 
-- **Kubernetes readiness now uses `/api/healthz`.** Reef no longer exposes
+- Kubernetes readiness now uses `/api/healthz`. Reef no longer exposes
   dependency-aware Redis/Keycloak readiness because AKB owns SSO and Reef is
   stateless. Remove obsolete `/api/readyz` probes during rollout.
 
-- **Rollback to v0.11.0 requires restoring its Reef-owned Keycloak and Redis
-  environment before starting the old image.** Keep those values available
+- Rollback to v0.11.0 requires restoring its Reef-owned Keycloak and Redis
+  environment before starting the old image. Keep those values available
   until the v0.12.0 SSO login and sign-out smoke test has passed.
 
 ### Fixed
 
-- **Onboarding now accurately guides new workspace creation.** Required name
+- Onboarding now accurately guides new workspace creation. Required name
   and issue-prefix errors plus repository selection state are announced to
   keyboard and screen-reader users, while the repository picker and long
   repository names remain operable within narrow layouts.
 
-- **Workspace SSO no longer fails account validation by sending AKB a token
-  intended for a different resource server.** Both password and SSO login now
+- Workspace SSO no longer fails account validation by sending AKB a token
+  intended for a different resource server. Both password and SSO login now
   establish the same AKB-issued session contract used by AKB's own frontend.
 
-- **Protected soft navigation now verifies the current AKB session before
-  rendering authenticated content**, preventing stale browser state from
+- Protected soft navigation now verifies the current AKB session before
+  rendering authenticated content, preventing stale browser state from
   bypassing the login boundary after expiry or account denial.
 
-- **Repeated AKB Markdown document-link normalization is now idempotent**, so
+- Repeated AKB Markdown document-link normalization is now idempotent, so
   an already normalized link keeps the same href and label across subsequent
   reads and edits.
 
-- **Description and issue-detail resize handles remain attached to their
-  frames while content scrolls**, and shared tooltips stay above dialogs and
+- Description and issue-detail resize handles remain attached to their
+  frames while content scrolls, and shared tooltips stay above dialogs and
   other layered surfaces.
 
 ## v0.11.0 - 2026-08-18
 
 ### Security
 
-- **LLM JSON and activity-content parsing no longer rely on polynomial-time
-  regular expressions.** Patched `DOMPurify` and `nanoid` versions also address
+- LLM JSON and activity-content parsing no longer rely on polynomial-time
+  regular expressions. Patched `DOMPurify` and `nanoid` versions also address
   known transitive dependency vulnerabilities.
 
 ### Added
 
-- **Issue create and detail Markdown bodies now share one localized `@` reference
-  picker for people, issues, and AKB documents.** Person selections stay
+- Issue create and detail Markdown bodies now share one localized `@` reference
+  picker for people, issues, and AKB documents. Person selections stay
   canonical mentions, issue selections insert plain IDs, and document selections
   insert ordinary Markdown links without changing Source mode or issue
   relations.
 
-- **Issue Markdown editing now offers a categorized keyboard-first slash block
+- Issue Markdown editing now offers a categorized keyboard-first slash block
   menu with localized filtering, basic GFM table insertion, and bounded
-  lowlight code highlighting.** The menu is editor-bound, clamps or flips at
+  lowlight code highlighting. The menu is editor-bound, clamps or flips at
   narrow widths, and leaves direct REEF-id and relation behaviors unchanged.
 
-- **Comment authors can now permanently delete their own comment and every
-  reply below it** from the Activity timeline after confirmation; the server
+- Comment authors can now permanently delete their own comment and every
+  reply below it from the Activity timeline after confirmation; the server
   removes matching comment-source notifications in the same cascade.
 
 ### Changed
 
-- **AKB installation status reads are now scoped to Reef's application context
-  and redact credentials and opaque upstream responses.**
+- AKB installation status reads are now scoped to Reef's application context
+  and redact credentials and opaque upstream responses.
 
-- **Issue-body references now share distinct compact visuals for known issues,
+- Issue-body references now share distinct compact visuals for known issues,
   documents, files, and resolved mentions while ordinary links retain their
-  existing styling.**
+  existing styling.
 
-- **Issue detail editing now uses a roomier three-step desktop width scale:**
+- Issue detail editing now uses a roomier three-step desktop width scale:
   1200px minimum, 1440px default, and 1680px maximum, while still capping the
   panel at 94% of narrower viewports.
 
-- **Issue detail Description editing now supports a quiet fine-pointer height
-  grip from 1024px upward** with pointer capture, keyboard and screen-reader
+- Issue detail Description editing now supports a quiet fine-pointer height
+  grip from 1024px upward with pointer capture, keyboard and screen-reader
   controls, shared WYSIWYG / Source sizing, and tab-session restoration.
   Coarse-pointer and narrower layouts omit the focusable grip; Source mode
   keeps its native vertical resize fallback.
 
-- **New Issue now keeps its responsive writing flow intact on narrow and
-  reduced-height viewports.** Header actions reflow without clipping, the
+- New Issue now keeps its responsive writing flow intact on narrow and
+  reduced-height viewports. Header actions reflow without clipping, the
   title/Description column stays ahead of metadata, and only the form body
   scrolls while the Cancel / Create issue footer remains reachable.
 
-- **Authentication is now an explicit local-or-SSO deployment choice.** Local
+- Authentication is now an explicit local-or-SSO deployment choice. Local
   mode preserves AKB-issued JWT cookies. SSO mode uses Keycloak Authorization
   Code + PKCE with encrypted Redis-backed sessions, refresh-credential rotation,
   back-channel logout, and dependency-aware readiness.
 
 ### Migration
 
-- **SSO deployments must provide `REEF_SESSION_REDIS_URL` and an independent
-  32-byte `REEF_SESSION_ENCRYPTION_KEY` before rollout.** Local-auth deployments
+- SSO deployments must provide `REEF_SESSION_REDIS_URL` and an independent
+  32-byte `REEF_SESSION_ENCRYPTION_KEY` before rollout. Local-auth deployments
   require no authentication migration. No browser-storage or AKB schema
   migration is required for this release.
 
 ### Operational
 
-- **SSO readiness now verifies Redis and Keycloak reachability before serving
-  traffic.** Confirm both dependencies and the required session variables during
+- SSO readiness now verifies Redis and Keycloak reachability before serving
+  traffic. Confirm both dependencies and the required session variables during
   rollout; local mode does not require these SSO dependencies.
 
 ### Fixed
 
-- **Sub-issue assignee names now use the same compact body typography as the
-  issue titles beside them**, preserving the existing avatar, ID, status, and
+- Sub-issue assignee names now use the same compact body typography as the
+  issue titles beside them, preserving the existing avatar, ID, status, and
   priority hierarchy across desktop and narrow layouts.
-- **Priority selectors now render the unset label with the same typography as
-  real priority options while keeping it free of a priority color dot.** The
+- Priority selectors now render the unset label with the same typography as
+  real priority options while keeping it free of a priority color dot. The
   shared treatment covers List and Backlog quick edit, issue creation, issue
   detail, and bulk edit.
-- **Issue List assignee quick editors now close on Escape even when focus stays
+- Issue List assignee quick editors now close on Escape even when focus stays
   on the originating cell trigger, without changing the assignee or issuing a
-  save request.**
-- **Issue quick editors now close reliably with Escape immediately after a
+  save request.
+- Issue quick editors now close reliably with Escape immediately after a
   viewport resize, and List context-menu keyboard coverage no longer races a
-  preceding pointer menu's focus restoration.**
-- **Issue detail assignee selection now exposes every assignable writer, admin,
+  preceding pointer menu's focus restoration.
+- Issue detail assignee selection now exposes every assignable writer, admin,
   and owner with deterministic ordering and recent-success prioritization,
   while preserving long-list keyboard behavior and failed-save rollback.
-- **Issue-list assignee cells now resolve the current vault display name from
+- Issue-list assignee cells now resolve the current vault display name from
   the stable username, with refresh-on-mount roster revalidation and login
-  fallbacks for missing names or members.**
-- **Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.**
-- **Truncated relation titles and single planning selector values now expose the full value on hover and keyboard focus without changing selection or navigation behavior.**
-- **Issue detail panels can now be resized on desktop** with a pointer or
+  fallbacks for missing names or members.
+- Truncated sub-issue titles now expose the full title on hover and keyboard focus without changing the existing row metadata layout.
+- Truncated relation titles and single planning selector values now expose the full value on hover and keyboard focus without changing selection or navigation behavior.
+- Issue detail panels can now be resized on desktop with a pointer or
   keyboard splitter, while preserving the width for the current tab session
   and keeping the existing narrow-screen layout.
 
@@ -862,12 +821,12 @@ explicitly in the entries below.
 
 ### Added
 
-- **Reports true-empty states now expose a filled PageHeader New issue action.**
+- Reports true-empty states now expose a filled PageHeader New issue action.
   The action opens the existing shared issue creation dialog while the section
   frame keeps its title-and-description-only geometry.
 
-- **A private foreground work-URI invocation adapter now executes the
-  provider-bound delivery slice.** The built artifact reads and claims one
+- A private foreground work-URI invocation adapter now executes the
+  provider-bound delivery slice. The built artifact reads and claims one
   work snapshot, provisions a managed workspace, drives the Codex harness,
   validates exact candidate heads with a finite repair budget, and hands a
   validated head to a non-force branch push and draft pull request before
@@ -876,35 +835,35 @@ explicitly in the entries below.
   lifecycle state, bounded progress, and one redacted terminal result remain
   observable.
 
-- **A private GitHub SCM provider now implements the provider-neutral
-  orchestration contract.** Explicit repository bindings cover ref resolution,
+- A private GitHub SCM provider now implements the provider-neutral
+  orchestration contract. Explicit repository bindings cover ref resolution,
   deterministic branch reuse, permission-gated commits, non-force fast-forward
   pushes, and draft pull-request create/reuse. Remote identity mismatches,
   default-branch and tag writes, refspec or force-push attempts, credential
   bearing inputs, and raw Git/GitHub payloads fail closed; existing ready PRs
   remain unchanged.
 
-- **Named personal issue filters** can save, apply, update, rename, duplicate,
+- Named personal issue filters can save, apply, update, rename, duplicate,
   and delete browser-local facet, display, and sort presets without adding
   user-specific server state.
 
-- **Large issue lists now load and render progressively.** The List view fetches
+- Large issue lists now load and render progressively. The List view fetches
   100-issue cursor pages and keeps the DOM virtualized while preserving keyboard
   focus, selection, quick edits, and finite sibling views.
-- **Comment mentions now use exact-case vault-roster autocomplete, canonical
-  escaped tokens, save-time validation, and projection-gated rendering.**
+- Comment mentions now use exact-case vault-roster autocomplete, canonical
+  escaped tokens, save-time validation, and projection-gated rendering.
   (REEF-452)
-- **Issue-body mentions now use opt-in editor autocomplete with the canonical
+- Issue-body mentions now use opt-in editor autocomplete with the canonical
   mention parser, while create/update writes derive current-roster recipients
   into issue metadata and record commit-bound internal deltas without exposing
-  them in the user activity timeline.** (REEF-453)
-- **Comment mention notifications now reach recipients independently of issue
+  them in the user activity timeline. (REEF-453)
+- Comment mention notifications now reach recipients independently of issue
   subscriptions, respect self-mention and manual mute controls, and open the
-  source comment after the notification is marked read.**
-- **Issue-body mention notifications now use the committed added-recipient
+  source comment after the notification is marked read.
+- Issue-body mention notifications now use the committed added-recipient
   delta, preserve Inbox state across retries, and open the issue description
-  after marking the notification read.** (REEF-454)
-- **Jira comment ADF mentions now reuse the canonical Reef mention serializer.**
+  after marking the notification read. (REEF-454)
+- Jira comment ADF mentions now reuse the canonical Reef mention serializer.
   Mapped accounts are gated by the exact target-vault member roster, unsafe
   usernames use braced escaping, unresolved accounts remain non-identifying
   placeholders, and apply/rerun readback includes the deduplicated recipient
@@ -912,24 +871,19 @@ explicitly in the entries below.
 
 ### Operational
 
-- **The hermetic web runtime now reaches browser readiness in empty fixture
-  scenarios.** Readiness proves an ordinary New issue dialog interaction without
-  requiring a populated issue card, so every supported scenario can publish its
-  ready descriptor directly.
-
-- **The repository now has one Node 24 and pnpm toolchain baseline.** Shared
+- The repository now has one Node 24 and pnpm toolchain baseline. Shared
   workspace versions are owned by the default pnpm catalog, while CI, Docker,
   and Renovate use the same runtime and package-manager declarations.
 
-- **The repository now uses TypeScript 6.0.2 as its compiler baseline.**
+- The repository now uses TypeScript 6.0.2 as its compiler baseline.
   TypeScript 7 remains deferred until the TypeScript 7.1 program API is stable
   and the compiler-dependent toolchain publishes compatible peer ranges.
 
-- **Next.js web development, production, and E2E entrypoints now use the
-  default Turbopack path.** The standalone production build contract remains
+- Next.js web development, production, and E2E entrypoints now use the
+  default Turbopack path. The standalone production build contract remains
   unchanged while webpack-only overrides are removed.
 
-- **Turbo now owns the workspace task graph and cache contract.** Build and
+- Turbo now owns the workspace task graph and cache contract. Build and
   affected selection discover workspace dependencies from pnpm manifests, CI
   builds one exact-head Next standalone artifact plus the discovered workspace
   dependency build artifacts for all Playwright shards, and Docker prunes
@@ -937,85 +891,85 @@ explicitly in the entries below.
 
 ### Changed
 
-- **Board and List now support shareable issue grouping** by Status, Priority,
+- Board and List now support shareable issue grouping by Status, Priority,
   Assignee, Sprint, and Label. List grouping includes None buckets and sticky
   collapsible headers inside the existing virtual projection; Board keeps
   nullable-field drops on the optimistic mutation path and makes Label groups
   read-only. Group choices survive view navigation and reload through the URL,
   while collapse remains local UI state. (REEF-341)
 
-- **Section empty states now expose one named semantic region from their visible
-  title and description.** Structure prompts remain unboxed without an unnamed
+- Section empty states now expose one named semantic region from their visible
+  title and description. Structure prompts remain unboxed without an unnamed
   landmark, and the same accessible references cover the Board no-match overlay
   while preserving existing CTA, keyboard, responsive, and theme behavior.
 
-- **Zod validation now runs on Zod 4 across core, web, the Jira migrator, and
-  orchestration.** Explicit record key schemas, strict/loose object policies,
+- Zod validation now runs on Zod 4 across core, web, the Jira migrator, and
+  orchestration. Explicit record key schemas, strict/loose object policies,
   and flattened form/field errors preserve the existing boundary contracts;
   no Zod 3 compatibility path remains. (REEF-487)
-- **Jira migration now preserves more source fidelity across content, history,
-  links, media, and resumes.** ADF panels and line endings normalize safely,
+- Jira migration now preserves more source fidelity across content, history,
+  links, media, and resumes. ADF panels and line endings normalize safely,
   changelog and sprint history map into Reef activity, attachment and linked-issue
   bindings stay bounded and deterministic, and interrupted runs recover a stable
   archive identity.
 
-- **Suggestions empty states now explain their actual cause.** Unconfigured
+- Suggestions empty states now explain their actual cause. Unconfigured
   workspaces point to monitored-repository setup, configured passive queues
   keep a separate Check now action, and filtered no-match results offer one
   outline Clear filters control outside the shared section frame. Existing
   pending proposals remain reviewable even when a monitored repository is
   removed.
-- **Board empty states now distinguish a configured workspace with no matching
-  filter results from a truly empty board.** The no-match message and
+- Board empty states now distinguish a configured workspace with no matching
+  filter results from a truly empty board. The no-match message and
   keyboard-accessible filter reset stay together in a compact non-modal overlay
   inside the board body while all workflow columns, header positions, and
   horizontal scroll context remain visible in both locales. Facet-only and full
   filter resets have distinct accessible labels, and the full recovery clears
   search, facets, sort, and their URL and browser-persisted projections
   together.
-- **The Markdown editor now uses Tiptap 3.29.2 consistently across its core,
+- The Markdown editor now uses Tiptap 3.29.2 consistently across its core,
   extension, Markdown, ProseMirror, React, and starter-kit packages while
-  preserving the existing Markdown storage and editing contract.** (REEF-483)
-- **Backlog now supports dense multi-selection and bulk issue editing.** A
+  preserving the existing Markdown storage and editing contract. (REEF-483)
+- Backlog now supports dense multi-selection and bulk issue editing. A
   shared selection column, localized Status/Assignee/Priority/Labels actions,
   semantic issue links, and row-scoped keyboard focus extend the existing
   Backlog reorder and inline-status workflow without exposing Sprint controls.
-- **Issue rows and Board cards now support keyboard- and pointer-driven context
-  menus with inline field editing.** Quick editors stay anchored to their field
+- Issue rows and Board cards now support keyboard- and pointer-driven context
+  menus with inline field editing. Quick editors stay anchored to their field
   triggers while row selection, navigation, and existing action semantics remain
   intact. (REEF-345)
-- **Empty states now share one canonical section frame across My Work, Inbox,
+- Empty states now share one canonical section frame across My Work, Inbox,
   Reports, and Planning, while the unconfigured-workspace prompt stays
-  deliberately unboxed.** The four section frames use the same geometry and
+  deliberately unboxed. The four section frames use the same geometry and
   title/description hierarchy; My Work's empty and caught-up states are passive
   and no longer duplicate Board navigation in the PageHeader, while existing
   Issues/Board navigation, filter reset, and Planning create actions remain
   intact outside the frame.
-- **Dashboard controls now wait for the shell's client interaction handlers
-  before becoming visible or focusable.** This keeps first-load navigation,
+- Dashboard controls now wait for the shell's client interaction handlers
+  before becoming visible or focusable. This keeps first-load navigation,
   planning actions, and narrow-viewport keyboard traversal from losing input
   during hydration.
-- **List and Backlog issue tables now share compact density and field geometry.**
+- List and Backlog issue tables now share compact density and field geometry.
   List opens with the essential fields and offers session-only planning-column
   toggles; Backlog uses the same common field order, keeps Rank guidance in the
   header, and retains its inline status and drag interactions.
-- **Node package contracts now build and validate from isolated artifacts.**
+- Node package contracts now build and validate from isolated artifacts.
   Seven Node packages use tsdown to emit ESM JavaScript and declarations from
   `dist/`, dependency-cruiser enforces workspace directions and production
   boundaries, and the canonical non-E2E check exercises packed public imports,
   core subpaths, and the Jira migrator CLI.
-- **Issue filters now converge on shared person and planning option rows.**
+- Issue filters now converge on shared person and planning option rows.
   Milestone filtering lists only real milestones and exposes a dedicated clear
   action that leaves other active facets intact. (REEF-462)
-- **Issue filter and action menus now share a keyboard-accessible dropdown
-  contract.** Display toggles remain open for consecutive changes, saved-filter
+- Issue filter and action menus now share a keyboard-accessible dropdown
+  contract. Display toggles remain open for consecutive changes, saved-filter
   management is grouped under per-filter submenus, and existing account, sort,
   subscription, column, and issue-action callers use the same checked/current,
   focus, alignment, and destructive treatments.
 
 ### Security
 
-- **Security advisories are patched across runtime and build dependencies.** The
+- Security advisories are patched across runtime and build dependencies. The
   lockfile now pins patched versions of Mermaid, PostCSS, protobufjs, Sharp,
   DOMPurify, linkify-it, brace-expansion, and the Jaeger propagator.
 
@@ -1028,16 +982,16 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Ask AI now disables Submit until the composer contains non-whitespace
-  text.** The guard remains effective after closing and reopening the dialog,
+- Ask AI now disables Submit until the composer contains non-whitespace
+  text. The guard remains effective after closing and reopening the dialog,
   preventing empty requests while preserving the existing send/stop behavior.
   (REEF-488)
 
-- **Issue-detail Selects now let a child layer consume Escape before the
-  surrounding Sheet handles the next Escape.** Selection values, trigger focus,
+- Issue-detail Selects now let a child layer consume Escape before the
+  surrounding Sheet handles the next Escape. Selection values, trigger focus,
   and the existing Sheet Back/Close behavior remain unchanged. (REEF-490)
 
-- **Issue-detail Close now exits a deep-linked drill session in one action.**
+- Issue-detail Close now exits a deep-linked drill session in one action.
   Drilling from a hard-open issue into related issues keeps the original entry
   destination for Close, Escape, and outside-click dismissal while preserving
   the existing Back trail and view/filter/sort query parameters. (REEF-494)
@@ -1050,24 +1004,24 @@ explicitly in the entries below.
   Jira/AKB boundary timings, periodic in-flight snapshots, and no impact on
   approval artifacts or migration semantics.
 
-- **Global search now includes a bilingual action command mode.** The existing
+- Global search now includes a bilingual action command mode. The existing
   `⌘K` palette keeps recent issues and metadata/body/comment search intact while
   adding a `>` command mode for vault-scoped navigation, view, New issue,
   theme, locale, and context-aware status/assignee/priority actions. One action
   catalog now drives the palette, global keybindings, and shortcut help, with
   nested keyboard navigation, deliberate focus handoff, same-value no-ops, and
   the existing close-reason workflow.
-- **Issue detail now exposes actor-scoped Watch and Mute controls.** The
+- Issue detail now exposes actor-scoped Watch and Mute controls. The
   bilingual chrome shows the effective notification state, persists Watch/Mute
   choices through the existing AKB subscription contract, updates
   optimistically with rollback and retryable feedback, and rejects attempts to
   choose another subscriber. (REEF-428)
-- **Core now provides notification inbox and source-aware issue subscription
-  contracts.** Public schemas, deterministic keys, recipient-scoped notification
+- Core now provides notification inbox and source-aware issue subscription
+  contracts. Public schemas, deterministic keys, recipient-scoped notification
   reads and state transitions, and manual/requester/assignee/commenter
   subscription precedence give follow-up web features a single AKB-backed
   boundary. (REEF-427)
-- **Global search now finds issue body and comment text.** For queries of two
+- Global search now finds issue body and comment text. For queries of two
   characters or more, `⌘K` keeps its existing metadata and exact-ID results and
   adds a separate bilingual body/comment group with safe literal highlighting,
   real issue links, quiet degradation, and bounded 10-at-a-time expansion up to
@@ -1079,7 +1033,7 @@ explicitly in the entries below.
   preserving forced phase/error flushes, atomic CAS writes, and readback-based
   crash recovery, avoiding thousands of full-ledger rewrites on large runs.
 
-- **Global search result groups now use one field/content vocabulary.** English
+- Global search result groups now use one field/content vocabulary. English
   and Korean palettes distinguish issue-field matches from issue-content
   matches, while body and comment provenance appears as muted inline text
   immediately before each snippet instead of as a branded pill. Existing
@@ -1088,14 +1042,14 @@ explicitly in the entries below.
   through the repository-owned `dev:e2e` surface. The portable user-behavior
   runner and behavior artifact were removed; canonical checks remain in the
   Playwright specs. (REEF-439, REEF-460)
-- **Unmatched URLs and recoverable page errors now stay inside Reef's visual
-  language.** Catalog-backed English and Korean surfaces use the existing teal,
+- Unmatched URLs and recoverable page errors now stay inside Reef's visual
+  language. Catalog-backed English and Korean surfaces use the existing teal,
   typography, semantic light/dark tokens, accessible recovery actions, and a
   safe root path without exposing framework or error internals. Theme
   synchronization now also covers routes outside the dashboard shell.
   (REEF-425)
-- **Activity review is now named Suggestions and has its own navigation
-  surface.** The workspace sidebar, bilingual page copy, and `G S` shortcut
+- Activity review is now named Suggestions and has its own navigation
+  surface. The workspace sidebar, bilingual page copy, and `G S` shortcut
   open `/workspace/{vault}/suggestions`; the badge reports the full pending
   queue and changes only after approve or dismiss actions. Existing
   workspace-scoped and flat `/activity` links redirect without dropping
@@ -1103,57 +1057,57 @@ explicitly in the entries below.
   unchanged. The workspace shell also waits until its controls are interactive
   before exposing them, so early clicks and keyboard shortcuts are not silently
   discarded. (REEF-432)
-- **The workspace sidebar now includes a persisted Notification Inbox.** The
+- The workspace sidebar now includes a persisted Notification Inbox. The
   actor-scoped badge stays within the existing 100-row unread contract, while
   Inbox rows expose read, unread, and archive transitions and deep-link to the
   related issue Activity section without mixing with Suggestions. (REEF-431)
 
 ### Fixed
 
-- **Jira ADF mentions inside comments now use the reviewed account mapping.**
+- Jira ADF mentions inside comments now use the reviewed account mapping.
   Comment conversion previously omitted the mapping options already used for
   issue descriptions, causing every comment mention to become the
   non-identifying `@jira-user` fallback even when the Jira account resolved to
   a vault member. Genuinely unmapped accounts still retain that safe fallback.
-- **Large Jira dry runs no longer reread the same target issue and related-data
-  catalogs for every planning pass.** Planning reuses its exact issue
+- Large Jira dry runs no longer reread the same target issue and related-data
+  catalogs for every planning pass. Planning reuses its exact issue
   readbacks, serves relation, external-reference, description, and media checks
   from that immutable snapshot, and loads external-reference keys and fallback
   attachment actors with one bulk query per catalog. Missing snapshot data
   still falls back to the existing exact target read.
-- **Large Jira migration reruns no longer repeatedly scan the complete ledger
-  and activity catalog for every entity.** The runner builds source-key and
+- Large Jira migration reruns no longer repeatedly scan the complete ledger
+  and activity catalog for every entity. The runner builds source-key and
   issue indexes once, reuses each changelog fingerprint, and caches target
   activity readback by issue with explicit invalidation after a write. This
   removes the quadratic lookup and repeated per-history activity-read pattern
   while preserving ordered writes, exact readback, checkpoint, and resume
   behavior.
-- **Jira issue migrations now preserve the source ticket number.** Newly bound
+- Jira issue migrations now preserve the source ticket number. Newly bound
   issues use the target workspace prefix with the Jira key's exact numeric
   segment, so a matching project prefix keeps `SHDEV-290` as `SHDEV-290`
   instead of dense-renumbering it by lexicographic discovery order. Existing
   numeric aliases, collisions, and legacy same-key bindings under a different
   number fail closed, while a genuine Jira key rename retains its stable
   issue-id binding.
-- **Jira account remapping now repairs migration-owned attachment activity
-  actors, including orphaned upload history.** An approved account override can
+- Jira account remapping now repairs migration-owned attachment activity
+  actors, including orphaned upload history. An approved account override can
   replace the exact fallback actor on an `attachment_added` event left behind
   when a remapped attachment is revoked and recreated. The repair is
   approval-bound, validates the reserved event shape and previous fallback
   actor, and preserves the event identity and payload.
-- **Jira account remapping now repairs migration-owned activity in place.**
+- Jira account remapping now repairs migration-owned activity in place.
   When a reviewed vault membership or override replaces a fallback Jira actor,
   changelog replay reconciles the existing reserved event key instead of
   attempting an append that cannot change the old actor. Ordinary Reef
   activity remains append-only, while imported assignees and historical actor
   payloads can converge without duplicate events.
-- **Jira account remapping now repairs migration-owned comment authors in
-  place.** Imported comments with their exact deterministic Jira idempotency
+- Jira account remapping now repairs migration-owned comment authors in
+  place. Imported comments with their exact deterministic Jira idempotency
   key can replace a fallback author after vault membership review while
   preserving comment identity, thread links, and AKB bookkeeping. Ordinary
   Reef comment edits remain author-scoped.
-- **Jira migration convergence no longer schedules equivalent planning or
-  media rewrites.** Fresh dry runs recognize the exact native planning UUID
+- Jira migration convergence no longer schedules equivalent planning or
+  media rewrites. Fresh dry runs recognize the exact native planning UUID
   projection as equivalent to its approval-bound semantic token, and
   descriptions already containing canonical attachment URIs remain no-op
   skips instead of being rewritten to the same value. Related planning also
@@ -1161,8 +1115,8 @@ explicitly in the entries below.
   fingerprint will overwrite the base description, and apply accepts the same
   immutable semantic planning projection when its current plan resolves native
   UUIDs.
-- **Jira migration media and cross-project reconciliation now preserve the
-  approved source contract end to end.** Issue discovery approval-binds
+- Jira migration media and cross-project reconciliation now preserve the
+  approved source contract end to end. Issue discovery approval-binds
   rendered fields, description rewrites reuse the issue plan's raw-archive and
   account mapping options, deterministic ADF filename/rendered-element
   crosswalks cover REST attachment hrefs, and mapped out-of-scope issue links
@@ -1170,8 +1124,8 @@ explicitly in the entries below.
   Description media placeholders are grounded in their archived ADF object, so
   full-project dry-run and apply no longer conflict on otherwise lossless
   inputs.
-- **Jira migration apply no longer misclassifies committed AKB writes during a
-  short read-after-write consistency window.** Planning and issue creation now
+- Jira migration apply no longer misclassifies committed AKB writes during a
+  short read-after-write consistency window. Planning and issue creation now
   use bounded exact-state readback, issue claims retry their idempotent owner
   reservation, and an ambiguous write error is accepted only when subsequent
   target readback exactly matches the approved issue projection. Planning
@@ -1179,34 +1133,34 @@ explicitly in the entries below.
   so a committed create can be recovered in a fresh resume process. A
   conflicting claim response is also recoverable only when an independent row
   read proves the exact target id, document URI, and Jira owner.
-- **A deterministic related-entity conflict no longer aborts the entire Jira
-  migration process.** The failing issue is isolated as a fail-closed conflict
+- A deterministic related-entity conflict no longer aborts the entire Jira
+  migration process. The failing issue is isolated as a fail-closed conflict
   with a sanitized reason, its confirmed sibling checkpoints remain durable,
   and apply continues classifying the remaining issues.
-- **Transient AKB read failures no longer create false Jira related-data
-  conflicts.** Related-data catalog and readback requests retry bounded 429 and
+- Transient AKB read failures no longer create false Jira related-data
+  conflicts. Related-data catalog and readback requests retry bounded 429 and
   5xx responses without retrying mutations, and an exhausted transient failure
   remains classified as retryable in the migration report.
-- **Jira media planning now respects base-issue updates that execute first.**
+- Jira media planning now respects base-issue updates that execute first.
   Related-data dry runs evaluate media rewrites against the approved new issue
   description for both creates and updates, avoiding a false precondition
   failure against stale target content.
-- **Jira comment approvals no longer depend on target-generated attachment
-  URIs.** Comment operation fingerprints replace dry-run and live AKB file URIs
+- Jira comment approvals no longer depend on target-generated attachment
+  URIs. Comment operation fingerprints replace dry-run and live AKB file URIs
   with the same stable Jira attachment identity, while retaining all other body
   and thread-parent differences.
-- **Jira migration report-only checkpoints no longer rewrite an unchanged
-  multi-megabyte ledger.** Related and changelog skips retain their existing
+- Jira migration report-only checkpoints no longer rewrite an unchanged
+  multi-megabyte ledger. Related and changelog skips retain their existing
   conservation classifications without repeating the private artifact's
   compare-and-swap write, while every binding and durable entity result remains
   atomically checkpointed.
-- **Jira planning approval no longer conflicts on target-generated ids hidden
-  in compact issue provenance.** Version and sprint target ids use the same
+- Jira planning approval no longer conflicts on target-generated ids hidden
+  in compact issue provenance. Version and sprint target ids use the same
   source-derived approval token in first-class fields and nested Jira planning
   metadata, so dry-run placeholders and apply-time AKB UUIDs compare
   semantically.
-- **Jira migration resumes now distinguish target outages from completed
-  unbound creates.** Bounded AKB transport retries fail the run once at its
+- Jira migration resumes now distinguish target outages from completed
+  unbound creates. Bounded AKB transport retries fail the run once at its
   durable checkpoint instead of producing hundreds of entity failures, while
   an existing target with the approved semantic state and exact Jira owner is
   bound before another issue-id claim is attempted.
@@ -1224,8 +1178,8 @@ explicitly in the entries below.
   `/api/activity/suggestions`, and the existing core wire schemas; no copy,
   backfill, Dexie version, or persistence-buster change is needed. (REEF-432)
 
-- **Reef storage schema version 2 adds `reef_notifications` and
-  `reef_subscriptions` declaratively.** New and schema-version-1 vaults create
+- Reef storage schema version 2 adds `reef_notifications` and
+  `reef_subscriptions` declaratively. New and schema-version-1 vaults create
   only missing tables with their unique keys and lookup indexes; existing Reef
   tables and activity-inbox data are unchanged, no backfill is required, and a
   mismatched existing table fails closed for operator review before any missing
@@ -1242,34 +1196,34 @@ explicitly in the entries below.
 
 ### Security
 
-- **Next.js is updated from 16.2.6 to 16.2.11.** This patch incorporates the
+- Next.js is updated from 16.2.6 to 16.2.11. This patch incorporates the
   upstream App Router, Server Actions, rewrites, cache, and Image Optimization
   security fixes published in the 16.2.11 release. (REEF-435)
 
 ### Fixed
 
-- **Workspace root URLs now land on a usable screen.** `/workspace` reuses the
+- Workspace root URLs now land on a usable screen. `/workspace` reuses the
   remembered-workspace/onboarding decision, while `/workspace/{vault}` opens
   that explicit vault's Issues surface without dropping single, repeated, or
   empty query values. Malformed or inaccessible vault roots keep their existing
   denial behavior and cannot silently replace the browser's remembered
   workspace. (REEF-424)
-- **Jira migration canonical fields and reruns now converge across Jira Cloud
-  variants.** The migrator reads the target workspace prefix and member roster,
+- Jira migration canonical fields and reruns now converge across Jira Cloud
+  variants. The migrator reads the target workspace prefix and member roster,
   discovers canonical Rank fields, promotes parent changelog activity, requests
   complete issue projections, supports explicit tenant field overrides, and
   normalizes run-volatile metadata without hiding semantic changes. Separate
   dry-run and apply processes can therefore retain the same approval while
   unchanged writes confirm their ledger bindings. (REEF-437)
-- **Jira migration apply and fresh-process reruns are hardened end to end.**
+- Jira migration apply and fresh-process reruns are hardened end to end.
   Non-Scrum boards, enhanced-JQL cursors, raw-archive batches, request-volatile
   development summaries, attachment reconciliation, and comment-thread UUID
   validation now preserve stable approvals and actionable diagnostics. Issue
   attachments use AKB's presigned upload/confirm and download flows with
   metadata and byte readback, stale bindings are safely replaced, and write
   failures remain visible without exposing source content. (REEF-438)
-- **Reef workspace and issue ID prefixes now accept Jira-compatible project
-  keys.** Prefixes still begin with an uppercase ASCII letter, but may now
+- Reef workspace and issue ID prefixes now accept Jira-compatible project
+  keys. Prefixes still begin with an uppercase ASCII letter, but may now
   contain uppercase letters, digits, and underscores after it, allowing a
   matching target workspace to preserve the source project key during
   migration. Issue detail APIs, relations, global search, chat grounding, the
@@ -1284,11 +1238,11 @@ explicitly in the entries below.
 
 ### Operational
 
-- **Kubernetes rollout history now records deployment provenance.** The deploy
+- Kubernetes rollout history now records deployment provenance. The deploy
   helper derives a change-cause from the root product version and current Git
   commit before restarting the Deployment, with explicit version, commit, and
   complete-message overrides for operators. (REEF-436)
-- **No Docker Hub image is published for v0.8.1.** This patch is distributed by
+- No Docker Hub image is published for v0.8.1. This patch is distributed by
   source and the annotated `v0.8.1` Git tag. Build and size verification still
   apply locally; rollback uses the immutable `v0.8.0` tag.
 
@@ -1296,7 +1250,7 @@ explicitly in the entries below.
 
 ### Added
 
-- **The Jira migrator now has an end-to-end operator CLI.** Multi-project
+- The Jira migrator now has an end-to-end operator CLI. Multi-project
   enhanced-JQL and explicit-board reads feed planning-first dry runs, private
   raw/account/ledger/report artifacts, approval-bound apply, per-entity
   write/readback checkpoints, fresh-process resume, related/changelog
@@ -1311,7 +1265,7 @@ explicitly in the entries below.
   ACLs fail closed.
   (REEF-321)
 
-- **Jira migrations preserve issue discussion and related artifacts.** The
+- Jira migrations preserve issue discussion and related artifacts. The
   operator package now exposes a dry-run/apply stage for root-first threaded
   comments, redirect-safe attachment downloads, deterministic ADF media
   rewrites, configured directional or symmetric issue links, separately
@@ -1327,49 +1281,49 @@ explicitly in the entries below.
   Legacy ADF media projections remain eligible for option-aware reconciliation,
   so no AKB schema migration or backfill is required. (REEF-320)
 
-- **Jira changelog histories can be planned as auditable Reef activity.** The
+- Jira changelog histories can be planned as auditable Reef activity. The
   migrator now verifies pre-normalization raw-history references, classifies
   every item without fuzzy or lossy promotion, reuses planning/link/attachment
   bindings, and emits deterministic replay-safe activity keys and conservative
   reports. Reef activity schemas and the bilingual timeline also support
   lossless issue-type and start-date changes. (REEF-392)
-- **Jira migration reruns now have a durable local identity ledger and
-  checkpoint.** The operator package persists Cloud-scoped stable source-to-
+- Jira migration reruns now have a durable local identity ledger and
+  checkpoint. The operator package persists Cloud-scoped stable source-to-
   target bindings only after identity readback, resumes by phase and canonical
   entity key, derives multi-project reports from run state, and rejects corrupt,
   scope-drifted, locked, stale-writer, or secret-bearing artifacts through
   compare-and-swap guarded private atomic file I/O. (REEF-319)
-- **Jira issues can be mapped into immutable Reef import plans.** The operator
+- Jira issues can be mapped into immutable Reef import plans. The operator
   package now resolves tenant fields without fuzzy defaults, converts ADF to
   Markdown with explicit unsupported/media evidence, and combines configurable
   enum, account, planning, parent, and Rank mappings into runtime-validated,
   raw-reference-backed plans without performing writes. (REEF-318)
-- **AKB table schema changes are available through the core adapter.** Operators
+- AKB table schema changes are available through the core adapter. Operators
   can call low-level table alters or caller-keyed idempotent migrations through
   validated public helpers. No vault schema is changed automatically; target
   AKB deployments must provide the table alter and migration endpoints.
   (REEF-055)
-- **Jira migrations can preserve verifiable raw source artifacts.** The
+- Jira migrations can preserve verifiable raw source artifacts. The
   operator package now separates pre-validation Jira JSON from normalized
   models and exposes a content-addressed, versioned raw archive with integrity,
   retention, secret, and private-permission checks. (REEF-406)
-- **Reef uses one provider-neutral LLM endpoint contract.** Deployments set
+- Reef uses one provider-neutral LLM endpoint contract. Deployments set
   `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together for
   either OpenRouter or an akb-platform gateway, without a mode switch or
   provider-specific runtime behavior.
   Every model step uses Chat Completions, a UUID request identity, and zero SDK
   retries. LLM availability remains independent from AKB and Keycloak, so
   Keycloak-only deployments stay healthy with AI disabled. (REEF-413)
-- **AKB account state now survives every Reef sign-in path.** Membership-required,
+- AKB account state now survives every Reef sign-in path. Membership-required,
   suspended-account, and identity-conflict responses have stable local and SSO
   UX. AKB's SSO-only/local-auth policy controls the login surface, and an account
   rejection clears established Reef cookies plus account-scoped browser caches
   without treating an ordinary permission denial as a sign-out.
-- **Comment replies now stay in readable threads.** Comments can reply to a
+- Comment replies now stay in readable threads. Comments can reply to a
   root or another reply while the activity timeline keeps one visual depth,
   direct-parent context, stable reply ordering, and the root's global timeline
   position. (REEF-065)
-- **Select and edit multiple issues together in List.** List rows now expose
+- Select and edit multiple issues together in List. List rows now expose
   keyboard-accessible checkboxes, Shift+Click range selection, and an integrated
   toolbar for status, assignee, priority, sprint, and label changes. Board stays
   focused on drag-and-scan work; bulk editing remains available after switching
@@ -1381,7 +1335,7 @@ explicitly in the entries below.
 
 ### Changed
 
-- **Breaking (internal): the Jira migrator now has explicit module boundaries.**
+- Breaking (internal): the Jira migrator now has explicit module boundaries.
   Jira wire models, migration execution state, raw-archive security, issue
   planning, and related-data import stages now have separate owners behind the
   unchanged `@reef/jira-migrator` root import. Undocumented low-level object,
@@ -1391,22 +1345,22 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Production web builds stay browser-compatible.** Core adapter equality
+- Production web builds stay browser-compatible. Core adapter equality
   checks no longer pull the Node-only `node:util` module into client bundles.
 
-- **Comment threads revalidate after a hard reload.** A fresh persisted browser
+- Comment threads revalidate after a hard reload. A fresh persisted browser
   cache can render immediately, but the activity timeline now always reconciles
   it with the server so recently posted replies cannot disappear temporarily.
 
-- **Jira migration artifacts and configuration now reject additional credential
-  exposure paths.** Raw archives reject symlinks in every existing path
+- Jira migration artifacts and configuration now reject additional credential
+  exposure paths. Raw archives reject symlinks in every existing path
   component, account-mapping artifacts are written with private file modes,
   Jira base URLs cannot contain embedded credentials, and report redaction
   removes configured secrets from object keys before JSON escaping.
 
 ### Migration
 
-- **AKB table evolution now has an explicit operator-owned rollout policy.**
+- AKB table evolution now has an explicit operator-owned rollout policy.
   New-table provisioning remains limited to `ensureReefTables` create/verify,
   while a release pre-start gate must enumerate every registered Reef workspace,
   apply pending caller-keyed `akbApplyTableMigration` phases, and finish with
@@ -1418,7 +1372,7 @@ explicitly in the entries below.
   owns the runner and deployment/development wiring. This documentation-only
   change adds no runner, credential, manifest, package script, schema migration,
   data backfill, or `REEF_SCHEMA_VERSION` bump. (REEF-030)
-- **Update the Reef workspace skill/runbooks to version 17.** The comment
+- Update the Reef workspace skill/runbooks to version 17. The comment
   contract now documents `parent_comment_id` / `thread_root_id`, atomic reply
   validation, malformed-chain handling, and trusted importer handoff. Existing
   workspaces should use the normal skill-update prompt before generic AKB agents
@@ -1427,7 +1381,7 @@ explicitly in the entries below.
 
 ### Operational
 
-- **No Docker Hub image is published for v0.8.0.** This cut is distributed by
+- No Docker Hub image is published for v0.8.0. This cut is distributed by
   source and the annotated `v0.8.0` Git tag. Build and size verification still
   apply locally. Deployments should build from the immutable tag; rollback uses
   the previous `v0.7.0` tag and the compatibility window documented in the
@@ -1437,73 +1391,73 @@ explicitly in the entries below.
 
 ### Added
 
-- **Grounded, transparent Ask AI.** Ask AI now uses the current workspace and
+- Grounded, transparent Ask AI. Ask AI now uses the current workspace and
   issue as context, shows tool-call progress, links cited Reef issues, and
   exposes document sources so answers can be checked against workspace data.
   (REEF-337, REEF-360, REEF-361)
-- **Issue attachments and richer document links.** Issue descriptions and
+- Issue attachments and richer document links. Issue descriptions and
   comments accept uploads from the toolbar, paste, and drag-and-drop. Images
   render inline, other files remain downloadable, and bare AKB document URIs
   become readable title links. (REEF-349, REEF-395, REEF-401)
-- **Faster issue creation and triage.** The issue detail and create flows now use
+- Faster issue creation and triage. The issue detail and create flows now use
   a details-first property rail, support creating multiple inherited sub-issues,
   and show advisory similar-issue matches while drafting. (REEF-352, REEF-353,
   REEF-375)
-- **Keyboard-first issue navigation.** Lists and boards support roving keyboard
+- Keyboard-first issue navigation. Lists and boards support roving keyboard
   focus, direct field-edit shortcuts, view navigation chords, and consistent
   loading feedback across server-backed searches. (REEF-344, REEF-369)
-- **More ways to share and connect work.** Issues can be copied as direct links,
+- More ways to share and connect work. Issues can be copied as direct links,
   and external references now support Jira and Confluence alongside the existing
   providers. (REEF-328, REEF-329)
 
 ### Changed
 
-- **Jira import ordering is preserved in Reef.** Trusted migration plans can map
+- Jira import ordering is preserved in Reef. Trusted migration plans can map
   Jira Rank into Reef's issue-wide numeric ordering, and the Kanban board uses
   that ordering when no explicit user sort overrides it. (REEF-393)
-- **AKB compatibility is more tolerant.** Reef accepts both the legacy and newer
+- AKB compatibility is more tolerant. Reef accepts both the legacy and newer
   structured AKB error envelopes when handling not-yet-provisioned workspaces.
   (REEF-363)
 
 ### Fixed
 
-- **Attachment tables provision reliably.** Reef no longer attempts to create
+- Attachment tables provision reliably. Reef no longer attempts to create
   AKB-managed timestamp columns and recognizes AKB's canonical numeric and JSONB
   type names during schema verification. (REEF-404)
-- **Markdown and AKB links behave consistently.** Rendered issue-body links open
+- Markdown and AKB links behave consistently. Rendered issue-body links open
   without moving the editor selection, and deployed document backlinks resolve
   the AKB web URL at request time. (REEF-368, REEF-400)
-- **Planning views render stable, accurate state.** Cached planning data no
+- Planning views render stable, accurate state. Cached planning data no
   longer causes a hydration mismatch, and sprint, milestone, and release badges
   use planning-specific status semantics. (REEF-396, REEF-398)
 
 ### Migration
 
-- **Update the Reef workspace skill/runbooks to version 16.** The update adds
+- Update the Reef workspace skill/runbooks to version 16. The update adds
   portable issue-body link rules, importer-owned rank guidance, Jira and
   Confluence external-reference types, and the attachment table contract.
   Existing workspaces surface the normal skill-update prompt.
-- **Prefer `AKB_WEB_URL` for deployed AKB backlinks.** The URL is now read from
+- Prefer `AKB_WEB_URL` for deployed AKB backlinks. The URL is now read from
   server runtime configuration. `NEXT_PUBLIC_AKB_WEB_URL` remains supported for
   compatibility, so no immediate environment migration or data backfill is
   required.
 
 ### Operational
 
-- **Jira migration tooling is now a separate private package.** The read-only
+- Jira migration tooling is now a separate private package. The read-only
   operator package covers Jira payload retrieval and redaction, account mapping,
   Rank mapping, and deterministic Version/Sprint planning contracts. It does not
   yet perform the final issue import. (REEF-311, REEF-317, REEF-391, REEF-402)
-- **Background orchestration has a separate runtime package.** The new private
+- Background orchestration has a separate runtime package. The new private
   package provides configuration, dry-run startup checks, an idle loop,
   graceful shutdown, and a boundary that keeps long-running workers out of the
   web process. (REEF-379)
-- **Breaking: the legacy `/api/chat` endpoint has been removed.** Ask AI
+- Breaking: the legacy `/api/chat` endpoint has been removed. Ask AI
   streaming now uses `POST /api/agents/runs` with
   `task_id: "chat.workspace"`; proxies must keep SSE buffering disabled.
   (REEF-371)
-- **Development and container installs use pnpm 11.10.0.**
-- **No Docker Hub image is published for v0.7.0.** This cut is distributed by
+- Development and container installs use pnpm 11.10.0.
+- No Docker Hub image is published for v0.7.0. This cut is distributed by
   source and Git tag; local image build verification remains part of the release
   gate.
 
@@ -1511,13 +1465,13 @@ explicitly in the entries below.
 
 ### Added
 
-- **Delete a workspace from Settings.** The workspace owner now has a "Danger
+- Delete a workspace from Settings. The workspace owner now has a "Danger
   zone" at the foot of Settings › Workspace with two ways to clear out a
-  workspace that was created by mistake or is no longer used. **Remove reef**
+  workspace that was created by mistake or is no longer used. Remove reef
   deletes reef's issues, planning, activity, comments, and templates while
   leaving the underlying akb vault and any non-reef documents untouched — useful
   when reef was added to a vault your team still uses for other things; you can
-  set reef up there again later. **Delete workspace** permanently removes the
+  set reef up there again later. Delete workspace permanently removes the
   entire vault, including every document, file, and its history, and asks you to
   type the workspace name to confirm because it cannot be undone. Both actions
   are visible only to the workspace owner; after either one, reef switches you to
@@ -1527,7 +1481,7 @@ explicitly in the entries below.
 
 ### Changed
 
-- **The workspace you're viewing now lives in the URL.** Every in-app screen is
+- The workspace you're viewing now lives in the URL. Every in-app screen is
   now addressed as `/workspace/{workspace}/…` (for example
   `/workspace/reef-acme/issues` or `/workspace/reef-acme/issues/REEF-101`)
   instead of the old flat `/issues`, `/planning`, `/settings/…` paths. Three
@@ -1537,7 +1491,7 @@ explicitly in the entries below.
   shared pointer; and switching workspaces deep-links straight to that
   workspace's board. The previously-selected workspace is remembered as your
   per-browser default, so opening reef at the root still drops you on your last
-  workspace. **Old links keep working**: a bookmarked or shared `/issues/REEF-101`
+  workspace. Old links keep working: a bookmarked or shared `/issues/REEF-101`
   (any old flat path) redirects to its `/workspace/{default}/…` equivalent,
   preserving the query string; if you have no remembered workspace yet it sends
   you to onboarding. Opening a `/workspace/{workspace}/…` link for a workspace you
@@ -1548,7 +1502,7 @@ explicitly in the entries below.
   request-body channels, so there is no API, session-cookie, or persistence
   change.
 
-- **Editing an issue re-requests fewer list views.** When you change a field on
+- Editing an issue re-requests fewer list views. When you change a field on
   an issue (status, priority, assignee, sprint, …), reef now refetches only the
   saved list/board views that field can actually affect, instead of every open
   list view. The edit still appears immediately everywhere — the change is
@@ -1556,7 +1510,7 @@ explicitly in the entries below.
   background `/api/issues` requests, reducing server and akb load on busy boards.
   No behavior or data change (REEF-323).
 
-- **The landing issue list loads faster.** Opening reef on your default issue
+- The landing issue list loads faster. Opening reef on your default issue
   view (the "My Issues" landing, before you apply any filter) used to fan out
   four sequential calls to the workspace backend — resolve who you are, find the
   active sprint, probe whether you have any issues, then fetch the list — and
@@ -1569,7 +1523,7 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Sorted issue lists stay in true order after any edit.** A saved list sorted
+- Sorted issue lists stay in true order after any edit. A saved list sorted
   by "Recently updated" (or by due date, title, or estimate) now refreshes from
   the server after you edit an issue's title, labels, due date, estimate, parent,
   or relations — previously only status/priority-class edits refreshed those
@@ -1580,7 +1534,7 @@ explicitly in the entries below.
   views it can actually reorder — not every open list (REEF-325, follow-up to
   REEF-323, epic REEF-002).
 
-- **No more board flicker / console error when reopening a workspace.** After
+- No more board flicker / console error when reopening a workspace. After
   the move to workspace URLs, hard-reloading or deep-linking an issues view
   (board, list, timeline, backlog, reports, My Work) could momentarily render
   the cached issues against the server's loading skeleton, which the browser
@@ -1593,959 +1547,234 @@ explicitly in the entries below.
 
 ### Added
 
-- **SSO-first login: skip the button when SSO is the way in.** Deployments where
-  workspace SSO is the primary identity can opt into sending visitors straight to
-  Keycloak on `/login` — no "Continue with workspace SSO" click first — by setting
-  the server-only `REEF_SSO_AUTO_REDIRECT=1`. The decision is made server-side so
-  there is no panel flash before the bounce, and the original post-login
-  destination is preserved. It only fires when akb actually reports Keycloak
-  enabled (a safe no-op otherwise), never on an SSO/session error (`?sso_error=` /
-  `?error=`, so a failed SSO can't loop), and never when the password escape hatch
-  is requested (`/login?password=1` or `?prompt=login`), which keeps password
-  sign-in reachable if SSO is down. The default is unchanged: deployments that do
-  not set the variable still get today's button-first panel (REEF-312, epic
-  REEF-084). Operational note: `REEF_SSO_AUTO_REDIRECT` is a new optional
-  deploy-time environment variable.
-- **A workspace switch to turn AI activity scanning on or off.** Settings ›
-  Workspace › General now has an *Activity scanning* toggle that controls whether
-  reef scans the workspace's monitored repositories and proposes issue drafts and
-  status changes in the activity inbox. It is a team-shared, admin-managed setting
-  (writers can change it; readers see it read-only) stored alongside the other
-  workspace settings, not a per-person browser preference — so one toggle governs
-  scanning for everyone. **Scanning is now off by default**: a workspace performs
-  no AI activity scanning until an admin turns it on, because a scan writes
-  suggestions into the shared inbox. While it is off, the manual *Refresh* control
-  on the Activity feed is hidden and the on-mount auto-scan does not run; the
-  single server-side scan path no-ops for manual scans, agent runs, and any future
-  worker alike (REEF-313).
-- **The rest of the screen now follows the interface language.** With Korean
-  selected, the body copy across every surface renders in the selected language,
-  not just the sidebar chrome and field labels: the issue board/list/detail/
-  create/filter screens, settings, reports, the activity feed, planning, My Work,
-  the timeline, the AI dialogs, onboarding, and sign-in. Buttons, section
-  headings, empty and error states, placeholders, the markdown-editor toolbar,
-  and the keyboard-shortcut help all localize, so a Korean PM no longer reads an
-  English heading or button sitting above an already-translated value
-  (the "half-translated screen" the work set out to remove). The timeline's
-  month-year header now formats its month names locale-aware as well. A one-way
-  build guard tracks the migration, and every hardcoded interface string it
-  covers is now routed through the message catalog with a Korean translation
-  (REEF-298, completing epic REEF-178; brand names and example/format
-  placeholders such as `reef`, `REEF`, and `https://example.com` stay verbatim).
-- **Issue field *names* now follow the interface language.** The header words
-  that label a field — Assignee, Requester, Reporter, Priority, Severity, Labels,
-  Due, the Sprint/Milestone/Release planning fields, Type, Status, the dependency
-  filter, and Parent — render in the selected language across the issue detail
-  rail, the issue filters, the report scope bar, the new-issue dialog, and the
-  activity draft editor, so a field's name is localized alongside its
-  already-localized value instead of the name staying English above a translated
-  value. The framework-agnostic `core` package owns the English base catalog for
-  these field names as pure data and `web` resolves the active locale, the same
-  split as the existing field-value labels (REEF-301).
-- **The remaining field and picker placeholders now follow the interface
-  language.** A handful of shared issue-screen controls still showed English with
-  Korean selected because their copy lived where the build guard cannot see it —
-  component default values and strings assembled in code around an
-  already-translated word. The date picker's "Set date" placeholder, the
-  sprint/milestone/release picker's "Select …"/"No …" wrappers (which read
-  "Select 스프린트" in Korean), the member search box, and the combobox
-  loading/no-results states now localize, as do the priority, severity,
-  label-remove, and date-clear accessible labels (REEF-309, a follow-up to
-  REEF-299 under epic REEF-178).
-- **Issue field labels now follow the interface language.** Status, priority,
-  type, severity, close-reason (and its hints), the board/list sort field and
-  direction labels, the due/dependency filter facets, and the planning
-  sprint/milestone/release labels render in the selected language (English or
-  Korean) everywhere they appear — board columns, list, detail, filters, the
-  activity timeline, reports, and the planning page. The framework-agnostic
-  `core` package owns the message keys (the enum values) and the English base
-  catalog as pure data; `web` resolves the active locale through next-intl and
-  falls back to English for any label a locale has not translated yet. The
-  remaining hardcoded interface strings and date/number formatting are localized
-  by later work (REEF-292).
-- **More interface strings follow the language — toasts, table headers, and
-  search.** With Korean selected, the success/error toast notifications across
-  templates, workspace instructions, the activity scan, issue create/delete/move,
-  and planning create/save/delete now render in Korean, as do the issue-list
-  column headers, the AI enrichment field labels and empty states, the ⌘K search
-  and add-member directory status messages, and the reports risk-map priority and
-  age labels. These all lived in places the original hardcoded-string guard could
-  not see (data structures and `toast()` arguments); the guard now also flags a
-  new hardcoded English string added to a `toast(...)` call, so the gap cannot
-  silently reopen (REEF-299).
-- **Choose the interface language (English or Korean).** Settings > Preferences
-  now has a Language switcher next to Appearance. The choice applies immediately,
-  is remembered per device (stored in IndexedDB and mirrored to a `NEXT_LOCALE`
-  cookie), and is used to render the correct language — and `<html lang>` — from
-  the first server paint on the next visit; a first visit with no saved choice
-  follows the browser's `Accept-Language`, falling back to English. This ships
-  the i18n runtime (next-intl, cookie-based, no URL locale routing) that later
-  work builds on; only the new Language section itself is translated so far
-  (REEF-291).
-- **The sidebar and shared empty state now follow the interface language.** With
-  Korean selected, the left navigation (Issues, My Work, Planning, Activity,
-  Reports, Settings), its New issue button and attention badges, and the shared
-  "pick a workspace" prompt render in Korean; any string a locale has not yet
-  translated falls back to English without breaking the layout. This is the first
-  batch of the larger string migration: the rest of the UI follows in later
-  changes, guarded so newly added English text can't silently slip back in
-  (REEF-293).
-- **Server and AI error messages now follow the interface language.** With Korean
-  selected, the PM-facing errors raised by workspace, GitHub, and AI operations —
-  not found, save conflict, sign-in required, the AI service being unavailable,
-  invalid request, and the rest — render in Korean in their toast or dialog
-  instead of English. The framework-agnostic `core` package now carries a stable
-  error code (never message text) for each failure, and `web` resolves the active
-  locale at its error boundary and translates that code, falling back to English
-  for any message a locale has not translated yet (REEF-297).
-- **The last inline server error strings now follow the interface language.**
-  Building on the error-localization boundary above, the messages a Route Handler
-  still raised directly now render in Korean too when Korean is selected: the
-  deployment-config and validation replies ("GitHub App is not configured for this
-  deployment", the various "Invalid … id" / "Invalid suggestion status" checks, the
-  activity-suggestion review guards), and the AI chat / enrichment / agent-run
-  availability, session, and request errors. The streaming agent error envelope
-  keeps its stable
-  machine `code` unchanged and carries the localized message alongside it, and any
-  message a locale has not translated yet still falls back to English (REEF-308,
-  completing server-error localization under epic REEF-178).
-- **Tune when completed issues leave the default views.** Workspace admins can
-  now set separate "Hide completed after N days" and "Hide canceled after N
-  days" windows from Settings > Workspace > General. The values are stored in
-  `reef_settings`, default to 28 / 7 when unset or invalid, and the Board, List,
-  Backlog, and Timeline views re-evaluate resolved issue visibility after the
-  setting is saved (REEF-278).
-- **Long-resolved issues drop out of the default views, with a one-click
-  reveal.** Completed and canceled issues older than the configured windows are
-  now hidden from the Board, List, Backlog, and Timeline by default so the active
-  work stays in front. A consolidated **Display** popover on the issue toolbar
-  gathers the reveal controls — *Show completed* and *Show archived* — and the
-  choice is URL-synced (`?stale=1`) so a revealed view survives a refresh or a
-  shared link, replacing the lone "Show archived" chip (REEF-275).
-- **Pick monitored repositories without a personal access token.** When a
-  deployment configures a GitHub App, the repository picker in Settings (and the
-  new-workspace form) now lists and saves monitored repos through the
-  server-managed App installation, so a workspace admin no longer has to put a
-  GitHub credential in every browser just to configure repo grounding. Saved
-  repositories keep their stable GitHub id and owner/name (REEF-239 / REEF-244).
-- **Scan repository activity without a personal access token.** When a
-  deployment configures a GitHub App, both the manual **Scan** action and
-  agent-run activity scans now read monitored-repo commits and pull requests
-  through the server-managed App installation, so generating activity-inbox
-  suggestions no longer requires a browser-stored GitHub credential. Deployments
-  without a GitHub App now surface GitHub-specific features as unavailable, and
-  when the App is configured but unavailable — a revoked installation, missing
-  permission, or rate limit — the scan surfaces a PM-facing error instead of
-  failing silently (REEF-240 / REEF-244).
-- **Ground Ask AI, enrich, and agent runs without a personal access token.**
-  When a deployment configures a GitHub App, the monitored-repo code grounding
-  behind Ask AI and agent runs (`/api/agents/runs`) plus issue enrichment
-  (`/api/enrich`) now reads repositories through the server-managed App
-  installation, so AI answers can cite repo code without a GitHub PAT in the
-  browser. Because grounding is an enhancement, any GitHub unavailability — no
-  deployment-managed credential, an unverified session, or a revoked /
-  rate-limited App — now degrades cleanly to AKB-only answers instead of failing
-  the request (REEF-243 / REEF-244).
-- **Verify GitHub grounding locally and in CI without a GitHub App.** A new
-  optional `REEF_GITHUB_PAT` deployment env var lets a server read GitHub with a
-  read-only personal access token when no GitHub App is configured, so local
-  development and CI can exercise the real repo picker, activity scan, and AI
-  grounding without each browser supplying a PAT. It is a deployment-managed
-  secret (never per-user), disabled unless set, and used only when no App is
-  configured — credential precedence is GitHub App, then this server PAT — so it
-  never overrides or becomes a production deployment's primary credential
-  (REEF-290).
-- **Spot outdated workspace AI instructions from the sidebar.** When your active
-  workspace is running an older agent playbook, the sidebar **Settings** entry
-  now shows a small amber dot, so the drift is discoverable without opening
-  settings first. The dot clears as soon as you apply the update — and applying
-  it now confirms with a brief "Workspace instructions updated." message — and it
-  stays hidden while the status is still loading or already current (REEF-257).
-- **Drill through related issues without losing your place.** Following a
-  parent breadcrumb or sub-issue from an open issue now swaps the side panel to
-  that issue in place and shows a top-left **Back** to the issue you came from,
-  so you can explore the relationship graph and step back one issue at a time.
-  **Close** (the ✕, an outside click, or Esc when you're not drilled in) exits
-  straight to the list in one action instead of unwinding every hop, and Esc
-  steps back while you're drilled in. Opening an issue fresh, refreshing, or
-  following a deep link starts with no Back, as before (REEF-270).
-- **Filter issues by several people, sprints, or releases at once.** The
-  Assignee, Requester, Sprint, and Release filters now accept multiple values
-  and match any of them (OR within a field, AND across fields) — the same
-  multi-select the Status, Type, and Priority filters already had — so you can
-  ask for "Alice or Bob's issues" or compare "Sprint 3 and 4" in one view. The
-  selection serializes to the URL and restores on revisit or share. Assignee and
-  Requester now match a login exactly rather than as a substring, so filtering to
-  one person no longer pulls in others whose login contains it. Milestone stays
-  single-select (REEF-267).
-- **The activity timeline now shows assignee, priority, and planning changes.**
-  Reassignments, priority changes, and planning links (milestone, sprint, and
-  release attach/detach) — already recorded in the log — now render as their own
-  one-line entries in an issue's Activity thread, next to status changes and
-  delivery. Planning links read by name rather than a raw id, and a linked
-  delivery ref still appears once, not twice (REEF-276).
-- **The activity timeline now records title, labels, due date, estimate, parent,
-  relations, and archive changes.** Editing an issue's title, labels, due date,
-  estimate, parent, a relation (depends on / blocks / related to), or archiving
-  and restoring it now leaves its own one-line entry in the Activity thread —
-  completing the change history alongside status, assignee, priority, and
-  planning. Every change from one save groups under a single moment, and an
-  older deployment that does not yet understand a new entry type simply skips it
-  instead of erroring. Workspaces created on an earlier version can pick up the
-  matching agent-playbook update from Settings > Workspace (REEF-277).
+- English and Korean interface language selection applies across navigation,
+  issue fields, editors, planning, reports, search, toasts, and server errors.
+  The choice persists per device and applies from the first server render;
+  dates and relative times follow the locale, while identifiers stay unchanged.
+  (REEF-291, REEF-292, REEF-293, REEF-294, REEF-297, REEF-298, REEF-299,
+  REEF-301, REEF-308, REEF-309)
+- Workspace admins can enable AI activity scanning in Settings. Scanning is off
+  by default for both new and existing workspaces. (REEF-313)
+- Monitored-repository selection, activity scans, Ask AI, enrichment, and agent
+  grounding use deployment-managed GitHub credentials. Repo listing and scans
+  report unavailability; AI answers can continue with AKB context alone.
+  (REEF-239, REEF-240, REEF-243, REEF-244)
+- Workspace admins can set when completed and canceled issues leave default
+  views, with defaults of 28 and 7 days. Display controls reveal completed and
+  archived issues through shareable URL state. (REEF-275, REEF-278)
+- Parent, sub-issue, dependency, blocking, and related-issue links support
+  in-place detail navigation with a Back trail and one-action Close. The header
+  stays visible while details load. (REEF-266, REEF-268, REEF-270, REEF-279,
+  REEF-284, REEF-286)
+- Assignee, Requester, Sprint, and Release filters accept several values and
+  match exact logins. Selections persist in the URL. (REEF-267)
+- The issue activity timeline displays assignee, priority, and planning changes
+  and records title, labels, due date, estimate, parent, relationships, and
+  archive changes. Changes from one save share a timestamp. (REEF-276, REEF-277)
+- The sidebar flags outdated workspace instructions and links the displayed
+  version to its GitHub release notes. (REEF-170, REEF-257)
 
 ### Changed
 
-- **Dates, times, and relative timestamps follow the interface language.**
-  Calendar month and weekday headers, due/target/synced dates, the report chart
-  axis labels (throughput and Monte Carlo forecast), comment and activity
-  "5m ago" / "2d ago" timestamps, and the hover tooltips now render in the
-  selected language (e.g. `Jun 1, 2026` /
-  `2026년 6월 1일`, `2d ago` / `그저께`) instead of always English. The calendar
-  day stays pinned to UTC so the rendered date is identical for every viewer and
-  matches what the server first painted; only the language varies. The AI/LLM
-  date context is intentionally left in fixed `en-US`. Numeric integer
-  formatting is unchanged (identical across English and Korean) (REEF-294).
-- **Removed browser GitHub PAT setup and storage.** Settings > Preferences and
-  onboarding no longer collect monitored-repo Personal Access Tokens, the web
-  client no longer attaches GitHub `Authorization` headers, and Dexie v11 drops
-  the legacy `credentials` store so stale browser tokens stop being readable.
-  GitHub-specific repo listing and activity scan surfaces now require a
-  deployment-managed GitHub credential; Ask AI and enrichment continue AKB-only
-  when GitHub is unavailable (REEF-244).
-- **Sidebar footer shortcuts and release notes are easier to find.** The
-  keyboard shortcuts launcher now sits directly in the sidebar footer instead of
-  hiding inside the account menu, and the account menu's version row is now a
-  **What's new** link to the current `appVersion` GitHub Release tag while still
-  showing the exact version for bug reports (REEF-170).
-- **New workspaces start from issue-type-aligned templates.** The default issue
-  templates seeded by Settings → Templates now match reef's issue types — Epic,
-  User story, Task, Bug, Spike, and Chore — replacing the previous Bug / Feature
-  / Task / Tech debt set. Story and Bug ship with `Given / When / Then`
-  acceptance criteria, and the other types carry a done-definition that fits
-  them (epic success criteria, task checks tied to the parent story, spike
-  recommendation, chore verification). Each template also carries the practical
-  sections proven on reef's own board — bug boundaries and verification, epic
-  requirements, task testing — kept general rather than reef-specific. Templates
-  still seed each issue's kind label; you continue to pick the Type in the create
-  dialog. Workspaces that already seeded templates keep them unchanged (REEF-256).
-- **Related, blocking, and dependency links now drill in place like the rest.**
-  Clicking a depends-on, blocks, or related issue in an open issue's
-  Relationships swaps the panel to that issue and adds it to the same **Back**
-  trail as the parent breadcrumb and sub-issues — keeping the list or board you
-  came from behind it — instead of opening as a separate navigation that lost
-  your place. The drill **Back** and **Close** now share one row at the top of
-  the panel, so they line up instead of Back sitting on its own strip above the
-  header (REEF-284).
-- **The issue panel's top bar is now one steady strip.** The issue id, its
-  status and type, the parent breadcrumb, and the **Back** / **Close** controls
-  now live in a single bar that stays put while the issue below it loads — so the
-  id and Close never blink when you drill into an issue that isn't cached yet, and
-  only the title, description, side rail, and timeline show a loading skeleton.
-  This also removes the empty strip that used to sit above the header when you
-  weren't drilled in: the id always fills the bar's left and **Close** is the one
-  control on its right, in every state (REEF-286).
-- **Loading skeletons are quieter for screen readers.** While a page, panel, or
-  feed is loading, assistive technology now hears a single "Loading…" status
-  instead of walking through the empty placeholder bars — the decorative skeleton
-  trees are hidden from the accessibility tree and a sibling status region
-  carries the announcement. Real page and section headings stay readable, and
-  nothing changes visually (REEF-281).
-- **Reports names its workspace, like every other page.** The Reports header now
-  shows the active workspace as a subtitle, matching the Issues, Planning, and
-  Activity headers so the page's vault scope is visible at a glance. Page-header
-  subtitles (the workspace name, or `@login` on My Work) are now marked as
-  identifiers so machine translation leaves them untouched (REEF-260).
-- **Click a planning row's name to open its details.** On the Planning list
-  (sprints, milestones, releases), clicking a row's name now expands and
-  collapses its detail body, not just the small chevron — the chevron and name
-  are one larger, keyboard-accessible toggle instead of two controls for the same
-  panel. Rows with no detail stay plain text with no toggle (REEF-264).
-- **Backend logs explain what the server is doing.** Operators get more from
-  stdout: every `/api/*` request line now names the acting user (the akb
-  username, never a token), activity scans log step-by-step checkpoints and a
-  one-line completion summary instead of going silent for minutes, LLM calls
-  record token usage, akb/GitHub upstream calls record their HTTP status, latency,
-  and remaining GitHub rate limit, slow requests are flagged at WARN, and API
-  errors keep their upstream HTTP status. In a deployment that exports traces
-  this rich data lives on the traces; set `REEF_RESPONSE_LOG=1` (and optionally
-  `REEF_SLOW_REQUEST_MS`) to also surface it on stdout where there is no trace
-  backend. Credentials are never logged (REEF-271).
-- **The segmented toggles look and behave alike, and show keyboard focus.** The
-  issue view switcher (Board / List / Timeline / Backlog), the Settings tabs, and
-  the Planning kind toggle now share one size, spacing, and focus style. The view
-  switcher, which previously gave keyboard users no visible focus indicator, now
-  shows the same focus ring as the others, and the Planning toggle is no longer a
-  larger outlier (REEF-261).
-- **Relation chips in the create and draft forms finish their accessibility.**
-  The plain relation chips in the create dialog and activity-draft editor now
-  show a keyboard focus ring on their remove `X` (matching the detail panel's
-  chips), hide that decorative `X` from screen readers while the button keeps its
-  "Remove {id}" name, and mark the chip id so machine translation leaves the reef
-  id intact. The chips stay non-navigating and look exactly the same (REEF-282).
-- **Internal navigation no longer does a full page reload.** The My Work and
-  Backlog "Go to the board" links and the issue-detail and activity-feed
-  **Settings** links now client-navigate through Next's router instead of a hard
-  document load, so moving between these surfaces keeps the warm IndexedDB and
-  query cache and feels instant (REEF-262).
-- **One shared empty state when no workspace is selected.** The "pick a
-  workspace" prompt on the issues, My Work, planning, reports, and activity
-  surfaces now renders one shared `EmptyWorkspaceNotice` with the same copy,
-  link, and framing, instead of five slightly different empties (REEF-259).
+- Breaking: remove browser GitHub PAT collection, storage, and forwarding.
+  GitHub access requires deployment-managed credentials. (REEF-244)
+- New workspace templates align with Epic, Story, Task, Bug, Spike, and Chore.
+  Existing templates remain unchanged. (REEF-256)
+- Planning row names toggle their details with keyboard support. (REEF-264)
+- View toggles, relationship chips, activity entries, and shared empty states
+  use consistent focus and screen-reader behavior. Internal links use client
+  navigation, and Reports identifies its active workspace. (REEF-259,
+  REEF-260, REEF-261, REEF-262, REEF-281, REEF-282, REEF-287)
 
 ### Fixed
 
-- **A single malformed delivery/external ref no longer hides an entire issue.**
-  The read path validated every `reef_issues` row against the issue schema and
-  silently skipped any row that failed, so one `implementation_refs` or
-  `external_refs` entry written in a shape the ref schema rejects — a delivery
-  ref keyed by `name`/`sha`/`number` with no required `ref`, or an unknown
-  `type` such as `evidence` — dropped the whole issue from the board, list,
-  search, and its parent's sub-issue list, with no error surfaced to the PM.
-  These two fields live in the ad-hoc row `meta` JSON that an external writer
-  (a code-activity scan, a sibling automation) can fill, so they are now
-  sanitized per entry: the entries that validate are kept, the invalid ones are
-  dropped, and the drop is recorded as a backend warning. Core issue fields stay
-  strictly validated, so a genuinely corrupt row still fails loudly.
-- **Activity scans can no longer read a repository the workspace does not
-  monitor.** The manual **Scan** action and agent-run activity scans now verify
-  the requested owner/repo against the workspace's monitored repositories before
-  reading any GitHub activity, rejecting an unmonitored repo with a PM-facing
-  error. Since scans began running on a deployment's server-managed GitHub App
-  installation (REEF-240) — a credential that can read every repository the App
-  is installed on — an authenticated workspace user could otherwise have scanned
-  an arbitrary App-installed repo and pulled its commit/PR activity into their
-  inbox. This applies the same monitored-repo boundary already enforced for Ask
-  AI code grounding and issue enrichment (REEF-289).
-- **Esc now closes the open dropdown, not the whole issue editor.** While
-  editing an issue, pressing Esc with an open Assignee/Sprint/Release/Labels
-  picker, a Start/Due date popover, a relationship dropdown, or the ⋮ actions
-  menu now closes just that overlay and leaves the issue panel open — matching
-  how the Status/Priority/Type selects already behaved. Previously Esc dismissed
-  the entire panel (and the New issue / Planning editor dialogs behaved the same
-  way), because these custom overlays did not participate in the dialog's
-  keyboard-dismiss stack. When no overlay is open, Esc still steps back or closes
-  the panel as before (REEF-288).
-- **Related-issue and sub-issue rows no longer hide their title.** In the issue
-  detail, the Depends on / Blocks / Related rows, the relationship picker, and
-  the Sub-issues list now lay their issues out as aligned columns — status, id,
-  title, type, priority — so the title always keeps a readable width instead of
-  collapsing to nothing once a "blocked" marker appeared in a narrow column, and
-  the type and priority columns line up from row to row whether or not a row has
-  a priority. The "blocked" marker is now a compact glyph with its count (the
-  full "Blocked by N issues" stays available to screen readers), and in a
-  too-narrow column the type label folds to its glyph to keep the title legible
-  (REEF-285).
-- **The parent breadcrumb no longer flashes a raw issue number before its
-  title.** Opening a sub-issue from a deep link or a cold cache used to briefly
-  show the parent's raw id (for example `REEF-273`) in the header breadcrumb
-  until the issue list finished loading, then swap it for the parent's title.
-  The breadcrumb now holds a neutral placeholder while the list loads and fills
-  in the title with no visible "number → title" flicker. A parent that is
-  genuinely missing from the loaded list still falls back to its id so the link
-  stays usable (REEF-283).
-- **Switching issue views no longer flickers or feels laggy.** Clicking between
-  the Board, List, Timeline, and Backlog tabs now keeps the current view on
-  screen and swaps in the next one without flashing the board-shaped loading
-  skeleton — the four views already share the same cached data, so the switch is
-  now instant instead of stalling on a blocking re-render. The switcher shows a
-  faint "busy" dim while a heavier view prepares, and respects the reduced-motion
-  setting. The `?view=` URL still updates, so deep links, bookmarks, and
-  back/forward are unchanged (REEF-265).
-- **Sign-out now clears every open tab.** Signing out of a workspace in one
-  browser tab now also clears the cached account data in the other reef tabs
-  open on the same browser, so a shared computer no longer keeps showing the
-  previous account's boards or activity after sign-out. This only clears the
-  in-memory query cache across tabs — there is no persisted cache-format change
-  and no schema buster bump, so existing sessions are not forced to refetch.
-  Falls back gracefully where cross-tab messaging is unavailable, and single-tab
-  sign-out is unchanged (REEF-106).
-- **Navigate up to the parent issue.** The issue detail now shows a clickable
-  breadcrumb above the id line — the parent's status icon and title — so you can
-  jump to the parent in one click, mirroring how the Sub-issues list already
-  navigates down to children. The crumb reads by status glyph and title (the raw
-  id stays in the link target, off screen); a parent missing from the loaded list
-  falls back to its id so the link stays usable. The `Parent` field under
-  Relationships stays edit-only for reassigning, and the breadcrumb is hidden for
-  top-level issues (REEF-266, REEF-279).
-- **The Close issue reason picker no longer looks broken.** When you close an
-  issue, the selected close reason now reads as one clean line on the picker —
-  left-aligned with the dropdown's option labels — instead of the squished,
-  misaligned two-line value it showed before. The dropdown still lists each
-  reason with its helper line. The dialog also drops a redundant "Closed" chip
-  and adopts the same width and field framing as the Delete and planning dialogs
-  (REEF-272).
-- **Jump to a depends-on, blocks, or related issue in one click.** On the issue
-  detail, the Depends on / Blocks / Related chips now read as self-describing
-  rows — status icon, id, and title — and clicking one opens that issue, the same
-  as the Sub-issues list and the parent breadcrumb already do. Removing a
-  relation still uses the `X`, which no longer navigates. A relation pointing at
-  an archived or missing issue degrades to an id-only link rather than dropping
-  navigation. The create and activity-draft forms keep the plain, non-navigating
-  chips so clicking one never abandons an unsaved issue (REEF-268).
-- **The issue activity timeline is easier to use with a keyboard, screen reader,
-  or browser translation.** Tabbing to the collapsed "N status changes" toggle
-  now shows a visible focus ring; an event or comment older than a week shows a
-  localized date (for example "Jun 1, 2026") instead of a bare `2026-06-01`; a
-  failed load of the timeline is now announced to assistive tech instead of
-  appearing silently; the expand chevron and the comment edit button stop
-  animating when you ask for reduced motion; and code identifiers — logins and
-  PR/commit/branch references — are no longer mangled by automatic page
-  translation. Wording, layout, and behavior are otherwise unchanged (REEF-287).
-- **Route and content skeletons no longer shift the layout on load.** The
-  loading skeletons for the issues toolbar and list, the issue detail, Reports,
-  My Work, and the activity feed now match the real content's dimensions, so the
-  first paint no longer jumps when the data hydrates (cumulative layout shift is
-  gone on those surfaces). This is separate from the screen-reader skeleton work
-  above; only the measurements changed (REEF-258).
-- **Clicking a link in an AI answer or comment no longer breaks the page.** The
-  link-safety confirmation shown before opening an external link from a
-  Streamdown-rendered AI response or issue comment now renders through a portaled
-  dialog instead of inside the paragraph text, fixing a React hydration error
-  that could blank the surrounding content. The confirmation copy is localized
-  (English and Korean) (#104).
+- Malformed optional delivery or external references no longer hide an otherwise
+  valid issue. Invalid entries are omitted with a backend warning.
+- Activity scans reject repositories outside the workspace's monitored set.
+  (REEF-289)
+- Escape dismisses the open picker before its issue or planning editor.
+  (REEF-288)
+- Related-issue titles remain readable in narrow panels, and parent breadcrumbs
+  avoid flashing raw IDs during loading. (REEF-283, REEF-285)
+- Switching issue views preserves the current view until the next is ready.
+  Loading placeholders match content dimensions. (REEF-258, REEF-265)
+- Signing out clears account caches in other open tabs. (REEF-106)
+- Close-reason selections render on one aligned line. (REEF-272)
+- External-link confirmations in AI answers and comments no longer cause a
+  hydration error that blanks content. (#104)
 
 ### Security
 
-- **Bumped dompurify to 3.4.11 to resolve GHSA-cmwh-pvxp-8882.** The transitive
-  dompurify dependency (pulled in through mermaid/streamdown for AI-rendered
-  markdown) is pinned via a workspace override to 3.4.11, clearing a published
-  advisory about `ALLOWED_ATTR` prototype pollution. No user action required (#40).
+- Pin DOMPurify to 3.4.11 for GHSA-cmwh-pvxp-8882. (#40)
 
 ### Migration
 
-- The Reef vault skill / runbook documents were updated (now version 14) to add
-  the assignee, priority, planning-link, title, labels, due-date, estimate,
-  parent, relation, archive, and delivery-ref activity event types to the issue
-  timeline. New vaults install the current documents at creation; existing vaults
-  should rerun vault skill installation (offered from Settings > Workspace) before
-  relying on generic AKB agents for the expanded activity log (REEF-276, REEF-277).
-- Dexie schema `version(11)` drops the legacy browser `credentials` store as part
-  of removing the browser GitHub PAT flow. Stale browser-stored GitHub tokens
-  become unreadable on first load after upgrade; no user action is required
-  (REEF-244).
+- Vault skill version 14 adds the expanded activity event contract. Existing
+  vaults must reinstall managed instructions from Settings before agents rely
+  on those events. (REEF-276, REEF-277)
+- Dexie v11 drops the browser `credentials` store, removing access to previously
+  stored GitHub tokens automatically. (REEF-244)
 
 ### Operational
 
-- **Server-managed GitHub grounding replaces the browser GitHub PAT.**
-  Monitored-repo listing, the activity scan, and Ask AI / enrich / agent-run code
-  grounding now read GitHub through a deployment-managed GitHub App. Configure it
-  with `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
-  `REEF_GITHUB_APP_PRIVATE_KEY` (the private key is provided by the Kubernetes
-  `reef-web-secret`); `REEF_GITHUB_PAT` is an optional read-only fallback for
-  local/CI only and never overrides a configured App. A deployment with neither
-  surfaces GitHub-specific features as unavailable rather than failing. These are
-  deployment-managed secrets — never per-user and never logged (REEF-238,
-  REEF-239, REEF-240, REEF-243, REEF-290).
-- **AI activity scanning is now off by default.** A workspace performs no AI
-  activity scanning until an admin enables it from Settings > Workspace > General,
-  because a scan writes suggestions into the shared activity inbox. Existing
-  workspaces start in the off state after upgrade (REEF-313).
-- **Optional SSO-first login.** Set `REEF_SSO_AUTO_REDIRECT=1` to send visitors
-  on `/login` straight to workspace SSO (Keycloak) when akb reports it enabled,
-  skipping the button-first panel. It is a safe no-op when SSO is not enabled,
-  never fires on an SSO/session error, and always leaves the password escape hatch
-  (`/login?password=1`) reachable. Unset keeps today's button-first login
-  (REEF-312).
-- **Optional stdout logging knobs for trace-less deployments.**
-  `REEF_RESPONSE_LOG=1` surfaces the per-request access line and backend
-  observability lines on stdout where there is no trace backend, and
-  `REEF_SLOW_REQUEST_MS` (default 1000) sets the threshold at which a slow request
-  is logged at WARN. Credentials are never logged (REEF-271).
+- Configure `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
+  `REEF_GITHUB_APP_PRIVATE_KEY` for GitHub grounding. A read-only
+  `REEF_GITHUB_PAT` is supported for local development and CI when no App is
+  configured. (REEF-238, REEF-290)
+- `REEF_SSO_AUTO_REDIRECT=1` enables direct SSO entry when AKB reports Keycloak
+  enabled. Error redirects do not loop, and `/login?password=1` remains
+  available. Unset retains the login panel. (REEF-312)
+- `REEF_RESPONSE_LOG=1` enables stdout request and upstream diagnostics, token
+  usage, and scan progress. `REEF_SLOW_REQUEST_MS` defaults to 1000. Logs
+  exclude credentials. (REEF-271)
 
 ## v0.5.0 - 2026-06-19
 
 ### Added
 
-- **Unified activity timeline on issues.** The issue detail's Comments section
-  becomes a single chronological Activity thread that interleaves comments with
-  status changes and events reconstructed from the issue itself — creation, each
-  recorded delivery (PR/commit/branch), and how it was closed. Older issues fill
-  in with no backfill, since events are synthesized at read time and a change
-  already in the log is never shown twice. Comments keep their avatar cards;
-  system events read as lighter one-line entries, and a run of three or more
-  consecutive status changes folds into one expandable row (REEF-064).
-- **Issue activity log (status changes).** Every status change now records an
-  immutable, append-only event — who moved it, from and to which status, and
-  when — captured the moment the change is saved, whether from the app or an
-  automated agent. This is the foundation the unified timeline reads (REEF-063).
-- **Activity log now tracks more than status.** Beyond status changes, the log
-  now records reassignments, priority changes, planning links (milestone, sprint,
-  release attach/detach), and newly-linked delivery refs (pull requests, commits,
-  branches) — each an immutable event with who, the before→after, and when.
-  Fields changed in one save share a timestamp so they read as one moment
-  (REEF-126).
-- **Comments on issues.** Each issue gains a Comments section: leave a note, read
-  the thread oldest-first with author and time, and edit your own (an "edited"
-  marker shows). Comments render markdown including inline `code`, and `⌘↵`
-  posts. This is the flat first cut — threads, reactions, and the merged timeline
-  come later (REEF-062).
-- **A personal "My Work" view.** A dedicated `/my-work` page shows the issues
-  assigned to you, auto-scoped to your account. A summary strip counts your
-  in-progress, due-soon, overdue, open-by-stage, and sprint remaining/done work;
-  below it a focus-sorted queue orders by urgency, then priority, then closeness
-  to active, and flags blocked items. Toggle the queue between a flat priority
-  list and a by-status grouping. (The sidebar entry point and attention badge
-  ship in REEF-204.) (REEF-181).
-- **My Work sidebar entry with an attention badge.** A My Work item joins the
-  sidebar nav (second, after Issues), badged with the count of your overdue and
-  due-soon issues so the number of things needing attention is visible without
-  opening the page (REEF-204).
-- **Manage who's in a workspace from Settings.** The Workspace → Members tab
-  lists everyone with access to the active workspace and their role. Admins and
-  owners can add an existing akb user via directory search, change a member's
-  role inline, or remove a member — the owner can't be removed and you can't
-  remove yourself; writers and readers see it read-only. There is no email invite
-  (akb has none), so this grants access to people who already have an akb account
-  (REEF-179).
-- **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
-  the open work in scope will finish, and how many items finish by a near-term
-  date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly
-  throughput the dashboard already tracks — no new data or setup — and reuses the
-  Period control for the sample window (default 12 weeks). Thin history is
-  labeled as rough rather than guessed (REEF-190).
-- **Custom pivot (crosstab) report.** A new Pivot card lets you pick any two
-  categorical fields — status, type, priority, severity, assignee, or label — for
-  the rows and columns and see a count-based crosstab without an engineer
-  shipping a new card. Cells shade by count, empty intersections read blank, and
-  a Total row, column, and grand total close the margins. High-cardinality fields
-  show the busiest buckets and fold the rest into a named "Other" lane. It always
-  measures by issue count (REEF-189).
-- **Measure Reports by story points, not just issue count.** The report scope bar
-  gains a Measure control: switch to "Story points" and the load and throughput
-  cards — Workflow, By type, By severity, Top assignees, Top labels, and
-  Throughput — re-weight by summed estimate points instead of counting issues.
-  Issues with no estimate count as zero points, so the toggle never changes which
-  issues are included. Count stays the default; the risk map, deadlines, and
-  headline tiles remain count-based (REEF-188).
-- **"By severity" report card.** Reports gains a By severity breakdown of the
-  in-scope issues, alongside the existing By type, Top assignees, and Top labels
-  cards, and honoring the count/points Measure toggle (REEF-186).
-- **Portfolio health on Reports, including a roll-up by parent epic.** Reports
-  shows a Portfolio health rollup beneath the headline numbers: a worst-first
-  list of your milestones, sprints, releases, and parent epics, each with a
-  computed On track / At risk / Off track verdict from overdue and blocked work,
-  pace against the target date, and backlog growth (sprints also weigh done work
-  against declared capacity). Toggle between the dimensions, and click any row to
-  scope the detail charts below — clicking a parent scopes them to its children.
-  Shipped planning items stay hidden until toggled on (REEF-191, REEF-187).
+- Issues have editable Markdown comments and a unified chronological activity
+  timeline. Immutable events record status, assignee, priority, planning links,
+  and delivery references with actor and timestamp. Existing issue metadata
+  supplies creation, delivery, and closure history without a backfill.
+  (REEF-062, REEF-063, REEF-064, REEF-126)
+- My Work shows assigned issues, urgency and sprint summaries, a focus-sorted
+  queue, status grouping, and a sidebar attention badge. (REEF-181, REEF-204)
+- Workspace owners and admins can search existing AKB users, add members,
+  change roles, and remove members in Settings. Owners and the acting user
+  cannot be removed. (REEF-179)
+- Reports adds a Monte Carlo delivery forecast at 50/70/85/95 confidence,
+  a categorical pivot, severity breakdown, and an issue-count or story-point
+  measure. Forecasts label limited history; pivots remain count-based.
+  (REEF-186, REEF-188, REEF-189, REEF-190)
+- Portfolio health rolls up milestones, sprints, releases, and parent epics,
+  with drill-down and optional inclusion of shipped items. (REEF-187, REEF-191)
 
 ### Changed
 
-- **Calmer loading skeletons.** Loading placeholders now read as one quiet light
-  sweeping across a panel instead of every bar blinking in lockstep, and the
-  issue detail placeholder fades its labels below its values to hint the loaded
-  hierarchy. The sweep flattens to a static two-tone for anyone who prefers
-  reduced motion. No new colors, chips, or fonts (REEF-250).
-- **Snappier editing — changing one issue no longer reloads the whole list.**
-  Editing an issue's title, dates, labels, or other non-membership fields now
-  updates just that card in place instead of re-fetching and re-rendering the
-  whole board/list. Edits that move an issue between filters/columns, change its
-  sort position, or alter its dependencies still refresh the affected views; an
-  active text search refreshes only itself. Switching workspaces or signing out
-  clears the in-memory issue cache (REEF-098).
-- **Faster first load — the rich-text editor loads on demand.** The markdown
-  editor and its formatting engine (TipTap/ProseMirror) are no longer part of the
-  initial app bundle; they load the first time you open a surface that edits text
-  (creating or editing an issue, the planning editor, a settings template). A
-  height-matched placeholder holds the editor's space so the form doesn't jump,
-  and behavior is unchanged once it is open (REEF-220).
-- **Settings is now organized into scope-based tabs.** The single long scroll is
-  split into Workspace, Preferences, and Deployment tabs, each its own page — so
-  back/forward, open-in-new-tab, deep-link, and bookmark all work, and adding
-  settings no longer lengthens one screen. The Active Workspace selector lives on
-  the Workspace tab only, which itself has General and Members sub-views governed
-  by that one selector. Existing settings moved to their matching tab with nothing
-  dropped (REEF-183).
-- **The Reports dashboard no longer double-encodes priority and age.** The
-  priority × last-update Risk map is now the single home for both axes, so the
-  standalone one-dimensional By priority and Aging cards (which it already
-  contained as its row and column totals) have been removed. The Risk map is
-  labelled as covering open work, so its counts can't be mistaken for the in-scope
-  total (REEF-184).
-- **The Reports Period control now clearly scopes only the throughput window.**
-  Period re-scopes the Throughput series (its sample window) rather than appearing
-  to drive the whole page, and the load cards now label their populations — "In
-  scope" on By type, "Open work" on Deadlines — so it's clear which numbers a
-  period change does and doesn't move (REEF-185).
-- **Unified visual language across Reports.** The dashboard's cards share one
-  render vocabulary — neutral grey heat ramps (brand color reserved for quantity),
-  consistent bars, and uniform card framing — and the risk matrix renders as a
-  semantic table. Motion respects reduced-motion. Render-only; no metric changed
-  (REEF-248).
-- **Global search (⌘K) results are now real links.** Each result row links
-  directly to the issue, so Cmd/Ctrl-click, middle-click, and right-click → "Open
-  in new tab" all work; keyboard selection is unchanged. The palette also reads
-  better with assistive technology — the search box has an explicit label, status
-  changes are announced, and the results list no longer scroll-chains the page
-  behind it. The duplicate close ✕ is gone (Esc still closes), and issue ids are
-  no longer altered by browser auto-translation (REEF-221).
+- Issue edits update affected cached rows and refresh views when membership,
+  sorting, or dependencies change. The rich-text editor loads on demand.
+  (REEF-098, REEF-220)
+- Settings separates Workspace, Preferences, and Deployment into shareable
+  pages, with General and Members under Workspace. (REEF-183)
+- Reports consolidates priority and age into the risk map, clarifies the
+  Throughput period scope, and standardizes accessible chart styling.
+  (REEF-184, REEF-185, REEF-248)
+- Search results support normal browser link actions and announce loading
+  status. (REEF-221)
+- Route and issue-detail loading placeholders match their content and respect
+  reduced motion. (REEF-249, REEF-250, REEF-255)
 
 ### Fixed
 
-- **Pages no longer flash a blank body while loading.** Opening or refreshing
-  Issues, My Work, Planning, Reports, Activity, or Settings — or following a deep
-  link to an issue — now paints that page's skeleton (its board columns, summary
-  tiles, cards, or rows under the real header and sidebar) from the first frame,
-  instead of leaving the content area empty until the data arrived. The same
-  skeleton also shows the instant a route is opened from the sidebar (REEF-255).
-- **Scrolling a page to its end no longer drags the sidebar along.** When the
-  body of a page is scrolled to its top or bottom edge, continuing to scroll in
-  the same direction is now absorbed by the body instead of chaining out to the
-  document and rubber-banding the whole shell — including the fixed left sidebar —
-  on macOS trackpad/wheel overscroll (REEF-254).
-- **The issue editor's loading skeleton now matches the panel's shape.** While an
-  issue loads, the placeholder mirrors the real layout — the header row, the title
-  and description canvas, and the property rail with its Details, People, and
-  Planning sections — instead of one full-panel block that rearranged into a
-  different structure the moment the issue appeared (REEF-249).
-- **Editing an issue no longer silently overwrites a change made outside it.**
-  Opening an issue card now always re-reads the latest from the workspace, so an
-  edit made elsewhere (the akb tools, another tab) shows up instead of a stale
-  cached copy. If the body, title, labels, or relations changed after you opened
-  the card, saving surfaces a retryable save conflict — your view refreshes and
-  you can re-apply — rather than quietly replacing their change. Plain table
-  fields keep their per-field server merge (REEF-227).
-- Planning filters for Sprint, Milestone, and Release no longer squeeze long
-  selected names into narrow controls. Empty filters stay compact, selected names
-  grow to a bounded readable width, dropdown panels open wide enough to read, and
-  the Reports scope bar wraps planning controls onto readable tracks (REEF-246).
-- Opening an issue from the List, Timeline, or Backlog tab no longer flips the
-  background to the Board. The tab (and any active filters/sort) you were on is
-  preserved while the detail sheet slides over, and closing it returns you there.
-  A typed or refreshed `/issues/REEF-XXX` deep link still opens over the Board
-  (REEF-222).
-- **Focus outlines on form fields are no longer shaved off on the left and
-  right.** Focusing a field inside a column that hides horizontal overflow — most
-  visibly the Title field on the issue edit screen — clipped the teal focus
-  border on its left and right edges; it now shows on all four sides while still
-  keeping long content from widening the column. Focus rings across the edit,
-  settings, sidebar, and activity surfaces are consistent now too: keyboard focus
-  only (no flash on a mouse click), one color and weight (REEF-226).
-- **The sidebar footer workspace and account triggers now show a focus ring for
-  keyboard users.** Both draw the same focus-visible ring used elsewhere, the
-  workspace switcher's search field opts out of password-manager and spellcheck
-  prompts with a proper ellipsis (…) placeholder, and menu items highlight on
-  keyboard focus only (REEF-172).
-- The built-in workspace agent playbook now guards three issue-creation pitfalls:
-  it surfaces the parent link so an issue filed under an epic is attached rather
-  than orphaned, requires a fully-formed timestamp on status changes so an edit
-  can't silently drop the issue off the board, and explains how to spot and repair
-  a saved issue that a malformed field is hiding. Existing workspaces are offered
-  the updated playbook from Settings (REEF-224).
-- The built-in workspace agent playbook now covers reading an issue's activity
-  history and reading, writing, and editing its comments, and its data-model
-  reference lists the `reef_comments` and `reef_activity` tables. An agent
-  operating a workspace through the akb tools can now answer "what changed on this
-  issue" and work with comment threads. Existing workspaces are offered the
-  updated playbook from Settings (REEF-252).
+- Opening an issue rereads current data. Concurrent document changes produce
+  a retryable save conflict instead of overwriting them. (REEF-227)
+- Issue details preserve the originating List, Timeline, or Backlog view,
+  including filters and sort. Direct links still open over Board. (REEF-222)
+- Page overscroll no longer moves the sidebar. Focus outlines remain visible
+  across forms and sidebar controls. (REEF-172, REEF-226, REEF-254)
+- Long planning selections remain readable in filters and Reports. (REEF-246)
 
 ### Migration
 
-- New AKB tables `reef_comments` and `reef_activity` back issue comments and the
-  activity log. Both are provisioned lazily by `ensureReefTables` and verified
-  against a guarded schema manifest stamped in `reef_settings.schema_version`: new
-  vaults get them at workspace creation, existing vaults on first comment or event
-  write. No manual akb migration is required (REEF-062, REEF-063, REEF-125).
-- The Reef vault skill / runbook documents were updated (now version 13) to
-  document comment and activity read/write, the new tables, and the three
-  issue-creation guards. New vaults install the current documents at creation;
-  existing vaults should rerun vault skill installation (offered from Settings)
-  before relying on generic AKB agents for comments or activity (REEF-126,
-  REEF-224, REEF-252).
-- The persisted client query cache buster was bumped to `reef-cache-v5`. Stale
-  cached issue snapshots are discarded on first load; no user action is required
-  (REEF-098).
+- `reef_comments` and `reef_activity` tables are created and schema-checked
+  on workspace initialization or the first comment or activity write. No manual
+  AKB migration is required. (REEF-062, REEF-063, REEF-125)
+- Vault skill version 13 documents comments, activity, and issue-creation
+  guards for parent links and status timestamps. Existing vaults must reinstall
+  managed instructions from Settings before agents use those contracts.
+  (REEF-126, REEF-224, REEF-252)
+- Cache buster `reef-cache-v5` discards stale issue snapshots automatically.
+  (REEF-098)
 
 ### Operational
 
-- Backend request and error logs are now structured as one JSON line per event in
-  production (pretty colorized output when running locally) via pino.
-  Credential-bearing headers (`Authorization`, `X-Reef-LLM`, `Cookie`,
-  `Set-Cookie`, `Proxy-Authorization`) are redacted at the logger, and logs
-  emitted inside a request trace carry the `trace_id`/`span_id` so they line up
-  with the OpenTelemetry spans for that request. Operators parsing reef-web logs
-  should expect JSON; no other deploy action is required (REEF-235).
+- Production logs use JSON lines with credential redaction and trace IDs.
+  Operators parsing stdout must accept JSON. (REEF-235)
 
 ## v0.4.0 - 2026-06-12
 
 ### Added
 
-- **Workspace SSO via Keycloak, delegated through AKB.** Deployments that
-  configure AKB's Keycloak callback and a reef post-login path show a workspace
-  SSO action on the login page, exchange AKB one-time codes server-side into the
-  normal `__reef_session` cookie, and reconcile the signed-in actor before
-  routing. Password login stays available when SSO is disabled or unavailable.
-  The deployment contract and the non-blocking logout/error redirect are
-  documented in `docs/keycloak-sso.md` (REEF-102).
-- **Your current workspace now shows in the sidebar footer**, just above your
-  account — the active vault's name and a square monogram (collapsed, only the
-  monogram, with the name in a tooltip). Clicking it opens an upward switcher
-  that lists your reef workspaces with a search box, marks the current one, and
-  switches in a single click. A pinned **New workspace** entry (always present,
-  even before you have any) opens a create dialog that uses the same form as the
-  onboarding screen; the same dialog is also reachable from a **New workspace**
-  button in Settings next to the workspace switcher (REEF-146, REEF-147).
-- Issues now have an explicit **Backlog** stage, separate from **Todo**. A new
-  **Backlog** view — alongside Board, List, and Timeline — collects backlog
-  issues in a focused triage list with an inline status picker, so you can
-  promote one to Todo in place. Backlog issues stay off the active board, the
-  timeline, and the default landing view and don't count toward in-flight health
-  metrics, but they still appear in the overall status breakdown and can be
-  filtered and set like any other status (REEF-109).
-- The issue detail now shows a **Sub-issues** section listing an issue's
-  children with a done-of-total progress summary, so opening an epic or parent
-  surfaces its child work. Resolved children sink to the bottom dimmed, and the
-  section is hidden when there are none (REEF-081).
-- A shared **sort control** in the issues header now drives both the board and
-  the list, so the two always order the same way — the Kanban board can finally
-  be sorted, within each status column. Two new sort options join the existing
-  Priority / Due date / Start date / Updated / Created set: **Points** and
-  **Title** (A→Z, locale-aware so Korean titles read naturally). The direction
-  reads as intent ("High → Low", "Soonest", "A → Z"), and the default stays
-  Priority high→low until you pick one (REEF-059).
-- The board and list now **animate state changes**: cards and rows glide into
-  their new positions when status, filter, or sort changes instead of blinking
-  out and back, a dragged card eases into its dropped slot, and the card whose
-  edit just saved gives a brief brand-colored pulse to confirm it landed — all
-  honoring your reduced-motion setting (REEF-121).
-- You can now link akb workspace documents to an issue. A new **Linked
-  documents** section lets you search the vault by title and attach a document
-  as a first-class reference shown as a document card, with a one-click open in
-  akb, a copy action, and remove. When drafting a new issue, **Enrich with AI**
-  can also suggest supporting documents to cite. The old free-text "Document"
-  external-reference type is retired in favor of this; existing document entries
-  keep working and read as plain references (REEF-083).
-- Issue **Start** and **Due** date fields now use an in-app calendar that
-  matches reef's look and supports dark mode, replacing the browser-native date
-  popup. A one-click **Today** action (computed from your local calendar, so it
-  never lands on tomorrow around midnight) and a **Clear** action are built in,
-  and typing or pasting a `YYYY-MM-DD` date still works. The picker appears
-  everywhere dates are edited — issue detail, the new-issue dialog, and AI draft
-  metadata (REEF-108).
-- The issue Description editor toolbar now exposes the common markdown controls
-  directly — strikethrough, inline code, Heading 3, numbered lists, block
-  quotes, a horizontal divider, and an inline link insert/edit field — grouped
-  with hairline dividers, uniformly sized, showing their active state, and
-  wrapping cleanly in narrow dialogs. Because it is the shared editor, the change
-  applies to the new-issue dialog, issue detail, AI draft review, and planning
-  notes (REEF-082).
-- The sidebar account menu now has a **theme quick switch** (Light, Dark, or
-  System) that stays in sync with the Settings → Appearance control; picking a
-  theme applies it immediately and leaves the menu open so you can compare
-  (REEF-095).
-- Workspaces can now set a **default authoring language** for AI-generated
-  content. In Settings → Workspace, a member with write access picks the language
-  reef's AI writes new issue drafts, enrichment suggestions, and status
-  rationales in, so the team's generated content reads consistently no matter who
-  produced it; the default also reaches agents that operate the workspace
-  directly. Leave it unset to keep the prior per-request behavior; it affects only
-  newly generated prose and never rewrites existing issues or your own wording
-  (REEF-136). You can also pick this language **while creating a workspace** — the
-  create form, on both the onboarding screen and the sidebar New workspace
-  dialog, has an optional language picker (REEF-160).
-- Settings now shows a **Workspace AI Instructions** status: whether this
-  workspace's AI playbooks are current with the running release and, when they
-  are not, a one-click update. (The instructions are installed once at workspace
-  creation and were never re-synced, so a release that improved them left
-  existing workspaces on the older version with no way to tell.) Applying it
-  confirms first that it replaces the workspace instructions for everyone and
-  overwrites manual edits; members without edit access see the status but not the
-  action (REEF-123).
-- A workspace **account menu** now sits at the bottom of the sidebar, always
-  visible whether or not GitHub is configured. It shows who you're signed in as
-  and a **Sign out** that ends your akb session independently of GitHub; signing
-  out also clears this browser's akb-scoped cache and per-account view state
-  (active vault, saved filters, activity markers) so the next person on a shared
-  machine can't inherit it, while preserving device preferences such as theme.
-  It also carries a "Keyboard shortcuts" launcher (⌘?) and the app version
-  (REEF-068).
+- AKB-delegated Keycloak SSO exchanges one-time codes server-side into the
+  Reef session cookie. Password login remains available. (REEF-102)
+- The sidebar includes an active-workspace switcher, workspace creation,
+  account controls, sign-out, and theme selection. Sign-out clears account
+  data while retaining device preferences. (REEF-068, REEF-095, REEF-146,
+  REEF-147)
+- Backlog is a separate issue stage and triage view. Backlog work stays out of
+  the active board, timeline, and in-flight health metrics. (REEF-109)
+- Parent issues show sub-issues with completion progress. (REEF-081)
+- Board, List, and Backlog share sorting, including Points and Title. Manual
+  backlog ordering works under filters and places new items at the tail.
+  Cards and rows animate changes with reduced-motion support. (REEF-059,
+  REEF-121, REEF-169, REEF-175, REEF-176)
+- Issues can link AKB documents found by title, with open, copy, and remove
+  actions. AI enrichment can suggest supporting documents. (REEF-083)
+- Issue and planning editors share themed date pickers and a fuller Markdown
+  toolbar. Date fields support Today, Clear, and typed ISO dates. (REEF-082,
+  REEF-108, REEF-154)
+- Workspaces can choose the authoring language for newly generated AI prose
+  during creation or in Settings. Existing content is unchanged. (REEF-136,
+  REEF-160)
+- Settings reports workspace instruction drift and lets writers reinstall
+  managed instructions, replacing manual edits after confirmation. (REEF-123)
 
 ### Changed
 
-- **New issues now land in Backlog by default** — both the create form and AI
-  activity-scan drafts — instead of going straight to the active board; AI drafts
-  pick their status from code signals where available (REEF-130).
-- **You can now reorder the backlog while a filter is active.** Every backlog
-  issue now carries a manual-order position (new issues, and issues sent back to
-  the backlog, append to the bottom), and a filtered drag is placed against the
-  issue's true neighbors in the full backlog order — not just the rows on screen.
-  The grip stays available under a filter; picking an explicit sort still turns
-  manual reordering off, as before (REEF-176).
-- **The backlog filter bar now shows only the filters that make sense there.**
-  Sprint, Release, and Due facets are hidden in the backlog (joining Status,
-  which the view already pins) — they either return nothing or contradict the
-  view — leaving Type, Priority, Severity, Dependency, Assignee, Requester,
-  Labels, and Milestone. A stray Sprint/Release/Due value set in another view no
-  longer silently filters the backlog or blocks drag-to-reorder (REEF-177).
-- **Issue sorting is now driven from one header control across Board, List, and
-  Backlog.** Manual order is a first-class backlog sort choice, the list column
-  headers are now plain labels (no longer a competing sort entry that could
-  disagree with the control), and the duplicate in-body sort line and the
-  "Backlog · N issues" count are gone — the body carries only the
-  drag-to-reorder affordance (REEF-169, REEF-175).
-- The multi-select filter dropdowns (Status, Type, Priority, Severity, Due,
-  Dependency) now share the same **combobox styling** as the rest of reef —
-  consistent option rows, a trailing brand checkmark, and a chevron that rotates
-  on open (REEF-140).
-- The issue filter bar's **Labels** field now matches the create and edit
-  screens: type a label and press Enter to add it as a chip, instead of typing a
-  comma-separated string (REEF-091).
-- **Mutation feedback is now split by the kind of action** instead of one generic
-  toast: a failed background save (a board move or auto-save) shows a retryable
-  error toast that retries in place, archiving an issue offers a one-click undo,
-  and new-issue form errors appear inline with focus on the first problem
-  (REEF-119).
-- **Settings is organized into three ownership groups** — **Workspace**
-  (team-shared), **Your preferences** (browser-local), and **Deployment**
-  (operator-managed) — and team-shared workspace settings respect your vault
-  role: members with write access edit them, while read-only members see them
-  (including a view-only template editor) without edit or save controls
-  (REEF-020).
-- Settings now makes clear **which workspace its shared settings apply to**: the
-  Active Workspace selector reads as the scope it is (its heading carries the
-  group's weight, it sits directly above the Workspace settings it scopes, set
-  apart from your personal and deployment settings), and the Workspace settings
-  header names the active workspace — plus minor accessibility fixes (save
-  confirmation announced, keyboard-only focus ring, decorative status dot hidden)
-  (REEF-174).
-- **Your own avatar is now teal everywhere.** The brand tint that marked the
-  signed-in user only in the sidebar now marks you on every people surface (board
-  cards, list and backlog rows, the assignee picker), keyed by the same akb login
-  the issue rows use, so your color and monogram line up with how you appear as an
-  assignee. Everyone else keeps their distinct hashed color (REEF-173).
-- **Ask AI no longer requires GitHub code grounding.** When GitHub grounding is
-  unavailable, the assistant grounds answers on your akb workspace alone
-  (issues and assignees) and skips monitored-repo code search instead of failing
-  the request (REEF-089).
-- The Planning create and edit dialogs now follow the same pattern as the issue
-  dialogs: the date fields use the in-app calendar picker instead of the
-  browser-native popup, and the dialog sizing and close control line up with the
-  rest of the app (REEF-154).
-- The Reports scope bar now uses the same sprint, milestone, release, assignee,
-  and label controls as the issues board (pickers showing the planning item's
-  name, a member typeahead, labels as chips), so a label or assignee scope
-  narrows a report exactly the way the same filter narrows the board. Period and
-  scope (active / all / completed) remain specific to reports (REEF-074).
-- The issues timeline (`/issues?view=timeline`) now opens scrolled to today,
-  anchored within the visible viewport on the roughly 2,300px-wide quarter grid.
-  The Today button re-centers on today within the current quarter, edge fade
-  shadows signal that the grid scrolls horizontally, and a "Today" chevron
-  appears at whichever edge today lies beyond; the sticky month/day header and
-  label column stay put, and the smooth re-centering respects
-  `prefers-reduced-motion` (REEF-078).
-- The ⌘K global search palette now searches **every issue** in the workspace
-  through the same server-side search the issues list uses, instead of only the
-  issues already loaded. Typing matches by id, title, assignee, requester,
-  reporter, milestone, sprint, release, or label; archived issues are excluded
-  and an empty box previews recent issues — at the cost of a brief server
-  round-trip instead of an instant cache lookup (REEF-080).
-- `/api/repos` now uses the same GitHub error translation policy as the rest of
-  the web API instead of its hand-written Octokit ladder. GitHub 403s now pass
-  through as `403` instead of being collapsed to `502`, other upstream failures
-  use the generic GitHub message without the old numeric suffix, and 304 cache
-  revalidation still returns a no-body `304` with the ETag preserved (REEF-076).
-- The issue detail panel no longer shows the akb "Provenance" section — the
-  document's latest commit hash and a second copy of its related-issue links
-  (already shown and editable in Relationships). The one piece worth keeping,
-  when the issue was last edited, now appears in the detail header as a relative
-  "Edited …" timestamp (hover for the exact time) (REEF-122).
-- Old bookmarks and shared issue links that still carry the pre-rename
-  `status=open` filter value no longer fall back to the renamed **Todo** status.
-  The temporary compatibility mapping added alongside the Open→Todo rename has
-  been retired now that all stored issues use the new value; such a stale link
-  ignores just that one filter, and re-saving it from the current filters
-  restores it (REEF-141).
+- New issues default to Backlog; AI drafts can derive a status from code
+  signals. Backlog hides Sprint, Release, and Due filters. (REEF-130, REEF-177)
+- Failed background saves offer retry, archives offer undo, and creation errors
+  appear inline with focus on the first invalid field. (REEF-119)
+- Settings separates team, personal, and deployment ownership. Team settings
+  identify their active workspace and respect read-only roles. (REEF-020,
+  REEF-174)
+- Issue and report filters share planning and people pickers. Labels use chips,
+  and the signed-in user's avatar uses a consistent color. (REEF-074, REEF-091,
+  REEF-140, REEF-173)
+- Ask AI can answer from AKB alone when GitHub grounding is unavailable.
+  (REEF-089)
+- Timeline opens around today and supports recentering. Global search queries
+  all workspace issues and previews recent items when empty. (REEF-078,
+  REEF-080)
+- GitHub repository errors preserve permission status and ETag revalidation.
+  (REEF-076)
+- Issue details replace duplicate provenance with an edited timestamp.
+  Obsolete `status=open` URL filters are ignored. (REEF-122, REEF-141)
 
 ### Fixed
 
-- Checklist markdown in an issue description now works: `- [ ]` and `- [x]`
-  items render as checkboxes inline with their text, instead of throwing a
-  runtime error or dropping the checkbox onto its own line above the item
-  (REEF-157, REEF-161, REEF-164).
-- The issue Description editor no longer grows without bound as you type — long
-  content scrolls inside a height-capped editor instead of stretching the
-  slide-over or dialog — and its Source view auto-grows with the content instead
-  of staying stuck small (REEF-133).
-- Opening the Milestone (or another) dropdown while editing an issue no longer
-  scrolls the slide-over and pushes its content around; the panel scrolls within
-  its own list and flips to stay on screen instead of clipping (REEF-145).
-- The issue filter dropdowns are tidied: re-clicking an open trigger now closes
-  it instead of momentarily closing and immediately reopening (REEF-073), long
-  Assignee/Requester names and their @login no longer truncate in the open panel
-  (REEF-134), and Due/Dependency options appear as the same colored badges used
-  for those values elsewhere instead of plain text (REEF-072).
-- An issue's external reference URLs (commit, PR, design, and document links) now
-  render as clickable links that open in a new tab instead of plain text, while
-  non-URL references stay plain (REEF-087).
-- In the GitHub activity-scan review cards, a draft's references — the issues it
-  would link, the source GitHub activity, and its PR/commit evidence — now render
-  as clickable links instead of plain text (REEF-156).
-- Reports now count an issue toward **Blocked** and **At risk** only when one of
-  its dependencies is still unresolved, instead of whenever it listed any
-  dependency at all; issues whose blockers are already done no longer inflate
-  those totals (REEF-155).
-- Approving a status change suggested by a GitHub activity scan now records the
-  suggestion's PR and commit evidence on the issue's Delivery (implementation)
-  refs, instead of applying only the new status and leaving Delivery empty;
-  re-approving or re-scanning never duplicates a ref (REEF-138).
-- In the new-issue dialog and the issue detail sheet, the close (X) control no
-  longer overlaps the header actions: the dialog drops its redundant X (Cancel,
-  Esc, and clicking outside still close it), and the sheet moves close into the
-  header beside its actions menu (REEF-111).
-- In the new-issue dialog, clicking a relationship suggestion (Parent / Depends
-  on / Blocks / Related to) now adds it instead of just closing the dropdown; the
-  suggestion list was inheriting the dialog's click-blocking, so mouse picks were
-  swallowed (REEF-092).
-- Editing an issue no longer leaves its body and its board fields out of sync
-  when a save partially fails: if the row update fails after the document was
-  already written, reef rolls the document back so the two stores stay consistent
-  (REEF-094).
-- The issue editor and the new-issue dialog now share a wider layout whose right
-  rail lays each field out as a full-width row (label on the left, value taking
-  the rest) instead of cramped two-up cells, so Start/Due dates, Sprint /
-  Milestone / Release names, and Relationship ids no longer clip and the create
-  and edit screens read identically (REEF-149, REEF-167).
-- Long delivery activity and external reference values (branch names, commit
-  SHAs, PR titles, URLs) no longer spill out of the issue detail editor into the
-  right-hand Details / People / Planning rail: each row truncates within its
-  column, exposes the full value on hover, and adds a copy button so the
-  untruncated value stays reachable (REEF-071).
-- On the issue board, a card's assignee avatar now sits in a fixed slot at the
-  right edge of every card, so avatars line up vertically as you scan down a
-  column instead of drifting with whether the card shows a priority (REEF-128).
-- The Settings workspace picker now lists only akb vaults that already have a
-  reef config, matching the onboarding picker, so you can no longer select a
-  workspace reef can't read issues in and land on an empty board with no way to
-  initialize it (REEF-143).
-- Deployments without a configured GitHub App no longer pile up repeated
-  "authentication required" errors: reef treats GitHub unavailability as a
-  normal deployment state, skips repository listing / auto activity scan, and
-  surfaces a single unavailable hint instead of retrying (REEF-159 / REEF-244).
-- The two identity rows and the two pop-up menus at the bottom of the sidebar —
-  your workspace and your account — now line up and behave consistently: the rows
-  share one layout (the switch arrow stays put through loading, no stray accent
-  bar, both keep a second line), and both menus share the same width within the
-  sidebar, close on Escape, and respect reduced motion (REEF-168, REEF-171).
-- The Planning screen received the same accessibility and shareable-state pass as
-  the issue surfaces: its sections and dialogs announce their structure, the open
-  planning view is reflected in the URL so it can be shared and restored on
-  reload, and dates render through the shared themed display (REEF-152).
-- Settings is cleaner and more accessible: each setting nests as a proper
-  sub-heading under its group, the project-prefix and search fields announce
-  their labels to screen readers, decorative icons are hidden from them, and
-  ellipses use a real character (REEF-151).
+- Markdown checklists render correctly, long descriptions scroll within the
+  editor, and Source grows with its content. (REEF-133, REEF-157, REEF-161,
+  REEF-164)
+- Pickers stay within their viewport, preserve readable names, and close
+  when their trigger is clicked again. Relationship suggestions accept mouse
+  selections. (REEF-072, REEF-073, REEF-092, REEF-134, REEF-145)
+- External references and scan-review evidence render as links. Approved
+  status suggestions retain PR and commit evidence without duplicates.
+  (REEF-087, REEF-138, REEF-156)
+- Reports counts only unresolved dependencies as blockers or risks. (REEF-155)
+- A failed row save compensates a document write to keep issue content and
+  board fields consistent. (REEF-094)
+- Issue forms keep long fields and references within their columns; close
+  controls and board avatars remain aligned. (REEF-071, REEF-111, REEF-128,
+  REEF-149, REEF-167)
+- Workspace selection excludes uninitialized vaults. Missing GitHub
+  configuration shows one unavailable hint instead of repeated errors.
+  (REEF-143, REEF-159, REEF-244)
+- Sidebar menus, Settings, and Planning improve keyboard and screen-reader
+  behavior. Planning view state survives shared links and reloads.
+  (REEF-151, REEF-152, REEF-168, REEF-171)
 
 ### Migration
 
-- **Issue status `open` was renamed to `todo`.** The temporary read-side
+- Issue status `open` was renamed to `todo`. The temporary read-side
   compatibility shim shipped (REEF-139) and was then removed within this same
   release (REEF-141), so it is no longer present. Each existing workspace must run
   a one-time backfill at or before deploy — `UPDATE reef_issues SET status='todo'
   WHERE status='open'` per vault — or any issue still stored as `open` drops out
   of the active board/list view. New writes already use `todo` (REEF-139,
   REEF-141).
-- **Planning tables now let akb own their `id` primary key.** Existing vaults
+- Planning tables now let akb own their `id` primary key. Existing vaults
   whose `reef_sprints` / `reef_milestones` / `reef_releases` predate this (e.g.
   `reef-test`) must run `docs/migrations/REEF-158-planning-uuid-id.sql` once per
   vault: back up the affected tables, run the script (a single transaction),
@@ -2554,14 +1783,14 @@ explicitly in the entries below.
   `reef_issues.{sprint,milestone,release}_id` plus any pending
   activity-suggestion `meta`. Newly created vaults are uuid-native and need no
   migration (REEF-158).
-- **The Reef vault skill and AI runbooks were revised several times** this
+- The Reef vault skill and AI runbooks were revised several times this
   release (people / backlog / sprint runbook rules, the authoring-language
   directive, the status-rename guidance, the planning-uuid workflow) and now
   stamp skill version 9. There is still no automatic re-sync for existing
   workspaces such as `reef-test`; update each one via the new Settings →
   Workspace AI Instructions panel (REEF-123) or manually with `akb_update`
   (REEF-123, REEF-136, REEF-139, REEF-148, REEF-158, REEF-166).
-- **Backlog manual-order ranks live in `reef_issues.rank`.** New and demoted
+- Backlog manual-order ranks live in `reef_issues.rank`. New and demoted
   backlog issues are now born with a tail rank, but a vault that accumulated
   backlog rows before manual ordering will have `NULL` ranks that sort to the
   bottom out of order; run a one-time `UPDATE reef_issues SET rank=0 WHERE rank IS
@@ -2576,11 +1805,6 @@ explicitly in the entries below.
   survives akb's redirect allowlist when reef runs alongside akb's own frontend;
   without it the SSO round-trip can fail. Password login is unaffected when SSO is
   disabled (REEF-102, REEF-137).
-- When a vault needs the REEF-158 planning migration, sequence it with the
-  rollout: run and verify the SQL first, then build/push and roll out the new
-  reef-web image (planning is briefly unavailable between the migration and the
-  new build going live). Vaults with no planning tables to migrate take the
-  normal image rollout (REEF-158).
 
 ## v0.3.0 - 2026-06-05
 
@@ -2708,21 +1932,12 @@ explicitly in the entries below.
 
 ### Changed
 
-- Documented the reef release policy, changelog expectations, and migration
-  policy.
-- Centralized the product version in the root `package.json` and set the current
-  product version to `0.2.0`.
-- Added a release-policy check that enforces the single version source, blocks
-  ad hoc akb SQL migrations, and requires changelog coverage for migration-prone
-  files.
-- Wired the release-policy check into CI so migration-prone changes cannot rely
-  on manual review alone.
-- Allowed `CHANGELOG.md` to keep an empty `Unreleased` section after cutting a
-  release while still enforcing coverage for migration-prone files.
+- Establish repository-wide SemVer, the root package version, and the release
+  and migration policies. CI enforces one version source and migration-note
+  coverage while allowing an empty Unreleased section after a release cut.
 
 ### Migration
 
-- Removed the committed test SQL migration file from `deploy/migrations`. Reef
-  does not own direct akb database migrations in this repository; release notes
-  should instead document required akb compatibility and operational migration
-  steps.
+- Remove the test SQL migration from `deploy/migrations`. Reef does not own
+  direct AKB database migrations; release notes document required compatibility
+  and operator actions.
