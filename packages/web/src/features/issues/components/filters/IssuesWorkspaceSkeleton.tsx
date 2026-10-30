@@ -64,11 +64,7 @@ const FILTER_CHIPS = [
   { key: "assignee", width: "w-fit", field: false },
   { key: "requester", width: "w-fit", field: false },
   { key: "sprint", width: "w-fit", field: false },
-  {
-    key: "milestone",
-    width: "w-fit min-w-[9rem] max-w-[16rem]",
-    field: true,
-  },
+  { key: "milestone", width: "w-fit", field: false },
   { key: "release", width: "w-fit", field: false },
   {
     key: "labels",
