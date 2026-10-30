@@ -198,7 +198,7 @@ export function listInvalidationPredicate(
       return true;
     if (
       membershipKeys.includes("assigned_to") &&
-      variant.assignee_unset === "true"
+      variant.assigned_to_unset === "true"
     )
       return true;
     if (
