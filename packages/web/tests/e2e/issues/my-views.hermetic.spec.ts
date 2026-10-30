@@ -62,6 +62,50 @@ test("unset filters keep their summary across reload and can be cleared", async 
   );
 });
 
+test.describe("empty planning filter placement", () => {
+  test.use({ scenario: "configured_empty" });
+
+  test("keeps the open release menu visible when its selection wraps the trigger", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    await page.getByRole("button", { name: "사이드바 접기" }).click();
+    for (const kind of ["sprint", "milestone"]) {
+      await page.getByTestId(`${kind}-dropdown-trigger`).click();
+      await page.getByTestId(`${kind}-option-unset`).click();
+      await page.keyboard.press("Escape");
+    }
+    const trigger = page.getByTestId("release-dropdown-trigger");
+    await trigger.click();
+    const before = await trigger.boundingBox();
+    await page.getByTestId("release-option-unset").click();
+    const after = await trigger.boundingBox();
+    expect(after?.y).toBeGreaterThan(before?.y ?? 0);
+    const panel = page.getByTestId("release-dropdown-content");
+    await expect(panel).toBeVisible();
+    await expect
+      .poll(async () => (await panel.boundingBox())?.x ?? -1)
+      .toBeGreaterThanOrEqual(0);
+    await expect(page.getByTestId("release-option-unset")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("release-option-unset")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await expect
+      .poll(async () => (await panel.boundingBox())?.x ?? -1)
+      .toBeGreaterThanOrEqual(0);
+  });
+});
+
 test.describe("Hermetic My Views", () => {
   test("saves, applies, reloads, updates, renames, duplicates, rejects duplicates, and deletes", async ({
     page,

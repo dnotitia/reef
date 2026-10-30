@@ -131,12 +131,13 @@ export function MultiSelectCombobox<T extends string>({
         rows.find((option) => values?.includes(option.value) && !option.disabled)
           ?.value ?? rows.find((option) => !option.disabled)?.value ?? "",
       );
+  const summary = facetSummary(values, summarizeValue, auxiliaryOption);
   const placement = useComboboxPlacement({
     open,
     align,
     triggerRef,
     panelRef,
-    measureKey: `${rows.length}:${query}:${loading ? 1 : 0}`,
+    measureKey: `${rows.length}:${query}:${loading ? 1 : 0}:${label}:${summary}`,
   });
 
   const setOpen = useCallback(
@@ -171,7 +172,7 @@ export function MultiSelectCombobox<T extends string>({
         )}
       >
         {label}
-        {facetSummary(values, summarizeValue, auxiliaryOption)}
+        {summary}
         <ChevronDown data-open={open} className={CBX_CHEVRON} />
       </PopoverTrigger>
 

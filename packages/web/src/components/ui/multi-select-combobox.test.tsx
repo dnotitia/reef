@@ -295,6 +295,32 @@ describe("MultiSelectCombobox", () => {
     spy.mockRestore();
   });
 
+  it("repositions an open panel when a selection moves its trigger to the next row", async () => {
+    const widthSpy = vi.spyOn(window, "innerWidth", "get").mockReturnValue(1280);
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.testid === "people-trigger") {
+        return this.textContent?.includes("Unassigned") ? new DOMRect(80, 144, 160, 32) : new DOMRect(1168, 103, 75, 32);
+      }
+      if (this.dataset.testid === "people-content") return new DOMRect(0, 0, 320, 80);
+      return new DOMRect(0, 0, 0, 0);
+    });
+    try {
+      const user = userEvent.setup();
+      render(<AuxiliaryOptionHarness />);
+      await user.click(screen.getByTestId("people-trigger"));
+      expect(screen.getByTestId("people-content")).toHaveClass("right-0");
+      await user.click(screen.getByTestId("opt-unassigned"));
+      expect(screen.getByTestId("people-content")).toHaveClass("left-0");
+      expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "true");
+      await user.keyboard("{Enter}");
+      expect(screen.getByTestId("people-content")).toHaveClass("right-0");
+      expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "false");
+    } finally {
+      rectSpy.mockRestore();
+      widthSpy.mockRestore();
+    }
+  });
+
   it("opens upward when a containing scroll panel has less room than the viewport", async () => {
     const widthSpy = vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
     const heightSpy = vi.spyOn(window, "innerHeight", "get").mockReturnValue(900);

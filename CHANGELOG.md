@@ -21,6 +21,7 @@ issues, not public GitHub issues.
 
 - **Breaking:** Milestone filters now store arrays. Existing scalar selections are excluded when restoring current filters or My Views and must be selected again.
 - Unset issue filters appear first and use consistent summaries and individual clear controls.
+- Open filter menus remain visible when a selection wraps the toolbar.
 
 ## v0.18.0 - 2026-10-30
 
