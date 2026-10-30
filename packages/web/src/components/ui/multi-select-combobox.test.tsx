@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComboboxOption } from "./combobox";
 import { MultiSelectCombobox } from "./multi-select-combobox";
@@ -48,6 +49,7 @@ function AuxiliaryOptionHarness() {
   return (
     <MultiSelectCombobox
       label="People"
+      onClear={() => { setValues([]); setUnassigned(false); }}
       values={values}
       onToggle={(value, checked) =>
         setValues((prev) =>
@@ -113,6 +115,25 @@ describe("MultiSelectCombobox", () => {
     );
     await user.click(screen.getByTestId("opt-apple"));
     expect(screen.getByTestId("people-trigger")).toHaveTextContent("People (2)");
+  });
+
+  it("allows keyboard selection and clearing the auxiliary choice", async () => {
+    const user = userEvent.setup();
+    render(<AuxiliaryOptionHarness />);
+    await user.click(screen.getByTestId("people-trigger"));
+    await user.click(screen.getByTestId("opt-unassigned"));
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "false");
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: "Clear People filter" }));
+    expect(screen.getByTestId("people-trigger")).toHaveTextContent("People");
+    expect(screen.queryByRole("button", { name: "Clear People filter" })).toBeNull();
+  });
+
+  it("localizes the individual clear control", () => {
+    render(<IntlTestProvider locale="ko"><MultiSelectCombobox label="기한" values={["apple"]} onToggle={() => {}} onClear={() => {}} options={OPTIONS} /></IntlTestProvider>);
+    expect(screen.getByRole("button", { name: "기한 필터 지우기" })).toBeTruthy();
   });
 
   it("re-clicking an open trigger closes the panel (REEF-073) — AC3", async () => {

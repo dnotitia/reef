@@ -11,6 +11,10 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+### Changed
+
+- Unset issue filters appear first and use consistent summaries and individual clear controls.
+
 ## v0.18.0 - 2026-10-30
 
 ### Added

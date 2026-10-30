@@ -17,6 +17,7 @@ interface MultiAssigneeComboboxProps {
   values: readonly string[] | undefined;
   /** Reports a row toggle; the caller folds `[] → undefined` for its store. */
   onToggle: (login: string, checked: boolean) => void;
+  onClear?: () => void;
   /** Active akb vault — drives the vault-members lookup. */
   vault: string;
   /** Field name used for the trigger label and accessible name (Assignee /
@@ -54,6 +55,7 @@ interface MultiAssigneeComboboxProps {
 export function MultiAssigneeCombobox({
   values,
   onToggle,
+  onClear,
   vault,
   label,
   placeholder,
@@ -96,6 +98,10 @@ export function MultiAssigneeCombobox({
       label={resolvedLabel}
       values={values}
       onToggle={onToggle}
+      onClear={onClear}
+      summarizeValue={(value) =>
+        options.find((option) => option.value === value)?.label ?? value
+      }
       options={options}
       searchable
       onQueryChange={handleQueryChange}

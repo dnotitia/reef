@@ -1805,6 +1805,7 @@
       "clearField": "Clear {field}"
     },
     "combobox": {
+      "clearFilter": "Clear {field} filter",
       "options": "Options",
       "searchPlaceholder": "Search…",
       "loading": "Loading…",

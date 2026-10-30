@@ -37,6 +37,31 @@ async function openMyViewMenu(page: Page) {
   return menu;
 }
 
+test("unset filters keep their summary across reload and can be cleared", async ({
+  page,
+}) => {
+  await openExistingWorkspace(page);
+  await page.goto("/workspace/reef-e2e/issues?view=list");
+  await page.getByTestId("due-dropdown-trigger").click();
+  await expect(
+    page.getByTestId("due-dropdown-content").getByRole("option").first(),
+  ).toHaveAttribute("data-testid", "due-option-no_due");
+  await page.getByTestId("due-option-no_due").click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("due-dropdown-trigger")).toContainText(
+    "No due date",
+  );
+  await expect(page).toHaveURL(/due=no_due/);
+  await page.reload();
+  await expect(page.getByTestId("due-dropdown-trigger")).toContainText(
+    "No due date",
+  );
+  await page.getByRole("button", { name: "Clear Due filter" }).click();
+  await expect(page.getByTestId("due-dropdown-trigger")).not.toContainText(
+    "No due date",
+  );
+});
+
 test.describe("Hermetic My Views", () => {
   test("saves, applies, reloads, updates, renames, duplicates, rejects duplicates, and deletes", async ({
     page,

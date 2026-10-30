@@ -2020,6 +2020,7 @@
       "clearField": "{field} 지우기"
     },
     "combobox": {
+      "clearFilter": "{field} 필터 지우기",
       "options": "옵션",
       "searchPlaceholder": "검색…",
       "loading": "불러오는 중…",

@@ -98,7 +98,9 @@ const SEVERITY_FACET_OPTIONS: ComboboxOption<
 }));
 
 const DUE_FACET_OPTIONS: ComboboxOption<(typeof DUE_OPTIONS)[number]>[] =
-  DUE_OPTIONS.map((value) => ({
+  DUE_OPTIONS.toSorted(
+    (a, b) => Number(b === "no_due") - Number(a === "no_due"),
+  ).map((value) => ({
     value,
     label: value,
     content: <DueBadge due={value} />,
@@ -326,6 +328,9 @@ export function FilterBar({
             priority: toggleFacet(filter.priority, value, checked),
           })
         }
+        onClear={() =>
+          setFilter({ priority: undefined, priorityUnset: undefined })
+        }
         options={PRIORITY_FACET_OPTIONS}
         summarizeValue={(value) =>
           priorityLabels[value as keyof typeof priorityLabels]
@@ -352,6 +357,9 @@ export function FilterBar({
           setFilter({
             severity: toggleFacet(filter.severity, value, checked),
           })
+        }
+        onClear={() =>
+          setFilter({ severity: undefined, severityUnset: undefined })
         }
         options={SEVERITY_FACET_OPTIONS}
         summarizeValue={(value) =>
@@ -386,6 +394,7 @@ export function FilterBar({
           onToggle={(value, checked) =>
             setFilter({ due: toggleFacet(filter.due, value, checked) })
           }
+          onClear={() => setFilter({ due: undefined })}
           options={DUE_FACET_OPTIONS}
           summarizeValue={(d) => dueLabels[d as keyof typeof dueLabels]}
           active={Boolean(filter.due?.length)}
@@ -427,6 +436,9 @@ export function FilterBar({
             setFilter({
               assignee: toggleFacet(filter.assignee, login, checked),
             })
+          }
+          onClear={() =>
+            setFilter({ assignee: undefined, assigneeUnset: undefined })
           }
           unassigned={filter.assigneeUnset}
           onUnassignedToggle={(checked) =>

@@ -196,6 +196,93 @@ describe("FilterBar", () => {
     );
   });
 
+  it("shows an assignee display name and includes unassigned in its count", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ users: [{ login: "alice", name: "Alice Example" }] }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    const panel = screen.getByTestId("assignee-dropdown-content");
+    expect(within(panel).getAllByRole("option")[0]).toHaveAttribute(
+      "data-testid",
+      "assignee-option-unassigned",
+    );
+    await user.click(await within(panel).findByText("Alice Example"));
+    expect(screen.getByTestId("assignee-dropdown-trigger")).toHaveTextContent(
+      "Alice Example",
+    );
+    await user.click(screen.getByTestId("assignee-option-unassigned"));
+    expect(screen.getByTestId("assignee-dropdown-trigger")).toHaveTextContent(
+      "Assignee (2)",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Assignee filter" }),
+    );
+    expect(useIssueStore.getState().filter.assignee).toBeUndefined();
+    expect(useIssueStore.getState().filter.assigneeUnset).toBeUndefined();
+  });
+
+  it("places no due date first and clears the selected due facet", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+    await user.click(screen.getByTestId("due-dropdown-trigger"));
+    const options = within(
+      screen.getByTestId("due-dropdown-content"),
+    ).getAllByRole("option");
+    expect(options[0]).toHaveAttribute("data-testid", "due-option-no_due");
+    await user.click(screen.getByTestId("due-option-no_due"));
+    expect(screen.getByTestId("due-dropdown-trigger")).toHaveTextContent(
+      "No due date",
+    );
+    await user.click(screen.getByRole("button", { name: "Clear Due filter" }));
+    expect(useIssueStore.getState().filter.due).toBeUndefined();
+  });
+
+  it("counts each mixed facet once and clears one facet without clearing others", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({
+      filter: {
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assigneeUnset: true,
+        due: ["no_due", "overdue"],
+      },
+    });
+    renderFilterBar();
+    expect(screen.getByTestId("priority-dropdown-trigger")).toHaveTextContent(
+      "Priority (2)",
+    );
+    expect(screen.getByTestId("severity-dropdown-trigger")).toHaveTextContent(
+      "No severity",
+    );
+    expect(screen.getByTestId("due-dropdown-trigger")).toHaveTextContent(
+      "Due (2)",
+    );
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "4 filters",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Priority filter" }),
+    );
+    expect(useIssueStore.getState().filter.priority).toBeUndefined();
+    expect(useIssueStore.getState().filter.priorityUnset).toBeUndefined();
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "3 filters",
+    );
+    await user.click(screen.getByTestId("clear-filters-button"));
+    expect(useIssueStore.getState().filter).toEqual({});
+  });
+
   it("renders unset priority and severity with field-option typography and icon columns", async () => {
     const user = userEvent.setup();
     renderFilterBar();
