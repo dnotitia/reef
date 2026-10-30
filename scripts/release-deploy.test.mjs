@@ -756,6 +756,9 @@ test("deploy observes AKB applied before applying the immutable Kubernetes revis
   let intentSeen = false;
   let failBackfill = true;
   let issuePatches = 0;
+  let issueCommit = "head";
+  let lastReleasePayload;
+  let invalidIssueRelations = false;
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "reef-deploy-test-"),
   );
@@ -1065,7 +1068,7 @@ spec:
             {
               reef_id: "REEF-001",
               document_uri: "akb://reef-sample/doc/issue.md",
-              depends_on: [],
+              depends_on: invalidIssueRelations ? ["MISSING-001"] : [],
               blocks: [],
               related_to: [],
               updated_at: "2026-01-01T00:00:00Z",
@@ -1091,11 +1094,12 @@ spec:
         issuePatches++;
         if (failBackfill)
           return Response.json({ detail: "repair failed" }, { status: 500 });
+        issueCommit = `patched-${issuePatches}`;
         return Response.json({
           uri: "akb://reef-sample/doc/issue.md",
           vault: "reef-sample",
           path: "issue.md",
-          commit_hash: "patched",
+          commit_hash: issueCommit,
         });
       }
       if (documentPath === "issue.md")
@@ -1107,7 +1111,7 @@ spec:
           type: "task",
           status: "active",
           content: "body",
-          current_commit: "head",
+          current_commit: issueCommit,
           tags: [],
         });
       const document = core
@@ -1167,6 +1171,7 @@ spec:
     }
     if (url.endsWith("/releases")) {
       const body = JSON.parse(String(init.body));
+      lastReleasePayload = body;
       manifestChecksum = body.manifest_checksum;
       return new Response(
         JSON.stringify({
@@ -1181,6 +1186,16 @@ spec:
         { status: 200, headers: { "content-type": "application/json" } },
       );
     }
+    if (url.endsWith(`/apps/${APP_ID}/releases/${RELEASE_ID}`))
+      return Response.json({
+        id: RELEASE_ID,
+        app_id: APP_ID,
+        version: lastReleasePayload.version,
+        manifest: lastReleasePayload.manifest,
+        manifest_checksum: lastReleasePayload.manifest_checksum,
+        registered_at: "2026-09-04T06:00:00Z",
+        replayed: true,
+      });
     if (url.endsWith("/rollouts")) {
       observations = 0;
       const persisted = JSON.parse(await readFile(receiptPath, "utf8"));
@@ -1388,6 +1403,32 @@ spec:
       fetchImpl,
       core,
     };
+    const rolloutWritesBeforePreflight = requests.filter(
+      ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",
+    ).length;
+    const runtimeWritesBeforePreflight = commands.filter(
+      ({ command, args }) => command === "kubectl" && args[0] === "apply",
+    ).length;
+    invalidIssueRelations = true;
+    await assert.rejects(runReleaseDeployment(backfillArgs));
+    const invalidReceipt = JSON.parse(await readFile(receiptPath, "utf8"));
+    assert.equal(
+      invalidReceipt.issue_relation_backfill.targets[0].failure.code,
+      "invalid_relations",
+    );
+    assert.equal(
+      requests.filter(
+        ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",
+      ).length,
+      rolloutWritesBeforePreflight,
+    );
+    assert.equal(
+      commands.filter(
+        ({ command, args }) => command === "kubectl" && args[0] === "apply",
+      ).length,
+      runtimeWritesBeforePreflight,
+    );
+    invalidIssueRelations = false;
     await assert.rejects(runReleaseDeployment(backfillArgs));
     const failed = JSON.parse(await readFile(receiptPath, "utf8"));
     assert.equal(failed.outcome, "data_backfill_failed");
@@ -1397,10 +1438,22 @@ spec:
     const rolloutPostsBeforeRetry = requests.filter(
       ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",
     ).length;
+    const commandsBeforeRepair = commands.length;
     const recovered = await runReleaseDeployment({
       ...backfillArgs,
-      options: { mode: "deploy", receipt: receiptPath },
+      options: { mode: "repair", receipt: receiptPath },
     });
+    assert.equal(
+      commands
+        .slice(commandsBeforeRepair)
+        .some(
+          ({ command, args }) =>
+            ["docker", "git"].includes(command) ||
+            (command === "kubectl" && ["apply", "kustomize"].includes(args[0])),
+        ),
+      false,
+    );
+
     assert.equal(
       recovered.issue_relation_backfill.targets[0].status,
       "verified",
@@ -1501,6 +1554,8 @@ test("blocked AKB rollout writes a receipt and never invokes kubectl", async () 
   };
   const fetchImpl = async (input, init = {}) => {
     const url = String(input);
+    if (new URL(url).pathname.endsWith(`/apps/${APP_ID}/inventory`))
+      return Response.json({ items: [], next_cursor: null });
     requests.push({ url, init });
     if (url.endsWith("/apps")) {
       return new Response(
@@ -1886,7 +1941,7 @@ ${EVENT_PROCESSOR_MANIFEST}`,
         assert.deepEqual(
           JSON.parse(await readFile(receiptPath, "utf8"))
             .issue_relation_backfill,
-          { targets: null },
+          { targets: [] },
         );
       }
       if (new URL(url).pathname.endsWith(`/apps/${APP_ID}/inventory`)) {
@@ -2186,7 +2241,7 @@ metadata:
   );
 });
 
-test("Kubernetes readback ignores terminating pods but rejects live identity mismatches", () => {
+test("Kubernetes readback ignores terminating and terminal pods but requires valid live pods", () => {
   const registration = {
     appId: APP_ID,
     releaseId: RELEASE_ID,
@@ -2277,6 +2332,52 @@ test("Kubernetes readback ignores terminating pods but rejects live identity mis
       eventProcessorPods,
     }),
   );
+  for (const phase of ["Failed", "Succeeded"]) {
+    const historicalWebPod = structuredClone(terminatingPod);
+    delete historicalWebPod.metadata.deletionTimestamp;
+    historicalWebPod.status.phase = phase;
+    const historicalProcessorPod = structuredClone(eventProcessorPods.items[0]);
+    historicalProcessorPod.status.phase = phase;
+    historicalProcessorPod.spec.containers[0].image =
+      "registry.example/reef-event-processor@sha256:obsolete";
+    historicalProcessorPod.status.containerStatuses[0].ready = false;
+    assert.doesNotThrow(() =>
+      assertKubernetesReadback({
+        deployment,
+        pods: { items: [livePod, historicalWebPod] },
+        registration,
+        imageRepository: "registry.example/reef-web",
+        eventProcessorImageRepository: "registry.example/reef-event-processor",
+        eventProcessorDeployment,
+        eventProcessorPods: {
+          items: [...eventProcessorPods.items, historicalProcessorPod],
+        },
+      }),
+    );
+    for (const role of ["web", "eventProcessor"]) {
+      assert.throws(
+        () =>
+          assertKubernetesReadback({
+            deployment,
+            pods: {
+              items: role === "web" ? [historicalWebPod] : [livePod],
+            },
+            registration,
+            imageRepository: "registry.example/reef-web",
+            eventProcessorImageRepository:
+              "registry.example/reef-event-processor",
+            eventProcessorDeployment,
+            eventProcessorPods: {
+              items:
+                role === "eventProcessor"
+                  ? [historicalProcessorPod]
+                  : eventProcessorPods.items,
+            },
+          }),
+        (error) => error?.stage === "runtime_identity_mismatch",
+      );
+    }
+  }
   assert.throws(
     () =>
       assertKubernetesReadback({

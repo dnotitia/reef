@@ -1,368 +1,312 @@
 import { z } from "zod";
-import { ConflictError, SchemaValidationError } from "../../../errors";
+import { ConflictError, IssueRelationBackfillError } from "../../../errors";
+import {
+  IssueRelationCheckpointSchema,
+  IssueRelationVerificationTimeoutSchema,
+  type IssueRelationCheckpoint,
+  type IssueRelationBackfillProblem,
+} from "../../../schemas/issueRelationBackfill";
 import { getAkbDocument } from "../core/documents";
 import { parseAkbDocumentUri } from "../core/documentUri";
-import { createAkbAdapter, type AkbAdapter } from "../core/http";
-import { getResourceRelations } from "../core/relations";
-import { runSql } from "../core/sql";
-import { resolveRelationUris } from "./relationUris";
+import { createAkbAdapter, DocumentPutResponseSchema } from "../core/http";
+import { getResourceRelations, type AkbRelationEdge } from "../core/relations";
+import {
+  checkVaultWriteAccess,
+  createRepairAdapter,
+  inspectRelationRows,
+  inspectRows,
+  readRows,
+  relations,
+  RELATION_READ_POLICY,
+  sourceAndTargetsUnchanged,
+  type RelationBackfillParams,
+} from "./relationBackfillInventory";
 
-const PAGE_SIZE = 200;
-const VaultInfoSchema = z.object({
-  status: z.string(),
-  is_archived: z.boolean(),
-  is_external_git: z.boolean(),
-  managed_by: z.string().nullable(),
-  role: z.string(),
-});
-const RowSchema = z.object({
-  reef_id: z.string().min(1),
-  document_uri: z.string().min(1),
-  depends_on: z.union([z.string(), z.array(z.string()), z.null()]),
-  related_to: z.union([z.string(), z.array(z.string()), z.null()]),
-  blocks: z.union([z.string(), z.array(z.string()), z.null()]),
-  updated_at: z.string().min(1),
-});
-type Row = z.infer<typeof RowSchema>;
-
-function relationArray(value: Row["depends_on"]): string[] {
-  return z
-    .array(z.string())
-    .parse(typeof value === "string" ? JSON.parse(value) : (value ?? []));
+type Progress = {
+  phase: "write" | "verify";
+  completed: number;
+  total: number;
+  pending: number;
+};
+interface RepairParams extends RelationBackfillParams {
+  checkpoints: readonly IssueRelationCheckpoint[];
+  onProgress?: (progress: Progress) => void;
+}
+interface ApplyParams extends RepairParams {
+  onCheckpoint: (checkpoint: IssueRelationCheckpoint) => Promise<void>;
+}
+interface VerifyParams extends RepairParams {
+  verificationTimeoutMs?: number;
 }
 
-async function readRows(adapter: AkbAdapter, vault: string): Promise<Row[]> {
-  const rows: Row[] = [];
-  let cursor = "";
-  for (;;) {
-    const response = await runSql(
-      adapter,
-      vault,
-      "SELECT reef_id, document_uri, depends_on, related_to, blocks, updated_at FROM reef_issues WHERE reef_id > $1 ORDER BY reef_id LIMIT $2",
-      [cursor, PAGE_SIZE],
-    );
-    if (response.kind !== "table_query")
-      throw new SchemaValidationError({ issues: ["Invalid issue inventory"] });
-    const page = z.array(RowSchema).parse(response.items);
-    for (const row of page) {
-      if (row.reef_id <= cursor)
-        throw new SchemaValidationError({
-          issues: ["Duplicate or unordered issue inventory"],
-        });
-      cursor = row.reef_id;
-      rows.push(row);
-    }
-    if (page.length < PAGE_SIZE) return rows;
-  }
+function sameUris(first: readonly string[], second: readonly string[]) {
+  const a = new Set(first),
+    b = new Set(second);
+  return a.size === b.size && [...a].every((uri) => b.has(uri));
 }
-
-async function sourceAndTargetsUnchanged(
-  adapter: AkbAdapter,
-  vault: string,
-  source: Row,
-  baseline: ReadonlyMap<string, string>,
-): Promise<boolean> {
-  const targetIds = [
-    ...new Set([
-      ...relationArray(source.depends_on),
-      ...relationArray(source.blocks),
-      ...relationArray(source.related_to),
-    ]),
-  ];
-  const ids = [...new Set([source.reef_id, ...targetIds])];
-  const placeholders = ids.map((_, index) => `$${index + 1}`).join(", ");
-  const result = await runSql(
-    adapter,
-    vault,
-    `SELECT reef_id, document_uri, depends_on, related_to, blocks, updated_at FROM reef_issues WHERE reef_id IN (${placeholders})`,
-    ids,
+function checkpointMatches(
+  checkpoint: IssueRelationCheckpoint | undefined,
+  uri: string,
+  expected: ReturnType<typeof relations>,
+): checkpoint is IssueRelationCheckpoint {
+  return (
+    checkpoint !== undefined &&
+    checkpoint.document_uri === uri &&
+    sameUris(checkpoint.depends_on, expected.depends_on) &&
+    sameUris(checkpoint.related_to, expected.related_to)
   );
-  if (result.kind !== "table_query")
-    throw new SchemaValidationError({ issues: ["Invalid issue inventory"] });
-  const rows = z.array(RowSchema).parse(result.items);
-  if (rows.length !== ids.length) return false;
-  const byId = new Map(rows.map((row) => [row.reef_id, row]));
-  if (
-    byId.size !== ids.length ||
-    JSON.stringify(byId.get(source.reef_id)) !== JSON.stringify(source)
-  )
-    return false;
-  return targetIds.every(
-    (id) => byId.get(id)?.document_uri === baseline.get(id),
+}
+function checkpointMap(checkpoints: readonly IssueRelationCheckpoint[]) {
+  return new Map(
+    z
+      .array(IssueRelationCheckpointSchema)
+      .parse(checkpoints)
+      .map((entry) => [entry.reef_id, entry]),
   );
 }
 
-function relations(
-  vault: string,
-  row: Row,
-  targets: ReadonlyMap<string, string>,
-) {
-  return resolveRelationUris(
-    vault,
-    {
-      depends_on: relationArray(row.depends_on),
-      related_to: relationArray(row.related_to),
-      blocks: relationArray(row.blocks),
+export async function preflightIssueRelationUris(
+  params: RelationBackfillParams,
+): Promise<{ count: number }> {
+  const adapter = createRepairAdapter(params);
+  await checkVaultWriteAccess(adapter, params.vault, params.credential);
+  return { count: (await inspectRows(adapter, params.vault)).length };
+}
+
+export async function applyIssueRelationUris(
+  params: ApplyParams,
+): Promise<{ count: number; checkpoints: IssueRelationCheckpoint[] }> {
+  const { vault, onCheckpoint, onProgress } = params;
+  const adapter = createRepairAdapter(params);
+  const writer = createAkbAdapter({
+    baseUrl: params.baseUrl,
+    credential: params.credential,
+    fetch: params.fetch,
+    requestPolicy: {
+      ...(params.requestPolicy ?? RELATION_READ_POLICY),
+      timeoutMs: 120_000,
     },
-    targets,
-  );
-}
-
-async function inspectRows(adapter: AkbAdapter, vault: string): Promise<Row[]> {
-  const rows = await readRows(adapter, vault);
-  const targets = new Map<string, string>();
-  const uris = new Set<string>();
-  for (const row of rows) {
-    if (
-      parseAkbDocumentUri(row.document_uri)?.vault !== vault ||
-      uris.has(row.document_uri)
-    ) {
-      throw new SchemaValidationError({
-        issues: ["Invalid or duplicate issue document URI"],
-      });
-    }
-    uris.add(row.document_uri);
-    targets.set(row.reef_id, row.document_uri);
-  }
-  for (const row of rows) relations(vault, row, targets);
-  for (const row of rows) {
-    const document = await getAkbDocument({
-      adapter,
-      vault,
-      uri: row.document_uri,
-    });
-    if (!document.current_commit || document.uri !== row.document_uri) {
-      throw new SchemaValidationError({
-        issues: [
-          "Issue document has no current commit or does not match its URI",
-        ],
-      });
-    }
-  }
-  return rows;
-}
-
-async function checkVaultWriteAccess(
-  adapter: AkbAdapter,
-  vault: string,
-  credential: string,
-): Promise<void> {
-  const info = VaultInfoSchema.parse(
-    await adapter.request(`/api/v1/vaults/${encodeURIComponent(vault)}/info`, {
-      resource: "vault",
-    }),
-  );
-  if (
-    info.status !== "active" ||
-    info.is_archived ||
-    info.is_external_git ||
-    !["owner", "admin", "writer"].includes(info.role)
-  ) {
-    throw new SchemaValidationError({ issues: ["Vault is not writable"] });
-  }
-  const actor = z
-    .object({
-      auth_method: z.string(),
-      is_admin: z.boolean(),
-      key_class: z.enum(["pat", "service"]).nullable().optional(),
-    })
-    .parse(await adapter.request("/api/v1/auth/me", { resource: "account" }));
-  if (!actor.is_admin || !["jwt", "pat", "oauth"].includes(actor.auth_method)) {
-    throw new SchemaValidationError({
-      issues: [
-        "Cannot verify write authority for a managed vault with this credential",
-      ],
-    });
-  }
-  if (info.managed_by !== null && actor.auth_method === "pat") {
-    const scopeSchema = z.object({
-      prefixes: z.array(z.string()),
-      extra_vaults: z.array(z.string()),
-    });
-    const tokenSchema = z.object({
-      token_id: z.uuid(),
-      prefix: z.string().length(12),
-      scopes: z.array(z.string()),
-      vault_scope: scopeSchema.nullable(),
-      key_class: z.enum(["pat", "service"]),
-    });
-    const { tokens } = z.object({ tokens: z.array(tokenSchema) }).parse(
-      await adapter.request("/api/v1/auth/tokens", {
-        resource: "token metadata",
-      }),
-    );
-    const matching = tokens.filter((token) =>
-      credential.startsWith(token.prefix),
-    );
-    if (
-      matching.length !== 1 ||
-      !matching[0] ||
-      matching[0].key_class !== actor.key_class
-    )
-      throw new SchemaValidationError({
-        issues: ["Cannot verify current token authority"],
-      });
-    const token = matching[0];
-    if (token.vault_scope !== null) {
-      const verified = z
-        .object({
-          token_id: z.uuid(),
-          vault_scope: scopeSchema,
-          authorities: z.array(
-            z.object({
-              vault: z.string(),
-              role: z.literal("writer"),
-              action: z.literal("*"),
-            }),
-          ),
-        })
-        .parse(
-          await adapter.request("/api/v1/auth/authority/verify", {
-            method: "POST",
-            body: {
-              vault_scope: token.vault_scope,
-              writer_authorities: [{ vault, action: "*" }],
-            },
-            resource: "authority",
-          }),
-        );
-      if (
-        verified.token_id !== token.token_id ||
-        JSON.stringify(verified.vault_scope) !==
-          JSON.stringify(token.vault_scope) ||
-        verified.authorities.length !== 1 ||
-        verified.authorities[0]?.vault !== vault
-      )
-        throw new SchemaValidationError({
-          issues: ["Cannot verify current token authority"],
-        });
-    }
-  }
-}
-
-interface RelationBackfillParams {
-  baseUrl: string;
-  credential: string;
-  vault: string;
-  fetch?: typeof fetch;
-}
-
-export async function preflightIssueRelationUris({
-  baseUrl,
-  credential,
-  vault,
-  fetch,
-}: RelationBackfillParams): Promise<{ count: number }> {
-  const adapter = createAkbAdapter({ baseUrl, credential, fetch });
-  await checkVaultWriteAccess(adapter, vault, credential);
-  const rows = await inspectRows(adapter, vault);
-  return { count: rows.length };
-}
-
-export async function backfillIssueRelationUris({
-  baseUrl,
-  credential,
-  vault,
-  fetch,
-}: RelationBackfillParams): Promise<{ count: number }> {
-  const adapter = createAkbAdapter({ baseUrl, credential, fetch });
-  await checkVaultWriteAccess(adapter, vault, credential);
-  let rows: Row[] = [];
-  let completed = false;
-  for (let attempt = 0; attempt < 3 && !completed; attempt++) {
+  });
+  const written = checkpointMap(params.checkpoints);
+  await checkVaultWriteAccess(adapter, vault, params.credential);
+  for (let attempt = 0; attempt < 3; attempt++) {
     const inspected = await inspectRows(adapter, vault);
-    rows = await readRows(adapter, vault);
+    const rows = await readRows(adapter, vault);
     if (JSON.stringify(inspected) !== JSON.stringify(rows)) continue;
     const snapshot = JSON.stringify(rows);
-    const targets = new Map(
-      rows.map((item) => [item.reef_id, item.document_uri]),
-    );
-    let changed = false;
+    const targets = inspectRelationRows(vault, rows);
+    let changed = false,
+      completed = 0;
+    onProgress?.({
+      phase: "write",
+      completed,
+      total: rows.length,
+      pending: rows.length,
+    });
     for (const row of rows) {
       if (!(await sourceAndTargetsUnchanged(adapter, vault, row, targets))) {
         changed = true;
         break;
       }
-      const document = await getAkbDocument({
+      const doc = await getAkbDocument({
         adapter,
         vault,
         uri: row.document_uri,
       });
-      if (!document.current_commit)
-        throw new SchemaValidationError({
-          issues: ["Issue document has no current commit"],
-        });
       const parsed = parseAkbDocumentUri(row.document_uri);
-      if (!parsed || parsed.vault !== vault)
-        throw new SchemaValidationError({
-          issues: ["Invalid issue document URI"],
+      if (
+        !parsed ||
+        parsed.vault !== vault ||
+        doc.uri !== row.document_uri ||
+        !doc.current_commit
+      )
+        throw new IssueRelationBackfillError({
+          vault,
+          phase: "write",
+          code: "document_missing",
+          problems: [
+            { reef_id: row.reef_id, reason: "invalid_document_identity" },
+          ],
         });
-      try {
-        await adapter.request(
-          `/api/v1/documents/${encodeURIComponent(vault)}/${parsed.path}`,
-          {
-            method: "PATCH",
-            body: {
-              ...relations(vault, row, targets),
-              expected_commit: document.current_commit,
-              message: "Backfill issue relation URIs",
-            },
-            resource: "issue document",
-          },
-        );
-      } catch (error) {
-        if (error instanceof ConflictError) {
-          changed = true;
-          break;
+      const expected = relations(vault, row, targets),
+        previous = written.get(row.reef_id);
+      if (
+        !checkpointMatches(previous, row.document_uri, expected) ||
+        previous.document_commit !== doc.current_commit
+      ) {
+        try {
+          const result = DocumentPutResponseSchema.parse(
+            await writer.request(
+              `/api/v1/documents/${encodeURIComponent(vault)}/${parsed.path}`,
+              {
+                method: "PATCH",
+                body: {
+                  ...expected,
+                  expected_commit: doc.current_commit,
+                  message: "Backfill issue relation URIs",
+                },
+                resource: "issue document",
+              },
+            ),
+          );
+          const entry = IssueRelationCheckpointSchema.parse({
+            reef_id: row.reef_id,
+            document_uri: row.document_uri,
+            document_commit: result.commit_hash,
+            ...expected,
+          });
+          await onCheckpoint(entry);
+          written.set(row.reef_id, entry);
+        } catch (error) {
+          if (error instanceof ConflictError) {
+            changed = true;
+            break;
+          }
+          throw error;
         }
-        throw error;
       }
       if (!(await sourceAndTargetsUnchanged(adapter, vault, row, targets))) {
         changed = true;
         break;
       }
+      completed++;
+      onProgress?.({
+        phase: "write",
+        completed,
+        total: rows.length,
+        pending: rows.length - completed,
+      });
     }
-    if (changed) continue;
-    const issueUris = new Set(targets.values());
-    let deadline: number | undefined;
-    for (;;) {
-      let matches = true;
-      for (const row of rows) {
-        const expected = relations(vault, row, targets);
-        for (const type of ["depends_on", "related_to"] as const) {
-          const edges = await getResourceRelations(adapter, {
-            uri: row.document_uri,
-            relation: type,
-            direction: "outgoing",
-          });
-          const actual = new Set(
-            edges
-              .filter(
-                (edge) => edge.kind !== "explicit" || issueUris.has(edge.uri),
-              )
-              .map((edge) => edge.uri),
-          );
-          const wanted = new Set(expected[type]);
-          if (
-            actual.size !== wanted.size ||
-            [...wanted].some((uri) => !actual.has(uri))
-          )
-            matches = false;
-        }
-      }
-      if (JSON.stringify(await readRows(adapter, vault)) !== snapshot) break;
-      if (matches) {
-        completed = true;
-        break;
-      }
-      deadline ??= Date.now() + 10_000;
-      if (Date.now() >= deadline)
-        throw new SchemaValidationError({
-          issues: ["Issue relation graph verification timed out"],
-        });
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
+    if (!changed && JSON.stringify(await readRows(adapter, vault)) === snapshot)
+      return { count: rows.length, checkpoints: [...written.values()] };
   }
-  if (!completed) throw new ConflictError({ path: "issue relation backfill" });
-  return { count: rows.length };
+  throw new ConflictError({ path: "issue relation backfill" });
+}
+
+function graphProblems(
+  reefId: string,
+  expected: ReturnType<typeof relations>,
+  edges: AkbRelationEdge[],
+) {
+  const problems: IssueRelationBackfillProblem[] = [];
+  for (const field of ["depends_on", "related_to"] as const) {
+    const selected = edges.filter((edge) => edge.relation === field);
+    const actual = new Set(selected.map((edge) => edge.uri)),
+      wanted = new Set(expected[field]);
+    const missing = [...wanted].filter((uri) => !actual.has(uri));
+    const unexpected = new Set(
+      selected
+        .filter((edge) => edge.kind !== "explicit" && !wanted.has(edge.uri))
+        .map((edge) => edge.uri),
+    );
+    if (missing.length || unexpected.size)
+      problems.push({
+        reef_id: reefId,
+        reason: "projection_pending",
+        field,
+        missing_count: missing.length,
+        unexpected_count: unexpected.size,
+      });
+  }
+  return problems;
+}
+
+export async function verifyIssueRelationUris(
+  params: VerifyParams,
+): Promise<{ count: number }> {
+  const { vault, onProgress } = params;
+  const timeout = IssueRelationVerificationTimeoutSchema.parse(
+    params.verificationTimeoutMs ?? 30 * 60_000,
+  );
+  const adapter = createRepairAdapter(params),
+    written = checkpointMap(params.checkpoints);
+  await checkVaultWriteAccess(adapter, vault, params.credential);
+  const rows = await readRows(adapter, vault),
+    snapshot = JSON.stringify(rows),
+    targets = inspectRelationRows(vault, rows);
+  let remaining = rows;
+  const deadline = Date.now() + timeout;
+  let lastProblems: IssueRelationBackfillProblem[] = [];
+  const checkDeadline = () => {
+    if (Date.now() >= deadline)
+      throw new IssueRelationBackfillError({
+        vault,
+        phase: "verify",
+        code: "projection_pending",
+        problems: lastProblems.length
+          ? lastProblems
+          : remaining.map((row) => ({
+              reef_id: row.reef_id,
+              reason: "verification_incomplete",
+            })),
+      });
+  };
+  for (;;) {
+    const problems: IssueRelationBackfillProblem[] = [];
+    let matched = rows.length - remaining.length;
+    for (const row of remaining) {
+      checkDeadline();
+      const expected = relations(vault, row, targets),
+        entry = written.get(row.reef_id);
+      if (!checkpointMatches(entry, row.document_uri, expected))
+        throw new ConflictError({ path: "issue relation backfill" });
+      const before = await getAkbDocument({
+        adapter,
+        vault,
+        uri: row.document_uri,
+      });
+      if (
+        before.current_commit !== entry.document_commit ||
+        before.uri !== row.document_uri
+      )
+        throw new ConflictError({ path: "issue relation backfill" });
+      const edges = await getResourceRelations(adapter, {
+        uri: row.document_uri,
+        direction: "outgoing",
+      });
+      const pending = graphProblems(row.reef_id, expected, edges);
+      if (!pending.length) {
+        const after = await getAkbDocument({
+          adapter,
+          vault,
+          uri: row.document_uri,
+        });
+        if (
+          after.current_commit !== before.current_commit ||
+          after.uri !== row.document_uri
+        )
+          throw new ConflictError({ path: "issue relation backfill" });
+      }
+      problems.push(...pending);
+      if (!pending.length) matched++;
+      onProgress?.({
+        phase: "verify",
+        completed: matched,
+        total: rows.length,
+        pending: rows.length - matched,
+      });
+    }
+    if (JSON.stringify(await readRows(adapter, vault)) !== snapshot)
+      throw new ConflictError({ path: "issue relation backfill" });
+    const pendingIds = new Set(problems.map((problem) => problem.reef_id));
+    onProgress?.({
+      phase: "verify",
+      completed: rows.length - pendingIds.size,
+      total: rows.length,
+      pending: pendingIds.size,
+    });
+    if (!problems.length) {
+      if (remaining !== rows) {
+        remaining = rows;
+        continue;
+      }
+      return { count: rows.length };
+    }
+    lastProblems = problems;
+    checkDeadline();
+    remaining = rows.filter((row) => pendingIds.has(row.reef_id));
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(5_000, deadline - Date.now())),
+    );
+  }
 }

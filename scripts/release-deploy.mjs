@@ -18,6 +18,14 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseAllDocuments, stringify } from "yaml";
 
+import { writePrivateJson as writeReceipt } from "./release-receipt.mjs";
+import {
+  RelationRepairError,
+  prepareRelationBackfill,
+  finishRelationBackfill,
+  assertRelationBackfillTargets,
+} from "./release-relations.mjs";
+
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_NAMESPACE = "reef";
@@ -47,9 +55,10 @@ const USAGE = `Usage:
   deploy/k8s/deploy.sh deploy [options]
   deploy/k8s/deploy.sh register --build-artifact <path> [options]
   deploy/k8s/deploy.sh resume --source-rollout-id <uuid> [options]
+  deploy/k8s/deploy.sh repair --receipt <path> [options]
 
 Required environment:
-  AKB_BACKEND_URL             AKB base URL (register/deploy/resume)
+  AKB_BACKEND_URL             AKB base URL (register/deploy/resume/repair)
   REEF_CONTROL_PLANE_TOKEN    system-admin deployment credential (AKB modes)
   REGISTRY                    OCI registry prefix (build/deploy)
 
@@ -227,7 +236,7 @@ function parseArgs(argv) {
     mode = argv[0];
     index = 1;
   }
-  if (!["build", "deploy", "register", "resume"].includes(mode)) {
+  if (!["build", "deploy", "register", "resume", "repair"].includes(mode)) {
     throw new DeploymentError(`Unknown release command: ${mode}`, {
       stage: "input_validation",
     });
@@ -675,168 +684,6 @@ function makeReceipt(registration, fields = {}, runtimeImages) {
   };
 }
 
-async function writeReceipt(receiptPath, receipt) {
-  if (!receiptPath) return;
-  const absolute = path.resolve(receiptPath);
-  await mkdir(path.dirname(absolute), { recursive: true });
-  const temporary = `${absolute}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  await chmod(temporary, 0o600);
-  await rename(temporary, absolute);
-}
-
-async function prepareRelationBackfill({
-  core,
-  env,
-  fetchImpl,
-  receipt,
-  receiptPath,
-  rollout,
-}) {
-  if (!receipt.issue_relation_backfill) return receipt;
-  const adapter = core.createAkbAdapter({
-    baseUrl: requireNonEmpty(env.AKB_BACKEND_URL, "AKB_BACKEND_URL"),
-    credential: requireNonEmpty(
-      env.REEF_CONTROL_PLANE_TOKEN,
-      "REEF_CONTROL_PLANE_TOKEN",
-    ),
-    fetch: fetchImpl,
-  });
-  const inventory = await core.akbListAdminActiveInstallations({
-    adapter,
-    appId: receipt.app_id,
-  });
-  const targets = inventory
-    .map(({ installationId, vaultId, vaultName }) => ({
-      installation_id: installationId,
-      vault_id: vaultId,
-      vault: vaultName,
-    }))
-    .sort((a, b) => a.vault_id.localeCompare(b.vault_id));
-  const rolloutTargets = rollout.targets
-    .map(({ installationId, vaultId }) => `${installationId}:${vaultId}`)
-    .sort();
-  if (
-    JSON.stringify(
-      targets
-        .map((target) => `${target.installation_id}:${target.vault_id}`)
-        .sort(),
-    ) !== JSON.stringify(rolloutTargets)
-  ) {
-    throw new DeploymentError(
-      "Active installation inventory differs from rollout targets",
-      { stage: "data_backfill" },
-    );
-  }
-  const existing = receipt.issue_relation_backfill.targets;
-  if (
-    existing &&
-    JSON.stringify(
-      existing.map(({ installation_id, vault_id, vault }) => ({
-        installation_id,
-        vault_id,
-        vault,
-      })),
-    ) !== JSON.stringify(targets)
-  ) {
-    throw new DeploymentError(
-      "Active installation inventory changed since the receipt was created",
-      { stage: "data_backfill" },
-    );
-  }
-  receipt.issue_relation_backfill.targets =
-    existing ??
-    targets.map((target) => ({ ...target, status: "pending", count: null }));
-  await writeReceipt(receiptPath, receipt);
-  for (const target of receipt.issue_relation_backfill.targets) {
-    if (target.status !== "verified") {
-      try {
-        await core.akbPreflightIssueRelationUris({
-          baseUrl: env.AKB_BACKEND_URL,
-          credential: env.REEF_CONTROL_PLANE_TOKEN,
-          fetch: fetchImpl,
-          vault: target.vault,
-        });
-      } catch (error) {
-        target.status = "failed";
-        await writeReceipt(receiptPath, receipt);
-        throw error;
-      }
-    }
-  }
-  return receipt;
-}
-
-async function finishRelationBackfill({
-  core,
-  env,
-  fetchImpl,
-  receipt,
-  receiptPath,
-}) {
-  if (!receipt.issue_relation_backfill) return;
-  const adapter = core.createAkbAdapter({
-    baseUrl: requireNonEmpty(env.AKB_BACKEND_URL, "AKB_BACKEND_URL"),
-    credential: requireNonEmpty(
-      env.REEF_CONTROL_PLANE_TOKEN,
-      "REEF_CONTROL_PLANE_TOKEN",
-    ),
-    fetch: fetchImpl,
-  });
-  for (const target of receipt.issue_relation_backfill.targets) {
-    if (target.status === "verified") continue;
-    try {
-      await core.akbInstallReefVaultSkill({ adapter, vault: target.vault });
-    } catch (error) {
-      target.status = "failed";
-      await writeReceipt(receiptPath, receipt);
-      throw error;
-    }
-  }
-  for (const target of receipt.issue_relation_backfill.targets) {
-    if (target.status === "verified") continue;
-    try {
-      const result = await core.akbBackfillIssueRelationUris({
-        baseUrl: env.AKB_BACKEND_URL,
-        credential: env.REEF_CONTROL_PLANE_TOKEN,
-        fetch: fetchImpl,
-        vault: target.vault,
-      });
-      target.status = "verified";
-      target.count = result.count;
-      await writeReceipt(receiptPath, receipt);
-    } catch (error) {
-      target.status = "failed";
-      await writeReceipt(receiptPath, receipt);
-      throw error;
-    }
-  }
-  const inventory = await core.akbListAdminActiveInstallations({
-    adapter,
-    appId: receipt.app_id,
-  });
-  const current = inventory
-    .map(
-      ({ installationId, vaultId, vaultName }) =>
-        `${installationId}:${vaultId}:${vaultName}`,
-    )
-    .sort();
-  const expected = receipt.issue_relation_backfill.targets
-    .map(
-      ({ installation_id, vault_id, vault }) =>
-        `${installation_id}:${vault_id}:${vault}`,
-    )
-    .sort();
-  if (JSON.stringify(current) !== JSON.stringify(expected))
-    throw new DeploymentError(
-      "Active installation inventory changed during backfill",
-      { stage: "data_backfill" },
-    );
-}
-
 async function readReceipt(receiptPath, core) {
   if (!receiptPath) return null;
   let parsed;
@@ -889,7 +736,13 @@ async function readReceipt(receiptPath, core) {
               target.count === null ||
               (Number.isSafeInteger(target.count) && target.count >= 0)
             ) ||
-            (target.status === "verified" && target.count === null),
+            (target.status === "verified" && target.count === null) ||
+            (target.checkpoint_count !== undefined &&
+              (!Number.isSafeInteger(target.checkpoint_count) ||
+                target.checkpoint_count < 0)) ||
+            (target.failure !== undefined &&
+              !core.IssueRelationBackfillReportSchema.safeParse(target.failure)
+                .success),
         )
       )
         throw new Error("invalid backfill targets");
@@ -1273,8 +1126,8 @@ export function assertKubernetesReadback({
   const activePods = Array.isArray(pods.items)
     ? pods.items.filter(
         (pod) =>
-          pod?.metadata?.deletionTimestamp === undefined ||
-          pod?.metadata?.deletionTimestamp === null,
+          pod?.metadata?.deletionTimestamp == null &&
+          !["Failed", "Succeeded"].includes(pod?.status?.phase),
       )
     : [];
   if (activePods.length === 0) {
@@ -1370,8 +1223,8 @@ export function assertKubernetesReadback({
     const activeProcessorPods = Array.isArray(eventProcessorPods?.items)
       ? eventProcessorPods.items.filter(
           (pod) =>
-            pod?.metadata?.deletionTimestamp === undefined ||
-            pod?.metadata?.deletionTimestamp === null,
+            pod?.metadata?.deletionTimestamp == null &&
+            !["Failed", "Succeeded"].includes(pod?.status?.phase),
         )
       : [];
     if (activeProcessorPods.length === 0) {
@@ -1447,6 +1300,29 @@ export async function applyKubernetesRelease({
       stage: "kubernetes_apply",
     },
   );
+  const readback = await readKubernetesRelease({
+    rootDir,
+    namespace,
+    registration,
+    imageRepository,
+    eventProcessorImageRepository,
+    runCommand,
+    env,
+    kubernetesTimeoutMs,
+  });
+  return { manifest, ...readback };
+}
+
+export async function readKubernetesRelease({
+  rootDir,
+  namespace,
+  registration,
+  imageRepository,
+  eventProcessorImageRepository,
+  runCommand,
+  env,
+  kubernetesTimeoutMs = DEFAULT_KUBERNETES_TIMEOUT_MS,
+}) {
   await runChecked(
     runCommand,
     "kubectl",
@@ -1543,7 +1419,6 @@ export async function applyKubernetesRelease({
     eventProcessorImageRepository,
   });
   return {
-    manifest,
     deployment,
     pods,
     eventProcessorDeployment,
@@ -1945,17 +1820,30 @@ async function runDeploy({
       fetchImpl,
     });
   }
-  await writeReceipt(
-    receiptPath,
-    makeReceipt(
-      registration,
-      {
-        request_key: requestKey,
-        ...(backfill ? { issue_relation_backfill: backfill } : {}),
-      },
-      runtimeImages,
-    ),
+  const preparedReceipt = makeReceipt(
+    registration,
+    {
+      request_key: requestKey,
+      ...(backfill ? { issue_relation_backfill: backfill } : {}),
+    },
+    runtimeImages,
   );
+  await writeReceipt(receiptPath, preparedReceipt);
+  try {
+    await prepareRelationBackfill({
+      core: releaseCore,
+      env,
+      fetchImpl,
+      receipt: preparedReceipt,
+      receiptPath,
+    });
+  } catch (error) {
+    await writeReceipt(receiptPath, {
+      ...preparedReceipt,
+      outcome: "data_backfill_failed",
+    });
+    throw error;
+  }
   let requestAndObservation;
   try {
     requestAndObservation = await requestAndObserve({
@@ -2007,14 +1895,10 @@ async function runDeploy({
   );
   await writeReceipt(receiptPath, appliedReceipt);
   try {
-    await prepareRelationBackfill({
-      core: releaseCore,
-      env,
-      fetchImpl,
-      receipt: appliedReceipt,
-      receiptPath,
-      rollout: requestAndObservation.applied,
-    });
+    assertRelationBackfillTargets(
+      appliedReceipt,
+      requestAndObservation.applied,
+    );
   } catch (error) {
     await writeReceipt(receiptPath, {
       ...appliedReceipt,
@@ -2089,6 +1973,47 @@ async function runDeploy({
   );
   await writeReceipt(receiptPath, complete);
   return complete;
+}
+
+async function verifyReceiptRelease({ core, env, registration, fetchImpl }) {
+  const registry = core.createAkbAppRegistry({
+    baseUrl: requireNonEmpty(env.AKB_BACKEND_URL, "AKB_BACKEND_URL"),
+    adminToken: requireNonEmpty(
+      env.REEF_CONTROL_PLANE_TOKEN,
+      "REEF_CONTROL_PLANE_TOKEN",
+    ),
+    fetch: fetchImpl,
+  });
+  const release = await registry.getRelease(
+    registration.appId,
+    registration.releaseId,
+  );
+  let verifiedRelease;
+  try {
+    verifiedRelease = await core.verifyFinalizedRelease({
+      version: release.version,
+      manifest: release.manifest,
+      manifest_checksum: release.manifestChecksum,
+    });
+  } catch {
+    throw new DeploymentError(
+      "The resumed release manifest is not a valid immutable Reef release",
+      { stage: "release_registration" },
+    );
+  }
+  if (
+    release.version !== registration.version ||
+    release.manifestChecksum !== registration.manifestChecksum ||
+    verifiedRelease.manifest.source_revision !== registration.sourceRevision ||
+    verifiedRelease.manifest.image_digest !== registration.imageDigest
+  ) {
+    throw new DeploymentError(
+      "The resumed release identity does not match the receipt",
+      {
+        stage: "release_registration",
+      },
+    );
+  }
 }
 
 async function runResume({
@@ -2178,43 +2103,26 @@ async function runResume({
     "Kubernetes timeout",
     DEFAULT_KUBERNETES_TIMEOUT_MS,
   );
-  const registry = releaseCore.createAkbAppRegistry({
-    baseUrl: requireNonEmpty(env.AKB_BACKEND_URL, "AKB_BACKEND_URL"),
-    adminToken: requireNonEmpty(
-      env.REEF_CONTROL_PLANE_TOKEN,
-      "REEF_CONTROL_PLANE_TOKEN",
-    ),
-    fetch: fetchImpl,
+  await verifyReceiptRelease({
+    core: releaseCore,
+    env,
+    registration,
+    fetchImpl,
   });
-  const release = await registry.getRelease(
-    registration.appId,
-    registration.releaseId,
-  );
-  let verifiedRelease;
   try {
-    verifiedRelease = await releaseCore.verifyFinalizedRelease({
-      version: release.version,
-      manifest: release.manifest,
-      manifest_checksum: release.manifestChecksum,
+    await prepareRelationBackfill({
+      core: releaseCore,
+      env,
+      fetchImpl,
+      receipt: saved.receipt,
+      receiptPath,
     });
-  } catch {
-    throw new DeploymentError(
-      "The resumed release manifest is not a valid immutable Reef release",
-      { stage: "release_registration" },
-    );
-  }
-  if (
-    release.version !== registration.version ||
-    release.manifestChecksum !== registration.manifestChecksum ||
-    verifiedRelease.manifest.source_revision !== registration.sourceRevision ||
-    verifiedRelease.manifest.image_digest !== registration.imageDigest
-  ) {
-    throw new DeploymentError(
-      "The resumed release identity does not match the receipt",
-      {
-        stage: "release_registration",
-      },
-    );
+  } catch (error) {
+    await writeReceipt(receiptPath, {
+      ...saved.receipt,
+      outcome: "data_backfill_failed",
+    });
+    throw error;
   }
   let applied;
   try {
@@ -2268,14 +2176,7 @@ async function runResume({
   );
   await writeReceipt(receiptPath, receipt);
   try {
-    await prepareRelationBackfill({
-      core: releaseCore,
-      env,
-      fetchImpl,
-      receipt,
-      receiptPath,
-      rollout: applied,
-    });
+    assertRelationBackfillTargets(receipt, applied);
   } catch (error) {
     await writeReceipt(receiptPath, {
       ...receipt,
@@ -2335,6 +2236,105 @@ async function runResume({
   return complete;
 }
 
+async function runRepair({
+  rootDir,
+  env,
+  options,
+  core,
+  runCommand,
+  fetchImpl,
+  now,
+  sleep,
+}) {
+  await runChecked(
+    runCommand,
+    "pnpm",
+    ["--filter", "@reef/core", "run", "build"],
+    { cwd: rootDir, env, stage: "core_build" },
+  );
+  const releaseCore = core ?? (await loadCore(rootDir)),
+    receiptPath = options.receipt ?? env.REEF_RELEASE_RECEIPT;
+  const saved = await readReceipt(receiptPath, releaseCore),
+    receipt = saved?.receipt,
+    registration = saved?.registration;
+  if (
+    !registration ||
+    !receipt.issue_relation_backfill ||
+    receipt.rollout_status !== "applied" ||
+    receipt.deployment_status !== "ready"
+  )
+    throw new DeploymentError(
+      "repair requires an applied, runtime-ready relation-repair receipt; use deploy or resume first",
+      { stage: "input_validation" },
+    );
+  await verifyReceiptRelease({
+    core: releaseCore,
+    env,
+    registration,
+    fetchImpl,
+  });
+  const { applied } = await requestAndObserve({
+    core: releaseCore,
+    env,
+    registration,
+    fetchImpl,
+    appliedJobId: ensureRolloutKey(
+      releaseCore,
+      receipt.rollout_job_id,
+      "applied rollout id",
+    ),
+    deadlineMs: DEFAULT_ROLLOUT_DEADLINE_MS,
+    pollMs: DEFAULT_ROLLOUT_POLL_MS,
+    now,
+    sleep,
+  });
+  assertRelationBackfillTargets(receipt, applied);
+  await readKubernetesRelease({
+    rootDir,
+    env,
+    runCommand,
+    registration,
+    namespace: requireNonEmpty(
+      options.namespace ?? env.NAMESPACE ?? DEFAULT_NAMESPACE,
+      "Kubernetes namespace",
+    ),
+    imageRepository: saved.runtimeImages.web.imageRepository,
+    eventProcessorImageRepository:
+      saved.runtimeImages.eventProcessor.imageRepository,
+    kubernetesTimeoutMs: parsePositiveInteger(
+      env.REEF_KUBERNETES_TIMEOUT_MS,
+      "Kubernetes timeout",
+      DEFAULT_KUBERNETES_TIMEOUT_MS,
+    ),
+  });
+  try {
+    await prepareRelationBackfill({
+      core: releaseCore,
+      env,
+      fetchImpl,
+      receipt,
+      receiptPath,
+    });
+    assertRelationBackfillTargets(receipt, applied);
+    await finishRelationBackfill({
+      core: releaseCore,
+      env,
+      fetchImpl,
+      receipt,
+      receiptPath,
+    });
+  } catch (error) {
+    await writeReceipt(receiptPath, {
+      ...receipt,
+      outcome: "data_backfill_failed",
+    });
+    throw error;
+  }
+  const complete = { ...receipt, outcome: "deployed" };
+  await writeReceipt(receiptPath, complete);
+  return complete;
+}
+
 export async function runReleaseDeployment({
   rootDir = DEFAULT_ROOT_DIR,
   env = process.env,
@@ -2345,6 +2345,17 @@ export async function runReleaseDeployment({
   fetchImpl = globalThis.fetch,
   core,
 } = {}) {
+  if (options.mode === "repair")
+    return runRepair({
+      rootDir,
+      env,
+      options,
+      core,
+      runCommand,
+      now,
+      sleep,
+      fetchImpl,
+    });
   if (options.mode === "build") {
     return runBuildOnly({ rootDir, env, options, core, runCommand });
   }
@@ -2399,10 +2410,13 @@ if (
 ) {
   main().catch((error) => {
     const message =
-      error instanceof DeploymentError
+      error instanceof DeploymentError || error instanceof RelationRepairError
         ? error.message
         : "Release deployment failed";
-    const stage = error instanceof DeploymentError ? error.stage : "deployment";
+    const stage =
+      error instanceof DeploymentError || error instanceof RelationRepairError
+        ? error.stage
+        : "deployment";
     process.stderr.write(`${stage}: ${message}\n`);
     process.exitCode = 1;
   });

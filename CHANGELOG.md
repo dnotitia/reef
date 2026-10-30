@@ -11,6 +11,30 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+### Fixed
+
+- Release verification ignores historical terminal Pods and preserves independent
+  explicit AKB links when checking issue relationship projections.
+
+### Operational
+
+- Run relationship preflight before requesting the AKB rollout and collect all
+  source-data failures in the receipt. Bound requests and vault concurrency,
+  checkpoint each acknowledged document write, and finish all writes before
+  waiting for graph projection. Successful vaults survive sibling failures.
+- Add `deploy/k8s/deploy.sh repair --receipt <path>` to resume data repair after
+  verifying the deployed immutable release, without rebuilding or redeploying.
+  Graph verification defaults to 30 minutes and reports progress.
+- Document the v0.18.0 manual recovery causes and the AKB/Reef responsibility
+  boundary in `docs/release-0.18.0-recovery.md`.
+
+### Migration
+
+- Keep each repair receipt together with its `<receipt>.relations/` directory.
+  Checkpoints record acknowledged commits and target URIs; missing acknowledged
+  files stop repair. Documents without checkpoints receive a guarded write
+  before verification. AKB schema v4 and vault skill version 24 are unchanged.
+
 ## v0.18.0 - 2026-10-30
 
 ### Added

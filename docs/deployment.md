@@ -221,13 +221,50 @@ runtime, reinstalls the managed vault instructions, then repairs and verifies
 outgoing relationships before reporting `deployed`. A zero-target inventory is
 recorded but does not demonstrate repair of existing data.
 
-On `data_backfill_failed`, keep the receipt and retry `deploy` with the same
-release and receipt; an applied AKB rollout does not need `resume`. Verified
-vaults are skipped and unfinished vaults are retried. Partial document writes
-can produce additional revisions on retry; convergence does not mean exactly
-one revision. For a blocked AKB rollout, use `resume` with the same receipt;
-the required backfill follows the resumed job. Inspect access, missing
-documents, concurrent edits, or graph mismatch before retrying a failed vault.
+The relation preflight runs before the AKB rollout request and reports all
+invalid source references in `issue_relation_backfill.targets[].failure`.
+Each report identifies the issue, field, array position, and failure reason;
+exact stored-URI matches also identify the replacement issue ID. Resolve these
+source-data problems before retrying the same receipt.
+
+After runtime readiness, the CLI installs instructions and finishes every
+vault's document writes before polling graphs. It runs two vaults at a time.
+Reads have a 20-second request bound and document PATCHes have a 120-second
+bound. Known transient transport/429/502/503/504 failures get at most three
+attempts. Authentication and semantic failures retain their failure result.
+
+Keep the receipt together with its `<receipt>.relations/` directory. Successful
+document PATCH responses are atomically checkpointed there with private file
+permissions. A matching current document commit and target URI set skips a
+repeat write; a source or document change requires a fresh guarded pass.
+Graph polling defaults to a 30-minute budget, reports progress, and preserves
+independent explicit AKB links while checking required and implicit relations.
+Missing acknowledged checkpoints stop recovery before more document writes.
+
+On `data_backfill_failed` with `deployment_status=ready`, use the data-only
+repair command. It validates the immutable registration, applied rollout,
+runtime images, and readiness; it does not build images, change rollouts, or
+apply Kubernetes resources. It can run from an updated operator checkout
+against the immutable coordinates in an older receipt:
+
+```bash
+AKB_BACKEND_URL=https://akb.example.com \
+REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
+NAMESPACE=my-namespace \
+  deploy/k8s/deploy.sh repair --receipt /secure/reef-release.json
+```
+
+Verified vaults are skipped; other vaults resume from their document
+checkpoints. `count` records the successful verification snapshot and can grow
+when an issue appears during recovery. Each new snapshot still receives the
+source, document-head, and graph checks. For a blocked AKB rollout, use `resume`
+with the same receipt. For incomplete runtime readiness, retry `deploy`.
+Run one CLI process per receipt.
+
+Kubernetes readback excludes terminating and terminal (`Failed`/`Succeeded`)
+Pods, and still rejects missing ready Pods or live image/identity mismatches.
+The [v0.18.0 recovery review](release-0.18.0-recovery.md) records the observed
+failures, ownership boundaries, and recovery decisions.
 
 Rollback does not require a database migration, but an older Reef writer can
 again write raw IDs into document relationships. Redeploy the corrected release
@@ -416,14 +453,15 @@ These inputs belong to the operator process, not the reef-web Deployment:
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `REEF_CONTROL_PLANE_TOKEN` | register/deploy/resume | System-admin AKB credential. It is sent only in Core's Authorization header and is removed from child command environments. |
+| `REEF_CONTROL_PLANE_TOKEN` | register/deploy/resume/repair | System-admin AKB credential. It is sent only in Core's Authorization header and is removed from child command environments. |
 | `REGISTRY` | build/deploy | OCI image repository prefix, without a tag. The CLI pushes one unique build tag per image build and applies the returned digest; it never moves version/source aliases. |
 | `REEF_APP_ID` | no | Previously recorded App Definition UUID. When set, the CLI reads it and verifies `app_key=reef` before registering a Release. |
 | `REEF_BUILD_ARTIFACT` | register-only or optional deploy output | Path for the build identity artifact containing the repository, digest, full source revision, and root version. |
-| `REEF_RELEASE_RECEIPT` | no | Path for the non-secret registration/rollout receipt used for handoff and request-key replay. |
+| `REEF_RELEASE_RECEIPT` | repair and the 0.18.0 repair release | Private receipt path for handoff and replay; keep its adjacent `.relations/` directory for document checkpoints. |
 | `REEF_ROLLOUT_REQUEST_KEY` | no | UUID idempotency key. Reuse it for a process retry of the same rollout input; resume requires a different UUID. |
 | `REEF_ROLLOUT_DEADLINE_MS` / `REEF_ROLLOUT_POLL_MS` | no | Positive AKB observation bounds; defaults are 120000 ms and 1000 ms. |
 | `REEF_KUBERNETES_TIMEOUT_MS` | no | Positive Kubernetes readiness timeout; defaults to 120000 ms. |
+| `REEF_RELATION_VERIFY_TIMEOUT_MS` | no | Positive per-vault graph verification budget; defaults to 1800000 ms. Requests remain individually bounded. |
 
 The CLI does not accept source revision or product-version overrides. The
 committed Blueprint, clean `HEAD`, root version, build metadata, and immutable
