@@ -1,10 +1,9 @@
+import { createScenarioVaults, NOW } from "./mock-fixtures.mjs";
 import {
-  createScenarioVaults,
   fixtureLogin,
-  NOW,
   REEF_VAULT,
   SUPPORTED_SCENARIO_SET,
-} from "./mock-fixtures.mjs";
+} from "./mock-fixture-contract.mjs";
 import { makeJwt } from "./mock-utils.mjs";
 
 const NOW_MS = Date.parse(NOW);
@@ -348,13 +347,6 @@ export function createState(scenario) {
 export function nextCommit(state) {
   state.commitSeq += 1;
   return `e2e-${String(state.commitSeq).padStart(4, "0")}`;
-}
-
-export function markdownFixtureStartPath(state) {
-  const issue = state.vaults.get(REEF_VAULT)?.issues[0];
-  return issue
-    ? `/workspace/${REEF_VAULT}/issues/${issue.reef_id}`
-    : `/workspace/${REEF_VAULT}/issues`;
 }
 
 export function rememberCall(state, method, path) {

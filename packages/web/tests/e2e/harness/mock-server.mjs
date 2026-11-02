@@ -5,8 +5,11 @@ import {
   ACCOUNT_DENIAL_CODES,
   AUTH_PROTECTED_RESPONSES,
   AUTH_SESSIONS,
-  fixtureLogin,
   IMAGE_UPLOAD_FIXTURE_BYTES,
+  MARKDOWN_MEDIA_ASSETS,
+} from "./mock-fixtures.mjs";
+import {
+  fixtureLogin,
   IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
   IMAGE_UPLOAD_FIXTURE_FILE_NAME,
   IMAGE_UPLOAD_FIXTURE_PATH,
@@ -16,11 +19,10 @@ import {
   INSTALLATION_LOOKUP_MODES,
   INSTALLATION_OBSERVATION_MODES,
   INSTALLATION_ROLES,
-  MARKDOWN_MEDIA_ASSETS,
   NOTIFICATION_DATA_MODES,
   NOTIFICATION_SCHEMA_MODES,
   REEF_VAULT,
-} from "./mock-fixtures.mjs";
+} from "./mock-fixture-contract.mjs";
 import { handleAkb, getVault } from "./mock-akb.mjs";
 import { handleGitHub } from "./mock-github.mjs";
 import { headerQuoted, json, readJson, readRawBody } from "./mock-http.mjs";

@@ -15,6 +15,8 @@
   fixture AKB backend, not by hand-writing `__reef_session` cookies or Dexie
   `config` rows. Reset fixture data through `/__e2e/reset` before each test.
 - `dev:e2e` is the repository-owned live E2E runtime. Its
+  `--task` selects one declared task and derives its fixture and start path before
+  build; `--list-tasks` lists runnable entries without starting services. Its
   ready payload and `/__e2e/runtime` discovery endpoint describe health, reset,
   scenario, test-only `fixture_login` metadata, and task starting points without
   selectors, assertions, source paths, or external credential environment

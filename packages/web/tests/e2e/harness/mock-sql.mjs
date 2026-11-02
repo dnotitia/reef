@@ -1,4 +1,5 @@
-import { ISSUE_TITLE_COLLATOR, NOW, REEF_VAULT } from "./mock-fixtures.mjs";
+import { ISSUE_TITLE_COLLATOR, NOW } from "./mock-fixtures.mjs";
+import { REEF_VAULT } from "./mock-fixture-contract.mjs";
 import {
   issueUpdateKey,
   nextEditTimestamp,

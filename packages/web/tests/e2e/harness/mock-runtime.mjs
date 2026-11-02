@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   fixtureLogin,
   IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
@@ -13,8 +14,7 @@ import {
   NOTIFICATION_SCHEMA_MODES,
   REEF_VAULT,
   SUPPORTED_SCENARIOS,
-} from "./mock-fixtures.mjs";
-import { markdownFixtureStartPath } from "./mock-state.mjs";
+} from "./mock-fixture-contract.mjs";
 
 export function runtimeDiscovery(state) {
   return {
@@ -300,410 +300,468 @@ export function runtimeDiscovery(state) {
       },
     },
     scenarios: SUPPORTED_SCENARIOS,
-    tasks: {
-      auth_soft_navigation: {
-        scenario: "configured",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues",
-        controls: {
-          auth_control: [
-            "session revoke",
-            "hold/release auth probes, including application timeout and retry",
-            "temporary auth-probe 5xx response",
-            "healthy, plain 401, or resource 403 protected responses",
-          ],
-          account_denial: [
-            "membership_required|account_suspended|identity_conflict|null",
-          ],
-          protected_response: [
-            "forbidden on an ordinary user-directory or member-search interaction (for example assignee or settings) to observe the resource access-denied surface",
-          ],
+    tasks: runtimeTasks(state),
+  };
+}
+
+export function runtimeTasks(state) {
+  return {
+    auth_soft_navigation: {
+      scenario: "configured",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues",
+      controls: {
+        auth_control: [
+          "session revoke",
+          "hold/release auth probes, including application timeout and retry",
+          "temporary auth-probe 5xx response",
+          "healthy, plain 401, or resource 403 protected responses",
+        ],
+        account_denial: [
+          "membership_required|account_suspended|identity_conflict|null",
+        ],
+        protected_response: [
+          "forbidden on an ordinary user-directory or member-search interaction (for example assignee or settings) to observe the resource access-denied surface",
+        ],
+      },
+      interaction: {
+        type: "auth_soft_navigation",
+        operation:
+          "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale held probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
+      },
+    },
+    assignee_picker: {
+      scenario: "assignee_picker",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues/REEF-001",
+      interaction: {
+        type: "assignee_picker",
+        operation:
+          "open issue detail, browse the complete writer/admin/owner roster, search by display name or login, select a candidate, reload to verify recent-first ordering, and verify a failed save leaves the existing assignment and recent history unchanged",
+      },
+    },
+    activity_display_names: {
+      scenario: "activity_display_names",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues/REEF-001",
+      controls: {
+        activity_identity_control: [
+          "change a member display name without changing the stable username",
+        ],
+      },
+      identities: {
+        current_roster: "fixture.editor",
+        blank_display_name: "fixture.blank",
+        historical_fallback: "Historical Editor",
+        missing_roster_fallback: "retired.editor",
+      },
+      interaction: {
+        type: "activity_display_names",
+        operation:
+          "inspect creator, status, priority, delivery, assignee, and expanded body-history actors against the current roster; change the editor display name and reload to verify that the stable username resolves to its latest label",
+      },
+    },
+    issue_drill_navigation: {
+      scenario: "demo_board",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+    },
+    epic_grouping: {
+      scenario: "epic_grouping",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=board&group=epic",
+      interaction: {
+        type: "issue_grouping",
+        operation:
+          "inspect flat root-Epic Board columns and List headers, follow the existing Epic detail action, and exercise the no-epic and unavailable-parent fallbacks",
+      },
+    },
+    status_quick_edit: {
+      scenario: "status_quick_edit",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+      interaction: {
+        type: "status_quick_edit",
+        operation:
+          "hold priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent held success, failure rollback, retry, and concurrent success confirmation",
+      },
+    },
+    planning_overflow: {
+      scenario: "planning_overflow",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+      interaction: {
+        type: "planning_overflow_tooltip",
+        operation:
+          "open the Issues Milestone filter, move the pointer from an overflowing milestone through its tooltip to the adjacent short option, observe active transition and tooltip dismissal, select it, and verify the filter URL and displayed value update at 1280x900 and 390x844",
+      },
+    },
+    planning_read_failures: {
+      scenario: "configured",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/planning",
+      controls: {
+        planning_catalog_control: ["toggle planning catalog failure"],
+        issue_list_failure: ["toggle linked issue list failure"],
+      },
+      interaction: {
+        type: "planning_read_failures",
+        operation:
+          "observe catalog and linked-issue read failures separately from true empty planning data, retry each failed read, and verify the planning rows converge to accurate counts and safe deletion availability",
+      },
+    },
+    flow_metrics_outliers: {
+      scenario: "reports_outliers",
+      workspace: REEF_VAULT,
+      start_path: "/workspace/reef-e2e/reports",
+      interaction: {
+        type: "report_outlier_navigation",
+        operation:
+          "open a cycle-time outlier from Reports and navigate to its source issue",
+      },
+    },
+    sprint_rollover: {
+      scenario: "sprint_rollover",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/planning",
+      controls: {
+        issue_update_control: ["fail one issue update once for partial retry"],
+        auth_control: [
+          "set protected_response=forbidden to expose reader access",
+        ],
+      },
+      interaction: {
+        type: "sprint_rollover",
+        operation:
+          "review the unfinished/done/closed/backlog/archived preview, close and roll over to an existing or new target, retry a partial issue move, verify the active target and planning-link activity, and dismiss the overdue UTC nudge",
+      },
+    },
+    sprint_rollover_empty: {
+      scenario: "sprint_rollover_empty",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/planning",
+      interaction: {
+        type: "sprint_rollover_empty",
+        operation:
+          "close an active sprint with zero unfinished issues and activate the explicitly selected target",
+      },
+    },
+    named_issue_filters: {
+      scenario: "configured_multi",
+      workspace: "reef-e2e",
+      secondary_workspace: "reef-zeta",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+    },
+    issue_filters: {
+      scenario: "requester_unset",
+      workspace: REEF_VAULT,
+      start_path: "/workspace/reef-e2e/issues?view=list",
+    },
+    workspace_favorites_availability: {
+      scenario: "configured_multi",
+      workspace: "reef-e2e",
+      additional_workspaces: ["reef-alpha", "reef-zeta"],
+      start_path: "/workspace/reef-e2e/issues",
+      controls: {
+        installation_control: [
+          `member installation lifecycle per workspace: ${INSTALLATION_LIFECYCLES.join("|")}`,
+          `member availability lookup outcome per workspace: ${INSTALLATION_LOOKUP_MODES.join("|")}`,
+        ],
+      },
+    },
+    my_work_account_scope: {
+      scenario: "my_work_multi",
+      workspace: "reef-e2e",
+      additional_workspaces: ["reef-alpha", "reef-zeta"],
+      start_path: "/workspace/reef-e2e/my-work",
+      interaction: {
+        type: "account_scoped_my_work",
+        operation:
+          "review assigned work across ready workspaces without switching the sidebar workspace, filter only the queue by source workspace, and open the duplicate issue ID from its own workspace",
+      },
+    },
+    backlog_bulk_partial_failure: {
+      scenario: "backlog_bulk_partial_failure",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?scope=backlog&view=list",
+      interaction: {
+        type: "bulk_status_update",
+        operation:
+          "select the visible Backlog issues, choose In Review from the bulk Status control, observe one successful issue leave Backlog while one failed issue keeps its original Backlog state and selection, then open the failure tray and retry the failed update",
+      },
+    },
+    content_search: {
+      scenario: "content_search",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues",
+      interaction: {
+        type: "global_search",
+        shortcut: "Mod+K",
+        platform_shortcuts: {
+          macos: "Meta+K",
+          other: "Control+K",
         },
-        interaction: {
-          type: "auth_soft_navigation",
-          operation:
-            "verify cold and warm protected destinations stay behind the auth conclusion, revoked sessions converge to same-origin login, stale held probes do not win, cross-tab auth changes redirect, and valid slow probes preserve the destination",
+        query: "issue title, body, or comment phrase",
+      },
+    },
+    chat: {
+      scenario: "configured",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues",
+      interaction: {
+        type: "workspace_chat",
+        operation:
+          "open Ask AI, submit distinct questions, and observe each assistant response",
+      },
+    },
+    updated_at_range: {
+      scenario: "updated_at_range",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+    },
+    notifications_personal: {
+      scenario: "notifications_personal",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/inbox",
+      recipient_scope: "authenticated_actor",
+      workspace_scope: "all_ready_accessible_workspaces",
+      sources: {
+        ready: ["reef-e2e", "reef-alpha", "odd_workspace"],
+        non_ready: ["raw-vault"],
+        stale_schema_version: "2",
+      },
+      controls: {
+        notification_control: { operation: "notification_control" },
+        notification_read_response_hold: {
+          operation: "response_hold",
+          response_operation: "notification-read",
+          semantics:
+            "hold an already computed personal notification read response and release that snapshot unchanged",
+        },
+        notification_stream_control: {
+          operation: "notification_stream_control",
+        },
+        notification_stream_emit: {
+          operation: "notification_stream_emit",
+        },
+        notification_add: {
+          method: "POST",
+          path: "/__e2e/notification-add",
+          content_type: "application/json",
+          body: { vault: "<fixture_vault>", source_ref: "<unique_ref>" },
+          occurred_at: "2020-01-01T00:00:00.000Z",
+          recipient: fixtureLogin.username,
+        },
+        vault_list_control: { operation: "vault_list_control" },
+        installation_control: {
+          operation: "installation_control",
+          per_workspace_failure_field: "detail_lookup",
         },
       },
-      assignee_picker: {
-        scenario: "assignee_picker",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues/REEF-001",
-        interaction: {
-          type: "assignee_picker",
-          operation:
-            "open issue detail, browse the complete writer/admin/owner roster, search by display name or login, select a candidate, reload to verify recent-first ordering, and verify a failed save leaves the existing assignment and recent history unchanged",
+      identities: {
+        alice: {
+          username: fixtureLogin.username,
+          password: fixtureLogin.password,
+          login_path: fixtureLogin.login_path,
+          credential_scope: "test_only",
+          role: "owner",
+          start_path: "/workspace/reef-e2e/inbox",
+        },
+        writer: {
+          username: "writer",
+          password: fixtureLogin.password,
+          login_path: fixtureLogin.login_path,
+          credential_scope: "test_only",
+          role: "writer",
+          start_path: "/workspace/reef-e2e/inbox",
+        },
+        bob: {
+          username: "bob",
+          password: fixtureLogin.password,
+          login_path: fixtureLogin.login_path,
+          credential_scope: "test_only",
+          role: "reader",
+          start_path: "/workspace/reef-e2e/inbox",
         },
       },
-      activity_display_names: {
-        scenario: "activity_display_names",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues/REEF-001",
-        controls: {
-          activity_identity_control: [
-            "change a member display name without changing the stable username",
-          ],
-        },
-        identities: {
-          current_roster: "fixture.editor",
-          blank_display_name: "fixture.blank",
-          historical_fallback: "Historical Editor",
-          missing_roster_fallback: "retired.editor",
-        },
-        interaction: {
-          type: "activity_display_names",
-          operation:
-            "inspect creator, status, priority, delivery, assignee, and expanded body-history actors against the current roster; change the editor display name and reload to verify that the stable username resolves to its latest label",
-        },
+      interaction: {
+        type: "notification_inbox",
+        operation:
+          "verify account-wide scope, workspace-specific duplicate keys and navigation, per-state caps, reader PATCH 403 with session preservation, no partial results on discovery/readiness/source failure, retry recovery, and inaccessible workspace exclusion",
       },
-      issue_drill_navigation: {
-        scenario: "demo_board",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=list",
-      },
-      epic_grouping: {
-        scenario: "epic_grouping",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=board&group=epic",
-        interaction: {
-          type: "issue_grouping",
-          operation:
-            "inspect flat root-Epic Board columns and List headers, follow the existing Epic detail action, and exercise the no-epic and unavailable-parent fallbacks",
+    },
+    installation_drift: {
+      scenario: "installation_drift",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/settings/workspace",
+      identities: {
+        owner: {
+          username: fixtureLogin.username,
+          password: fixtureLogin.password,
+          role: "owner",
+          installation_detail_access: "allowed",
         },
-      },
-      status_quick_edit: {
-        scenario: "status_quick_edit",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=list",
-        interaction: {
-          type: "status_quick_edit",
-          operation:
-            "hold priority, assignee, labels, and status updates, observe optimistic target values and field-near pending state in List, Backlog, and Board, repeat the same issue activation while pending, and verify independent held success, failure rollback, retry, and concurrent success confirmation",
-        },
-      },
-      planning_overflow: {
-        scenario: "planning_overflow",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=list",
-        interaction: {
-          type: "planning_overflow_tooltip",
-          operation:
-            "open the Issues Milestone filter, move the pointer from an overflowing milestone through its tooltip to the adjacent short option, observe active transition and tooltip dismissal, select it, and verify the filter URL and displayed value update at 1280x900 and 390x844",
-        },
-      },
-      planning_read_failures: {
-        scenario: "configured",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/planning",
-        controls: {
-          planning_catalog_control: ["toggle planning catalog failure"],
-          issue_list_failure: ["toggle linked issue list failure"],
-        },
-        interaction: {
-          type: "planning_read_failures",
-          operation:
-            "observe catalog and linked-issue read failures separately from true empty planning data, retry each failed read, and verify the planning rows converge to accurate counts and safe deletion availability",
-        },
-      },
-      flow_metrics_outliers: {
-        scenario: "reports_outliers",
-        workspace: REEF_VAULT,
-        start_path: "/workspace/reef-e2e/reports",
-        interaction: {
-          type: "report_outlier_navigation",
-          operation:
-            "open a cycle-time outlier from Reports and navigate to its source issue",
-        },
-      },
-      sprint_rollover: {
-        scenario: "sprint_rollover",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/planning",
-        controls: {
-          issue_update_control: [
-            "fail one issue update once for partial retry",
-          ],
-          auth_control: [
-            "set protected_response=forbidden to expose reader access",
-          ],
-        },
-        interaction: {
-          type: "sprint_rollover",
-          operation:
-            "review the unfinished/done/closed/backlog/archived preview, close and roll over to an existing or new target, retry a partial issue move, verify the active target and planning-link activity, and dismiss the overdue UTC nudge",
-        },
-      },
-      sprint_rollover_empty: {
-        scenario: "sprint_rollover_empty",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/planning",
-        interaction: {
-          type: "sprint_rollover_empty",
-          operation:
-            "close an active sprint with zero unfinished issues and activate the explicitly selected target",
-        },
-      },
-      named_issue_filters: {
-        scenario: "configured_multi",
-        workspace: "reef-e2e",
-        secondary_workspace: "reef-zeta",
-        start_path: "/workspace/reef-e2e/issues?view=list",
-      },
-      workspace_favorites_availability: {
-        scenario: "configured_multi",
-        workspace: "reef-e2e",
-        additional_workspaces: ["reef-alpha", "reef-zeta"],
-        start_path: "/workspace/reef-e2e/issues",
-        controls: {
-          installation_control: [
-            `member installation lifecycle per workspace: ${INSTALLATION_LIFECYCLES.join("|")}`,
-            `member availability lookup outcome per workspace: ${INSTALLATION_LOOKUP_MODES.join("|")}`,
-          ],
-        },
-      },
-      my_work_account_scope: {
-        scenario: "my_work_multi",
-        workspace: "reef-e2e",
-        additional_workspaces: ["reef-alpha", "reef-zeta"],
-        start_path: "/workspace/reef-e2e/my-work",
-        interaction: {
-          type: "account_scoped_my_work",
-          operation:
-            "review assigned work across ready workspaces without switching the sidebar workspace, filter only the queue by source workspace, and open the duplicate issue ID from its own workspace",
-        },
-      },
-      backlog_bulk_partial_failure: {
-        scenario: "backlog_bulk_partial_failure",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?scope=backlog&view=list",
-        interaction: {
-          type: "bulk_status_update",
-          operation:
-            "select the visible Backlog issues, choose In Review from the bulk Status control, observe one successful issue leave Backlog while one failed issue keeps its original Backlog state and selection, then open the failure tray and retry the failed update",
-        },
-      },
-      content_search: {
-        scenario: "content_search",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues",
-        interaction: {
-          type: "global_search",
-          shortcut: "Mod+K",
-          platform_shortcuts: {
-            macos: "Meta+K",
-            other: "Control+K",
-          },
-          query: "issue title, body, or comment phrase",
-        },
-      },
-      chat: {
-        scenario: "configured",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues",
-        interaction: {
-          type: "workspace_chat",
-          operation:
-            "open Ask AI, submit distinct questions, and observe each assistant response",
-        },
-      },
-      updated_at_range: {
-        scenario: "updated_at_range",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=list",
-      },
-      notifications_personal: {
-        scenario: "notifications_personal",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/inbox",
-        recipient_scope: "authenticated_actor",
-        workspace_scope: "all_ready_accessible_workspaces",
-        sources: {
-          ready: ["reef-e2e", "reef-alpha", "odd_workspace"],
-          non_ready: ["raw-vault"],
-          stale_schema_version: "2",
-        },
-        controls: {
-          notification_control: { operation: "notification_control" },
-          notification_read_response_hold: {
-            operation: "response_hold",
-            response_operation: "notification-read",
-            semantics:
-              "hold an already computed personal notification read response and release that snapshot unchanged",
-          },
-          notification_stream_control: {
-            operation: "notification_stream_control",
-          },
-          notification_stream_emit: {
-            operation: "notification_stream_emit",
-          },
-          notification_add: {
-            method: "POST",
-            path: "/__e2e/notification-add",
-            content_type: "application/json",
-            body: { vault: "<fixture_vault>", source_ref: "<unique_ref>" },
-            occurred_at: "2020-01-01T00:00:00.000Z",
-            recipient: fixtureLogin.username,
-          },
-          vault_list_control: { operation: "vault_list_control" },
-          installation_control: {
-            operation: "installation_control",
-            per_workspace_failure_field: "detail_lookup",
-          },
-        },
-        identities: {
-          alice: {
-            username: fixtureLogin.username,
-            password: fixtureLogin.password,
-            login_path: fixtureLogin.login_path,
-            credential_scope: "test_only",
-            role: "owner",
-            start_path: "/workspace/reef-e2e/inbox",
-          },
-          writer: {
-            username: "writer",
-            password: fixtureLogin.password,
-            login_path: fixtureLogin.login_path,
-            credential_scope: "test_only",
-            role: "writer",
-            start_path: "/workspace/reef-e2e/inbox",
-          },
-          bob: {
-            username: "bob",
-            password: fixtureLogin.password,
-            login_path: fixtureLogin.login_path,
-            credential_scope: "test_only",
-            role: "reader",
-            start_path: "/workspace/reef-e2e/inbox",
-          },
-        },
-        interaction: {
-          type: "notification_inbox",
-          operation:
-            "verify account-wide scope, workspace-specific duplicate keys and navigation, per-state caps, reader PATCH 403 with session preservation, no partial results on discovery/readiness/source failure, retry recovery, and inaccessible workspace exclusion",
-        },
-      },
-      installation_drift: {
-        scenario: "installation_drift",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/settings/workspace",
-        identities: {
-          owner: {
-            username: fixtureLogin.username,
-            password: fixtureLogin.password,
-            role: "owner",
-            installation_detail_access: "allowed",
-          },
-          writer: {
-            username: "writer",
-            password: fixtureLogin.password,
-            role: "writer",
-            installation_detail_access: "not exposed",
-          },
-          reader: {
-            username: "bob",
-            password: fixtureLogin.password,
-            role: "reader",
-            installation_detail_access: "not exposed",
-          },
-        },
-        controls: {
-          installation_control: [
-            `installation lifecycle: ${INSTALLATION_LIFECYCLES.join("|")}`,
-            `release/schema/grant drift: ${INSTALLATION_DRIFT_STATUSES.join("|")}`,
-            `observation freshness or absence: ${INSTALLATION_OBSERVATION_MODES.join("|")}`,
-            `bounded, unknown, missing, or malformed reason: ${INSTALLATION_BLOCKED_REASONS.join("|")}`,
-            `member/detail lookup outcome per vault: ${INSTALLATION_LOOKUP_MODES.join("|")}`,
-            `change fixture roles: ${INSTALLATION_ROLES.join("|")}`,
-          ],
-        },
-        interaction: {
-          type: "installation_drift",
-          operation:
-            "compare owner/admin installation details with writer/reader minimal readiness, observe drift warnings without access loss, exercise lifecycle recovery guidance and read failures, then switch to another ready workspace",
-        },
-      },
-      comments: {
-        scenario: "comment_mentions",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues",
-        interaction: {
-          type: "issue_activity",
-          operation:
-            "open an issue, add a comment, and observe it in the activity timeline",
-        },
-      },
-      markdown_fixture: {
-        scenario: "markdown_fixture",
-        workspace: REEF_VAULT,
-        start_path: markdownFixtureStartPath(state),
-        controls: {
-          markdown_link_search_control: [
-            "hold or fail one AKB search query while preserving the real Reef search route",
-          ],
-        },
-        interaction: {
-          type: "markdown_editor",
-          operation:
-            "open the fixture issue and use the @ menu to search for and insert the confirmed Alpha reference document and incident.log file while keeping the issue description available for further editing",
-        },
-      },
-      markdown_mentions: {
-        scenario: "markdown_mentions",
-        workspace: REEF_VAULT,
-        start_path: markdownFixtureStartPath(state),
-        interaction: {
-          type: "markdown_editor",
-          operation:
-            "verify exact-case and escaped person mentions through issue creation and Description editing, save, and reopen",
-        },
-      },
-      large_issue_list: {
-        scenario: "large_vault",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=list",
-      },
-      typography_regression: {
-        scenario: "typography",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/issues?view=board",
-      },
-      empty_states: {
-        scenario: "configured_empty",
-        workspace: "reef-e2e",
-        start_paths: {
-          my_work: "/workspace/reef-e2e/my-work",
-          inbox: "/workspace/reef-e2e/inbox",
-          reports: "/workspace/reef-e2e/reports",
-          planning: "/workspace/reef-e2e/planning",
-        },
-      },
-      caught_up_states: {
-        scenario: "configured_caught_up",
-        workspace: "reef-e2e",
-        start_path: "/workspace/reef-e2e/my-work",
-      },
-      workspace_initialization: {
-        scenario: "workspace_recovery",
-        workspace: "raw-vault",
-        start_path: "/onboarding",
-        fixture_login: {
+        writer: {
           username: "writer",
           password: fixtureLogin.password,
           role: "writer",
-          is_admin: false,
+          installation_detail_access: "not exposed",
         },
-        controls: {
-          workspace_initialization_control: [
-            "fail one document write to leave a partial vault",
-            "clear the failure and retry the same workspace name",
-          ],
+        reader: {
+          username: "bob",
+          password: fixtureLogin.password,
+          role: "reader",
+          installation_detail_access: "not exposed",
         },
-        interaction: {
-          type: "workspace_initialization",
-          operation:
-            "create a workspace as a non-admin, recover a partially initialized same-name vault, preserve existing documents/settings/issues, and retry after a document write failure",
-        },
+      },
+      controls: {
+        installation_control: [
+          `installation lifecycle: ${INSTALLATION_LIFECYCLES.join("|")}`,
+          `release/schema/grant drift: ${INSTALLATION_DRIFT_STATUSES.join("|")}`,
+          `observation freshness or absence: ${INSTALLATION_OBSERVATION_MODES.join("|")}`,
+          `bounded, unknown, missing, or malformed reason: ${INSTALLATION_BLOCKED_REASONS.join("|")}`,
+          `member/detail lookup outcome per vault: ${INSTALLATION_LOOKUP_MODES.join("|")}`,
+          `change fixture roles: ${INSTALLATION_ROLES.join("|")}`,
+        ],
+      },
+      interaction: {
+        type: "installation_drift",
+        operation:
+          "compare owner/admin installation details with writer/reader minimal readiness, observe drift warnings without access loss, exercise lifecycle recovery guidance and read failures, then switch to another ready workspace",
+      },
+    },
+    comments: {
+      scenario: "comment_mentions",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues",
+      interaction: {
+        type: "issue_activity",
+        operation:
+          "open an issue, add a comment, and observe it in the activity timeline",
+      },
+    },
+    markdown_fixture: {
+      scenario: "markdown_fixture",
+      workspace: REEF_VAULT,
+      start_path: markdownFixtureStartPath(state),
+      controls: {
+        markdown_link_search_control: [
+          "hold or fail one AKB search query while preserving the real Reef search route",
+        ],
+      },
+      interaction: {
+        type: "markdown_editor",
+        operation:
+          "open the fixture issue and use the @ menu to search for and insert the confirmed Alpha reference document and incident.log file while keeping the issue description available for further editing",
+      },
+    },
+    markdown_mentions: {
+      scenario: "markdown_mentions",
+      workspace: REEF_VAULT,
+      start_path: markdownFixtureStartPath(state),
+      interaction: {
+        type: "markdown_editor",
+        operation:
+          "verify exact-case and escaped person mentions through issue creation and Description editing, save, and reopen",
+      },
+    },
+    large_issue_list: {
+      scenario: "large_vault",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+    },
+    typography_regression: {
+      scenario: "typography",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/issues?view=board",
+    },
+    empty_states: {
+      scenario: "configured_empty",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/my-work",
+      start_paths: {
+        my_work: "/workspace/reef-e2e/my-work",
+        inbox: "/workspace/reef-e2e/inbox",
+        reports: "/workspace/reef-e2e/reports",
+        planning: "/workspace/reef-e2e/planning",
+      },
+    },
+    caught_up_states: {
+      scenario: "configured_caught_up",
+      workspace: "reef-e2e",
+      start_path: "/workspace/reef-e2e/my-work",
+    },
+    workspace_initialization: {
+      scenario: "workspace_recovery",
+      workspace: "raw-vault",
+      start_path: "/onboarding",
+      fixture_login: {
+        username: "writer",
+        password: fixtureLogin.password,
+        role: "writer",
+        is_admin: false,
+      },
+      controls: {
+        workspace_initialization_control: [
+          "fail one document write to leave a partial vault",
+          "clear the failure and retry the same workspace name",
+        ],
+      },
+      interaction: {
+        type: "workspace_initialization",
+        operation:
+          "create a workspace as a non-admin, recover a partially initialized same-name vault, preserve existing documents/settings/issues, and retry after a document write failure",
       },
     },
   };
+}
+
+function markdownFixtureStartPath(state) {
+  const issue = state?.vaults.get(REEF_VAULT)?.issues[0];
+  return issue
+    ? `/workspace/${REEF_VAULT}/issues/${issue.reef_id}`
+    : `/workspace/${REEF_VAULT}/issues`;
+}
+
+const RuntimeTaskSchema = z.object({
+  scenario: z
+    .string()
+    .refine(
+      (value) => SUPPORTED_SCENARIOS.includes(value),
+      "unsupported fixture scenario",
+    ),
+  start_path: z
+    .string()
+    .min(1)
+    .refine(
+      (value) =>
+        value.startsWith("/") &&
+        !value.startsWith("//") &&
+        new URL(value, "http://reef-e2e.invalid").origin ===
+          "http://reef-e2e.invalid",
+      "requires a same-origin start_path",
+    ),
+  workspace: z.string().min(1).optional(),
+  fixture_login: z
+    .object({
+      username: z.string().min(1),
+      password: z.string().min(1),
+      login_path: z.string().min(1),
+    })
+    .partial()
+    .optional(),
+});
+
+/** @param {string} name @param {unknown} tasks */
+export function resolveRuntimeTask(name, tasks = runtimeTasks()) {
+  if (!tasks || typeof tasks !== "object" || !Object.hasOwn(tasks, name)) {
+    throw new Error(
+      `Unknown runtime task: ${String(name)}. Choose one of: ${Object.keys(runtimeTasks()).join(", ")}`,
+    );
+  }
+  const parsed = RuntimeTaskSchema.safeParse(tasks[name]);
+  if (!parsed.success) {
+    throw new Error(`Invalid runtime task ${name}: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }

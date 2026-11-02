@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +17,13 @@ import {
   writeReadyFile,
 } from "./dev-e2e.mjs";
 
+import {
+  resolveRuntimeTask,
+  runtimeDiscovery,
+  runtimeTasks,
+} from "../tests/e2e/harness/mock-runtime.mjs";
+import { createState } from "../tests/e2e/harness/mock-state.mjs";
+
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -27,6 +35,21 @@ afterEach(async () => {
 });
 
 describe("dev:e2e runtime contract", () => {
+  it("selects a declared runtime task and derives its fixture before building", () => {
+    expect(
+      parseOptions(["--task", "issue_filters"], { NODE_ENV: "test" }),
+    ).toMatchObject({
+      task: "issue_filters",
+      scenario: "requester_unset",
+    });
+    expect(() =>
+      parseOptions(["--task", "requester_unset"], { NODE_ENV: "test" }),
+    ).toThrow(/Unknown runtime task/);
+    expect(() =>
+      parseOptions(["--scenario", "requester_unset"], { NODE_ENV: "test" }),
+    ).toThrow(/Unknown option/);
+  });
+
   it("pre-builds the runtime workspace through the canonical Turbo graph", () => {
     expect(buildRuntimeCommand()).toMatchObject({
       args: ["exec", "turbo", "run", "build", "--filter=@reef/web"],
@@ -34,9 +57,9 @@ describe("dev:e2e runtime contract", () => {
     expect(buildRuntimeCommand().command).toMatch(/^pnpm(?:\.cmd)?$/u);
   });
 
-  it("accepts a source-owned scenario and an explicit ready-file path", () => {
+  it("accepts a source-owned task and an explicit ready-file path", () => {
     const options = parseOptions(
-      ["--ready-file", "/tmp/reef-ready.json", "--", "comment_mentions"],
+      ["--ready-file", "/tmp/reef-ready.json", "--", "comments"],
       {
         NODE_ENV: "test",
         REEF_WEB_URL: "http://localhost:9135",
@@ -45,6 +68,7 @@ describe("dev:e2e runtime contract", () => {
     );
 
     expect(options).toMatchObject({
+      task: "comments",
       scenario: "comment_mentions",
       readyFile: "/tmp/reef-ready.json",
       webOrigin: "http://localhost:9135",
@@ -79,7 +103,7 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/rejected scenario/);
   });
 
-  it("requires fixture login and selects the requested scenario's complete start path", () => {
+  it("requires fixture login and selects the requested task's complete start path", () => {
     const discovery = {
       status: "ready",
       fixture_login: {
@@ -104,10 +128,10 @@ describe("dev:e2e runtime contract", () => {
       },
     };
     for (const [scenario, expected] of [
-      ["configured", { startPath: "/workspace/reef-e2e/issues" }],
+      ["chat", { startPath: "/workspace/reef-e2e/issues" }],
       ["notifications_personal", { startPath: "/workspace/reef-e2e/inbox" }],
       [
-        "demo_board",
+        "issue_drill_navigation",
         {
           startPath: "/workspace/reef-e2e/issues?view=list",
           workspace: "reef-e2e",
@@ -124,9 +148,75 @@ describe("dev:e2e runtime contract", () => {
     expect(() =>
       getClientReadinessInputs(
         { ...discovery, fixture_login: { username: "alice" } },
-        "configured",
+        "chat",
       ),
     ).toThrow(/fixture login password/);
+  });
+
+  it("validates every repository task against actual discovery and parse options", () => {
+    for (const [name, task] of Object.entries(runtimeTasks())) {
+      const discovery = runtimeDiscovery(createState(task.scenario));
+      expect(
+        parseOptions(["--task", name], { NODE_ENV: "test" }),
+      ).toMatchObject({
+        task: name,
+        scenario: task.scenario,
+      });
+      const inputs = getClientReadinessInputs(discovery, name);
+      expect(inputs.startPath).toBe(
+        resolveRuntimeTask(name, discovery.tasks).start_path,
+      );
+      expect(inputs.username).toBe(
+        "fixture_login" in task
+          ? task.fixture_login.username
+          : discovery.fixture_login.username,
+      );
+    }
+  });
+
+  it("lists runnable tasks and rejects reset-only states without starting services", () => {
+    const script = new URL("./dev-e2e.mjs", import.meta.url).pathname;
+    const list = spawnSync(process.execPath, [script, "--list-tasks"], {
+      encoding: "utf8",
+    });
+    expect(list.status).toBe(0);
+    expect(JSON.parse(list.stdout)).toContainEqual({
+      task: "issue_filters",
+      scenario: "requester_unset",
+      start_path: "/workspace/reef-e2e/issues?view=list",
+    });
+    const rejected = spawnSync(
+      process.execPath,
+      [script, "--task", "raw_only"],
+      { encoding: "utf8" },
+    );
+    expect(rejected.status).toBe(1);
+    expect(rejected.stderr).toContain("Unknown runtime task");
+    expect(rejected.stdout).not.toMatch(
+      /workspace build|starting fixture|starting reef-web/,
+    );
+  });
+
+  it("rejects incomplete task definitions and keeps fixture states out of task selection", () => {
+    const valid = runtimeTasks().issue_filters;
+    expect(() =>
+      resolveRuntimeTask("probe", {
+        probe: { ...valid, start_path: undefined },
+      }),
+    ).toThrow(/start_path/);
+    expect(() =>
+      resolveRuntimeTask("probe", {
+        probe: { ...valid, start_path: "//other.example/issues" },
+      }),
+    ).toThrow(/start_path/);
+    expect(() =>
+      resolveRuntimeTask("probe", {
+        probe: { ...valid, scenario: "unknown_fixture" },
+      }),
+    ).toThrow(/unsupported fixture/);
+    expect(() =>
+      parseOptions(["--task", "raw_only"], { NODE_ENV: "test" }),
+    ).toThrow(/Unknown runtime task/);
   });
 
   function readinessPage({
@@ -410,7 +500,7 @@ describe("dev:e2e runtime contract", () => {
         {
           webOrigin: "http://localhost:9135",
           fixtureOrigin: "http://127.0.0.1:9136",
-          scenario: "markdown_fixture",
+          task: "markdown_fixture",
         },
         { browserType, timeoutMs: 1_000 },
       );
@@ -548,7 +638,7 @@ describe("dev:e2e runtime contract", () => {
         {
           webOrigin: "http://localhost:9135",
           fixtureOrigin: "http://127.0.0.1:9136",
-          scenario: "workspace_recovery",
+          task: "workspace_initialization",
         },
         { browserType, timeoutMs: 20 },
       );
@@ -587,6 +677,7 @@ describe("dev:e2e runtime contract", () => {
     const payload = buildReadyPayload({
       webOrigin: "http://localhost:9135",
       fixtureOrigin: "http://127.0.0.1:9136",
+      task: "installation_drift",
       scenario: "installation_drift",
     });
 
@@ -595,6 +686,7 @@ describe("dev:e2e runtime contract", () => {
     expect(payload).toEqual({
       schema_version: 2,
       status: "ready",
+      task: "installation_drift",
       scenario: "installation_drift",
       services: {
         web: {

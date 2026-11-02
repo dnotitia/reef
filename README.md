@@ -54,13 +54,16 @@ OpenRouter, and GitHub with local fixtures:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm --filter @reef/web run dev:e2e -- demo_board
+pnpm --filter @reef/web run dev:e2e -- --task issue_drill_navigation
 ```
 
 Open [http://localhost:7353](http://localhost:7353), sign in with
 `alice` / `password`, and select `reef-e2e`.
 
-To reset the fixture while `dev:e2e` is running:
+The task declares its fixture, starting page, and browser readiness inputs.
+List task IDs with `pnpm --filter @reef/web run dev:e2e -- --list-tasks`;
+fixture scenario names are only
+used for data reset. To reset the fixture while `dev:e2e` is running:
 
 ```bash
 pnpm --filter @reef/web run reset:e2e -- demo_board
