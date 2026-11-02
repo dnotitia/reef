@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { REEF_VAULT } from "../tests/e2e/harness/mock-fixtures.mjs";
+import { REEF_VAULT } from "../tests/e2e/harness/mock-fixture-contract.mjs";
 import { handleSql } from "../tests/e2e/harness/mock-sql.mjs";
 import { createState } from "../tests/e2e/harness/mock-state.mjs";
 

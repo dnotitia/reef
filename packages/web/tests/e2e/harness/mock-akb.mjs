@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { fixtureLogin, NOW, rawVault, REEF_VAULT } from "./mock-fixtures.mjs";
+import { NOW, rawVault } from "./mock-fixtures.mjs";
+import { fixtureLogin, REEF_VAULT } from "./mock-fixture-contract.mjs";
 
 const AKB_DEFAULT_ROOT_GUIDE = readFileSync(
   new URL(

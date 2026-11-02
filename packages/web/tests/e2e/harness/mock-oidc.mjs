@@ -1,6 +1,7 @@
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { SignJWT } from "jose";
-import { fixtureLogin } from "./mock-fixtures.mjs";
+
+import { fixtureLogin } from "./mock-fixture-contract.mjs";
 import { json, readRawBody } from "./mock-http.mjs";
 
 export function createOidcFixture(config, getState) {

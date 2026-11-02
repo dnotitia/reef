@@ -1,4 +1,4 @@
-import { createRequire } from "node:module";
+import { REEF_VAULT } from "./mock-fixture-contract.mjs";
 import {
   docUri,
   issueDocumentUri,
@@ -20,48 +20,13 @@ import {
   REEF_VAULT_SKILL_VERSION,
 } from "@reef/core";
 
-const require = createRequire(import.meta.url);
-export const fixtureLogin = require("./fixture-login.json");
-
 export const NOW = "2026-06-15T00:00:00.000Z";
 const NOW_MS = Date.parse(NOW);
-export const REEF_VAULT = "reef-e2e";
 export const ISSUE_TITLE_COLLATOR = new Intl.Collator("en-US");
-export const NOTIFICATION_SCHEMA_MODES = ["healthy", "missing", "incompatible"];
-export const NOTIFICATION_DATA_MODES = ["healthy", "forbidden", "error"];
-export const INSTALLATION_LIFECYCLES = [
-  "active",
-  "installing",
-  "upgrading",
-  "blocked",
-  "uninstalled",
-];
-export const INSTALLATION_DRIFT_STATUSES = ["in_sync", "mismatch", "unknown"];
-export const INSTALLATION_LOOKUP_MODES = [
-  "healthy",
-  "forbidden",
-  "unavailable",
-  "invalid",
-];
-export const INSTALLATION_OBSERVATION_MODES = ["current", "stale", "missing"];
-export const INSTALLATION_BLOCKED_REASONS = [
-  "worker_timeout",
-  "step_failed",
-  "fixture_blocked",
-  "checksum_mismatch",
-  "unknown",
-  "null",
-  "malformed",
-];
-export const INSTALLATION_ROLES = ["owner", "admin", "writer", "reader"];
 export const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 export const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 export const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
 export const ISSUE_READ_CALL_ID_PREFIX = "call_e2e_read_issue_";
-export const IMAGE_UPLOAD_FIXTURE_PATH =
-  "/__e2e/assets/reef-markdown-editor-image.png";
-export const IMAGE_UPLOAD_FIXTURE_FILE_NAME = "reef-markdown-editor-image.png";
-export const IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE = "image/png";
 export const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAAs0lEQVR42u3ZsQmAQBAEQHMTezA3sQfLEmxEEGzC0D5sQ9O3g/vgeUSYYMNNbqLlmmlLKUo/P2FK++O1h+mOJUxpP51DmHttw5T2GwAAAAAAAAAAAAAAPgCofeBcv/aBc/3aB871AQAAAAAAAAAAAAD4AsAQs4QBAAAAAAAAAAAA+AcYYpYwAAAAAAAAAAAAAP8AQ8wSBgAAAAAAAAAAAOAfYIhZwgAAAAAAAAAAAAB+D/ACWn8C0ZKjwsMAAAAASUVORK5CYII=",
   "base64",
@@ -132,39 +97,6 @@ export const MARKDOWN_FIXTURE = [
   "| Pattern | Meaning |\n| --- | --- |\n| pipe | preserved source |",
   "The final paragraph closes the fixture with 한국어·English·숫자 혼합 content and verifies the last direct block boundary.",
 ].join("\n\n");
-export const SUPPORTED_SCENARIOS = [
-  "empty",
-  "configured",
-  "reports_outliers",
-  "configured_empty",
-  "configured_caught_up",
-  "updated_at_range",
-  "configured_multi",
-  "requester_unset",
-  "my_work_multi",
-  "assignee_picker",
-  "backlog_bulk_partial_failure",
-  "demo_board",
-  "content_search",
-  "raw_only",
-  "workspace_recovery",
-  "workspace_recovery_current_stamp",
-  "notifications_personal",
-  "skill_outdated",
-  "comment_mentions",
-  "activity_display_names",
-  "large_vault",
-  "markdown_fixture",
-  "markdown_mentions",
-  "typography",
-  "status_quick_edit",
-  "planning_overflow",
-  "epic_grouping",
-  "sprint_rollover",
-  "sprint_rollover_empty",
-  "installation_drift",
-];
-export const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 export const ACCOUNT_DENIAL_CODES = new Set([
   "membership_required",
   "account_suspended",

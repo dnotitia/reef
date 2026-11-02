@@ -11,7 +11,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildTimeline } from "../src/features/issues/components/activity/timelineModel";
 import { filterIssues } from "../src/features/issues/lib/issueListUtils";
-import { REEF_VAULT } from "../tests/e2e/harness/mock-fixtures.mjs";
+import { REEF_VAULT } from "../tests/e2e/harness/mock-fixture-contract.mjs";
 import { handleSql, resolveSqlParams } from "../tests/e2e/harness/mock-sql.mjs";
 import { createState } from "../tests/e2e/harness/mock-state.mjs";
 

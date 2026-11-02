@@ -5,7 +5,10 @@ import { generateKeyPairSync } from "node:crypto";
 import { chmod, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import {
+  resolveRuntimeTask,
+  runtimeTasks,
+} from "../tests/e2e/harness/mock-runtime.mjs";
 import {
   E2E_REEF_APP_ID,
   E2E_REEF_IMAGE_DIGEST,
@@ -19,7 +22,7 @@ const MODULE_PATH = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = resolve(dirname(MODULE_PATH), "..");
 const DEFAULT_WEB_URL = "http://localhost:7353";
 const DEFAULT_MOCK_URL = "http://127.0.0.1:7354";
-const DEFAULT_SCENARIO = "configured";
+const DEFAULT_TASK = "auth_soft_navigation";
 const RUNTIME_BUILD_ARGS = [
   "exec",
   "turbo",
@@ -105,12 +108,15 @@ function parseOrigin(value, name) {
 }
 
 export function parseOptions(argv = process.argv.slice(2), env = process.env) {
-  let scenarioArg;
+  if (argv.length === 1 && argv[0] === "--list-tasks") {
+    return { command: "list" };
+  }
+  let taskArg;
   let readyFileArg;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--") continue;
-    if (arg === "--ready-file" || arg === "--ready_file") {
+    if (arg === "--ready-file") {
       readyFileArg = argv[index + 1];
       if (!readyFileArg || readyFileArg === "--") {
         throw new Error(`${arg} requires a file path`);
@@ -118,10 +124,10 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
       index += 1;
       continue;
     }
-    if (arg === "--scenario") {
-      scenarioArg = argv[index + 1];
-      if (!scenarioArg || scenarioArg === "--") {
-        throw new Error("--scenario requires a value");
+    if (arg === "--task") {
+      taskArg = argv[index + 1];
+      if (!taskArg || taskArg === "--") {
+        throw new Error("--task requires a value");
       }
       index += 1;
       continue;
@@ -129,15 +135,14 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
     if (arg.startsWith("--")) {
       throw new Error(`Unknown option: ${arg}`);
     }
-    if (scenarioArg !== undefined) {
-      throw new Error(`Unexpected E2E fixture argument: ${arg}`);
+    if (taskArg !== undefined) {
+      throw new Error(`Unexpected runtime task argument: ${arg}`);
     }
-    scenarioArg = arg;
+    taskArg = arg;
   }
 
-  const scenario = validateScenario(
-    scenarioArg ?? env.REEF_E2E_SCENARIO ?? DEFAULT_SCENARIO,
-  );
+  const task = taskArg ?? env.REEF_E2E_TASK ?? DEFAULT_TASK;
+  const { scenario } = resolveRuntimeTask(task);
   const webOrigin = parseOrigin(
     env.REEF_WEB_URL ?? DEFAULT_WEB_URL,
     "REEF_WEB_URL",
@@ -154,6 +159,8 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
   const webUrl = new URL(webOrigin);
   const fixtureUrl = new URL(fixtureOrigin);
   return {
+    command: "start",
+    task,
     scenario,
     readyFile,
     webOrigin,
@@ -164,11 +171,17 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
   };
 }
 
-export function buildReadyPayload({ webOrigin, fixtureOrigin, scenario }) {
+export function buildReadyPayload({
+  webOrigin,
+  fixtureOrigin,
+  task,
+  scenario,
+}) {
   const validatedScenario = validateScenario(scenario);
   return {
     schema_version: 2,
     status: "ready",
+    task,
     scenario: validatedScenario,
     services: {
       web: {
@@ -216,36 +229,23 @@ function resolveWebPath(webOrigin, value, name) {
   return url.toString();
 }
 
-export function getClientReadinessInputs(discovery, scenario) {
+export function getClientReadinessInputs(discovery, taskName) {
   if (discovery?.status !== "ready") {
     throw new Error("Fixture runtime discovery is not ready");
   }
-  const fixtureLogin = discovery.fixture_login;
-  const requestedScenario = validateScenario(scenario);
-  const task = Object.values(discovery.tasks ?? {}).find(
-    (candidate) =>
-      candidate &&
-      typeof candidate === "object" &&
-      candidate.scenario === requestedScenario,
-  );
-  const startPath =
-    task?.start_path ??
-    (task?.start_paths && typeof task.start_paths === "object"
-      ? Object.values(task.start_paths).find(
-          (candidate) => typeof candidate === "string",
-        )
-      : undefined);
-  const workspace =
-    typeof task?.workspace === "string" ? task.workspace : undefined;
+  if (!discovery.tasks || typeof discovery.tasks !== "object") {
+    throw new Error("Fixture runtime discovery is missing tasks");
+  }
+  const task = resolveRuntimeTask(taskName, discovery.tasks);
+  const login = { ...discovery.fixture_login, ...task.fixture_login };
   return {
-    username: requireString(fixtureLogin?.username, "fixture login username"),
-    password: requireString(fixtureLogin?.password, "fixture login password"),
-    loginPath: requireString(fixtureLogin?.login_path, "fixture login path"),
-    startPath: requireString(
-      startPath,
-      `client readiness start path for scenario "${requestedScenario}"`,
-    ),
-    ...(workspace ? { workspace } : {}),
+    username: requireString(login.username, "fixture login username"),
+    password: requireString(login.password, "fixture login password"),
+    loginPath: requireString(login.login_path, "fixture login path"),
+    startPath: task.start_path,
+    ...(typeof task.workspace === "string"
+      ? { workspace: task.workspace }
+      : {}),
   };
 }
 
@@ -429,14 +429,19 @@ async function probeOnboardingInteractions(page, timeoutMs, workspace) {
   await approval.click({ trial: true, timeout: timeoutMs });
 }
 
+/**
+ * @param {{webOrigin: string, fixtureOrigin: string, task: string}} target
+ * @param {{browserType?: typeof import("@playwright/test").chromium, timeoutMs?: number}} [options]
+ */
 export async function waitForClientInteractionReady(
-  { webOrigin, fixtureOrigin, scenario },
-  { browserType = chromium, timeoutMs = CLIENT_READY_TIMEOUT_MS } = {},
+  { webOrigin, fixtureOrigin, task },
+  { browserType, timeoutMs = CLIENT_READY_TIMEOUT_MS } = {},
 ) {
   const discovery = await readRuntimeDiscovery(fixtureOrigin);
   const { username, password, loginPath, startPath, workspace } =
-    getClientReadinessInputs(discovery, scenario);
-  const browser = await browserType.launch({ headless: true });
+    getClientReadinessInputs(discovery, task);
+  const engine = browserType ?? (await import("@playwright/test")).chromium;
+  const browser = await engine.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -660,6 +665,7 @@ export async function resetScenario(fixtureOrigin, scenario) {
 }
 
 export async function startRuntime(options) {
+  const { scenario } = resolveRuntimeTask(options.task);
   readyFilePath = options.readyFile;
   await removeReadyFile(readyFilePath);
 
@@ -671,10 +677,7 @@ export async function startRuntime(options) {
     REEF_E2E_MOCK_PORT: options.fixturePort,
   });
   await waitForOk(`${options.fixtureOrigin}/__e2e/health`, 30_000);
-  const resetBody = await resetScenario(
-    options.fixtureOrigin,
-    options.scenario,
-  );
+  const resetBody = await resetScenario(options.fixtureOrigin, scenario);
 
   spawnChild(
     "reef-web",
@@ -719,7 +722,7 @@ export async function startRuntime(options) {
   await waitForClientInteractionReady({
     webOrigin: options.webOrigin,
     fixtureOrigin: options.fixtureOrigin,
-    scenario: options.scenario,
+    task: options.task,
   });
   process.stdout.write(
     "[dev:e2e] browser hydration and declared interaction readiness confirmed\n",
@@ -728,6 +731,7 @@ export async function startRuntime(options) {
   const payload = buildReadyPayload({
     webOrigin: options.webOrigin,
     fixtureOrigin: options.fixtureOrigin,
+    task: options.task,
     scenario: resetBody.scenario,
   });
   if (options.readyFile) await writeReadyFile(options.readyFile, payload);
@@ -740,6 +744,18 @@ async function main() {
   readyFilePath = process.env.REEF_E2E_READY_FILE ?? null;
   try {
     const options = parseOptions();
+    if (options.command === "list") {
+      const tasks = Object.entries(runtimeTasks()).map(([name]) => {
+        const task = resolveRuntimeTask(name);
+        return {
+          task: name,
+          scenario: task.scenario,
+          start_path: task.start_path,
+        };
+      });
+      process.stdout.write(`${JSON.stringify(tasks, null, 2)}\n`);
+      return;
+    }
     await startRuntime(options);
     process.stdout.write(
       `${[
