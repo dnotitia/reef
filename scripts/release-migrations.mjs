@@ -319,7 +319,12 @@ async function manageMigrations({
           vault: target.vault,
         };
         input.assessment = await retry(core, () =>
-          migration.inspect({ core, adapter, params: input.params }),
+          migration.inspect({
+            core,
+            adapter,
+            params: input.params,
+            checkpoints: [...input.checkpoints.values()],
+          }),
         );
         input.result.count = input.assessment.count;
         input.result.status = input.assessment.required
@@ -378,16 +383,8 @@ async function manageMigrations({
           "assessment_failed",
         );
       const work = inputs.filter((input) => input.assessment.required);
-      const persistCheckpoint = async (input, entry) => {
+      const persistIndex = async (input) => {
         try {
-          await writePrivateJson(
-            path.join(
-              checkpointDirectory(statePath, migration, input.target),
-              checkpointName(entry.reef_id),
-            ),
-            entry,
-          );
-          input.checkpoints.set(entry.reef_id, entry);
           await writePrivateJson(
             path.join(
               checkpointDirectory(statePath, migration, input.target),
@@ -411,6 +408,26 @@ async function manageMigrations({
           );
         }
       };
+      const persistCheckpoint = async (input, entry) => {
+        try {
+          await writePrivateJson(
+            path.join(
+              checkpointDirectory(statePath, migration, input.target),
+              checkpointName(entry.reef_id),
+            ),
+            entry,
+          );
+          input.checkpoints.set(entry.reef_id, entry);
+          await persistIndex(input);
+        } catch {
+          throw new MigrationError(
+            "Cannot save migration checkpoints; restore operator storage before retrying",
+            "checkpoint_error",
+          );
+        }
+      };
+      for (const input of inputs)
+        if (input.checkpoints.size > 0) await persistIndex(input);
       const fail = async (input, phase, error) => {
         input.result.status = "failed";
         input.result.failure = failureReport(
@@ -442,8 +459,6 @@ async function manageMigrations({
         input.result.status = "running";
         await save();
         try {
-          for (const entry of input.assessment.checkpoints)
-            await persistCheckpoint(input, entry);
           await apply(input);
         } catch (error) {
           await fail(input, "write", error);

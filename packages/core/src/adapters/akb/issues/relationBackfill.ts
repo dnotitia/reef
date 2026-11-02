@@ -212,8 +212,8 @@ function graphProblems(
   return problems;
 }
 
-/** Assess the current projection without relying on a prior operator run. */
-export async function inspectIssueRelationUris(params: RelationBackfillParams) {
+/** Compare current source and graph with acknowledged guarded document writes. */
+export async function inspectIssueRelationUris(params: RepairParams) {
   return withSpan(
     "akb.inspect_issue_relation_uris",
     { vault: params.vault },
@@ -223,8 +223,9 @@ export async function inspectIssueRelationUris(params: RelationBackfillParams) {
       await checkVaultWriteAccess(adapter, vault, params.credential);
       const rows = await inspectRows(adapter, vault),
         targets = inspectRelationRows(vault, rows),
-        checkpoints: IssueRelationCheckpoint[] = [];
-      let pendingCount = 0;
+        written = checkpointMap(params.checkpoints);
+      let pendingCount = 0,
+        uncheckpointedCount = 0;
       for (const row of rows) {
         const before = await getAkbDocument({
           adapter,
@@ -248,14 +249,13 @@ export async function inspectIssueRelationUris(params: RelationBackfillParams) {
           after.current_commit !== before.current_commit
         )
           throw new ConflictError({ path: "issue relation assessment" });
-        if (graphProblems(row.reef_id, expected, edges).length) pendingCount++;
-        else
-          checkpoints.push({
-            reef_id: row.reef_id,
-            document_uri: row.document_uri,
-            document_commit: before.current_commit,
-            ...expected,
-          });
+        const entry = written.get(row.reef_id);
+        const acknowledged =
+          checkpointMatches(entry, row.document_uri, expected) &&
+          entry.document_commit === before.current_commit;
+        if (!acknowledged) uncheckpointedCount++;
+        if (!acknowledged || graphProblems(row.reef_id, expected, edges).length)
+          pendingCount++;
       }
       if (
         JSON.stringify(await readRows(adapter, vault)) !== JSON.stringify(rows)
@@ -263,7 +263,11 @@ export async function inspectIssueRelationUris(params: RelationBackfillParams) {
         throw new ConflictError({ path: "issue relation assessment" });
       span.setAttribute("issue_count", rows.length);
       span.setAttribute("pending_count", pendingCount);
-      return { count: rows.length, pending_count: pendingCount, checkpoints };
+      return {
+        count: rows.length,
+        pending_count: pendingCount,
+        uncheckpointed_count: uncheckpointedCount,
+      };
     },
   );
 }

@@ -370,9 +370,11 @@ all targets before any target is changed. Failure reports identify the issue,
 field, array position, and reason; exact stored-URI matches also identify the
 replacement issue ID. Resolve source-data errors before retrying.
 
-Required targets run two at a time. Current documents whose public graph has
-already been verified receive read checkpoints and skip unnecessary PATCHes.
-Other documents receive guarded writes with `expected_commit`. All initial
+Required targets run two at a time. A document skips a repeat PATCH only when an acknowledged write checkpoint
+matches its current commit and target URI sets. The public API does not expose
+stored native relationship fields, so a correct graph alone cannot prove that
+those fields are current. Documents without matching checkpoints require an
+initial guarded write with `expected_commit`, even when the graph looks correct. All initial
 writes finish before graph polling. Reads have a 20-second request bound and
 document PATCHes have a 120-second bound. Known transient transport, 429, 502,
 503, and 504 failures get at most three attempts. Authentication and semantic

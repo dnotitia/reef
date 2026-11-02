@@ -1,7 +1,10 @@
 export const issueRelationMigration = {
   id: "issue-relation-uris",
-  async inspect({ core, adapter, params }) {
-    const relations = await core.akbInspectIssueRelationUris(params);
+  async inspect({ core, adapter, params, checkpoints }) {
+    const relations = await core.akbInspectIssueRelationUris({
+      ...params,
+      checkpoints,
+    });
     const instructions = await core.akbGetVaultSkillStatus({
       adapter,
       vault: params.vault,
@@ -15,7 +18,6 @@ export const issueRelationMigration = {
     return {
       required: relations.pending_count > 0 || instructionsRequired,
       count: relations.count,
-      checkpoints: relations.checkpoints,
       instructionsRequired,
     };
   },

@@ -551,9 +551,7 @@ test("an empty inventory reports no target completion, while instructions alone 
     assert.equal(status.migrations[0].targets[0].status, "required");
     await runOperatorMigrations(instructions.context);
     assert(instructions.events.includes("instructions:reef-1"));
-    assert.deepEqual(instructions.applyInputs[0].checkpoints, [
-      entry("reef-1"),
-    ]);
+    assert.deepEqual(instructions.applyInputs[0].checkpoints, []);
   } finally {
     await instructions.cleanup();
   }
@@ -618,6 +616,40 @@ test("unacknowledged extra files cannot hide a missing acknowledged document che
       "checkpoint_error",
     );
     assert.deepEqual(h.events, []);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("recovery adopts a durable PATCH checkpoint when the process stopped before indexing it", async () => {
+  const h = await harness(1);
+  try {
+    await runOperatorMigrations(h.context);
+    const state = await h.read();
+    const record = state.migrations[0];
+    record.checkpoints = [];
+    record.attempts[0].status = "running";
+    record.attempts[0].finished_at = null;
+    record.attempts[0].targets[0].status = "running";
+    await writeFile(h.context.statePath, JSON.stringify(state));
+    const directory = `${h.context.statePath}.checkpoints/${ID}/${h.targets[0].installation_id}`;
+    await rm(path.join(directory, "index.json"));
+    h.events.length = 0;
+    await runOperatorMigrations(h.context);
+    const recovered = (await h.read()).migrations[0];
+    assert.equal(recovered.checkpoints[0]?.checkpoint_count, 1);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(directory, "index.json"), "utf8")),
+      ["REEF-001"],
+    );
+    assert(h.events.every((event) => event.startsWith("inspect:")));
+    await rm(
+      path.join(
+        directory,
+        `${createHash("sha256").update("REEF-001").digest("hex")}.json`,
+      ),
+    );
+    await assert.rejects(runOperatorMigrations(h.context), /assessment failed/);
   } finally {
     await h.cleanup();
   }

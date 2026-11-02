@@ -801,6 +801,7 @@ async function exerciseDeploymentAndRepair(version) {
   let failBackfill = true;
   let issuePatches = 0;
   let needsRelationRepair = true;
+  let skillInstalled = false;
   let issueCommit = "head";
   let lastReleasePayload;
   let invalidIssueRelations = false;
@@ -1115,7 +1116,7 @@ spec:
       backfillTarget &&
       parsedUrl.pathname === "/api/v1/tables/reef-sample/sql"
     ) {
-      const { sql } = JSON.parse(String(init.body));
+      const { sql, params } = JSON.parse(String(init.body));
       if (sql.startsWith("SELECT reef_id"))
         return Response.json({
           kind: "table_query",
@@ -1143,9 +1144,20 @@ spec:
         return Response.json({
           kind: "table_query",
           columns: ["value"],
-          items: [],
-          total: 0,
+          items: skillInstalled
+            ? [
+                {
+                  value: {
+                    version: core.REEF_VAULT_SKILL_VERSION,
+                    synced_at: "2026-10-30T00:00:00Z",
+                  },
+                },
+              ]
+            : [],
+          total: skillInstalled ? 1 : 0,
         });
+      if (params.includes("vault_skill"))
+        skillInstalled = sql.startsWith("INSERT");
       return Response.json({ kind: "table_sql", result: "UPDATE 1" });
     }
     if (backfillTarget && parsedUrl.pathname === "/api/v1/relations")
@@ -1611,6 +1623,17 @@ spec:
 
     assert.equal(recovered.migrations[0].targets[0].status, "completed");
     assert.equal(recovered.outcome, "repaired");
+    const afterRepairStatus = await runReleaseDeployment({
+      ...repairArgs,
+      options: { ...repairArgs.options, mode: "migrations" },
+    });
+    assert.equal(afterRepairStatus.ready, true);
+    assert.equal(
+      afterRepairStatus.migrations[0].targets[0].status,
+      "completed",
+    );
+    assert.equal(issuePatches, 2);
+
     assert.equal(
       requests.filter(
         ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",

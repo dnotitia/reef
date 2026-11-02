@@ -141,7 +141,7 @@ current check. Failed checks remain failed rather than being treated as no work.
 `repair --migration issue-relation-uris` explicitly executes the relationship
 migration. It preflights every active target before writes, updates outdated or
 missing managed instructions, backfills document relationship URIs, and verifies
-the public graph. Already correct documents avoid unnecessary writes. Source
+the public graph. Matching acknowledged document commits avoid repeat writes. Source
 issue rows are unchanged. Retry the same command with the same operator state
 and checkpoints; successful targets remain in history, and incomplete targets
 resume guarded work. See [deployment commands](deployment.md#check-data-migrations)

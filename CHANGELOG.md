@@ -40,7 +40,7 @@ issues, not public GitHub issues.
 - Run relationship backfill explicitly with `repair --migration
   issue-relation-uris`. Save attempt intent before writes, retain failures and
   completed targets, and resume document checkpoints across release receipts.
-  Correct projections avoid unnecessary PATCHes. Bound requests and vault
+  Matching acknowledged document commits avoid repeat PATCHes. Bound requests and vault
   concurrency, finish initial writes before graph verification, and exclude
   concurrent operators with a process lock. Verification defaults to 30 minutes.
 

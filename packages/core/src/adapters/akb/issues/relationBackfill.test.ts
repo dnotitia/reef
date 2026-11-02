@@ -23,7 +23,7 @@ const VAULT_INFO = {
 };
 
 describe("read-only relation migration assessment", () => {
-  it("reports missing implicit projections and leaves independent explicit links alone", async () => {
+  it("reports unverified documents without changing independent explicit links", async () => {
     const server = relationServer([
       relationRow("REEF-001", { depends_on: ["REEF-002"] }),
       relationRow("REEF-002"),
@@ -40,11 +40,10 @@ describe("read-only relation migration assessment", () => {
       ...BACKFILL_CONFIG,
       vault: "reef-sample",
       fetch: server.fetch,
+      checkpoints: [],
     });
-    expect(result.pending_count).toBe(1);
-    expect(result.checkpoints.map((entry) => entry.reef_id)).toEqual([
-      "REEF-002",
-    ]);
+    expect(result.pending_count).toBe(2);
+    expect(result.uncheckpointed_count).toBe(2);
     expect(server.patches).toEqual([]);
   });
 
@@ -59,12 +58,13 @@ describe("read-only relation migration assessment", () => {
         ...BACKFILL_CONFIG,
         vault: "reef-sample",
         fetch: server.fetch,
+        checkpoints: [],
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(server.patches).toEqual([]);
   });
 
-  it("recognizes a correct projection without a previous repair receipt or writes", async () => {
+  it("requires a guarded baseline when the graph is correct but no acknowledged checkpoint exists", async () => {
     const server = relationServer([
       relationRow("REEF-001", { depends_on: ["REEF-002"] }),
       relationRow("REEF-002"),
@@ -77,11 +77,44 @@ describe("read-only relation migration assessment", () => {
       ...BACKFILL_CONFIG,
       vault: "reef-sample",
       fetch: server.fetch,
+      checkpoints: [],
     });
     expect(result.count).toBe(2);
-    expect(result.pending_count).toBe(0);
-    expect(result.checkpoints).toHaveLength(2);
+    expect(result.pending_count).toBe(2);
     expect(server.patches).toEqual([]);
+  });
+});
+
+describe("acknowledged relation migration assessment", () => {
+  it("recognizes completed guarded writes and detects later graph drift", async () => {
+    const server = relationServer([
+      relationRow("REEF-001", { depends_on: ["REEF-002"] }),
+      relationRow("REEF-002"),
+    ]);
+    const applied = await applyIssueRelationUris({
+      ...BACKFILL_CONFIG,
+      vault: "reef-sample",
+      fetch: server.fetch,
+      checkpoints: [],
+      onCheckpoint: async () => {},
+    });
+    const params = {
+      ...BACKFILL_CONFIG,
+      vault: "reef-sample",
+      fetch: server.fetch,
+      checkpoints: applied.checkpoints,
+    };
+    const before = server.patches.length;
+    expect(await inspectIssueRelationUris(params)).toMatchObject({
+      pending_count: 0,
+      uncheckpointed_count: 0,
+    });
+    server.graph.set(relationRow().document_uri, []);
+    expect(await inspectIssueRelationUris(params)).toMatchObject({
+      pending_count: 1,
+      uncheckpointed_count: 0,
+    });
+    expect(server.patches).toHaveLength(before);
   });
 });
 
