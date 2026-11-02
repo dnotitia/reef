@@ -37,7 +37,7 @@ test.describe("Planning overflow tooltip pointer contract", () => {
       );
       expect(adjacentMilestone).toBeDefined();
 
-      await page.getByLabel("Milestone", { exact: true }).click();
+      await page.getByTestId("milestone-dropdown-trigger").click();
       const list = page.getByRole("listbox");
       const longOption = list.getByRole("option", {
         name: new RegExp(LONG_MILESTONE_NAME),
@@ -57,7 +57,7 @@ test.describe("Planning overflow tooltip pointer contract", () => {
 
       await longOption.hover();
       await expect(page.getByRole("tooltip")).toHaveText(LONG_MILESTONE_NAME);
-      await expect(longOption).toHaveAttribute("data-active", "true");
+      await expect(longOption).toHaveAttribute("data-selected", "true");
       const tooltipWrapper = page.locator(
         '[data-radix-popper-content-wrapper]:has([data-reef-tooltip-content="true"])',
       );
@@ -65,8 +65,8 @@ test.describe("Planning overflow tooltip pointer contract", () => {
       await expect(tooltipWrapper).toHaveCSS("pointer-events", "none");
 
       await adjacentOption.hover();
-      await expect(adjacentOption).toHaveAttribute("data-active", "true");
-      await expect(longOption).toHaveAttribute("data-active", "false");
+      await expect(adjacentOption).toHaveAttribute("data-selected", "true");
+      await expect(longOption).toHaveAttribute("data-selected", "false");
       await expect(page.getByRole("tooltip")).toHaveCount(0);
 
       await adjacentOption.click();
@@ -74,14 +74,12 @@ test.describe("Planning overflow tooltip pointer contract", () => {
       await expect
         .poll(() => new URL(page.url()).searchParams.get("milestone_id"))
         .toBe(adjacentMilestone?.id);
+      await page.keyboard.press("Escape");
       await expect(
-        page.getByRole("button", {
-          name: `Milestone: ${ADJACENT_MILESTONE_NAME}`,
-          exact: true,
-        }),
-      ).toBeVisible();
+        page.getByTestId("milestone-dropdown-trigger"),
+      ).toContainText(ADJACENT_MILESTONE_NAME);
       await expect(
-        page.getByRole("button", { name: "Clear milestone filter" }),
+        page.getByRole("button", { name: "Clear Milestone filter" }),
       ).toBeVisible();
     });
   }

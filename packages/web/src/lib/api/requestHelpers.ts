@@ -96,7 +96,7 @@ export function parseVaultParam(request: Request): string | null {
 
 /** Issue-list facets that may repeat in the query string (→ SQL `IN`).
  *  assigned_to / requester / sprint_id / release_id joined the multi-select set
- *  in REEF-267; milestone_id stays single (multi-select out of scope). */
+ *  in REEF-267. */
 const ISSUE_LIST_MULTI_KEYS = [
   "status",
   "priority",
@@ -105,12 +105,12 @@ const ISSUE_LIST_MULTI_KEYS = [
   "assigned_to",
   "requester",
   "sprint_id",
+  "milestone_id",
   "release_id",
 ] as const;
 
 /** Single-valued issue-list facets / sort / pagination params. */
 const ISSUE_LIST_SINGLE_KEYS = [
-  "milestone_id",
   "due_before",
   "due_after",
   "q",
@@ -123,6 +123,10 @@ const ISSUE_LIST_BOOLEAN_KEYS = [
   "priority_unset",
   "severity_unset",
   "assigned_to_unset",
+  "requester_unset",
+  "sprint_unset",
+  "milestone_unset",
+  "release_unset",
   "due_unset",
 ] as const;
 

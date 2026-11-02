@@ -11,6 +11,18 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+### Added
+
+- Filter issues with no requester, alone or alongside selected requesters.
+- Filter issues with no sprint or release, alone or alongside selected plans.
+- Select multiple milestones and include issues without a milestone in issue filters.
+
+### Changed
+
+- **Breaking:** Milestone filters now store arrays. Existing scalar selections are excluded when restoring current filters or My Views and must be selected again.
+- Unset issue filters appear first and use consistent summaries and individual clear controls.
+- Open filter menus remain visible when a selection wraps the toolbar.
+
 ## v0.18.0 - 2026-10-30
 
 ### Added

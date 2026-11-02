@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { applyMyViewSnapshot } from "../../lib/myViewSnapshot";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -58,32 +59,83 @@ beforeEach(() => {
 
 function renderFilterBar(
   props: Partial<ComponentProps<typeof FilterBar>> = {},
+  locale: "en" | "ko" = "en",
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <FilterBar
-        {...props}
-        applyMyViewSnapshot={
-          props.applyMyViewSnapshot ??
-          ((snapshot) => {
-            const applied = applyMyViewSnapshot(snapshot);
-            useIssueStore.setState({
-              filter: applied.filter,
-              searchQuery: "",
-              filterVault: "reef-acme",
-              listOptionalColumns: applied.listOptionalColumns,
-            });
-          })
-        }
-      />
-    </QueryClientProvider>,
+    <IntlTestProvider locale={locale}>
+      <QueryClientProvider client={client}>
+        <FilterBar
+          {...props}
+          applyMyViewSnapshot={
+            props.applyMyViewSnapshot ??
+            ((snapshot) => {
+              const applied = applyMyViewSnapshot(snapshot);
+              useIssueStore.setState({
+                filter: applied.filter,
+                searchQuery: "",
+                filterVault: "reef-acme",
+                listOptionalColumns: applied.listOptionalColumns,
+              });
+            })
+          }
+        />
+      </QueryClientProvider>
+    </IntlTestProvider>,
   );
 }
 
 describe("FilterBar", () => {
+  it.each([
+    ["en", "No sprint", "No milestone", "No release"],
+    ["ko", "스프린트 없음", "마일스톤 없음", "릴리즈 없음"],
+  ] as const)(
+    "selects and clears planning absence in %s with an empty catalog",
+    async (locale, sprintLabel, milestoneLabel, releaseLabel) => {
+      const user = userEvent.setup();
+      vi.mocked(useActiveVault).mockReturnValue({
+        vault: "reef-acme",
+        isLoading: false,
+        refetch: vi.fn(),
+      });
+      vi.mocked(apiFetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+          { status: 200 },
+        ),
+      );
+      renderFilterBar({}, locale);
+      await user.click(screen.getByTestId("sprint-dropdown-trigger"));
+      expect(
+        await screen.findByTestId("sprint-option-unset"),
+      ).toHaveTextContent(sprintLabel);
+      await user.keyboard("{ArrowDown}{Enter}");
+      expect(useIssueStore.getState().filter.sprintUnset).toBe(true);
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByTestId("milestone-dropdown-trigger"));
+      expect(
+        await screen.findByTestId("milestone-option-unset"),
+      ).toHaveTextContent(milestoneLabel);
+      await user.keyboard("{ArrowDown}{Enter}");
+      expect(useIssueStore.getState().filter.milestoneUnset).toBe(true);
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByTestId("release-dropdown-trigger"));
+      expect(
+        await screen.findByTestId("release-option-unset"),
+      ).toHaveTextContent(releaseLabel);
+      await user.click(screen.getByTestId("release-option-unset"));
+      expect(useIssueStore.getState().filter.releaseUnset).toBe(true);
+      await user.keyboard("{Escape}");
+      expect(screen.getByTestId("active-filter-count")).toHaveTextContent("3");
+      await user.click(
+        within(screen.getByTestId("sprint-filter")).getAllByRole("button")[1],
+      );
+      expect(useIssueStore.getState().filter.sprintUnset).toBeUndefined();
+    },
+  );
+
   it("renders all filter controls", () => {
     renderFilterBar();
     expect(screen.getByTestId("status-dropdown-trigger")).toBeTruthy();
@@ -196,6 +248,198 @@ describe("FilterBar", () => {
     );
   });
 
+  it("selects and clears absent requester together with a user", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ users: [{ login: "alice", name: "Alice Example" }] }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+    await user.click(screen.getByTestId("requester-dropdown-trigger"));
+    const panel = screen.getByTestId("requester-dropdown-content");
+    expect(within(panel).getAllByRole("option")[0]).toHaveAttribute(
+      "data-testid",
+      "requester-option-unset",
+    );
+    await user.click(screen.getByTestId("requester-option-unset"));
+    await user.click(await within(panel).findByText("Alice Example"));
+    expect(screen.getByTestId("requester-dropdown-trigger")).toHaveTextContent(
+      "Requester (2)",
+    );
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "1 filter",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Requester filter" }),
+    );
+    expect(useIssueStore.getState().filter.requesterUnset).toBeUndefined();
+    expect(useIssueStore.getState().filter.requester).toBeUndefined();
+  });
+
+  it("offers the localized requester absence option to keyboard users", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    renderFilterBar({}, "ko");
+    await user.click(screen.getByTestId("requester-dropdown-trigger"));
+    expect(screen.getByTestId("requester-option-unset")).toHaveTextContent(
+      "요청자 없음",
+    );
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(useIssueStore.getState().filter.requesterUnset).toBe(true);
+  });
+
+  it("does not count the auxiliary requester option as a member search result", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    renderFilterBar();
+    await user.click(screen.getByTestId("requester-dropdown-trigger"));
+    await user.type(screen.getByRole("combobox"), "zzzz-no-member");
+    await waitFor(() => {
+      expect(screen.queryByTestId("requester-option-unset")).toBeNull();
+      expect(screen.getByText("No vault members found.")).toBeTruthy();
+      expect(screen.getByText("0 results")).toBeTruthy();
+    });
+  });
+
+  it("keeps the selected assignee name while searching other members", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockImplementation(async (input) => {
+      const bobSearch = String(input).includes("q=Bob");
+      const users = bobSearch
+        ? [{ login: "bob", name: "Bob Example" }]
+        : [
+            { login: "alice", name: "Alice Example" },
+            { login: "bob", name: "Bob Example" },
+          ];
+      return new Response(JSON.stringify({ users }), { status: 200 });
+    });
+    renderFilterBar();
+    const trigger = screen.getByTestId("assignee-dropdown-trigger");
+    await user.click(trigger);
+    await user.click(await screen.findByText("Alice Example"));
+    await user.type(screen.getByRole("combobox"), "Bob");
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(apiFetch)
+          .mock.calls.some(([input]) => String(input).includes("q=Bob")),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(screen.queryByText("Alice Example")).toBeNull());
+    expect(trigger).toHaveTextContent("Alice Example");
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveTextContent("Alice Example");
+    await user.click(trigger);
+    expect(trigger).toHaveTextContent("Alice Example");
+  });
+
+  it("shows an assignee display name and includes unassigned in its count", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ users: [{ login: "alice", name: "Alice Example" }] }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    const panel = screen.getByTestId("assignee-dropdown-content");
+    expect(within(panel).getAllByRole("option")[0]).toHaveAttribute(
+      "data-testid",
+      "assignee-option-unassigned",
+    );
+    await user.click(await within(panel).findByText("Alice Example"));
+    expect(screen.getByTestId("assignee-dropdown-trigger")).toHaveTextContent(
+      "Alice Example",
+    );
+    await user.click(screen.getByTestId("assignee-option-unassigned"));
+    expect(screen.getByTestId("assignee-dropdown-trigger")).toHaveTextContent(
+      "Assignee (2)",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Assignee filter" }),
+    );
+    expect(useIssueStore.getState().filter.assignee).toBeUndefined();
+    expect(useIssueStore.getState().filter.assigneeUnset).toBeUndefined();
+  });
+
+  it("places no due date first and clears the selected due facet", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+    await user.click(screen.getByTestId("due-dropdown-trigger"));
+    const options = within(
+      screen.getByTestId("due-dropdown-content"),
+    ).getAllByRole("option");
+    expect(options[0]).toHaveAttribute("data-testid", "due-option-no_due");
+    await user.click(screen.getByTestId("due-option-no_due"));
+    expect(screen.getByTestId("due-dropdown-trigger")).toHaveTextContent(
+      "No due date",
+    );
+    await user.click(screen.getByRole("button", { name: "Clear Due filter" }));
+    expect(useIssueStore.getState().filter.due).toBeUndefined();
+  });
+
+  it("counts each mixed facet once and clears one facet without clearing others", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({
+      filter: {
+        priority: ["high"],
+        priorityUnset: true,
+        severityUnset: true,
+        assigneeUnset: true,
+        due: ["no_due", "overdue"],
+      },
+    });
+    renderFilterBar();
+    expect(screen.getByTestId("priority-dropdown-trigger")).toHaveTextContent(
+      "Priority (2)",
+    );
+    expect(screen.getByTestId("severity-dropdown-trigger")).toHaveTextContent(
+      "No severity",
+    );
+    expect(screen.getByTestId("due-dropdown-trigger")).toHaveTextContent(
+      "Due (2)",
+    );
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "4 filters",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Clear Priority filter" }),
+    );
+    expect(useIssueStore.getState().filter.priority).toBeUndefined();
+    expect(useIssueStore.getState().filter.priorityUnset).toBeUndefined();
+    expect(screen.getByTestId("active-filter-count")).toHaveTextContent(
+      "3 filters",
+    );
+    await user.click(screen.getByTestId("clear-filters-button"));
+    expect(useIssueStore.getState().filter).toEqual({});
+  });
+
   it("renders unset priority and severity with field-option typography and icon columns", async () => {
     const user = userEvent.setup();
     renderFilterBar();
@@ -292,7 +536,7 @@ describe("FilterBar", () => {
     expect(screen.queryByTestId("sort-control")).toBeNull();
   });
 
-  it("keeps Milestone single-select without a none option and Sprint/Release multi-select (REEF-267)", async () => {
+  it("uses the shared multi-select planning control for Milestone", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
@@ -334,9 +578,8 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("release-dropdown-trigger")).toBeTruthy();
     expect(screen.queryByTestId("sprint-input")).toBeNull();
 
-    // Milestone remains single-select and deliberately omits a none option.
-    // PlanningItemCombobox owns the shared panel-width contract.
-    await user.click(screen.getByLabelText("Milestone"));
+    // Milestone uses the shared multi-select planning panel.
+    await user.click(screen.getByTestId("milestone-dropdown-trigger"));
     const listbox = screen.getByRole("listbox");
     expect(listbox).toBeInTheDocument();
     expect(listbox.closest('[role="dialog"]')).toHaveClass(
@@ -386,17 +629,19 @@ describe("FilterBar", () => {
 
     renderFilterBar();
 
-    await user.click(screen.getByLabelText("Milestone"));
+    await user.click(screen.getByTestId("milestone-dropdown-trigger"));
     await user.click(await screen.findByText("Milestone 1"));
-    expect(useIssueStore.getState().filter.milestone_id).toBe(
+    expect(useIssueStore.getState().filter.milestone_id).toEqual([
       "11111111-1111-4111-8111-111111111113",
-    );
+    ]);
 
-    await user.click(screen.getByTestId("milestone-clear-button"));
+    await user.keyboard("{Escape}");
+    await user.click(
+      within(screen.getByTestId("milestone-filter")).getAllByRole("button")[1],
+    );
 
     expect(useIssueStore.getState().filter.milestone_id).toBeUndefined();
     expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
-    expect(screen.queryByTestId("milestone-clear-button")).toBeNull();
     expect(screen.getByTestId("active-filter-count").textContent).toContain(
       "1 filter",
     );
@@ -439,7 +684,7 @@ describe("FilterBar", () => {
     expect(screen.queryByTestId("release-dropdown-trigger")).toBeNull();
     // Kept — Milestone (a long-horizon theme grooms unscheduled backlog work)
     // plus every triage axis.
-    expect(screen.getByLabelText("Milestone")).toBeTruthy();
+    expect(screen.getByTestId("milestone-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("type-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("priority-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("severity-dropdown-trigger")).toBeTruthy();
@@ -616,13 +861,6 @@ describe("FilterBar", () => {
 
     // Labels field: the token is on the field wrapper.
     expect(screen.getByTestId("labels-filter")).toHaveClass(
-      "w-fit",
-      "min-w-[9rem]",
-      "max-w-[16rem]",
-    );
-    // Milestone (the one single-select planning field): the token is on the
-    // inner combobox root (the trigger's parent), per REEF-246's placement.
-    expect(screen.getByLabelText("Milestone").parentElement).toHaveClass(
       "w-fit",
       "min-w-[9rem]",
       "max-w-[16rem]",

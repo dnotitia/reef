@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useCallback, useRef, useState } from "react";
@@ -53,6 +53,7 @@ interface MultiSelectComboboxProps<T extends string> {
   label: string;
   values: readonly T[] | undefined;
   onToggle: (value: T, checked: boolean) => void;
+  onClear?: () => void;
   options: ReadonlyArray<ComboboxOption<T>>;
   active?: boolean;
   disabled?: boolean;
@@ -95,6 +96,7 @@ export function MultiSelectCombobox<T extends string>({
   label,
   values,
   onToggle,
+  onClear,
   options,
   active,
   disabled,
@@ -129,12 +131,13 @@ export function MultiSelectCombobox<T extends string>({
         rows.find((option) => values?.includes(option.value) && !option.disabled)
           ?.value ?? rows.find((option) => !option.disabled)?.value ?? "",
       );
+  const summary = facetSummary(values, summarizeValue, auxiliaryOption);
   const placement = useComboboxPlacement({
     open,
     align,
     triggerRef,
     panelRef,
-    measureKey: `${rows.length}:${query}:${loading ? 1 : 0}`,
+    measureKey: `${rows.length}:${query}:${loading ? 1 : 0}:${label}:${summary}`,
   });
 
   const setOpen = useCallback(
@@ -149,6 +152,7 @@ export function MultiSelectCombobox<T extends string>({
   );
 
   return (
+    <div className="inline-flex items-center gap-1">
     <Popover open={open} onOpenChange={(next) => setOpen(next)} className={className}>
       <PopoverTrigger
         ref={triggerRef}
@@ -168,7 +172,7 @@ export function MultiSelectCombobox<T extends string>({
         )}
       >
         {label}
-        {facetSummary(values, summarizeValue, auxiliaryOption)}
+        {summary}
         <ChevronDown data-open={open} className={CBX_CHEVRON} />
       </PopoverTrigger>
 
@@ -272,6 +276,12 @@ export function MultiSelectCombobox<T extends string>({
         </Command>
       </PopoverContent>
     </Popover>
+    {onClear && (Boolean(values?.length) || auxiliaryOption?.selected) ? (
+      <button type="button" aria-label={t("clearFilter", { field: label })} title={t("clearFilter", { field: label })} onClick={onClear} className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus">
+        <X className="size-3.5" aria-hidden="true" />
+      </button>
+    ) : null}
+    </div>
   );
 }
 

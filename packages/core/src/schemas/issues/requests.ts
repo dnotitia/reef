@@ -126,8 +126,6 @@ export const DEFAULT_ISSUE_SORT_ORDER = "desc" satisfies "asc" | "desc";
  * REEF-267 unified filter cardinality: assigned_to / requester / sprint_id /
  * release_id are multi-select arrays (OR within the facet) alongside the enum
  * facets, and assigned_to / requester match exactly rather than by substring.
- * milestone_id stays a single scalar (narrowing to one milestone is the common
- * case — multi-select left out of scope per REEF-267 Scope).
  * The `*_unset` flags are filter-specific predicates; they do not add sentinels to
  * the stored issue enums or values.
  * `due_unset` is used for a pure no-due-date request; mixed due-state
@@ -165,9 +163,13 @@ export const IssueListQuerySchema = z.object({
   assigned_to: z.array(z.string().min(1)).optional(),
   assigned_to_unset: z.boolean().optional(),
   requester: z.array(z.string().min(1)).optional(),
+  requester_unset: z.boolean().optional(),
   sprint_id: z.array(z.string().min(1)).optional(),
-  milestone_id: z.string().min(1).optional(),
+  sprint_unset: z.boolean().optional(),
+  milestone_id: z.array(z.string().min(1)).optional(),
+  milestone_unset: z.boolean().optional(),
   release_id: z.array(z.string().min(1)).optional(),
+  release_unset: z.boolean().optional(),
   due_before: IsoDateFieldSchema.optional(),
   due_after: IsoDateFieldSchema.optional(),
   due_unset: z.boolean().optional(),
@@ -400,9 +402,13 @@ const FILTER_FACET_KEYS = [
   "assigned_to",
   "assigned_to_unset",
   "requester",
+  "requester_unset",
   "sprint_id",
+  "sprint_unset",
   "milestone_id",
+  "milestone_unset",
   "release_id",
+  "release_unset",
   "due_before",
   "due_after",
   "due_unset",

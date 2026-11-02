@@ -48,6 +48,13 @@ describe("useIssueFilterPersistence", () => {
         severityUnset: true,
         assignee: ["__none__"],
         assigneeUnset: true,
+        requester: ["alice"],
+        requesterUnset: true,
+        sprintUnset: true,
+        milestone_id: ["m1", "m2"],
+        milestoneUnset: true,
+        release_id: ["r1"],
+        releaseUnset: true,
         due: ["no_due"],
       }),
     );
@@ -59,6 +66,13 @@ describe("useIssueFilterPersistence", () => {
         severityUnset: true,
         assignee: ["__none__"],
         assigneeUnset: true,
+        requester: ["alice"],
+        requesterUnset: true,
+        sprintUnset: true,
+        milestone_id: ["m1", "m2"],
+        milestoneUnset: true,
+        release_id: ["r1"],
+        releaseUnset: true,
         due: ["no_due"],
       });
     });
