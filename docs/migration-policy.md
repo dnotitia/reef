@@ -77,7 +77,7 @@ initialization.
 Changes to table shape must be expressed through the canonical release
 projection and handled by AKB's app-installation and reconciliation workflow.
 Reef must not add a request-time DDL path, a table migration API, a Reef-owned
-migration ledger, a table-creation fallback, or a startup migration runner. AKB
+schema migration ledger, a table-creation fallback, or a startup migration runner. AKB
 release registration and rollout remain the deployment-owned schema gate; Reef
 detailed readiness is a read-only verification after that gate. Ordinary reads
 use canonical active state; required-table metadata must match before detailed
@@ -124,13 +124,39 @@ creation.
 
 ## Operational Migration
 
-Release `0.18.0` automatically performs the issue relationship URI repair on
-deploy or resume, not at startup. Follow `docs/deployment.md` for the required
-receipt, retry and rollback steps. This operation reinstalls
-the managed vault instructions and verifies the public relationship graph;
-existing vaults need that installation before agents rely on the corrected
-runbook. A rollback to an older writer can reintroduce raw IDs and requires a
-corrected redeployment and another backfill. Source issue rows are not changed.
+Operator-run data migrations use stable migration IDs and one private state
+file per AKB backend and Reef App. The state is independent of product versions
+and deployment receipts. It records each attempt's installation targets,
+release coordinates, times, completion results, and failures. Per-document
+checkpoints allow interrupted or failed work to resume across deployments.
+This is operator progress, not an AKB schema authority or a product table.
+
+`deploy` and `resume` stop at runtime readiness. They do not execute operator
+data migrations. `migrations` checks actual source data, managed instructions,
+and public projections against each registered migration's requirements and
+returns current needs alongside prior attempts. It does not write product data
+or operator state. Completed history is retained, but never substitutes for a
+current check. Failed checks remain failed rather than being treated as no work.
+
+`repair --migration issue-relation-uris` explicitly executes the relationship
+migration. It preflights every active target before writes, updates outdated or
+missing managed instructions, backfills document relationship URIs, and verifies
+the public graph. Matching acknowledged document commits avoid repeat writes. Source
+issue rows are unchanged. Retry the same command with the same operator state
+and checkpoints; successful targets remain in history, and incomplete targets
+resume guarded work. See [deployment commands](deployment.md#check-data-migrations)
+for status meanings, required paths, locking, and recovery.
+
+AKB continues to own schema migration requirements, completion history, and
+blocked-job resume through its release rollout. Browser storage continues to
+use Dexie's versioned upgrades and query-cache invalidation. Do not duplicate
+those mechanisms in the operator data migration state.
+
+When adding an operator data migration, register its stable ID and read-only
+assessment, guarded application, and verification in `scripts/release-migrations.mjs`
+and its owning migration module. Keep selection explicit. Add tests for no-op
+assessment, failure after partial writes, checkpoint reuse, and drift after a
+recorded completion. Never select work with a product-version comparison.
 
 Operational migrations include changes to:
 

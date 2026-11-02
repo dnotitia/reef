@@ -23,6 +23,44 @@ issues, not public GitHub issues.
 - Unset issue filters appear first and use consistent summaries and individual clear controls.
 - Open filter menus remain visible when a selection wraps the toolbar.
 
+### Fixed
+
+- Release verification ignores historical terminal Pods and preserves independent
+  explicit AKB links when checking issue relationship projections.
+
+### Operational
+
+- Use receipts for registration, deployment retries, and rollout resume across
+  all release versions. Save release intent and resume keys before requests,
+  reuse acknowledged rollout jobs, and reject mismatched release receipts.
+- Add read-only `deploy/k8s/deploy.sh migrations` to assess current migration
+  requirements alongside attempt history. Keep operator data migration state
+  independent of deployment receipts, keyed by backend, App, migration, and
+  installation. Completed history does not hide drift or new installations.
+- Run relationship backfill explicitly with `repair --migration
+  issue-relation-uris`. Save attempt intent before writes, retain failures and
+  completed targets, and resume document checkpoints across release receipts.
+  Matching acknowledged document commits avoid repeat PATCHes. Bound requests and vault
+  concurrency, finish initial writes before graph verification, and exclude
+  concurrent operators with a process lock. Verification defaults to 30 minutes.
+
+### Migration
+
+- **Breaking:** Every AKB release command requires a deployment receipt.
+  `migrations` and `repair` also require `--migration-state` or
+  `REEF_MIGRATION_STATE`; `repair` requires an explicit `--migration` ID.
+  Automatic release-specific backfill is removed from `deploy` and `resume`.
+- Deployment receipts no longer accept embedded relationship repair progress.
+  Retain old receipts and checkpoints as historical artifacts. Use a current
+  deployment receipt and the separate operator state for the explicit workflow.
+  Use a new deployment receipt for each different release identity and reuse
+  the same migration state for the same backend and App across releases.
+- Preserve the operator state together with its `<state>.checkpoints/`
+  directory. Missing acknowledged files, corrupt state, and foreign backend or
+  App identities stop work. Failed and interrupted attempts remain in history.
+  Successful repair reports `repaired`. AKB schema v4 and vault skill version
+  24 are unchanged.
+
 ## v0.18.0 - 2026-10-30
 
 ### Added

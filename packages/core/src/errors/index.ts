@@ -1,4 +1,5 @@
 import type { ControlPlaneBlockedReason } from "../schemas/controlPlane";
+import type { IssueRelationBackfillReport } from "../schemas/issueRelationBackfill";
 
 // ─── Abstract Base ─────────────────────────────────────────────────────────────
 
@@ -263,6 +264,13 @@ export class SchemaValidationError extends ReefError {
 
   toUserMessage(): string {
     return this.message;
+  }
+}
+
+export class IssueRelationBackfillError extends SchemaValidationError {
+  constructor(readonly report: IssueRelationBackfillReport) {
+    super({ issues: [report.code] });
+    this.name = "IssueRelationBackfillError";
   }
 }
 

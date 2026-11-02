@@ -8,6 +8,11 @@
 
 ## Rule Placement
 
+- Write repository documentation, code comments, commit messages, and PR
+  descriptions in English. Localized product strings and test fixtures use
+  their target language; chat responses follow the user's language.
+- Keep private operational retrospectives in AKB. Repository deployment docs
+  describe reusable procedures and operator commands.
 - Keep this root file for repo-wide contracts that cross package boundaries:
   security, persistence, issue data model, schema ownership, release gates, and
   workflows that must stay consistent across packages.

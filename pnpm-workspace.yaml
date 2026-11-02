@@ -6,6 +6,7 @@ catalog:
   "@opentelemetry/api": ^1.9.1
   "@types/node": ^24.13.3
   msw: 2.15.0
+  proper-lockfile: 4.1.2
   tsx: 4.23.9
   tsdown: 0.22.14
   typescript: ^6.0.2
