@@ -4,6 +4,7 @@ import type { IssueRelationCheckpoint } from "../../../schemas/issueRelationBack
 import { makeSqlQueryResponse, setupFetch } from "../core/akb.testSupport";
 import {
   applyIssueRelationUris,
+  inspectIssueRelationUris,
   preflightIssueRelationUris,
   verifyIssueRelationUris,
 } from "./relationBackfill";
@@ -20,6 +21,69 @@ const VAULT_INFO = {
   managed_by: null,
   role: "admin",
 };
+
+describe("read-only relation migration assessment", () => {
+  it("reports missing implicit projections and leaves independent explicit links alone", async () => {
+    const server = relationServer([
+      relationRow("REEF-001", { depends_on: ["REEF-002"] }),
+      relationRow("REEF-002"),
+    ]);
+    server.graph.set(relationRow("REEF-002").document_uri, [
+      {
+        uri: "akb://elsewhere/doc/independent.md",
+        relation: "related_to",
+        kind: "explicit",
+        direction: "outgoing",
+      },
+    ]);
+    const result = await inspectIssueRelationUris({
+      ...BACKFILL_CONFIG,
+      vault: "reef-sample",
+      fetch: server.fetch,
+    });
+    expect(result.pending_count).toBe(1);
+    expect(result.checkpoints.map((entry) => entry.reef_id)).toEqual([
+      "REEF-002",
+    ]);
+    expect(server.patches).toEqual([]);
+  });
+
+  it("rejects a document edit during assessment instead of reporting it current", async () => {
+    const server = relationServer([relationRow()]);
+    server.controls.onGraphRead = () => {
+      const doc = server.documents.get(relationRow().document_uri);
+      if (doc) doc.commit = "concurrent-edit";
+    };
+    await expect(
+      inspectIssueRelationUris({
+        ...BACKFILL_CONFIG,
+        vault: "reef-sample",
+        fetch: server.fetch,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(server.patches).toEqual([]);
+  });
+
+  it("recognizes a correct projection without a previous repair receipt or writes", async () => {
+    const server = relationServer([
+      relationRow("REEF-001", { depends_on: ["REEF-002"] }),
+      relationRow("REEF-002"),
+    ]);
+    const first = server.documents.get(relationRow().document_uri);
+    if (!first) throw new Error("Missing fixture document");
+    first.fields.depends_on = [relationRow("REEF-002").document_uri];
+    for (const uri of server.documents.keys()) server.project(uri);
+    const result = await inspectIssueRelationUris({
+      ...BACKFILL_CONFIG,
+      vault: "reef-sample",
+      fetch: server.fetch,
+    });
+    expect(result.count).toBe(2);
+    expect(result.pending_count).toBe(0);
+    expect(result.checkpoints).toHaveLength(2);
+    expect(server.patches).toEqual([]);
+  });
+});
 
 describe("issue relation repair authority", () => {
   it.each([

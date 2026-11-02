@@ -398,6 +398,7 @@ export {
   createAkbAppInstallationReader,
   createAkbAppInstallationInventoryReader,
   listAdminActiveInstallations as akbListAdminActiveInstallations,
+  inspectIssueRelationUris as akbInspectIssueRelationUris,
   preflightIssueRelationUris as akbPreflightIssueRelationUris,
   applyIssueRelationUris as akbApplyIssueRelationUris,
   verifyIssueRelationUris as akbVerifyIssueRelationUris,
@@ -805,3 +806,9 @@ export {
   type IssueRelationCheckpoint,
   type IssueRelationBackfillReport,
 } from "./schemas/issueRelationBackfill";
+
+export {
+  OperatorMigrationCheckpointIndexSchema,
+  OperatorMigrationStateSchema,
+  type OperatorMigrationState,
+} from "./schemas/operatorMigrations";

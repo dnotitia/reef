@@ -163,3 +163,16 @@ must include:
 - Required migration or compatibility notes.
 - Operational steps and rollback notes.
 - Docker image tags for the release.
+
+## Operator migration completion
+
+Runtime readiness and operator data migration completion are separate release
+checks. After deployment, run `deploy/k8s/deploy.sh migrations` with the current
+deployment receipt and the backend's existing operator state. Resolve failed
+assessments and explicitly run each required migration before declaring its
+release work complete. Recheck status after repair; no target may remain
+`required` or `failed`. Keep the operator state and its checkpoints across
+releases. See [the deployment guide](deployment.md#check-data-migrations).
+
+AKB owns table-schema rollout requirements and history. Its blocked jobs use
+explicit `resume`; they are not copied into the operator data migration journal.

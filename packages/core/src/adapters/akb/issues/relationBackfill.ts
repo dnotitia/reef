@@ -10,6 +10,7 @@ import { getAkbDocument } from "../core/documents";
 import { parseAkbDocumentUri } from "../core/documentUri";
 import { createAkbAdapter, DocumentPutResponseSchema } from "../core/http";
 import { getResourceRelations, type AkbRelationEdge } from "../core/relations";
+import { withSpan } from "../core/tracing";
 import {
   checkVaultWriteAccess,
   createRepairAdapter,
@@ -209,6 +210,62 @@ function graphProblems(
       });
   }
   return problems;
+}
+
+/** Assess the current projection without relying on a prior operator run. */
+export async function inspectIssueRelationUris(params: RelationBackfillParams) {
+  return withSpan(
+    "akb.inspect_issue_relation_uris",
+    { vault: params.vault },
+    async (span) => {
+      const adapter = createRepairAdapter(params),
+        { vault } = params;
+      await checkVaultWriteAccess(adapter, vault, params.credential);
+      const rows = await inspectRows(adapter, vault),
+        targets = inspectRelationRows(vault, rows),
+        checkpoints: IssueRelationCheckpoint[] = [];
+      let pendingCount = 0;
+      for (const row of rows) {
+        const before = await getAkbDocument({
+          adapter,
+          vault,
+          uri: row.document_uri,
+        });
+        const expected = relations(vault, row, targets);
+        const edges = await getResourceRelations(adapter, {
+          uri: row.document_uri,
+          direction: "outgoing",
+        });
+        const after = await getAkbDocument({
+          adapter,
+          vault,
+          uri: row.document_uri,
+        });
+        if (
+          !before.current_commit ||
+          before.uri !== row.document_uri ||
+          after.uri !== before.uri ||
+          after.current_commit !== before.current_commit
+        )
+          throw new ConflictError({ path: "issue relation assessment" });
+        if (graphProblems(row.reef_id, expected, edges).length) pendingCount++;
+        else
+          checkpoints.push({
+            reef_id: row.reef_id,
+            document_uri: row.document_uri,
+            document_commit: before.current_commit,
+            ...expected,
+          });
+      }
+      if (
+        JSON.stringify(await readRows(adapter, vault)) !== JSON.stringify(rows)
+      )
+        throw new ConflictError({ path: "issue relation assessment" });
+      span.setAttribute("issue_count", rows.length);
+      span.setAttribute("pending_count", pendingCount);
+      return { count: rows.length, pending_count: pendingCount, checkpoints };
+    },
+  );
 }
 
 export async function verifyIssueRelationUris(

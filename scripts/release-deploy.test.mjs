@@ -41,7 +41,7 @@ const RUNTIME_IMAGES = {
 };
 const TOKEN = "system-admin-secret";
 
-for (const mode of ["register", "deploy", "resume", "repair"]) {
+for (const mode of ["register", "deploy", "resume", "migrations", "repair"]) {
   test(`${mode} requires a receipt before commands or AKB requests`, async () => {
     await assert.rejects(
       runReleaseDeployment({
@@ -57,6 +57,37 @@ for (const mode of ["register", "deploy", "resume", "repair"]) {
       }),
       (error) =>
         error.stage === "input_validation" && /receipt/i.test(error.message),
+    );
+  });
+}
+for (const options of [
+  { mode: "migrations", receipt: "/unused/receipt" },
+  {
+    mode: "repair",
+    receipt: "/unused/receipt",
+    migration_state: "/unused/state",
+  },
+  {
+    mode: "repair",
+    receipt: "/unused/same",
+    migration_state: "/unused/same",
+    migration: "issue-relation-uris",
+  },
+]) {
+  test(`migration input validation rejects ${JSON.stringify(options)} before I/O`, async () => {
+    await assert.rejects(
+      runReleaseDeployment({
+        options,
+        env: {},
+        core,
+        runCommand: async () => {
+          throw new Error("must not execute commands");
+        },
+        fetchImpl: async () => {
+          throw new Error("must not contact AKB");
+        },
+      }),
+      (error) => error.stage === "input_validation",
     );
   });
 }
@@ -769,6 +800,7 @@ async function exerciseDeploymentAndRepair(version) {
   let intentSeen = false;
   let failBackfill = true;
   let issuePatches = 0;
+  let needsRelationRepair = true;
   let issueCommit = "head";
   let lastReleasePayload;
   let invalidIssueRelations = false;
@@ -1107,12 +1139,28 @@ spec:
           ],
           total: 1,
         });
+      if (sql.startsWith("SELECT value"))
+        return Response.json({
+          kind: "table_query",
+          columns: ["value"],
+          items: [],
+          total: 0,
+        });
       return Response.json({ kind: "table_sql", result: "UPDATE 1" });
     }
     if (backfillTarget && parsedUrl.pathname === "/api/v1/relations")
       return Response.json({
         uri: parsedUrl.searchParams.get("uri"),
-        relations: [],
+        relations: needsRelationRepair
+          ? [
+              {
+                relation: "depends_on",
+                uri: "akb://reef-sample/doc/stale.md",
+                kind: "implicit",
+                direction: "outgoing",
+              },
+            ]
+          : [],
       });
     if (
       backfillTarget &&
@@ -1126,6 +1174,7 @@ spec:
         if (failBackfill)
           return Response.json({ detail: "repair failed" }, { status: 500 });
         issueCommit = `patched-${issuePatches}`;
+        needsRelationRepair = false;
         return Response.json({
           uri: "akb://reef-sample/doc/issue.md",
           vault: "reef-sample",
@@ -1475,6 +1524,8 @@ spec:
       },
       options: {
         mode: "repair",
+        migration: "issue-relation-uris",
+        migration_state: `${receiptPath}.migrations`,
         receipt: receiptPath,
       },
       runCommand,
@@ -1487,11 +1538,24 @@ spec:
     const runtimeWritesBeforePreflight = commands.filter(
       ({ command, args }) => command === "kubectl" && args[0] === "apply",
     ).length;
+    const beforeStatus = await readFile(receiptPath, "utf8");
+    const status = await runReleaseDeployment({
+      ...repairArgs,
+      options: { ...repairArgs.options, mode: "migrations" },
+    });
+    assert.equal(status.migrations[0].targets[0].status, "required");
+    assert.deepEqual(status.migrations[0].attempts, []);
+    assert.equal(await readFile(receiptPath, "utf8"), beforeStatus);
+    await assert.rejects(readFile(`${receiptPath}.migrations`), {
+      code: "ENOENT",
+    });
     invalidIssueRelations = true;
     await assert.rejects(runReleaseDeployment(repairArgs));
-    const invalidReceipt = JSON.parse(await readFile(receiptPath, "utf8"));
+    const invalidReceipt = JSON.parse(
+      await readFile(`${receiptPath}.migrations`, "utf8"),
+    );
     assert.equal(
-      invalidReceipt.issue_relation_backfill.targets[0].failure.code,
+      invalidReceipt.migrations[0].attempts.at(-1).targets[0].failure.code,
       "invalid_relations",
     );
     assert.equal(
@@ -1508,10 +1572,18 @@ spec:
     );
     invalidIssueRelations = false;
     await assert.rejects(runReleaseDeployment(repairArgs));
-    const failed = JSON.parse(await readFile(receiptPath, "utf8"));
-    assert.equal(failed.outcome, "data_backfill_failed");
-    assert.equal(failed.deployment_status, "ready");
-    assert.equal(failed.issue_relation_backfill.targets[0].status, "failed");
+    const failed = JSON.parse(
+      await readFile(`${receiptPath}.migrations`, "utf8"),
+    );
+    assert.equal(failed.migrations[0].attempts.at(-1).status, "failed");
+    assert.equal(
+      JSON.parse(await readFile(receiptPath, "utf8")).deployment_status,
+      "ready",
+    );
+    assert.equal(
+      failed.migrations[0].attempts.at(-1).targets[0].status,
+      "failed",
+    );
     failBackfill = false;
     const rolloutPostsBeforeRepair = requests.filter(
       ({ url, init }) => url.endsWith("/rollouts") && init.method === "POST",
@@ -1519,7 +1591,12 @@ spec:
     const commandsBeforeRepair = commands.length;
     const recovered = await runReleaseDeployment({
       ...repairArgs,
-      options: { mode: "repair", receipt: receiptPath },
+      options: {
+        mode: "repair",
+        receipt: receiptPath,
+        migration: "issue-relation-uris",
+        migration_state: `${receiptPath}.migrations`,
+      },
     });
     assert.equal(
       commands
@@ -1532,10 +1609,7 @@ spec:
       false,
     );
 
-    assert.equal(
-      recovered.issue_relation_backfill.targets[0].status,
-      "verified",
-    );
+    assert.equal(recovered.migrations[0].targets[0].status, "completed");
     assert.equal(recovered.outcome, "repaired");
     assert.equal(
       requests.filter(
@@ -2193,10 +2267,15 @@ ${EVENT_PROCESSOR_MANIFEST}`,
       const beforeRepair = commands.length;
       const repaired = await runReleaseDeployment({
         ...resumeArgs,
-        options: { mode: "repair", receipt: receiptPath },
+        options: {
+          mode: "repair",
+          receipt: receiptPath,
+          migration: "issue-relation-uris",
+          migration_state: `${receiptPath}.migrations`,
+        },
       });
       assert.equal(repaired.outcome, "repaired");
-      assert.deepEqual(repaired.issue_relation_backfill, { targets: [] });
+      assert.deepEqual(repaired.migrations[0].targets, []);
       assert.equal(resumePosts, postsBeforeRuntimeRetry);
       assert.equal(
         commands

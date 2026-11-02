@@ -20,11 +20,9 @@ import { parseAllDocuments, stringify } from "yaml";
 
 import { writePrivateJson as writeReceipt } from "./release-receipt.mjs";
 import {
-  RelationRepairError,
-  prepareRelationBackfill,
-  finishRelationBackfill,
-  assertRelationBackfillTargets,
-} from "./release-relations.mjs";
+  MigrationError,
+  runOperatorMigrations,
+} from "./release-migrations.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
@@ -55,13 +53,15 @@ const USAGE = `Usage:
   deploy/k8s/deploy.sh deploy [options]
   deploy/k8s/deploy.sh register --build-artifact <path> [options]
   deploy/k8s/deploy.sh resume --source-rollout-id <uuid> [options]
-  deploy/k8s/deploy.sh repair --receipt <path> [options]
+  deploy/k8s/deploy.sh migrations --receipt <path> --migration-state <path> [options]
+  deploy/k8s/deploy.sh repair --migration issue-relation-uris --receipt <path> --migration-state <path> [options]
 
 Required environment:
-  AKB_BACKEND_URL             AKB base URL (register/deploy/resume/repair)
+  AKB_BACKEND_URL             AKB base URL (all commands except build)
   REEF_CONTROL_PLANE_TOKEN    system-admin deployment credential (AKB modes)
   REGISTRY                    OCI registry prefix (build/deploy)
-  REEF_RELEASE_RECEIPT         receipt path unless --receipt is set (AKB modes)
+  REEF_RELEASE_RECEIPT        receipt path unless --receipt is set (AKB modes)
+  REEF_MIGRATION_STATE        state path unless --migration-state is set (migrations/repair)
 
 Options:
   --app-id <uuid>             persisted Reef App Definition id
@@ -69,6 +69,8 @@ Options:
   --request-key <uuid>        idempotency key; reuse it to replay a request
   --source-rollout-id <uuid>  blocked rollout id for resume
   --receipt <path>            required registration/rollout receipt (AKB modes)
+  --migration-state <path>    deployment-independent operator history and checkpoints
+  --migration <id>            explicit repair selection (issue-relation-uris)
   --namespace <name>          Kubernetes namespace (default: reef)
   --kustomize-dir <path>      overlay directory (default: deploy/k8s/overlays/example)
   --rollout-deadline-ms <ms>  AKB observation deadline (default: 120000)
@@ -237,7 +239,11 @@ function parseArgs(argv) {
     mode = argv[0];
     index = 1;
   }
-  if (!["build", "deploy", "register", "resume", "repair"].includes(mode)) {
+  if (
+    !["build", "deploy", "register", "resume", "migrations", "repair"].includes(
+      mode,
+    )
+  ) {
     throw new DeploymentError(`Unknown release command: ${mode}`, {
       stage: "input_validation",
     });
@@ -249,6 +255,8 @@ function parseArgs(argv) {
     "request-key",
     "source-rollout-id",
     "receipt",
+    "migration-state",
+    "migration",
     "namespace",
     "kustomize-dir",
     "rollout-deadline-ms",
@@ -749,38 +757,10 @@ async function readReceipt(receiptPath, core) {
     if (parsed.kind !== "reef-release-receipt") {
       throw new Error("unexpected receipt kind");
     }
-    if (parsed.issue_relation_backfill !== undefined) {
-      const backfill = parsed.issue_relation_backfill;
-      if (
-        !backfill ||
-        "selected" in backfill ||
-        !(backfill.targets === null || Array.isArray(backfill.targets))
-      )
-        throw new Error("invalid backfill receipt");
-      if (
-        backfill.targets &&
-        backfill.targets.some(
-          (target) =>
-            !target ||
-            typeof target.installation_id !== "string" ||
-            typeof target.vault_id !== "string" ||
-            typeof target.vault !== "string" ||
-            !["pending", "failed", "verified"].includes(target.status) ||
-            !(
-              target.count === null ||
-              (Number.isSafeInteger(target.count) && target.count >= 0)
-            ) ||
-            (target.status === "verified" && target.count === null) ||
-            (target.checkpoint_count !== undefined &&
-              (!Number.isSafeInteger(target.checkpoint_count) ||
-                target.checkpoint_count < 0)) ||
-            (target.failure !== undefined &&
-              !core.IssueRelationBackfillReportSchema.safeParse(target.failure)
-                .success),
-        )
-      )
-        throw new Error("invalid backfill targets");
-    }
+    if (parsed.issue_relation_backfill !== undefined)
+      throw new Error(
+        "Repair progress belongs in the operator migration state, not a deployment receipt",
+      );
     const parsedRegistration = core.ReleaseRegistrationResultSchema.parse({
       appId: parsed.app_id,
       releaseId: parsed.release_id,
@@ -2122,7 +2102,7 @@ async function runResume({
   return receipt;
 }
 
-async function runRepair({
+async function runMigrationCommand({
   rootDir,
   env,
   options,
@@ -2149,7 +2129,7 @@ async function runRepair({
     receipt.deployment_status !== "ready"
   )
     throw new DeploymentError(
-      "repair requires an applied, runtime-ready deployment receipt; use deploy or resume first",
+      "migrations and repair require an applied, runtime-ready deployment receipt; use deploy or resume first",
       { stage: "input_validation" },
     );
   await verifyReceiptRelease({
@@ -2191,34 +2171,19 @@ async function runRepair({
       DEFAULT_KUBERNETES_TIMEOUT_MS,
     ),
   });
-  receipt.issue_relation_backfill ??= { targets: null };
-  await writeReceipt(receiptPath, receipt);
-  try {
-    await prepareRelationBackfill({
-      core: releaseCore,
-      env,
-      fetchImpl,
-      receipt,
-      receiptPath,
-    });
-    assertRelationBackfillTargets(receipt, applied);
-    await finishRelationBackfill({
-      core: releaseCore,
-      env,
-      fetchImpl,
-      receipt,
-      receiptPath,
-    });
-  } catch (error) {
-    await writeReceipt(receiptPath, {
-      ...receipt,
-      outcome: "data_backfill_failed",
-    });
-    throw error;
-  }
-  const complete = { ...receipt, outcome: "repaired" };
-  await writeReceipt(receiptPath, complete);
-  return complete;
+  const report = await runOperatorMigrations({
+    core: releaseCore,
+    env,
+    fetchImpl,
+    receipt,
+    rollout: applied,
+    statePath: options.migration_state,
+    migrationId: options.migration,
+    execute: options.mode === "repair",
+  });
+  return options.mode === "repair"
+    ? { ...report, outcome: "repaired" }
+    : report;
 }
 
 export async function runReleaseDeployment({
@@ -2239,8 +2204,25 @@ export async function runReleaseDeployment({
         "release receipt path",
       ),
     };
-  if (options.mode === "repair")
-    return runRepair({
+  if (["repair", "migrations"].includes(options.mode)) {
+    options = {
+      ...options,
+      migration_state: requireNonEmpty(
+        options.migration_state ?? env.REEF_MIGRATION_STATE,
+        "operator migration state path",
+      ),
+    };
+    if (path.resolve(options.migration_state) === path.resolve(options.receipt))
+      throw new DeploymentError(
+        "Migration state and deployment receipt must use different paths",
+        { stage: "input_validation" },
+      );
+    if (options.mode === "repair" && !options.migration)
+      throw new DeploymentError(
+        "repair requires an explicit --migration issue-relation-uris",
+        { stage: "input_validation" },
+      );
+    return runMigrationCommand({
       rootDir,
       env,
       options,
@@ -2250,6 +2232,7 @@ export async function runReleaseDeployment({
       sleep,
       fetchImpl,
     });
+  }
   if (options.mode === "build") {
     return runBuildOnly({ rootDir, env, options, core, runCommand });
   }
@@ -2295,6 +2278,8 @@ async function main() {
   }
   const result = await runReleaseDeployment({ options });
   process.stdout.write(`${JSON.stringify(result)}\n`);
+  if (result.kind === "reef-migration-status" && !result.ready)
+    process.exitCode = 1;
 }
 
 if (
@@ -2304,11 +2289,11 @@ if (
 ) {
   main().catch((error) => {
     const message =
-      error instanceof DeploymentError || error instanceof RelationRepairError
+      error instanceof DeploymentError || error instanceof MigrationError
         ? error.message
         : "Release deployment failed";
     const stage =
-      error instanceof DeploymentError || error instanceof RelationRepairError
+      error instanceof DeploymentError || error instanceof MigrationError
         ? error.stage
         : "deployment";
     process.stderr.write(`${stage}: ${message}\n`);

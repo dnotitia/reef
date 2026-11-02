@@ -219,6 +219,7 @@ export {
   type AkbAppInstallationInventoryReaderConfig,
 } from "./controlPlane/installationInventoryReader";
 export {
+  inspectIssueRelationUris,
   preflightIssueRelationUris,
   applyIssueRelationUris,
   verifyIssueRelationUris,

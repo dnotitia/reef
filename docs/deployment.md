@@ -214,15 +214,16 @@ The key is persisted before the first rollout request. Retries observe an
 acknowledged job or replay the saved request key. A blocked retry never resumes
 automatically. Use `resume` with a new key to start another attempt.
 
-Every AKB command (`register`, `deploy`, `resume`, and `repair`) requires
+Every AKB command (`register`, `deploy`, `resume`, `migrations`, and `repair`) requires
 `--receipt` or `REEF_RELEASE_RECEIPT`. A release intent records immutable image
 coordinates before the first registration request. Use the same receipt for a
 retry and a new receipt path for a different source, version, or image registry.
 A mismatched or unreadable receipt stops the command before new release work.
 
 `deploy` and `resume` finish when the runtime is ready. They do not run
-relationship backfills. Version values identify the release and never select
-a repair workflow.
+relationship backfills. Runtime readiness does not mean that data migrations
+are complete. Run `migrations` to check outstanding operator work. Version
+values identify the release and never select a repair workflow.
 
 Kubernetes readback excludes terminating and terminal (`Failed`/`Succeeded`)
 Pods, and still rejects missing ready Pods or live image/identity mismatches.
@@ -303,54 +304,99 @@ older ReplicaSet cannot observe a later release's coordinates. The control-
 plane credential is used only by the one-shot process and is removed from child
 command environments and rendered workload configuration.
 
-### Repair issue relationships
+### Check data migrations
 
-Run `repair` explicitly when existing issue documents need relationship URI
-backfill. Use a deployment receipt with `rollout_status=applied` and
-`deployment_status=ready`. Repair selection is independent of the release
-version. The command validates the registered immutable Manifest, applied
-rollout, runtime images, and readiness before recording the repair task. It can run from an updated
-operator checkout against the coordinates in the receipt.
+Keep one private operator state file per AKB backend and Reef App, independent
+of release receipts. Reuse that file across deployments. The state records
+stable migration IDs, installation IDs, attempt times, release coordinates,
+completion results, and safe failure reports. It does not replace AKB's schema
+rollout history or add a product table.
+
+After the runtime is ready, inspect migration needs and history:
 
 ```bash
 AKB_BACKEND_URL=https://akb.example.com \
 REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
 NAMESPACE=my-namespace \
-  deploy/k8s/deploy.sh repair --receipt /secure/reef-release.json
+  deploy/k8s/deploy.sh migrations \
+    --receipt /secure/reef-release.json \
+    --migration-state /secure/reef-migrations.json
 ```
 
-The first invocation freezes the active installation inventory and compares it
-with the applied rollout's targets. Preflight collects invalid source
-references in `issue_relation_backfill.targets[].failure` before any backfill
-write. Reports identify the issue, field, array position, and failure reason;
-exact stored-URI matches also identify the replacement issue ID. Resolve
-source-data errors before retrying the same receipt. A zero-target inventory
-is recorded but does not demonstrate repair of existing data.
+The command verifies the receipt's registered immutable release, applied
+rollout, runtime images, and readiness. It then reads current active
+installations and checks each migration's actual data requirements. It does
+not create the state file, install instructions, write documents, start a
+rollout, or apply Kubernetes resources. `schema` reports the applied AKB job;
+`migrations` reports current target states and prior attempts. `ready=true`
+requires every assessed target to be `completed` or `not_required`. The command
+prints its report and exits with code 1 when a target is `required` or `failed`,
+so the status command can be used as a release check.
 
-The command installs managed vault instructions, finishes all document writes,
-then polls public graphs. It runs two vaults at a time. Reads have a 20-second
-request bound and document PATCHes have a 120-second bound. Known transient
-transport/429/502/503/504 failures get at most three attempts. Authentication
-and semantic failures retain their failure result. It does not build images,
-change rollouts, or apply Kubernetes resources.
+| Target status | Meaning |
+| --- | --- |
+| `required` | Current data or managed instructions need the selected migration. |
+| `not_required` | Current checks pass without a recorded completed migration. |
+| `completed` | A recorded completion exists and current checks still pass. |
+| `failed` | Assessment failed. Inspect `failure`; this is not evidence that work is unnecessary. |
 
-Keep the receipt with its `<receipt>.relations/` directory. A successful PATCH
-response is atomically checkpointed with private file permissions. A matching
-current document commit and target URI set skips a repeat write. Source or
-document changes require a fresh guarded pass. Missing acknowledged
-checkpoints stop recovery before more writes.
+A past completion never suppresses current checks. An older writer can
+reintroduce invalid relationships after rollback, and a new installation has
+its own identity even when it uses the same vault name. Both are assessed
+again. An empty target list records no per-installation completion.
+
+### Repair issue relationships
+
+The `issue-relation-uris` migration reinstalls outdated or missing managed
+instructions and repairs issue document relationships. Selection is explicit
+and independent of the product version:
+
+```bash
+AKB_BACKEND_URL=https://akb.example.com \
+REEF_CONTROL_PLANE_TOKEN="$REEF_CONTROL_PLANE_TOKEN" \
+NAMESPACE=my-namespace \
+  deploy/k8s/deploy.sh repair \
+    --migration issue-relation-uris \
+    --receipt /secure/reef-release.json \
+    --migration-state /secure/reef-migrations.json
+```
+
+Use an applied, runtime-ready deployment receipt. The operator checkout may be
+newer than that receipt. `repair` verifies the deployed release and checks the
+active installation inventory against its rollout targets before data work.
+It uses the same assessment as `migrations`, then saves a running attempt
+before any repair write. Invalid source references fail the assessment across
+all targets before any target is changed. Failure reports identify the issue,
+field, array position, and reason; exact stored-URI matches also identify the
+replacement issue ID. Resolve source-data errors before retrying.
+
+Required targets run two at a time. Current documents whose public graph has
+already been verified receive read checkpoints and skip unnecessary PATCHes.
+Other documents receive guarded writes with `expected_commit`. All initial
+writes finish before graph polling. Reads have a 20-second request bound and
+document PATCHes have a 120-second bound. Known transient transport, 429, 502,
+503, and 504 failures get at most three attempts. Authentication and semantic
+failures retain their failure result.
+
+Keep the state file with its `<state>.checkpoints/` directory. Checkpoints are
+scoped by migration and installation ID, and record the document commit and
+target URI sets. JSON updates are atomic with private file permissions.
+Missing acknowledged checkpoints, corrupt state, and another backend or App's
+state stop work. A process lock excludes concurrent operators using the same
+state file; after a crash its lock expires without manual removal.
 
 Graph verification defaults to 30 minutes, reports progress, and preserves
-independent explicit AKB links while checking required and implicit relations.
-Success records `outcome=repaired`. On `data_backfill_failed`, retry `repair`
-with the same receipt and checkpoints. Verified vaults are skipped, and other
-vaults resume their saved work. `count` records the successful verification
-snapshot and can grow when an issue appears during recovery. Run one CLI
-process per receipt.
+independent explicit AKB links. Success reports `outcome=repaired` and records
+a completed attempt. Failed attempts retain completed sibling targets and
+safe failure reports. Retry the same explicit `repair` command with the same
+state and checkpoints. A running attempt left by a stopped process becomes
+`interrupted`; the next attempt uses its acknowledged checkpoints. A newer
+deployment receipt can continue the same migration history. The deployment
+receipt is not rewritten by `migrations` or `repair`.
 
-An older writer can reintroduce raw IDs into document relationships after a
-rollback. Deploy a corrected runtime with a new deployment receipt, then run
-`repair` with that receipt to start a fresh repair. Keep old and corrected
+Run `migrations` again to confirm that no target is `required` or `failed`.
+After rollback, deploy a corrected writer and run the explicit repair again
+with the new receipt and the same migration state. Keep old and corrected
 writers from running concurrently during repair. AKB schema v4 is unchanged.
 
 ---
@@ -465,11 +511,12 @@ These inputs belong to the operator process, not the reef-web Deployment:
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `REEF_CONTROL_PLANE_TOKEN` | register/deploy/resume/repair | System-admin AKB credential. It is sent only in Core's Authorization header and is removed from child command environments. |
+| `REEF_CONTROL_PLANE_TOKEN` | register/deploy/resume/migrations/repair | System-admin AKB credential. It is sent only in Core's Authorization header and is removed from child command environments. |
 | `REGISTRY` | build/deploy | OCI image repository prefix, without a tag. The CLI pushes one unique build tag per image build and applies the returned digest; it never moves version/source aliases. |
 | `REEF_APP_ID` | no | Previously recorded App Definition UUID. When set, the CLI reads it and verifies `app_key=reef` before registering a Release. |
 | `REEF_BUILD_ARTIFACT` | register-only or optional deploy output | Path for the build identity artifact containing the repository, digest, full source revision, and root version. |
-| `REEF_RELEASE_RECEIPT` | register/deploy/resume/repair | Private receipt path for handoff and replay; keep its adjacent `.relations/` directory for document checkpoints. |
+| `REEF_RELEASE_RECEIPT` | register/deploy/resume/migrations/repair | Private deployment receipt path for handoff and replay; operator migration state is separate. |
+| `REEF_MIGRATION_STATE` | migrations/repair | Private operator state path, reused across releases for one AKB backend and App; preserve its adjacent `.checkpoints/` directory. |
 | `REEF_ROLLOUT_REQUEST_KEY` | no | UUID idempotency key. Reuse it for a process retry of the same rollout input; resume requires a different UUID. |
 | `REEF_ROLLOUT_DEADLINE_MS` / `REEF_ROLLOUT_POLL_MS` | no | Positive AKB observation bounds; defaults are 120000 ms and 1000 ms. |
 | `REEF_KUBERNETES_TIMEOUT_MS` | no | Positive Kubernetes readiness timeout; defaults to 120000 ms. |
