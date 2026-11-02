@@ -24,6 +24,7 @@ export type FixtureScenario =
   | "updated_at_range"
   | "content_search"
   | "configured_multi"
+  | "requester_unset"
   | "my_work_multi"
   | "assignee_picker"
   | "backlog_bulk_partial_failure"

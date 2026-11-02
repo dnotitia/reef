@@ -91,7 +91,7 @@ test.describe("Hermetic issue list flow", () => {
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/status=todo/);
 
-    await page.getByLabel("Milestone").click();
+    await page.getByTestId("milestone-dropdown-trigger").click();
     const milestoneList = page.getByRole("listbox");
     await expect(
       milestoneList.getByRole("option", { name: /Coverage Complete/ }),
@@ -104,17 +104,14 @@ test.describe("Hermetic issue list flow", () => {
       .getByRole("option", { name: /Coverage Complete/ })
       .click();
     await expect(page).toHaveURL(/milestone_id=/);
-    await expect(
-      page.getByRole("button", { name: "Clear milestone filter" }),
-    ).toBeVisible();
-
-    await page.getByRole("button", { name: "Clear milestone filter" }).click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Clear Milestone filter" }).click();
     await expect
       .poll(() => new URL(page.url()).searchParams.has("milestone_id"))
       .toBe(false);
     await expect(page).toHaveURL(/status=todo/);
     await expect(
-      page.getByRole("button", { name: "Clear milestone filter" }),
+      page.getByRole("button", { name: "Clear Milestone filter" }),
     ).toHaveCount(0);
     await expect(page.getByTestId("active-filter-count")).toContainText(
       "1 filter",
@@ -127,7 +124,7 @@ test.describe("Hermetic issue list flow", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(/status=todo/);
     await expect(
-      page.getByRole("button", { name: "Clear milestone filter" }),
+      page.getByRole("button", { name: "Clear Milestone filter" }),
     ).toHaveCount(0);
     await expect(page.getByTestId("clear-filters-button")).toBeVisible();
   });

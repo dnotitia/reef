@@ -52,6 +52,8 @@ describe("My View schema", () => {
         priorityUnset: true,
         severityUnset: true,
         assigneeUnset: true,
+        requester: ["alice"],
+        requesterUnset: true,
         due: ["no_due"],
         dateRange: {
           field: "updated_at",
@@ -78,6 +80,8 @@ describe("My View schema", () => {
         priorityUnset: true,
         severityUnset: true,
         assigneeUnset: true,
+        requester: ["alice"],
+        requesterUnset: true,
         due: ["no_due"],
         dateRange: {
           field: "updated_at",

@@ -200,7 +200,9 @@ export function KanbanBoard({
   const settledSearchQueryRef = useRef(searchQuery);
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
-    return fixedSprintId ? { ...scoped, sprint_id: [fixedSprintId] } : scoped;
+    return fixedSprintId
+      ? { ...scoped, sprint_id: [fixedSprintId], sprintUnset: undefined }
+      : scoped;
   }, [filter, fixedSprintId, scope]);
   const manualOrder = isManualOrdering(filter);
   // Server-side narrows the transfer (facets + free-text search); the client

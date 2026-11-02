@@ -188,7 +188,9 @@ export function BacklogView({
       ...filter,
       status: BACKLOG_STATUS as string[],
       sprint_id: undefined,
+      sprintUnset: undefined,
       release_id: undefined,
+      releaseUnset: undefined,
       due: undefined,
       showStale: undefined,
     }),
@@ -209,7 +211,9 @@ export function BacklogView({
     backlogFilter.assignee ||
     backlogFilter.assigneeUnset ||
     backlogFilter.requester ||
-    backlogFilter.milestone_id ||
+    backlogFilter.requesterUnset ||
+    backlogFilter.milestone_id?.length ||
+    backlogFilter.milestoneUnset ||
     backlogFilter.severity?.length ||
     backlogFilter.severityUnset ||
     backlogFilter.label ||

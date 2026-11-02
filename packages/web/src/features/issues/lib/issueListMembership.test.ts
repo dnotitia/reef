@@ -120,6 +120,56 @@ describe("listInvalidationPredicate", () => {
       ).toBe(true);
     });
 
+    it.each([
+      [{ priority: null }, "priority_unset"],
+      [{ severity: null }, "severity_unset"],
+      [{ assigned_to: null }, "assigned_to_unset"],
+    ] satisfies Array<
+      [
+        IssueUpdatePatch,
+        "priority_unset" | "severity_unset" | "assigned_to_unset",
+      ]
+    >)(
+      "refetches pure unset %s in finite and infinite lists only for related edits",
+      (patch, facet) => {
+        const params = { [facet]: "true", sort_field: "title" };
+        for (const queryKey of [
+          key(params).queryKey,
+          issueListInfiniteKey("v", params),
+        ]) {
+          expect(listInvalidationPredicate(patch)({ queryKey })).toBe(true);
+          expect(
+            listInvalidationPredicate({ due_date: "2026-02-02" })({ queryKey }),
+          ).toBe(false);
+        }
+      },
+    );
+
+    it("refetches an unset requester query when the requester changes", () => {
+      const predicate = listInvalidationPredicate({ requester: "alice" });
+      expect(
+        predicate(key({ requester_unset: "true", sort_field: "created_at" })),
+      ).toBe(true);
+    });
+
+    it("refetches unset planning queries when their reference changes", () => {
+      expect(
+        listInvalidationPredicate({ milestone_id: "m1" })(
+          key({ milestone_unset: "true", sort_field: "created_at" }),
+        ),
+      ).toBe(true);
+      expect(
+        listInvalidationPredicate({ sprint_id: "s1" })(
+          key({ sprint_unset: "true", sort_field: "created_at" }),
+        ),
+      ).toBe(true);
+      expect(
+        listInvalidationPredicate({ release_id: "r1" })(
+          key({ release_unset: "true", sort_field: "created_at" }),
+        ),
+      ).toBe(true);
+    });
+
     it("skips a variant whose facets do not include any changed key", () => {
       // assignee edit; this variant filters by status and sorts by created_at,
       // so it neither gains/loses the issue nor reorders — stays patched.

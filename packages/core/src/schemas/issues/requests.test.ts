@@ -86,14 +86,15 @@ describe("IssueListQuerySchema", () => {
       requester: ["carol"],
       sprint_id: ["s1", "s2"],
       release_id: ["r1"],
-      milestone_id: "m1",
+      milestone_id: ["m1", "m2"],
+      milestone_unset: true,
     });
     expect(parsed.assigned_to).toEqual(["alice", "bob"]);
     expect(parsed.requester).toEqual(["carol"]);
     expect(parsed.sprint_id).toEqual(["s1", "s2"]);
     expect(parsed.release_id).toEqual(["r1"]);
-    // milestone_id stays a single scalar (multi-select out of scope, REEF-267).
-    expect(parsed.milestone_id).toBe("m1");
+    expect(parsed.milestone_id).toEqual(["m1", "m2"]);
+    expect(parsed.milestone_unset).toBe(true);
   });
 
   it("accepts unset filter flags without changing stored field enums", () => {
@@ -103,6 +104,8 @@ describe("IssueListQuerySchema", () => {
       severity_unset: true,
       assigned_to: ["__none__"],
       assigned_to_unset: true,
+      requester: ["alice"],
+      requester_unset: true,
       due_unset: true,
     });
 
@@ -112,6 +115,8 @@ describe("IssueListQuerySchema", () => {
       severity_unset: true,
       assigned_to: ["__none__"],
       assigned_to_unset: true,
+      requester: ["alice"],
+      requester_unset: true,
       due_unset: true,
     });
   });
@@ -243,6 +248,9 @@ describe("hasAnyFilter", () => {
       hasAnyFilter(IssueListQuerySchema.parse({ assigned_to: ["alice"] })),
     ).toBe(true);
     expect(hasAnyFilter(IssueListQuerySchema.parse({ q: "login" }))).toBe(true);
+    expect(
+      hasAnyFilter(IssueListQuerySchema.parse({ requester_unset: true })),
+    ).toBe(true);
     expect(
       hasAnyFilter(IssueListQuerySchema.parse({ priority_unset: true })),
     ).toBe(true);

@@ -48,10 +48,14 @@ const ISSUE_QUERY_KEYS = [
   "priority_unset",
   "assignee",
   "assignee_unset",
+  "requester_unset",
   "requester",
   "sprint_id",
+  "sprint_unset",
   "milestone_id",
+  "milestone_unset",
   "release_id",
+  "release_unset",
   "severity",
   "severity_unset",
   "due",
@@ -93,11 +97,12 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   // repeated param, compatible with older single-value shared URLs. Blank members
   // (a hand-edited `?assignee=`) are dropped so the store does not carry an empty
   // value that would inflate the active-filter count or be sent to the server.
-  // milestone stays single (a bare `?milestone_id=` is already falsy below).
   const assignee = searchParams.getAll("assignee").filter((v) => v.trim());
   const requester = searchParams.getAll("requester").filter((v) => v.trim());
   const sprintId = searchParams.getAll("sprint_id").filter((v) => v.trim());
-  const milestoneId = searchParams.get("milestone_id");
+  const milestoneId = searchParams
+    .getAll("milestone_id")
+    .filter((v) => v.trim());
   const releaseId = searchParams.getAll("release_id").filter((v) => v.trim());
   const severity = searchParams.getAll("severity");
   const due = searchParams
@@ -126,6 +131,10 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   const priorityUnset = searchParams.get("priority_unset");
   const severityUnset = searchParams.get("severity_unset");
   const assigneeUnset = searchParams.get("assignee_unset");
+  const requesterUnset = searchParams.get("requester_unset");
+  const sprintUnset = searchParams.get("sprint_unset");
+  const milestoneUnset = searchParams.get("milestone_unset");
+  const releaseUnset = searchParams.get("release_unset");
   const archived = searchParams.get("archived");
   const stale = searchParams.get("stale");
   const columns = new Set(
@@ -146,9 +155,16 @@ function readIssueUrlState(searchParams: URLSearchParams): {
     filter.assigneeUnset = true;
   }
   if (requester.length) filter.requester = requester;
+  if (requesterUnset === "1" || requesterUnset === "true")
+    filter.requesterUnset = true;
   if (sprintId.length) filter.sprint_id = sprintId;
-  if (milestoneId) filter.milestone_id = milestoneId;
+  if (sprintUnset === "1" || sprintUnset === "true") filter.sprintUnset = true;
+  if (milestoneId.length) filter.milestone_id = milestoneId;
+  if (milestoneUnset === "1" || milestoneUnset === "true")
+    filter.milestoneUnset = true;
   if (releaseId.length) filter.release_id = releaseId;
+  if (releaseUnset === "1" || releaseUnset === "true")
+    filter.releaseUnset = true;
   if (severity.length) filter.severity = severity;
   if (severityUnset === "1" || severityUnset === "true") {
     filter.severityUnset = true;
@@ -252,15 +268,20 @@ function buildIssueSearchParams(
     for (const v of filter.priority) params.append("priority", v);
   if (filter.priorityUnset) params.set("priority_unset", "1");
   // Multi-select people/planning facets (REEF-267) emit one repeated param per
-  // value; milestone stays a single param.
+  // value.
   if (filter.assignee)
     for (const v of filter.assignee) params.append("assignee", v);
   if (filter.assigneeUnset) params.set("assignee_unset", "1");
+  if (filter.requesterUnset) params.set("requester_unset", "1");
+  if (filter.sprintUnset) params.set("sprint_unset", "1");
+  if (filter.releaseUnset) params.set("release_unset", "1");
   if (filter.requester)
     for (const v of filter.requester) params.append("requester", v);
   if (filter.sprint_id)
     for (const v of filter.sprint_id) params.append("sprint_id", v);
-  if (filter.milestone_id) params.set("milestone_id", filter.milestone_id);
+  if (filter.milestone_id)
+    for (const v of filter.milestone_id) params.append("milestone_id", v);
+  if (filter.milestoneUnset) params.set("milestone_unset", "1");
   if (filter.release_id)
     for (const v of filter.release_id) params.append("release_id", v);
   if (filter.severity)

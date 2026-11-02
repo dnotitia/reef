@@ -12,7 +12,7 @@ export interface IssueFilter {
   // as `undefined` (the field is dropped), not an empty array, so truthy
   // `?.length` checks and the persisted/URL projections stay consistent.
   // assignee/requester/sprint_id/release_id became multi-select in REEF-267;
-  // milestone_id and reporter stay single scalars.
+  // reporter stays a single scalar.
   status?: string[];
   issueType?: string[];
   priority?: string[];
@@ -22,13 +22,17 @@ export interface IssueFilter {
   /** filter-specific selection for issues with no assigned_to value. */
   assigneeUnset?: boolean;
   requester?: string[];
+  requesterUnset?: boolean;
   reporter?: string;
   severity?: string[];
   /** filter-specific selection for issues with no severity value. */
   severityUnset?: boolean;
   sprint_id?: string[];
-  milestone_id?: string;
+  sprintUnset?: boolean;
+  milestone_id?: string[];
+  milestoneUnset?: boolean;
   release_id?: string[];
+  releaseUnset?: boolean;
   due?: ("overdue" | "due_soon" | "no_due")[];
   label?: string;
   /** Retired: Use top-level searchQuery instead */

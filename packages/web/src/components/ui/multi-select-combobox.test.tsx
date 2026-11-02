@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComboboxOption } from "./combobox";
 import { MultiSelectCombobox } from "./multi-select-combobox";
@@ -48,6 +49,7 @@ function AuxiliaryOptionHarness() {
   return (
     <MultiSelectCombobox
       label="People"
+      onClear={() => { setValues([]); setUnassigned(false); }}
       values={values}
       onToggle={(value, checked) =>
         setValues((prev) =>
@@ -113,6 +115,25 @@ describe("MultiSelectCombobox", () => {
     );
     await user.click(screen.getByTestId("opt-apple"));
     expect(screen.getByTestId("people-trigger")).toHaveTextContent("People (2)");
+  });
+
+  it("allows keyboard selection and clearing the auxiliary choice", async () => {
+    const user = userEvent.setup();
+    render(<AuxiliaryOptionHarness />);
+    await user.click(screen.getByTestId("people-trigger"));
+    await user.click(screen.getByTestId("opt-unassigned"));
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "false");
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: "Clear People filter" }));
+    expect(screen.getByTestId("people-trigger")).toHaveTextContent("People");
+    expect(screen.queryByRole("button", { name: "Clear People filter" })).toBeNull();
+  });
+
+  it("localizes the individual clear control", () => {
+    render(<IntlTestProvider locale="ko"><MultiSelectCombobox label="기한" values={["apple"]} onToggle={() => {}} onClear={() => {}} options={OPTIONS} /></IntlTestProvider>);
+    expect(screen.getByRole("button", { name: "기한 필터 지우기" })).toBeTruthy();
   });
 
   it("re-clicking an open trigger closes the panel (REEF-073) — AC3", async () => {
@@ -272,6 +293,32 @@ describe("MultiSelectCombobox", () => {
       expect(options).toEqual({ block: "nearest" });
     }
     spy.mockRestore();
+  });
+
+  it("repositions an open panel when a selection moves its trigger to the next row", async () => {
+    const widthSpy = vi.spyOn(window, "innerWidth", "get").mockReturnValue(1280);
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.testid === "people-trigger") {
+        return this.textContent?.includes("Unassigned") ? new DOMRect(80, 144, 160, 32) : new DOMRect(1168, 103, 75, 32);
+      }
+      if (this.dataset.testid === "people-content") return new DOMRect(0, 0, 320, 80);
+      return new DOMRect(0, 0, 0, 0);
+    });
+    try {
+      const user = userEvent.setup();
+      render(<AuxiliaryOptionHarness />);
+      await user.click(screen.getByTestId("people-trigger"));
+      expect(screen.getByTestId("people-content")).toHaveClass("right-0");
+      await user.click(screen.getByTestId("opt-unassigned"));
+      expect(screen.getByTestId("people-content")).toHaveClass("left-0");
+      expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "true");
+      await user.keyboard("{Enter}");
+      expect(screen.getByTestId("people-content")).toHaveClass("right-0");
+      expect(screen.getByTestId("opt-unassigned")).toHaveAttribute("aria-checked", "false");
+    } finally {
+      rectSpy.mockRestore();
+      widthSpy.mockRestore();
+    }
   });
 
   it("opens upward when a containing scroll panel has less room than the viewport", async () => {
