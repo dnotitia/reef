@@ -19,6 +19,7 @@ issues, not public GitHub issues.
 
 ### Changed
 
+- The persisted browser query cache advances to `reef-cache-v9`, discarding previous cached responses on first visit while preserving saved workspace favorites.
 - The hermetic preview runtime now starts a declared task with `dev:e2e -- --task <task-id>`. Use `--list-tasks` to discover entries; fixture scenario names remain inputs to `reset:e2e`.
 - **Breaking:** Milestone filters now store arrays. Existing scalar selections are excluded when restoring current filters or My Views and must be selected again.
 - Unset issue filters appear first and use consistent summaries and individual clear controls.
