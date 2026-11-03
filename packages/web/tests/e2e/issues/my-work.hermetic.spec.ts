@@ -362,13 +362,9 @@ test.extend({ scenario: "public_mixed" })(
         .map((item: { workspace: string }) => item.workspace)
         .sort();
     };
-    const before = await readFixtureState(request);
     expect(await readSources("/api/my-work", "issues")).toEqual(sources);
     expect(await readSources("/api/notifications", "notifications")).toEqual(
       sources,
-    );
-    const calls = (await readFixtureState(request)).calls.slice(
-      before.calls.length,
     );
     await setVaultListControl(request, { failures: 1 });
     expect((await page.request.get("/api/my-work")).status()).not.toBe(200);
