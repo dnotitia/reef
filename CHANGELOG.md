@@ -27,6 +27,8 @@ issues, not public GitHub issues.
 
 ### Fixed
 
+- Personal work and notifications use active member workspaces, so public-only vaults no longer block account-wide results.
+
 - Workspace discovery uses the signed-in member's active installations, so public vaults no longer block first-time onboarding and discovery needs one AKB request.
 - Release verification ignores historical terminal Pods and preserves independent
   explicit AKB links when checking issue relationship projections.

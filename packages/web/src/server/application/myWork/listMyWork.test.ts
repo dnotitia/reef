@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  mockAkbListMyWorkIssues,
-  mockAkbListVaults,
-  mockReadWorkspaceInstallationActive,
-} = vi.hoisted(() => ({
-  mockAkbListMyWorkIssues: vi.fn(),
-  mockAkbListVaults: vi.fn(),
-  mockReadWorkspaceInstallationActive: vi.fn(),
-}));
+const { mockAkbListMyWorkIssues, mockListActiveWorkspaces } = vi.hoisted(
+  () => ({
+    mockAkbListMyWorkIssues: vi.fn(),
+    mockListActiveWorkspaces: vi.fn(),
+  }),
+);
 
 vi.mock("@reef/core", async () => {
   const actual =
@@ -16,19 +13,11 @@ vi.mock("@reef/core", async () => {
   return {
     ...actual,
     akbListMyWorkIssues: mockAkbListMyWorkIssues,
-    akbListVaults: mockAkbListVaults,
-    akbGetMe: vi.fn().mockResolvedValue({ profile: { is_admin: false } }),
   };
 });
 
-vi.mock("@/server/adapters/workspaceInstallation", () => ({
-  readWorkspaceInstallationActive: mockReadWorkspaceInstallationActive,
-}));
-
-vi.mock("@/server/adapters/installationTarget", () => ({
-  readInstallationTarget: () => ({
-    appId: "33333333-3333-4333-8333-333333333333",
-  }),
+vi.mock("@/server/application/workspaces/listActiveWorkspaces", () => ({
+  listActiveWorkspaces: mockListActiveWorkspaces,
 }));
 
 vi.mock("@/lib/telemetry", () => ({
@@ -54,19 +43,10 @@ vi.mock("@/lib/telemetry", () => ({
 import { AuthError } from "@reef/core";
 import { listMyWork } from "./listMyWork";
 
-const vaults = [
-  { id: "1", name: "reef-zeta", role: "owner" },
-  { id: "2", name: "reef-alpha", role: "member" },
-  { id: "3", name: "reef-raw", role: "owner" },
-];
-
 describe("listMyWork", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAkbListVaults.mockResolvedValue({ vaults });
-    mockReadWorkspaceInstallationActive.mockImplementation(
-      async ({ vault }) => vault.id !== "3",
-    );
+    mockListActiveWorkspaces.mockResolvedValue(["reef-alpha", "reef-zeta"]);
     mockAkbListMyWorkIssues.mockResolvedValue({
       workspaces: [],
       issues: [],
@@ -93,7 +73,7 @@ describe("listMyWork", () => {
 
   it("propagates an AKB workspace ACL failure instead of returning partial work", async () => {
     const denial = new AuthError({ origin: "akb", status: 403 });
-    mockReadWorkspaceInstallationActive.mockRejectedValueOnce(denial);
+    mockListActiveWorkspaces.mockRejectedValueOnce(denial);
 
     await expect(
       listMyWork({ adapter: { request: vi.fn() }, actor: "alice" }),
