@@ -12,6 +12,14 @@ vi.mock("@/lib/apiClient", async () => {
   };
 });
 
+vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
+  useCurrentUser: () => ({
+    data: { is_admin: false },
+    isSuccess: true,
+    isError: false,
+  }),
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import type { EnrichedVaultSummary } from "@reef/core";
 import { useVaults } from "./useVaults";

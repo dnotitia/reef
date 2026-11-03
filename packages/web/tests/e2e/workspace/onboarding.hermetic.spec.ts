@@ -18,6 +18,7 @@ import {
   setInstallationControl,
   setInstallationExecutionFailure,
   setWorkspaceInitializationControl,
+  setVaultListControl,
   waitForPasswordLogin,
   writeIndexedDbConfig,
 } from "../harness/fixture";
@@ -55,13 +56,18 @@ async function approveInstallation(
     .getByTestId(`installation-${vault}-approve`)
     .click();
   expect((await command).status()).toBe(202);
-  const refreshed = await (await refreshedVaults).json();
+  const refreshedResponse = await refreshedVaults;
+  const refreshed = await refreshedResponse.json();
   expect(
     refreshed.vaults.find(
       (candidate: { name: string; installation_active: boolean | null }) =>
         candidate.name === vault,
     )?.installation_active,
-  ).toBe(false);
+  ).toBe(
+    new URL(refreshedResponse.url()).searchParams.get("scope") === "admin"
+      ? false
+      : undefined,
+  );
   await releaseResponseHold(request, "installation-execution");
 }
 
@@ -98,12 +104,99 @@ async function expectWidthContained(container: Locator, child: Locator) {
 }
 
 test.describe("Hermetic onboarding flow", () => {
+  for (const mode of ["invalid", "forbidden"] as const) {
+    test.extend({ scenario: "public_nonmembers" })(
+      `keeps the session and retries a ${mode} member list`,
+      async ({ page, request }) => {
+        await setVaultListControl(request, { failures: 1, mode });
+        await signInAsUser(page, fixtureReaderLogin);
+        const error = page.getByTestId("workspace-resume-error");
+        await expect(error).toBeVisible();
+        expect(
+          (await page.context().cookies()).some(
+            (cookie) => cookie.name === "__reef_session",
+          ),
+        ).toBe(true);
+        await error.getByRole("button").click();
+        await expect(
+          page.getByTestId("greenfield-vault-name-input"),
+        ).toBeVisible();
+      },
+    );
+  }
+  for (const mode of ["unauthorized", "account_denial"] as const) {
+    test.extend({ scenario: "public_nonmembers" })(
+      `clears the session after a ${mode} member list`,
+      async ({ page, request }) => {
+        await setVaultListControl(request, { failures: 1, mode });
+        await signInAsUser(page, fixtureReaderLogin);
+        await expect
+          .poll(async () =>
+            (await page.context().cookies()).some(
+              (cookie) => cookie.name === "__reef_session",
+            ),
+          )
+          .toBe(false);
+      },
+    );
+  }
+  for (const scenario of ["public_nonmembers", "public_mixed"] as const) {
+    test.extend({ scenario })(
+      `retries an unavailable member list in ${scenario}`,
+      async ({ page, request }) => {
+        await setVaultListControl(request, { failures: 1 });
+        await signInAsUser(page, fixtureReaderLogin);
+        const error = page.getByTestId("workspace-resume-error");
+        await expect(error).toBeVisible();
+        await error.getByRole("button").click();
+        if (scenario === "public_nonmembers") {
+          await expect(
+            page.getByTestId("greenfield-vault-name-input"),
+          ).toBeVisible();
+        } else {
+          await page.waitForURL(/\/workspace\/member-admin\/issues\/?$/, {
+            timeout: 15_000,
+          });
+        }
+      },
+    );
+  }
+  test.extend({ scenario: "public_nonmembers" })(
+    "shows onboarding when public access is the only access",
+    async ({ page }) => {
+      await signInAsUser(page, fixtureReaderLogin);
+      await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+      await expect(
+        page.getByTestId("greenfield-vault-name-input"),
+      ).toBeVisible();
+      const response = await page.request.get("/api/vaults");
+      expect(await response.json()).toEqual({ vaults: [] });
+    },
+  );
+  test.extend({ scenario: "public_mixed" })(
+    "resumes a member workspace even when public access is stronger",
+    async ({ page }) => {
+      await signInAsUser(page, fixtureReaderLogin);
+      await page.waitForURL(/\/workspace\/member-admin\/issues\/?$/, {
+        timeout: 15_000,
+      });
+      const response = await page.request.get("/api/vaults");
+      expect(await response.json()).toMatchObject({
+        vaults: [
+          { name: "member-admin", role: "admin", installation_active: true },
+          { name: "member-owner", role: "owner", installation_active: true },
+          { name: "member-reader", role: "writer", installation_active: true },
+          { name: "member-writer", role: "writer", installation_active: true },
+        ],
+      });
+    },
+  );
   test.extend({ scenario: "notifications_personal" })(
     "an active initialized reader enters the workspace without management details",
     async ({ context, page, request }) => {
       await signInAsAlice(page);
 
-      const ownerVaults = await page.request.get("/api/vaults");
+      const ownerVaults = await page.request.get("/api/vaults?scope=admin");
       expect(ownerVaults.ok()).toBe(true);
       expect(
         (await ownerVaults.json()).vaults.find(

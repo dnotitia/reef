@@ -29,7 +29,7 @@ export interface WorkspaceAccess {
  * no effect, no local state — so it stays correct across role refetches.
  */
 export function useWorkspaceAccess(vault: string): WorkspaceAccess {
-  const vaultsQuery = useVaults();
+  const vaultsQuery = useVaults({ management: true });
   const role = vault
     ? (vaultsQuery.data?.find((v) => v.name === vault)?.role ?? null)
     : null;

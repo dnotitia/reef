@@ -74,6 +74,7 @@ export {
   revokeVaultMember,
   searchUsers,
   listVaults,
+  listMemberActiveVaults,
   createVault,
   type VaultMember,
   type UserSearchResult,

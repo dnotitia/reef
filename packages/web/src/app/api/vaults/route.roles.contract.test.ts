@@ -39,6 +39,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.stubEnv("REEF_AUTH_MODE", "local");
   vi.stubEnv("AKB_BACKEND_URL", baseUrl);
+  vi.stubEnv("REEF_APP_ID", appId);
   server.use(
     http.get(`${baseUrl}/api/v1/auth/me`, () =>
       HttpResponse.json({ username: "alice", is_admin: false }),
@@ -47,7 +48,7 @@ beforeEach(() => {
 });
 
 function request() {
-  return new Request("http://localhost/api/vaults", {
+  return new Request("http://localhost/api/vaults?scope=management", {
     headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
   });
 }
@@ -74,6 +75,134 @@ function vaultList(role: string) {
 }
 
 describe("GET /api/vaults AKB role contract", () => {
+  it("clears the session for an invalid upstream session", async () => {
+    server.use(
+      http.get(
+        `${baseUrl}/api/v1/apps/${appId}/installations/active/vaults`,
+        () =>
+          HttpResponse.json(
+            { detail: { code: "unauthorized" } },
+            { status: 401 },
+          ),
+      ),
+    );
+    const response = await GET(
+      new Request("http://localhost/api/vaults", {
+        headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toContain(SESSION_COOKIE);
+  });
+
+  it.each(["membership_required", "account_suspended", "identity_conflict"])(
+    "clears the session for account denial %s",
+    async (code) => {
+      server.use(
+        http.get(
+          `${baseUrl}/api/v1/apps/${appId}/installations/active/vaults`,
+          () => HttpResponse.json({ detail: { code } }, { status: 403 }),
+        ),
+      );
+      const response = await GET(
+        new Request("http://localhost/api/vaults", {
+          headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+        }),
+      );
+      expect(response.status).toBe(code === "identity_conflict" ? 409 : 403);
+      expect(response.headers.get("set-cookie")).toContain(SESSION_COOKIE);
+    },
+  );
+
+  it("rejects an incomplete upstream response rather than treating it as empty", async () => {
+    server.use(
+      http.get(
+        `${baseUrl}/api/v1/apps/${appId}/installations/active/vaults`,
+        () =>
+          HttpResponse.json({ vaults: [{ id: vaultId, name: "reef-test" }] }),
+      ),
+    );
+    const response = await GET(
+      new Request("http://localhost/api/vaults", {
+        headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+      }),
+    );
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+  it.each([200, 403, 503])(
+    "preserves empty or failed member lists with status %i",
+    async (status) => {
+      server.use(
+        http.get(
+          `${baseUrl}/api/v1/apps/${appId}/installations/active/vaults`,
+          () =>
+            status === 200
+              ? HttpResponse.json({ vaults: [] })
+              : HttpResponse.json(
+                  {
+                    detail: {
+                      code:
+                        status === 403
+                          ? "permission_denied"
+                          : "member_installation_status_unavailable",
+                    },
+                  },
+                  { status },
+                ),
+        ),
+      );
+      const response = await GET(
+        new Request("http://localhost/api/vaults", {
+          headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+        }),
+      );
+      expect(response.status).toBe(status === 503 ? 502 : status);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("set-cookie")).toBeNull();
+      if (status === 200) expect(await response.json()).toEqual({ vaults: [] });
+    },
+  );
+  it.each(["owner", "admin", "writer", "reader"])(
+    "returns active member vaults for %s",
+    async (role) => {
+      let calls = 0;
+      server.use(
+        http.get(
+          `${baseUrl}/api/v1/apps/${appId}/installations/active/vaults`,
+          ({ request }) => {
+            calls++;
+            expect(request.headers.get("authorization")).toBe(
+              `Bearer ${VALID_JWT}`,
+            );
+            return HttpResponse.json({
+              vaults: [
+                {
+                  id: vaultId,
+                  name: "reef-test",
+                  description: null,
+                  status: "active",
+                  role,
+                  managed_by: null,
+                  created_at: null,
+                },
+              ],
+            });
+          },
+        ),
+      );
+      const response = await GET(
+        new Request("http://localhost/api/vaults", {
+          headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        vaults: [{ role, installation_active: true }],
+      });
+      expect(calls).toBe(1);
+    },
+  );
   it("uses one inventory request for a verified system admin", async () => {
     vaultList("admin");
     let inventoryReads = 0;
@@ -95,12 +224,35 @@ describe("GET /api/vaults AKB role contract", () => {
         throw new Error("admin inventory must replace detail fan-out");
       }),
     );
-    const response = await GET(request());
+    const response = await GET(
+      new Request("http://localhost/api/vaults?scope=admin", {
+        headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+      }),
+    );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       vaults: [{ installation_active: true }],
     });
     expect(inventoryReads).toBe(1);
+  });
+
+  it("lets AKB reject unauthorized admin inventory without falling back", async () => {
+    vaultList("reader");
+    server.use(
+      http.get(`${baseUrl}/api/v1/apps/${appId}/inventory`, () =>
+        HttpResponse.json(
+          { detail: { code: "permission_denied" } },
+          { status: 403 },
+        ),
+      ),
+    );
+    const response = await GET(
+      new Request("http://localhost/api/vaults?scope=admin", {
+        headers: { cookie: `${SESSION_COOKIE}=${VALID_JWT}` },
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 
   it.each(["owner", "admin"])(

@@ -261,6 +261,24 @@ export function createScenarioVaults(scenario) {
     if (scenario === "installation_drift") {
       vaults.set("reef-zeta", installationDriftVault("reef-zeta"));
     }
+  } else if (scenario === "public_nonmembers" || scenario === "public_mixed") {
+    for (const role of ["reader", "writer"]) {
+      for (const active of [false, true]) {
+        const name = `public-${role}-${active ? "active" : "raw"}`;
+        const vault = active ? configuredVault(name) : rawVault(name);
+        vault.role = role;
+        vault.publicNonMember = true;
+        vaults.set(name, vault);
+      }
+    }
+    if (scenario === "public_mixed") {
+      for (const role of ["owner", "admin", "writer", "reader"]) {
+        const memberVault = configuredVault(`member-${role}`);
+        memberVault.role = role === "reader" ? "writer" : role;
+        memberVault.explicitMemberRole = role;
+        vaults.set(memberVault.name, memberVault);
+      }
+    }
   } else if (scenario === "markdown_fixture") {
     vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));
     vaults.set("raw-vault", rawVault("raw-vault"));

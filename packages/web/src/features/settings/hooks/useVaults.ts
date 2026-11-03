@@ -9,6 +9,7 @@ import {
 } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 
 const VaultsResponseSchema = z.object({
   vaults: z.array(EnrichedVaultSummarySchema),
@@ -18,12 +19,34 @@ const VaultsResponseSchema = z.object({
  * Lists accessible AKB vaults with each member's minimal app-active state.
  * Product readiness remains a separate selected-workspace server check.
  */
-export function useVaults({ enabled = true }: { enabled?: boolean } = {}) {
+export function useVaults({
+  enabled = true,
+  management = false,
+}: {
+  enabled?: boolean;
+  management?: boolean;
+} = {}) {
   const hydrated = useHydrated();
+  const user = useCurrentUser();
+  const scope = management
+    ? "management"
+    : user.data?.is_admin
+      ? "admin"
+      : "directory";
   const result = useQuery({
-    queryKey: ["vaults"] as const,
+    queryKey: ["vaults", scope] as const,
     queryFn: async (): Promise<EnrichedVaultSummary[]> => {
-      const res = await apiFetch("/api/vaults");
+      let requestScope = scope;
+      if (!management && user.isError) {
+        const retried = await user.refetch();
+        if (retried.isError) throw retried.error;
+        requestScope = retried.data?.is_admin ? "admin" : "directory";
+      }
+      const res = await apiFetch(
+        requestScope === "directory"
+          ? "/api/vaults"
+          : `/api/vaults?scope=${requestScope}`,
+      );
       if (!res.ok) {
         await throwHttpError(res, `Failed to load vaults: ${res.status}`);
       }
@@ -37,7 +60,7 @@ export function useVaults({ enabled = true }: { enabled?: boolean } = {}) {
     // window.
     refetchOnMount: "always",
     retry: false,
-    enabled,
+    enabled: enabled && (management || user.isSuccess || user.isError),
   });
 
   // The server has no persisted React Query cache, while the browser can

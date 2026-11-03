@@ -38,6 +38,14 @@ export function useWorkspaceAutoResume({
   const vaultsQuery = useVaults({ enabled });
   const { vault: rememberedVault, isLoading: rememberedVaultLoading } =
     useActiveVault();
+  const needsRememberedLookup =
+    Boolean(rememberedVault) &&
+    vaultsQuery.isSuccess &&
+    !vaultsQuery.data.some((vault) => vault.installation_active === true);
+  const managementQuery = useVaults({
+    enabled: enabled && needsRememberedLookup,
+    management: true,
+  });
   const { mutateAsync: persistActiveVault } = useSetActiveVault();
   const [retryVersion, setRetryVersion] = useState(0);
   const [persistFailed, setPersistFailed] = useState(false);
@@ -55,16 +63,20 @@ export function useWorkspaceAutoResume({
     if (!vaultsQuery.data) return null;
     return (
       selectConfiguredWorkspace(vaultsQuery.data, rememberedVault) ??
-      selectRememberedUnavailableWorkspace(vaultsQuery.data, rememberedVault)
+      selectRememberedUnavailableWorkspace(
+        managementQuery.data ?? [],
+        rememberedVault,
+      )
     );
-  }, [vaultsQuery.data, rememberedVault]);
+  }, [vaultsQuery.data, managementQuery.data, rememberedVault]);
 
   const retry = useCallback(() => {
     pendingResumeRef.current = null;
     setPersistFailed(false);
     setRetryVersion((version) => version + 1);
     void vaultsQuery.refetch();
-  }, [vaultsQuery]);
+    if (needsRememberedLookup) void managementQuery.refetch();
+  }, [vaultsQuery, managementQuery, needsRememberedLookup]);
 
   useEffect(() => {
     // Reading the retry counter deliberately restarts a failed persistence
@@ -74,6 +86,8 @@ export function useWorkspaceAutoResume({
       !enabled ||
       vaultsQuery.isPending ||
       vaultsQuery.isError ||
+      (needsRememberedLookup &&
+        (managementQuery.isPending || managementQuery.isError)) ||
       rememberedVaultLoading ||
       !vaultsQuery.data
     ) {
@@ -131,13 +145,22 @@ export function useWorkspaceAutoResume({
     vaultsQuery.data,
     vaultsQuery.isError,
     vaultsQuery.isPending,
+    needsRememberedLookup,
+    managementQuery.isPending,
+    managementQuery.isError,
   ]);
 
   let status: WorkspaceAutoResumeStatus;
   if (!enabled) status = "disabled";
-  else if (vaultsQuery.isError || persistFailed) status = "error";
+  else if (
+    vaultsQuery.isError ||
+    (needsRememberedLookup && managementQuery.isError) ||
+    persistFailed
+  )
+    status = "error";
   else if (
     vaultsQuery.isPending ||
+    (needsRememberedLookup && managementQuery.isPending) ||
     rememberedVaultLoading ||
     !vaultsQuery.data
   ) {

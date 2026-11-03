@@ -52,12 +52,13 @@ describe("useCurrentUser", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    // Strip drops akb passthrough fields (is_admin, auth_method).
+    // Strip drops unrelated akb passthrough fields.
     expect(result.current.data).toEqual({
       user_id: "u1",
       username: "alice",
       display_name: "Alice Example",
       email: "alice@example.com",
+      is_admin: false,
     });
   });
 

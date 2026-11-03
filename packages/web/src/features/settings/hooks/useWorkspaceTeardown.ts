@@ -30,7 +30,7 @@ export function useWorkspaceTeardown(vault: string) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const setActiveVault = useSetActiveVault();
-  const vaultsQuery = useVaults();
+  const vaultsQuery = useVaults({ management: true });
   const t = useTranslations("settings.dangerZone");
 
   // Choose the destination BEFORE the list refetches: the other vaults are

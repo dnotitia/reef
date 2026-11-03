@@ -235,6 +235,7 @@ export function createState(scenario) {
     vaultListGate: null,
     releaseVaultList: null,
     vaultListFailures: 0,
+    vaultListFailureMode: "unavailable",
     workspaceInitFailureOperation: null,
     workspaceInitFailureRemaining: 0,
     workspaceInitFailureSuccessesBefore: null,

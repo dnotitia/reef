@@ -92,6 +92,15 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
   const vaultsQuery = useVaults({ enabled: canRenderAuthenticatedTree });
+  const managementQuery = useVaults({
+    enabled:
+      canRenderAuthenticatedTree &&
+      vaultsQuery.isSuccess &&
+      !vaultsQuery.data.some(
+        (entry) => entry.name === vault && entry.installation_active === true,
+      ),
+    management: true,
+  });
   const requestedVault = vaultsQuery.data?.find(
     (entry) => entry.name === vault,
   );
@@ -101,13 +110,16 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     canRenderAuthenticatedTree &&
     vaultsQuery.isSuccess &&
     requestedVault?.installation_active === true;
+  const managedVault = managementQuery.data?.find(
+    (entry) => entry.name === vault,
+  );
   const canManageRequestedVault =
-    requestedVault?.role === "owner" || requestedVault?.role === "admin";
+    managedVault?.role === "owner" || managedVault?.role === "admin";
   const showBlockedInstallationDiagnostics =
     canRenderAuthenticatedTree &&
-    vaultsQuery.isSuccess &&
+    managementQuery.isSuccess &&
     canManageRequestedVault &&
-    requestedVault.installation_active !== true &&
+    managedVault.installation_active !== true &&
     pathname === withVault(vault, "/settings/workspace");
   // One-way URL→Dexie sync: remember this vault as the per-browser default
   // after auth and membership are confirmed. Passing "" while the
@@ -143,6 +155,16 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
+  if (!isMember && vaultsQuery.isSuccess && managementQuery.isPending) {
+    return (
+      <WorkspaceAuthPendingSkeleton
+        vault={vault}
+        pathname={pathname}
+        searchParams={searchParams.toString()}
+      />
+    );
+  }
+
   // Keep the access-denied surface outside the dashboard shell so its
   // dedicated account utility and recovery layout stay unchanged.
   if (canRenderAuthenticatedTree && vaultsQuery.isSuccess && !isMember) {
@@ -152,15 +174,15 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         vault={vault}
         vaults={vaultsQuery.data}
         installationStatus={
-          requestedVault?.installation_active === true
+          (requestedVault ?? managedVault)?.installation_active === true
             ? undefined
-            : requestedVault?.installation_active === false
+            : (requestedVault ?? managedVault)?.installation_active === false
               ? "management_required"
-              : requestedVault
+              : (requestedVault ?? managedVault)
                 ? "unknown"
                 : undefined
         }
-        role={requestedVault?.role}
+        role={(requestedVault ?? managedVault)?.role}
         onCheckStatus={async () => {
           const refreshed = await vaultsQuery.refetch();
           if (refreshed.isError) throw new Error("Workspace recheck failed");
