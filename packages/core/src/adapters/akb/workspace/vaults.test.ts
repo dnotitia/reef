@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { listMemberActiveVaults } from "./vaults";
 import {
   AuthError,
   ConflictError,
@@ -19,6 +20,91 @@ import {
 } from "../core/akb.testSupport";
 
 describe("vault meta", () => {
+  it("preserves a timestamp without a timezone in the member list", async () => {
+    setupFetch([
+      {
+        body: {
+          vaults: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "reef",
+              description: null,
+              status: "active",
+              role: "reader",
+              managed_by: null,
+              created_at: "2026-01-02T03:04:05",
+            },
+          ],
+        },
+      },
+    ]);
+    const result = await listMemberActiveVaults({
+      adapter: makeAdapter(),
+      appId: "app-id",
+    });
+    expect(result.vaults[0]?.created_at).toBe("2026-01-02T03:04:05");
+  });
+  it("validates and maps the member active vault list using the session", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          vaults: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "reef-test",
+              description: null,
+              status: "active",
+              role: "reader",
+              managed_by: null,
+              created_at: null,
+            },
+          ],
+        },
+      },
+    ]);
+    const result = await listMemberActiveVaults({
+      adapter: makeAdapter(),
+      appId: "app-id",
+    });
+    expect(result.vaults).toMatchObject([
+      { name: "reef-test", role: "reader", installation_active: true },
+    ]);
+    expect(new URL(calls[0]?.url ?? "").pathname).toBe(
+      "/api/v1/apps/app-id/installations/active/vaults",
+    );
+    expect(new Headers(calls[0]?.init?.headers).get("authorization")).toMatch(
+      /^Bearer /,
+    );
+  });
+
+  it("rejects a member list missing required nullable fields", async () => {
+    setupFetch([
+      {
+        body: {
+          vaults: [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "reef",
+              status: "active",
+              role: "reader",
+            },
+          ],
+        },
+      },
+    ]);
+    await expect(
+      listMemberActiveVaults({ adapter: makeAdapter(), appId: "app-id" }),
+    ).rejects.toThrow();
+  });
+
+  it("propagates a member-list permission error", async () => {
+    setupFetch([
+      { status: 403, body: { detail: { code: "permission_denied" } } },
+    ]);
+    await expect(
+      listMemberActiveVaults({ adapter: makeAdapter(), appId: "app-id" }),
+    ).rejects.toBeInstanceOf(AuthError);
+  });
   it("listVaultMembers returns the parsed members array", async () => {
     setupFetch([
       {

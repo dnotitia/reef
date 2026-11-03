@@ -1482,7 +1482,11 @@ test.describe("Hermetic notification Inbox", () => {
         '[data-testid="notification-item"][data-workspace="reef-alpha"]',
       ),
     ).toHaveCount(0);
-    const vaultsResponse = await page.request.get("/api/vaults");
+    const vaultsResponse = await page.request.get("/api/vaults?scope=admin");
+    expect(
+      await (await page.request.get("/api/auth/akb/me")).json(),
+    ).toMatchObject({ is_admin: true });
+    expect(vaultsResponse.status()).toBe(200);
     const vaultsBody = (await vaultsResponse.json()) as {
       vaults: Array<{ name: string }>;
     };

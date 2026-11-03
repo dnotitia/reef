@@ -132,9 +132,11 @@ const catalog = {
 };
 
 function createTestQueryClient() {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  client.setQueryData(["auth", "me"], { username: "alice", is_admin: false });
+  return client;
 }
 
 function wrap(ui: ReactNode, queryClient = createTestQueryClient()) {

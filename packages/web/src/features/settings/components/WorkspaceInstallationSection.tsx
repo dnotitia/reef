@@ -42,7 +42,7 @@ function WorkspaceInstallationSectionContent({
 }) {
   const t = useTranslations("workspaceInstallation");
   const routesT = useTranslations("settings.routes");
-  const vaultsQuery = useVaults();
+  const vaultsQuery = useVaults({ management: true });
   const workspaces = vaultsQuery.data ?? [];
   const workspace = workspaces.find((entry) => entry.name === vault);
   const canManage = role === "owner" || role === "admin";

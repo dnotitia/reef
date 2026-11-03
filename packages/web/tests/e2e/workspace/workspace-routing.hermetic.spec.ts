@@ -184,7 +184,9 @@ test.describe("workspace root redirects (REEF-424)", () => {
           memberLookup: "healthy",
         });
       }
-      const unavailableResponse = await page.request.get("/api/vaults");
+      const unavailableResponse = await page.request.get(
+        "/api/vaults?scope=admin",
+      );
       expect(unavailableResponse.ok()).toBe(true);
       const unavailablePayload = (await unavailableResponse.json()) as {
         vaults: Array<{ name: string; installation_active: boolean | null }>;

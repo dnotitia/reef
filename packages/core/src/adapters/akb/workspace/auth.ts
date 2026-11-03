@@ -132,16 +132,16 @@ export type AkbCurrentUser = z.infer<typeof AkbCurrentUserSchema>;
 // Client-facing projection of `/auth/me` for DISPLAY surfaces (the workspace
 // account menu). Unlike `AkbCurrentUserSchema` — which is `z.looseObject` and
 // observe so the me route can re-emit the profile verbatim — this STRIPS
-// to the handful of fields the UI renders, so a `web` consumer imports a typed
-// shape instead of reaching into passthrough keys. Every field is optional:
-// akb may omit `display_name`/`email`, and the UI falls back to the username or
-// a neutral "Account" label. Strip (Zod's default) discards unknown akb fields.
+// to the fields the UI uses, including the non-authoritative admin routing hint.
+// AKB may omit display fields; the UI falls back to the username or a neutral
+// "Account" label. Strip (Zod's default) discards unknown akb fields.
 export const AkbMeProfileSchema = z.object({
   username: z.string().min(1).optional(),
   user_id: z.string().min(1).optional(),
   id: z.string().min(1).optional(),
   display_name: z.string().min(1).nullable().optional(),
   email: z.string().min(1).nullable().optional(),
+  is_admin: z.boolean().optional(),
 });
 
 export type AkbMeProfile = z.infer<typeof AkbMeProfileSchema>;

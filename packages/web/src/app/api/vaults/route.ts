@@ -16,6 +16,8 @@ import {
   akbCreateVault as createVault,
   akbReadConfig as readConfig,
   akbListVaults as listVaults,
+  akbListMemberActiveVaults as listMemberActiveVaults,
+  akbListAdminActiveInstallations as listAdminActiveInstallations,
   isAkbAccountErrorCode,
 } from "@reef/core";
 import { z } from "zod";
@@ -53,9 +55,31 @@ export async function GET(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
+    const scope = new URL(request.url).searchParams.get("scope");
+    if (scope !== "management" && scope !== "admin") {
+      const appId = z.string().uuid().parse(process.env.REEF_APP_ID);
+      const result = await listMemberActiveVaults({ adapter, appId });
+      return Response.json(VaultsResponseSchema.parse(result), {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const { vaults } = await listVaults({ adapter });
 
     const target = readInstallationTarget();
+    if (scope === "admin") {
+      const appId = z.string().uuid().parse(process.env.REEF_APP_ID);
+      const active = await listAdminActiveInstallations({ adapter, appId });
+      const ids = new Set(active.map((item) => item.vaultId));
+      return Response.json(
+        VaultsResponseSchema.parse({
+          vaults: vaults.map((vault) => ({
+            ...vault,
+            installation_active: vault.id ? ids.has(vault.id) : null,
+          })),
+        }),
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
     const installationChecks = target
       ? await readWorkspaceAvailabilities({
           adapter,
@@ -95,7 +119,9 @@ export async function GET(request: Request): Promise<Response> {
     });
   } catch (err) {
     logger.error({ err }, "list_vaults failed");
-    return respondWithError(err, { resourceKind: "workspace" });
+    const response = await respondWithError(err, { resourceKind: "workspace" });
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   }
 }
 

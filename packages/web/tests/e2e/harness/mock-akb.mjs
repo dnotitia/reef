@@ -294,6 +294,47 @@ export async function handleAkb(req, res, url, state) {
     return json(res, 200, { users });
   }
 
+  const memberActiveList = path.match(
+    /^\/api\/v1\/apps\/([^/]+)\/installations\/active\/vaults$/,
+  );
+  if (memberActiveList && req.method === "GET") {
+    if (user.is_admin)
+      return json(res, 403, { error: "human member required" });
+    if (state.vaultListGate) await state.vaultListGate;
+    if (state.vaultListFailures > 0) {
+      state.vaultListFailures -= 1;
+      if (state.vaultListFailureMode === "invalid")
+        return json(res, 200, { vaults: [{}] });
+      if (state.vaultListFailureMode === "forbidden")
+        return json(res, 403, { detail: { code: "permission_denied" } });
+      if (state.vaultListFailureMode === "unauthorized")
+        return json(res, 401, { detail: { code: "unauthorized" } });
+      if (state.vaultListFailureMode === "account_denial")
+        return accountDenialResponse(res, "membership_required");
+      return json(res, 503, {
+        detail: { code: "member_installation_status_unavailable" },
+      });
+    }
+    const appId = decodeURIComponent(memberActiveList[1]);
+    const vaults = [...state.vaults.values()]
+      .filter(
+        (vault) =>
+          !vault.publicNonMember &&
+          (vault.explicitMemberRole ?? roleForVault(vault, state, username)) !==
+            null &&
+          vault.installation?.appId === appId &&
+          vault.installation.lifecycle === "active",
+      )
+      .map((vault) => ({
+        ...vaultSummary(vault, state, username),
+        managed_by: null,
+      }))
+      .toSorted(
+        (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+      );
+    return json(res, 200, { vaults });
+  }
+
   if (path === "/api/v1/my/vaults" && req.method === "GET") {
     if (state.vaultListGate) await state.vaultListGate;
     if (state.vaultListFailures > 0) {
@@ -358,7 +399,10 @@ export async function handleAkb(req, res, url, state) {
 
     if (installationMatch[3] === "/active" && req.method === "GET") {
       const memberRole = vault ? roleForVault(vault, state, username) : null;
-      if (!["owner", "admin", "writer", "reader"].includes(memberRole)) {
+      if (
+        vault?.publicNonMember ||
+        !["owner", "admin", "writer", "reader"].includes(memberRole)
+      ) {
         return json(res, 403, { error: "vault membership required" });
       }
       if (

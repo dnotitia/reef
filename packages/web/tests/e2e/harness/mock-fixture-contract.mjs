@@ -36,6 +36,8 @@ export const IMAGE_UPLOAD_FIXTURE_FILE_NAME = "reef-markdown-editor-image.png";
 export const IMAGE_UPLOAD_FIXTURE_PATH =
   "/__e2e/assets/reef-markdown-editor-image.png";
 export const SUPPORTED_SCENARIOS = [
+  "public_nonmembers",
+  "public_mixed",
   "empty",
   "configured",
   "reports_outliers",

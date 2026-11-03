@@ -17,6 +17,8 @@ export type IssueListFailureMode = 409 | 500 | 503 | "network";
 
 export type FixtureScenario =
   | "empty"
+  | "public_nonmembers"
+  | "public_mixed"
   | "configured"
   | "reports_outliers"
   | "configured_empty"
@@ -572,6 +574,7 @@ export async function setInstallationControl(
       | "malformed";
     memberLookup?: "healthy" | "forbidden" | "unavailable" | "invalid";
     detailLookup?: "healthy" | "forbidden" | "unavailable" | "invalid";
+    publicNonMember?: boolean;
     roles?: Partial<
       Record<
         "alice" | "bob" | "writer",
@@ -591,6 +594,7 @@ export async function setInstallationControl(
         blocked_reason: control.blockedReason,
         member_lookup: control.memberLookup,
         detail_lookup: control.detailLookup,
+        public_non_member: control.publicNonMember,
         roles: control.roles,
       },
     },
@@ -600,7 +604,16 @@ export async function setInstallationControl(
 
 export async function setVaultListControl(
   request: APIRequestContext,
-  control: { hold?: boolean; failures?: number },
+  control: {
+    hold?: boolean;
+    failures?: number;
+    mode?:
+      | "unavailable"
+      | "invalid"
+      | "forbidden"
+      | "unauthorized"
+      | "account_denial";
+  },
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/vault-list-control`,
@@ -608,6 +621,7 @@ export async function setVaultListControl(
       data: {
         hold: control.hold ?? false,
         failures: control.failures ?? 0,
+        mode: control.mode,
       },
     },
   );

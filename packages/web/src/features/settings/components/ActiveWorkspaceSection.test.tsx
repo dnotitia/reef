@@ -209,10 +209,12 @@ describe("ActiveWorkspaceSection", () => {
   it.each(["owner", "reader"] as const)(
     "shows the create entry point for %s without gating",
     async (role) => {
-      mockApiFetch.mockResolvedValue(
-        vaultsResponse([
-          { name: "reef-acme", installation_active: true, role },
-        ]),
+      mockApiFetch.mockImplementation(async (url) =>
+        String(url) === "/api/auth/akb/me"
+          ? Response.json({ username: "alice", is_admin: false })
+          : vaultsResponse([
+              { name: "reef-acme", installation_active: true, role },
+            ]),
       );
       // Creating a workspace makes a new vault — it is not an edit to the active
       // one — so a read viewer should still reach it. The section takes no

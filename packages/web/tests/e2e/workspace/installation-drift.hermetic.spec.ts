@@ -79,7 +79,10 @@ test.describe("installation drift and readiness guidance", () => {
       const managementPath = `/akb/api/v1/apps/${E2E_REEF_APP_ID}/installations/${vaultId}`;
       expect(
         state.calls.some(
-          (call) => call.method === "GET" && call.path === managementPath,
+          (call) =>
+            call.method === "GET" &&
+            call.path ===
+              `/akb/api/v1/apps/${E2E_REEF_APP_ID}/installations/active/vaults`,
         ),
       ).toBe(true);
       expect(
@@ -583,8 +586,9 @@ test.describe("installation drift and readiness guidance", () => {
                   lifecycle: "blocked",
                   blockedReason: "worker_timeout",
                 });
-                const blockedVaultsResponse =
-                  await page.request.get("/api/vaults");
+                const blockedVaultsResponse = await page.request.get(
+                  "/api/vaults?scope=management",
+                );
                 expect(blockedVaultsResponse.ok()).toBe(true);
                 const blockedVaultsPayload =
                   (await blockedVaultsResponse.json()) as {

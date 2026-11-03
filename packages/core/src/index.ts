@@ -548,6 +548,7 @@ export {
   UserSearchResultSchema,
   type UserSearchResult,
   listVaults as akbListVaults,
+  listMemberActiveVaults as akbListMemberActiveVaults,
   createVault as akbCreateVault,
   deleteVault as akbDeleteVault,
   initializeReefWorkspace as akbInitializeReefWorkspace,

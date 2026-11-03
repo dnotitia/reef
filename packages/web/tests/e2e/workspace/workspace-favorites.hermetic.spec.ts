@@ -5,6 +5,7 @@ import {
   readIndexedDbConfig,
   signInAsAlice,
   setInstallationControl,
+  setVaultListControl,
 } from "../harness/fixture";
 
 const test = workspaceTest.extend({ scenario: "configured_multi" });
@@ -21,6 +22,40 @@ async function openMultiVaultWorkspace(
 }
 
 test.describe("Hermetic workspace favorites", () => {
+  test("preserves a favorite through membership revocation and restoration", async ({
+    page,
+    request,
+  }) => {
+    await openMultiVaultWorkspace(page, "reef-e2e");
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await page.getByTestId("workspace-switcher-favorite-reef-zeta").click();
+    await setVaultListControl(request, { failures: 1 });
+    await page.reload();
+    await expect
+      .poll(() => readIndexedDbConfig(page, FAVORITES_KEY))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-zeta"] }));
+    await setInstallationControl(request, {
+      vault: "reef-zeta",
+      publicNonMember: true,
+    });
+    await page.reload();
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await expect(
+      page.getByTestId("workspace-switcher-favorite-reef-zeta"),
+    ).toHaveCount(0);
+    await expect
+      .poll(() => readIndexedDbConfig(page, FAVORITES_KEY))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-zeta"] }));
+    await setInstallationControl(request, {
+      vault: "reef-zeta",
+      publicNonMember: false,
+    });
+    await page.reload();
+    await page.getByTestId("sidebar-workspace-trigger").click();
+    await expect(
+      page.getByTestId("workspace-switcher-favorite-reef-zeta"),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
   test("groups, searches, navigates, restores, and cleans up browser-local favorites", async ({
     page,
     request,
@@ -99,8 +134,8 @@ test.describe("Hermetic workspace favorites", () => {
     await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
 
-    // A favorite remains stored while one installation is confirmed inactive
-    // and another manager's installation lookup is temporarily unavailable.
+    // A favorite remains stored while an installation is inactive. Admin
+    // inventory still returns another active installation if its detail fails.
     await setInstallationControl(request, {
       vault: "reef-alpha",
       lifecycle: "uninstalled",
@@ -117,7 +152,7 @@ test.describe("Hermetic workspace favorites", () => {
     ).toHaveCount(0);
     await expect(
       page.getByTestId("workspace-switcher-favorite-reef-zeta"),
-    ).toHaveCount(0);
+    ).toHaveAttribute("aria-pressed", "true");
     await expect
       .poll(() => readIndexedDbConfig(page, FAVORITES_KEY))
       .toBe(

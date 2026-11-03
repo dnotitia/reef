@@ -83,6 +83,36 @@ const VaultListResponseSchema = z.object({
   vaults: z.array(VaultSummarySchema).default([]),
 });
 
+const MemberActiveVaultsSchema = z.object({
+  vaults: z.array(
+    z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1),
+      description: z.string().nullable(),
+      status: z.string(),
+      role: z.string(),
+      managed_by: z.string().nullable(),
+      created_at: z.string().nullable(),
+    }),
+  ),
+});
+
+export async function listMemberActiveVaults(
+  params: ListVaultsParams & { appId: string },
+) {
+  return withSpan("akb.list_member_active_vaults", {}, async (span) => {
+    const payload = await params.adapter.request(
+      `/api/v1/apps/${encodeURIComponent(params.appId)}/installations/active/vaults`,
+      { resource: "vaults" },
+    );
+    const { vaults } = MemberActiveVaultsSchema.parse(payload);
+    span.setAttribute("vault_count", vaults.length);
+    return {
+      vaults: vaults.map((vault) => ({ ...vault, installation_active: true })),
+    };
+  });
+}
+
 const CreateVaultResponseSchema = z.object({
   vault_id: z.string().min(1),
   name: z.string().min(1),

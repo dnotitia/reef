@@ -245,6 +245,15 @@ const server = createServer(async (req, res) => {
             })
           : null;
       state.vaultListFailures = Math.max(0, Number(body?.failures ?? 0));
+      state.vaultListFailureMode = [
+        "unavailable",
+        "invalid",
+        "forbidden",
+        "unauthorized",
+        "account_denial",
+      ].includes(body?.mode)
+        ? body.mode
+        : "unavailable";
       return json(res, 200, {
         ok: true,
         hold: state.vaultListGate !== null,
@@ -329,6 +338,9 @@ const server = createServer(async (req, res) => {
         return json(res, 404, { error: "installation fixture not found" });
       }
       const installation = vault.installation;
+      if (typeof body?.public_non_member === "boolean") {
+        vault.publicNonMember = body.public_non_member;
+      }
       const currentLookupModes = installationLookupModes(state, vaultName);
       const memberLookup = INSTALLATION_LOOKUP_MODES.includes(
         body?.member_lookup,
