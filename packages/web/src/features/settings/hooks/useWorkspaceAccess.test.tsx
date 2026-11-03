@@ -6,8 +6,15 @@ vi.mock("./useVaults", () => ({ useVaults: () => useVaultsMock() }));
 
 import { useWorkspaceAccess } from "./useWorkspaceAccess";
 
-function setVaults(data: unknown, isPending = false) {
-  useVaultsMock.mockReturnValue({ data, isPending });
+function setVaults(
+  data: Array<{ name: string; role: string }> | undefined,
+  isPending = false,
+) {
+  useVaultsMock.mockReturnValue({
+    data: data?.map((entry) => ({ ...entry, installation_active: true })),
+    isPending,
+    isSuccess: !isPending,
+  });
 }
 
 describe("useWorkspaceAccess", () => {

@@ -47,6 +47,15 @@ const SSO_CONFIG = {
 describe("akb auth adapter", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("accepts a login user without an admin flag", async () => {
+    const token = makeJwt({ sub: "user-1" });
+    const { is_admin: _, ...user } = VALID_USER;
+    setupFetch([{ status: 200, body: { token, user } }]);
+    await expect(
+      login({ baseUrl: BASE_URL, username: "alice", password: "secret" }),
+    ).resolves.toEqual({ token, user });
+  });
+
   it("posts local credentials to the current login endpoint", async () => {
     const token = makeJwt({ sub: "user-1" });
     const { calls } = setupFetch([

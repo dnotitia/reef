@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,11 +6,13 @@ type VaultsState = {
   isPending: boolean;
   isSuccess: boolean;
   isError: boolean;
+  isFetching?: boolean;
   data?: Array<{
     name: string;
     installation_active: boolean | null;
     role?: "owner" | "admin" | "writer" | "reader" | null;
   }>;
+  refetch?: () => Promise<{ isError: boolean }>;
 };
 
 const {
@@ -22,6 +24,8 @@ const {
   syncMock,
   vaultsMock,
   vaultsRef,
+  managementRef,
+  checkStatusRef,
 } = vi.hoisted(() => ({
   authStatusRef: {
     current: "active" as "checking" | "active" | "inactive" | "unavailable",
@@ -37,6 +41,8 @@ const {
   syncMock: vi.fn(),
   vaultsMock: vi.fn(),
   vaultsRef: { current: {} as VaultsState },
+  managementRef: { current: null as VaultsState | null },
+  checkStatusRef: { current: null as (() => Promise<void>) | null },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -77,10 +83,18 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useSyncActiveVaultFromUrl: syncMock,
 }));
 vi.mock("@/features/settings/hooks/useVaults", () => ({
-  useVaults: ({ enabled = true }: { enabled?: boolean } = {}) => {
+  useVaults: ({
+    enabled = true,
+    management = false,
+  }: {
+    enabled?: boolean;
+    management?: boolean;
+  } = {}) => {
     if (enabled) vaultsMock();
     return enabled
-      ? vaultsRef.current
+      ? management
+        ? (managementRef.current ?? vaultsRef.current)
+        : vaultsRef.current
       : { isPending: false, isSuccess: false, isError: false };
   },
 }));
@@ -109,9 +123,26 @@ vi.mock("./DashboardShell", () => ({
   ),
 }));
 vi.mock("./WorkspaceAccessDenied", () => ({
-  WorkspaceAccessDenied: ({ vault }: { vault: string }) => (
-    <div data-testid="workspace-access-denied">{vault}</div>
-  ),
+  WorkspaceAccessDenied: ({
+    vault,
+    role,
+    onCheckStatus,
+  }: {
+    vault: string;
+    role?: string;
+    onCheckStatus: () => Promise<void>;
+  }) => {
+    checkStatusRef.current = onCheckStatus;
+    return (
+      <div data-testid="workspace-access-denied">
+        {vault}
+        <span data-testid="denied-role">{role}</span>
+        <button type="button" onClick={() => void onCheckStatus()}>
+          Check status
+        </button>
+      </div>
+    );
+  },
 }));
 
 import { WorkspaceGuard } from "./WorkspaceGuard";
@@ -143,6 +174,126 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isError: false,
       data: [{ name: "reef-acme", installation_active: true }],
     };
+    managementRef.current = null;
+    checkStatusRef.current = null;
+  });
+
+  it("refreshes management state when checking an unavailable workspace", async () => {
+    const directoryRefresh = vi.fn().mockResolvedValue({ isError: false });
+    const managementRefresh = vi.fn().mockResolvedValue({ isError: false });
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [],
+      refetch: directoryRefresh,
+    };
+    managementRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [{ name: "reef-acme", installation_active: false, role: "reader" }],
+      refetch: managementRefresh,
+    };
+    render(
+      <WorkspaceGuard appVersion="1">
+        <span />
+      </WorkspaceGuard>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Check status" }));
+    await waitFor(() => expect(managementRefresh).toHaveBeenCalledOnce());
+    expect(directoryRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("surfaces a failed management refresh", async () => {
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [],
+      refetch: vi.fn().mockResolvedValue({ isError: false }),
+    };
+    managementRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [{ name: "reef-acme", installation_active: false, role: "reader" }],
+      refetch: vi.fn().mockResolvedValue({ isError: true }),
+    };
+    render(
+      <WorkspaceGuard appVersion="1">
+        <span />
+      </WorkspaceGuard>,
+    );
+    await expect(checkStatusRef.current?.()).rejects.toThrow(
+      "Workspace recheck failed",
+    );
+  });
+
+  it("does not expose a cached manager role while management access is revalidating", () => {
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [],
+    };
+    managementRef.current = {
+      isPending: false,
+      isFetching: true,
+      isSuccess: true,
+      isError: false,
+      data: [{ name: "reef-acme", installation_active: false, role: "owner" }],
+    };
+    pathnameRef.current = "/workspace/reef-acme/settings/workspace";
+    render(
+      <WorkspaceGuard appVersion="1">
+        <span />
+      </WorkspaceGuard>,
+    );
+    expect(screen.getByTestId("auth-loading-shell")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-installation-diagnostics"),
+    ).toBeNull();
+  });
+
+  it("shows an updated manager role after checking an inactive workspace", async () => {
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [],
+      refetch: vi.fn().mockResolvedValue({ isError: false }),
+    };
+    managementRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [{ name: "reef-acme", installation_active: false, role: "reader" }],
+      refetch: vi.fn(async () => {
+        managementRef.current = {
+          isPending: false,
+          isSuccess: true,
+          isError: false,
+          data: [
+            { name: "reef-acme", installation_active: false, role: "owner" },
+          ],
+        };
+        return { isError: false };
+      }),
+    };
+    const view = render(
+      <WorkspaceGuard appVersion="1">
+        <span />
+      </WorkspaceGuard>,
+    );
+    expect(screen.getByTestId("denied-role")).toHaveTextContent("reader");
+    await checkStatusRef.current?.();
+    view.rerender(
+      <WorkspaceGuard appVersion="1">
+        <span />
+      </WorkspaceGuard>,
+    );
+    expect(screen.getByTestId("denied-role")).toHaveTextContent("owner");
   });
 
   it("does not mount workspace data queries until the session is verified", () => {

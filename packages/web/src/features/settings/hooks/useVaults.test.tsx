@@ -12,9 +12,10 @@ vi.mock("@/lib/apiClient", async () => {
   };
 });
 
+const profile = vi.hoisted(() => ({ isAdmin: false, username: "alice" }));
 vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
   useCurrentUser: () => ({
-    data: { is_admin: false },
+    data: { is_admin: profile.isAdmin, username: profile.username },
     isSuccess: true,
     isError: false,
   }),
@@ -40,6 +41,45 @@ const VAULTS: EnrichedVaultSummary[] = [
 describe("useVaults", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    profile.isAdmin = false;
+    profile.username = "alice";
+  });
+
+  it("uses the admin inventory route for a system administrator", async () => {
+    profile.isAdmin = true;
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ vaults: VAULTS }), { status: 200 }),
+    );
+    const { result } = renderHook(() => useVaults(), {
+      wrapper: createQueryWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockApiFetch).toHaveBeenCalledExactlyOnceWith(
+      "/api/vaults?scope=admin",
+    );
+  });
+
+  it("does not reuse another account's management role", async () => {
+    const pending = Promise.withResolvers<Response>();
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ vaults: VAULTS }), { status: 200 }),
+    );
+    mockApiFetch.mockReturnValueOnce(pending.promise);
+    const { result, rerender } = renderHook(
+      () => useVaults({ management: true }),
+      { wrapper: createQueryWrapper() },
+    );
+    await waitFor(() => expect(result.current.data?.[0]?.role).toBe("owner"));
+    profile.username = "bob";
+    rerender();
+    expect(result.current.data).toBeUndefined();
+    pending.resolve(
+      new Response(
+        JSON.stringify({ vaults: [{ ...VAULTS[0], role: "reader" }] }),
+        { status: 200 },
+      ),
+    );
+    await waitFor(() => expect(result.current.data?.[0]?.role).toBe("reader"));
   });
 
   it("calls GET /api/vaults and returns the vault list", async () => {

@@ -92,7 +92,7 @@ const MemberActiveVaultsSchema = z.object({
       status: z.string(),
       role: z.string(),
       managed_by: z.string().nullable(),
-      created_at: z.string().datetime({ offset: true }).nullable(),
+      created_at: z.string().nullable(),
     }),
   ),
 });

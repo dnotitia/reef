@@ -115,9 +115,12 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   );
   const canManageRequestedVault =
     managedVault?.role === "owner" || managedVault?.role === "admin";
+  const managementRevalidating =
+    managementQuery.isFetching && !managementQuery.isFetchedAfterMount;
   const showBlockedInstallationDiagnostics =
     canRenderAuthenticatedTree &&
     managementQuery.isSuccess &&
+    !managementRevalidating &&
     canManageRequestedVault &&
     managedVault.installation_active !== true &&
     pathname === withVault(vault, "/settings/workspace");
@@ -155,7 +158,11 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
     );
   }
 
-  if (!isMember && vaultsQuery.isSuccess && managementQuery.isPending) {
+  if (
+    !isMember &&
+    vaultsQuery.isSuccess &&
+    (managementQuery.isPending || managementRevalidating)
+  ) {
     return (
       <WorkspaceAuthPendingSkeleton
         vault={vault}
@@ -184,8 +191,12 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
         }
         role={(requestedVault ?? managedVault)?.role}
         onCheckStatus={async () => {
-          const refreshed = await vaultsQuery.refetch();
-          if (refreshed.isError) throw new Error("Workspace recheck failed");
+          const [directory, management] = await Promise.all([
+            vaultsQuery.refetch(),
+            managementQuery.refetch(),
+          ]);
+          if (directory.isError || management.isError)
+            throw new Error("Workspace recheck failed");
         }}
       />
     );

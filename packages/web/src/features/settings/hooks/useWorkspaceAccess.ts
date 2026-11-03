@@ -29,13 +29,31 @@ export interface WorkspaceAccess {
  * no effect, no local state — so it stays correct across role refetches.
  */
 export function useWorkspaceAccess(vault: string): WorkspaceAccess {
-  const vaultsQuery = useVaults({ management: true });
-  const role = vault
-    ? (vaultsQuery.data?.find((v) => v.name === vault)?.role ?? null)
-    : null;
+  const vaultsQuery = useVaults({ enabled: Boolean(vault) });
+  const activeVault = vaultsQuery.data?.find(
+    (entry) => entry.name === vault && entry.installation_active === true,
+  );
+  const needsManagement =
+    Boolean(vault) && vaultsQuery.isSuccess && !activeVault;
+  const managementQuery = useVaults({
+    management: true,
+    enabled: needsManagement,
+  });
+  const managementRevalidating =
+    managementQuery.isFetching && !managementQuery.isFetchedAfterMount;
+  const role =
+    activeVault?.role ??
+    (needsManagement && !managementRevalidating
+      ? managementQuery.data?.find((entry) => entry.name === vault)?.role
+      : null) ??
+    null;
   return {
     role,
     canEditWorkspace: role != null && WRITER_ROLES.has(role),
-    isResolving: vaultsQuery.isPending,
+    isResolving:
+      Boolean(vault) &&
+      (vaultsQuery.isPending ||
+        (needsManagement &&
+          (managementQuery.isPending || managementRevalidating))),
   };
 }

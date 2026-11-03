@@ -34,13 +34,21 @@ export function useVaults({
       ? "admin"
       : "directory";
   const result = useQuery({
-    queryKey: ["vaults", scope] as const,
+    queryKey: [
+      "vaults",
+      scope,
+      user.data?.user_id ?? user.data?.id ?? user.data?.username,
+    ] as const,
     queryFn: async (): Promise<EnrichedVaultSummary[]> => {
       let requestScope = scope;
-      if (!management && user.isError) {
+      if (user.isError) {
         const retried = await user.refetch();
         if (retried.isError) throw retried.error;
-        requestScope = retried.data?.is_admin ? "admin" : "directory";
+        requestScope = management
+          ? "management"
+          : retried.data?.is_admin
+            ? "admin"
+            : "directory";
       }
       const res = await apiFetch(
         requestScope === "directory"
@@ -60,7 +68,7 @@ export function useVaults({
     // window.
     refetchOnMount: "always",
     retry: false,
-    enabled: enabled && (management || user.isSuccess || user.isError),
+    enabled: enabled && (user.isSuccess || user.isError),
   });
 
   // The server has no persisted React Query cache, while the browser can

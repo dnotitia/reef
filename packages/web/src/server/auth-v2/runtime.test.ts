@@ -101,6 +101,29 @@ function record(token: string): AuthV2SessionRecord {
 }
 
 describe("SSO runtime transport ownership", () => {
+  it("accepts an account profile without an admin flag", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ user_id: "user-1", username: "alice" }),
+      ),
+    );
+    const { getAuthV2RouteRuntime } = await import("./runtime");
+    const runtime = await getAuthV2RouteRuntime(
+      new Request("https://reef.test"),
+    );
+    await expect(
+      runtime.accountValidator({
+        accessToken: "token",
+        subject: "subject",
+        issuer: "https://idp.test",
+        providerAlias: "workforce",
+      }),
+    ).resolves.toMatchObject({
+      outcome: "accepted",
+      account: { id: "user-1", username: "alice" },
+    });
+  });
   it("shares auth configuration within each request while resolving the current session at every AKB boundary", async () => {
     const handles = ["A".repeat(43), "B".repeat(43)];
     let generation = 1;

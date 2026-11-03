@@ -114,7 +114,7 @@ describe("GET /api/vaults", () => {
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false);
 
-    const response = await GET(request("/api/vaults"));
+    const response = await GET(request("/api/vaults?scope=management"));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -138,7 +138,7 @@ describe("GET /api/vaults", () => {
       .mockResolvedValueOnce(true)
       .mockRejectedValueOnce(new Error("network blip"));
 
-    const response = await GET(request("/api/vaults"));
+    const response = await GET(request("/api/vaults?scope=management"));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -150,7 +150,7 @@ describe("GET /api/vaults", () => {
     mockReadInstallationTarget.mockReturnValueOnce(null);
     mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
 
-    const response = await GET(request("/api/vaults"));
+    const response = await GET(request("/api/vaults?scope=management"));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -165,7 +165,7 @@ describe("GET /api/vaults", () => {
       .mockResolvedValueOnce(true)
       .mockRejectedValueOnce(new AuthError({ origin: "akb", status: 401 }));
 
-    const response = await GET(request("/api/vaults"));
+    const response = await GET(request("/api/vaults?scope=management"));
 
     expect(response.status).toBe(401);
     expect(response.headers.get("x-reef-auth-invalidated")).toBe("1");
@@ -186,15 +186,19 @@ describe("GET /api/vaults", () => {
 
   it("translates AKB and unexpected errors", async () => {
     mockAkbListVaults.mockRejectedValueOnce(new AuthError({}));
-    expect((await GET(request("/api/vaults"))).status).toBe(401);
+    expect((await GET(request("/api/vaults?scope=management"))).status).toBe(
+      401,
+    );
 
     mockAkbListVaults.mockRejectedValueOnce(
       new AkbApiError({ status: 500, message: "boom" }),
     );
-    expect((await GET(request("/api/vaults"))).status).toBe(502);
+    expect((await GET(request("/api/vaults?scope=management"))).status).toBe(
+      502,
+    );
 
     mockAkbListVaults.mockRejectedValueOnce(new Error("unrelated"));
-    const unexpected = await GET(request("/api/vaults"));
+    const unexpected = await GET(request("/api/vaults?scope=management"));
     expect(unexpected.status).toBe(500);
     expect(await unexpected.json()).toEqual({
       error: "An unexpected error occurred.",

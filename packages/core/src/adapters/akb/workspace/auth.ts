@@ -20,7 +20,7 @@ export const AkbUserSchema = z.object({
   username: z.string().min(1),
   email: z.string().nullable().optional(),
   display_name: z.string().nullable().optional(),
-  is_admin: z.boolean(),
+  is_admin: z.boolean().optional(),
 });
 
 export type AkbUser = z.infer<typeof AkbUserSchema>;
