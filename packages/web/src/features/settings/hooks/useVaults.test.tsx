@@ -14,6 +14,7 @@ vi.mock("@/lib/apiClient", async () => {
 
 const profile = vi.hoisted(() => ({ isAdmin: false, username: "alice" }));
 vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
+  CURRENT_USER_QUERY_KEY: ["auth", "me"],
   useCurrentUser: () => ({
     data: { is_admin: profile.isAdmin, username: profile.username },
     isSuccess: true,

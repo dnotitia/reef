@@ -104,7 +104,11 @@ function setupVaultApi(
   }>,
 ) {
   mockApiFetch.mockImplementation(async (url) => {
-    if (String(url) === "/api/vaults") return vaultsResponse(entries);
+    if (
+      String(url) === "/api/vaults" ||
+      String(url) === "/api/vaults?scope=management"
+    )
+      return vaultsResponse(entries);
     if (String(url).startsWith("/api/repos")) {
       return new Response(JSON.stringify({ repos: [] }), { status: 200 });
     }

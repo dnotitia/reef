@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryWrapper } from "@/test-support/query";
 
 vi.mock("@/features/auth/hooks/useCurrentUser", () => ({
+  CURRENT_USER_QUERY_KEY: ["auth", "me"],
   useCurrentUser: () => ({
     data: { is_admin: false },
     isSuccess: true,
