@@ -367,6 +367,7 @@ test.describe("Hermetic persisted issue layout", () => {
     const reload = page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("app-shell-skeleton")).toBeVisible();
     const authScreenshot = await page.screenshot({
+      caret: "initial",
       path: testInfo.outputPath("auth-pending.png"),
     });
     await testInfo.attach("auth-pending", {
@@ -382,6 +383,7 @@ test.describe("Hermetic persisted issue layout", () => {
       timeout: 10_000,
     });
     const loadingScreenshot = await page.screenshot({
+      caret: "initial",
       path: testInfo.outputPath("editor-chunk-loading.png"),
     });
     await testInfo.attach("editor-chunk-loading", {
@@ -392,11 +394,13 @@ test.describe("Hermetic persisted issue layout", () => {
     await expect(page.getByTestId("markdown-editor")).toBeVisible({
       timeout: 15_000,
     });
+    await page.unrouteAll({ behavior: "wait" });
     await expect(
       page.getByTestId("markdown-editor-resize-handle"),
     ).toHaveAttribute("aria-valuenow", String(SAVED_HEIGHT));
     const wideToolbarControls = await measureToolbarControls(page);
     const loadedScreenshot = await page.screenshot({
+      caret: "initial",
       path: testInfo.outputPath("loaded-editor.png"),
     });
     await testInfo.attach("loaded-editor", {
@@ -654,6 +658,7 @@ test.describe("Hermetic persisted issue layout", () => {
     expect(narrowGeometry.panelOverflow).toBe(false);
     expect(narrowGeometry.documentOverflow).toBe(false);
     const narrowScreenshot = await page.screenshot({
+      caret: "initial",
       path: testInfo.outputPath("narrow-toolbar-wrap.png"),
     });
     await testInfo.attach("narrow-toolbar-wrap", {
@@ -704,6 +709,7 @@ test.describe("Hermetic persisted issue layout", () => {
         expectedHeight,
       );
       const screenshot = await page.screenshot({
+        caret: "initial",
         path: testInfo.outputPath(`${name}-auth-pending.png`),
       });
       await testInfo.attach(`${name}-auth-pending`, {

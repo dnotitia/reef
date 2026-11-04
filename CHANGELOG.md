@@ -13,6 +13,13 @@ issues, not public GitHub issues.
 
 ## v0.19.1 - 2026-11-04
 
+### Security
+
+- Update DOMPurify to 3.4.17 and undici to 7.30.1 and 8.12.2 through the
+  existing dependency overrides. Update Zod to 4.6.7, Vite to 6.4.4, and Vitest
+  to 4.1.12 to address additional dependency advisories reported after the
+  lockfile was rescanned.
+
 ### Fixed
 
 - Include exact-schema no-op transitions from v0.18.0, v0.19.0, and v0.19.1
