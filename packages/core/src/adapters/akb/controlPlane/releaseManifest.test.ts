@@ -26,6 +26,23 @@ const SCHEMA_V4_FINGERPRINT =
   "ec53a0d4dd7242e2f47c915f3e07c048044c9b68efc3383597d10df69244e080";
 
 describe("Reef App Release Blueprint and Manifest v2", () => {
+  it("accepts the deployed v0.18.0 schema as an unchanged upgrade source", async () => {
+    const release = await finalizeAppReleaseManifest({
+      blueprint: await buildReleaseBlueprint(),
+      version: "0.19.1",
+      sourceRevision: SOURCE_REVISION,
+      imageDigest: IMAGE_DIGEST,
+    });
+
+    expect(release.manifest.transition_plans).toContainEqual({
+      source: {
+        release_version: "0.18.0",
+        schema_fingerprint: SCHEMA_V4_FINGERPRINT,
+      },
+      steps: [],
+    });
+  });
+
   it("projects the twelve-table schema and both v4 transition capabilities", async () => {
     const blueprint = await buildReleaseBlueprint();
 
@@ -85,7 +102,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       },
     });
 
-    expect(blueprint.transition_plans).toHaveLength(12);
+    expect(blueprint.transition_plans).toHaveLength(15);
     const freshPlan = blueprint.transition_plans[0];
     if (!freshPlan || freshPlan.source !== "fresh") {
       throw new Error("expected the fresh install plan first");
@@ -129,7 +146,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
         ?.indexes,
     );
 
-    expect(blueprint.transition_plans.slice(-7)).toEqual(
+    expect(blueprint.transition_plans.slice(-10)).toEqual(
       [
         "0.17.0",
         "0.17.1",
@@ -138,6 +155,9 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
         "0.17.4",
         "0.17.5",
         "0.17.6",
+        "0.18.0",
+        "0.19.0",
+        "0.19.1",
       ].map((releaseVersion) => ({
         source: {
           release_version: releaseVersion,
@@ -146,7 +166,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
         steps: [],
       })),
     );
-    const sourcePlans = blueprint.transition_plans.slice(1, -7);
+    const sourcePlans = blueprint.transition_plans.slice(1, -10);
     expect(sourcePlans.map((plan) => plan.source)).toEqual([
       {
         release_version: "0.14.0",
@@ -293,7 +313,7 @@ describe("Reef App Release Blueprint and Manifest v2", () => {
       image_digest: IMAGE_DIGEST,
       schema_version: REEF_SCHEMA_VERSION,
     });
-    expect(first.manifest.transition_plans).toHaveLength(12);
+    expect(first.manifest.transition_plans).toHaveLength(15);
     expect(
       first.manifest.transition_plans[0]?.steps.every((step) =>
         /^[0-9a-f]{64}$/u.test(step.checksum),
