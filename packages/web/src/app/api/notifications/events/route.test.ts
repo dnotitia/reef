@@ -4,6 +4,7 @@ import { GET } from "./route";
 const mocks = vi.hoisted(() => ({
   adapter: { kind: "test-adapter" },
   getAkbAdapter: vi.fn(),
+  getAkbCurrentActor: vi.fn(),
   openFeed: vi.fn(),
 }));
 
@@ -11,7 +12,11 @@ vi.mock("@/lib/api/requestHelpers", async () => {
   const actual = await vi.importActual<
     typeof import("@/lib/api/requestHelpers")
   >("@/lib/api/requestHelpers");
-  return { ...actual, getAkbAdapter: mocks.getAkbAdapter };
+  return {
+    ...actual,
+    getAkbAdapter: mocks.getAkbAdapter,
+    getAkbCurrentActor: mocks.getAkbCurrentActor,
+  };
 });
 
 vi.mock("@/lib/api/routeTracing", () => ({
@@ -33,6 +38,7 @@ describe("GET /api/notifications/events", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getAkbAdapter.mockReturnValue({ adapter: mocks.adapter });
+    mocks.getAkbCurrentActor.mockResolvedValue({ actor: "kim" });
   });
 
   it("releases the pending feed wait and heartbeat when the consumer cancels", async () => {

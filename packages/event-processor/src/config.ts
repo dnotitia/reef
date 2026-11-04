@@ -1,10 +1,10 @@
 import { isIP } from "node:net";
+import { DEFAULT_RECONCILIATION_INTERVAL_MS } from "./processor.js";
 
 export const EVENT_PROCESSOR_CONFIG_DEFAULTS = Object.freeze({
   host: "0.0.0.0",
   port: 9_090,
-  reconnectDelayMs: 1_000,
-  reconciliationIntervalMs: 300_000,
+  reconciliationIntervalMs: DEFAULT_RECONCILIATION_INTERVAL_MS,
   drainTimeoutMs: 20_000,
 });
 
@@ -14,7 +14,6 @@ export interface EventProcessorConfig {
   appCredential: string;
   host: string;
   port: number;
-  reconnectDelayMs: number;
   reconciliationIntervalMs: number;
   drainTimeoutMs: number;
 }
@@ -151,18 +150,11 @@ export function parseEventProcessorConfig(
       1,
       65_535,
     ),
-    reconnectDelayMs: parseInteger(
-      environment,
-      "REEF_EVENT_PROCESSOR_RECONNECT_DELAY_MS",
-      EVENT_PROCESSOR_CONFIG_DEFAULTS.reconnectDelayMs,
-      100,
-      60_000,
-    ),
     reconciliationIntervalMs: parseInteger(
       environment,
       "REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS",
       EVENT_PROCESSOR_CONFIG_DEFAULTS.reconciliationIntervalMs,
-      15_000,
+      1_000,
       86_400_000,
     ),
     drainTimeoutMs: parseInteger(

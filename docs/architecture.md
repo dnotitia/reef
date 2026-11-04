@@ -37,9 +37,10 @@ Two Reef-owned auxiliary runtimes stay outside the interactive web request path:
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
-- **`@reef/event-processor`** is the private Change Event composition root. It
-  tails one explicitly configured AKB Vault and invokes Core's notification
-  projector; it has no browser or web dependency.
+- **`@reef/event-processor`** reconciles persisted activity and comment cursors
+  across active App installations. All installations share a two-job concurrency
+  limit; no worker retains an AKB event stream. It has no browser or web
+  dependency.
 
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
@@ -341,7 +342,7 @@ preserves Server-Sent Events.
 | AI agents and tools | `packages/web/src/server/application/agents/` (`chatAgent`, `enrichIssue`, `framework`, `prompts`, `tools`) |
 | Core observability seam | `packages/core/src/observability/index.ts` |
 | Error types | `packages/core/src/errors/` |
-| Change Event tail and notification reconciliation | `packages/core/src/adapters/akb/events.ts`, `packages/core/src/adapters/akb/notifications/` |
+| Notification source reconciliation and account revision reads | `packages/core/src/adapters/akb/notifications/` |
 | Private Event Processor composition root | `packages/event-processor/src/` |
 | Route Handlers (BFF) | `packages/web/src/app/api/*/route.ts` |
 | UI features | `packages/web/src/features/` |

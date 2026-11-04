@@ -40,8 +40,7 @@ function callbacks() {
     onInstallationAdded: vi.fn(),
     onInstallationRemoved: vi.fn(),
     onInstallationReady: vi.fn(),
-    onInstallationTailState: vi.fn(),
-    onInstallationRecoveryChange: vi.fn(),
+
     onInstallationReconciliation: vi.fn(),
     onInstallationFailure: vi.fn(),
     onInstallationError: vi.fn(),

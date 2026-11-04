@@ -1,6 +1,7 @@
 export {
   createNotification,
   listPersonalNotifications,
+  readPersonalNotificationRevision,
   markAllPersonalNotificationsRead,
   updateNotificationState,
   upsertSubscription,

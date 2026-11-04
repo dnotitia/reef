@@ -32,6 +32,35 @@ describe("AkbSearchHitSchema", () => {
 });
 
 describe("bounded AKB JWT adapter", () => {
+  it("aborts in-flight SQL when the request-scoped consumer closes", async () => {
+    const controller = new AbortController();
+    let upstreamSignal: AbortSignal | null = null;
+    const requestFetch = vi.fn<typeof fetch>(async (_input, init) => {
+      upstreamSignal = init?.signal ?? null;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("cancelled", "AbortError")),
+          { once: true },
+        );
+      });
+    });
+    const adapter = createAkbAdapter({
+      baseUrl: "https://akb.test",
+      credential: "test-credential",
+      fetch: requestFetch,
+      requestPolicy: { timeoutMs: 1_000, maxJsonResponseBytes: 1_024 },
+    });
+    const pending = adapter.request("/api/v1/tables/reef-alpha/sql", {
+      signal: controller.signal,
+    });
+    const rejected = expect(pending).rejects.toBeInstanceOf(AkbApiError);
+    await vi.waitFor(() => expect(requestFetch).toHaveBeenCalledOnce());
+    controller.abort();
+    await rejected;
+    expect(upstreamSignal).toHaveProperty("aborted", true);
+  });
+
   it("forwards the AKB-issued JWT", async () => {
     const { calls } = setupFetch([{ status: 204, empty: true }]);
     const adapter = createAkbAdapter({

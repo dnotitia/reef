@@ -19,6 +19,7 @@ import {
   type PersonalNotification,
   type PersonalNotificationListInput,
   PersonalNotificationListInputSchema,
+  PersonalNotificationRevisionRowSchema,
   type PersonalNotificationReadAllInput,
   type PersonalNotificationReadAllResult,
   type PersonalNotificationTarget,
@@ -431,6 +432,62 @@ export async function createNotification(
         throw new ConflictError({ path: `notification:${notificationKey}` });
       }
       return notification;
+    },
+  );
+}
+
+/** Read one bounded account snapshot without opening per-workspace event tails. */
+export async function readPersonalNotificationRevision(
+  adapter: AkbAdapter,
+  input: PersonalNotificationListInput,
+): Promise<string> {
+  const parsed = parseInput(PersonalNotificationListInputSchema, input);
+  const workspaces = validatedPersonalWorkspaces(parsed.workspaces);
+  return withSpan(
+    "akb.notifications.read_personal_revision",
+    { workspace_count: workspaces.length },
+    async () => {
+      const primaryVault = workspaces[0];
+      if (!primaryVault) return "[]";
+      const params = new SqlParameterBuilder();
+      const recipient = params.add(parsed.recipient, "notification recipient");
+      const branches = workspaces.map((workspace) => {
+        const scope = params.add(workspace, "notification workspace");
+        return `SELECT ${scope} AS workspace, MD5(STRING_AGG(jsonb_build_array(id, updated_at, state, read_at, archived_at)::text, ',' ORDER BY id)) AS revision, COUNT(*)::text AS total FROM ${crossVaultTableRef(workspace, REEF_NOTIFICATIONS_TABLE)} WHERE recipient = ${recipient}`;
+      });
+      const response = await runSql(
+        adapter,
+        primaryVault,
+        branches.join(" UNION ALL "),
+        params.params,
+        workspaces,
+      );
+      if (response.kind !== "table_query") {
+        throw new SchemaValidationError({
+          issues: ["notification revision query returned an invalid response"],
+        });
+      }
+      const revisions = parseInput(
+        PersonalNotificationRevisionRowSchema.array(),
+        response.items,
+      ).sort((left, right) =>
+        left.workspace < right.workspace
+          ? -1
+          : left.workspace > right.workspace
+            ? 1
+            : 0,
+      );
+      if (
+        JSON.stringify(revisions.map((row) => row.workspace)) !==
+        JSON.stringify(workspaces)
+      ) {
+        throw new SchemaValidationError({
+          issues: [
+            "notification revision query returned an incomplete workspace scope",
+          ],
+        });
+      }
+      return JSON.stringify(revisions);
     },
   );
 }

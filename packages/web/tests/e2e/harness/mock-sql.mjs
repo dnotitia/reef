@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ISSUE_TITLE_COLLATOR, NOW } from "./mock-fixtures.mjs";
 import { REEF_VAULT } from "./mock-fixture-contract.mjs";
 import {
@@ -266,18 +267,17 @@ export function handlePersonalNotificationsSql(
     return tableQuery(["workspace", "notification_key"], rows);
   }
 
+  const isRevision = /MD5\(STRING_AGG\(/i.test(sql);
   if (
-    !/WITH\s+scoped_notifications\s+AS\s*\(/i.test(sql) ||
-    !/ROW_NUMBER\(\)\s+OVER\s*\(PARTITION BY state/i.test(sql)
-  ) {
+    !isRevision &&
+    (!/WITH\s+scoped_notifications\s+AS\s*\(/i.test(sql) ||
+      !/ROW_NUMBER\(\)\s+OVER\s*\(PARTITION BY state/i.test(sql))
+  )
     return null;
-  }
-
-  const branches = [
-    ...sql.matchAll(
-      /SELECT\s+(?:"notification_rows"\."[a-z_]+",\s*)+'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+AS\s+notification_rows\s+WHERE\s+notification_rows\.recipient\s*=\s*'([^']+)'\s+AND\s+notification_rows\.state\s+IN\s*\('unread',\s*'read'\)\s+AND\s+notification_rows\.archived_at\s+IS\s+NULL/gi,
-    ),
-  ].map((match) => ({
+  const branchPattern = isRevision
+    ? /SELECT\s+'([^']+)'\s+AS\s+workspace,\s*MD5\(STRING_AGG\([\s\S]+?\)\)\s+AS\s+revision,\s*COUNT\(\*\)::text\s+AS\s+total\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+WHERE\s+recipient\s*=\s*'([^']+)'/gi
+    : /SELECT\s+(?:"notification_rows"\."[a-z_]+",\s*)+'([^']+)'\s+AS\s+workspace\s+FROM\s+([a-z0-9_]+)__reef_notifications\s+AS\s+notification_rows\s+WHERE\s+notification_rows\.recipient\s*=\s*'([^']+)'\s+AND\s+notification_rows\.state\s+IN\s*\('unread',\s*'read'\)\s+AND\s+notification_rows\.archived_at\s+IS\s+NULL/gi;
+  const branches = [...sql.matchAll(branchPattern)].map((match) => ({
     workspace: match[1],
     alias: match[2],
     recipient: match[3],
@@ -344,6 +344,35 @@ export function handlePersonalNotificationsSql(
       return { error: "notification data source unavailable" };
     }
 
+    if (isRevision) {
+      const notifications = (vault.notifications ?? []).filter(
+        (row) => row.recipient === branch.recipient,
+      );
+      rows.push({
+        workspace,
+        revision:
+          notifications.length === 0
+            ? null
+            : createHash("md5")
+                .update(
+                  JSON.stringify(
+                    [...notifications]
+                      .sort((a, b) => a.id.localeCompare(b.id))
+                      .map((row) => [
+                        row.id,
+                        row.updated_at ?? row.created_at ?? row.occurred_at,
+                        row.state,
+                        row.read_at,
+                        row.archived_at,
+                      ]),
+                  ),
+                )
+                .digest("hex"),
+        total: String(notifications.length),
+      });
+      continue;
+    }
+
     rows.push(
       ...(vault.notifications ?? [])
         .filter(
@@ -356,6 +385,8 @@ export function handlePersonalNotificationsSql(
         .map((notification) => ({ ...notification, workspace })),
     );
   }
+
+  if (isRevision) return tableQuery(["workspace", "revision", "total"], rows);
 
   const compareNotifications = (left, right) =>
     Date.parse(right.occurred_at) - Date.parse(left.occurred_at) ||
@@ -781,6 +812,7 @@ export function handleSql(state, vault, sql, username) {
         notification.recipient === recipient,
     );
     if (!row || !status) return tableQuery(notificationColumns(), []);
+    row.updated_at = nextEditTimestamp(state);
     const previousState = row.state;
     const previousReadAt = row.read_at;
     const previousArchivedAt = row.archived_at;

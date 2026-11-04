@@ -1,8 +1,8 @@
 # Deploying reef
 
 reef ships as two containers from one release: **reef-web**, the
-browser-facing BFF, and the private **reef-event-processor**, which tails AKB
-Change Events and reconciles Inbox notifications. Both images are built from
+browser-facing BFF, and the private **reef-event-processor**, which reconciles persisted AKB
+activity and comment sources into Inbox notifications. Both images are built from
 the same clean source revision and product version, then deployed by immutable
 digests recorded in Reef's build artifact and receipt. AKB registration uses
 the existing Manifest v2 contract and records only the web digest in
@@ -174,8 +174,7 @@ The processor also reads `AKB_BACKEND_URL` plus these bounded settings
 | --- | ---: | --- |
 | `REEF_EVENT_PROCESSOR_HOST` | `0.0.0.0` | IP address or hostname |
 | `REEF_EVENT_PROCESSOR_PORT` | `9090` | 1–65535 |
-| `REEF_EVENT_PROCESSOR_RECONNECT_DELAY_MS` | `1000` | 100–60000 |
-| `REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS` | `300000` | 15000–86400000 |
+| `REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS` | `5000` | 1000–86400000 |
 | `REEF_EVENT_PROCESSOR_DRAIN_TIMEOUT_MS` | `20000` | 1000–60000 |
 
 The AKB endpoint and both processor credentials are required. The AKB endpoint must be HTTPS, or a
@@ -183,8 +182,11 @@ private local/cluster HTTP origin; embedded credentials, paths, queries, and
 fragments are rejected at startup. The processor exposes internal-only
 `/healthz`, `/readyz`, and `/metrics` on port `9090`. Readiness stays down until
 one complete inventory read succeeds and during SIGTERM shutdown. Installation
-metrics report each vault's processor, event tail, reconciliation outcomes,
-notification fan-out, and failure state independently.
+metrics report each vault's reconciliation outcomes, notification fan-out,
+and failure state independently. Installations share a two-job concurrency
+limit. Neither the processor nor the account Inbox feed opens AKB event tails.
+The Inbox feed uses short cross-vault revision reads every three seconds; it
+cancels pending reads when the downstream browser leaves.
 
 ### TLS
 

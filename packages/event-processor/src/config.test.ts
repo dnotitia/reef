@@ -18,8 +18,7 @@ describe("event processor configuration", () => {
       appCredential: "reef-app-credential",
       host: "0.0.0.0",
       port: 9090,
-      reconnectDelayMs: 1_000,
-      reconciliationIntervalMs: 300_000,
+      reconciliationIntervalMs: 5_000,
       drainTimeoutMs: 20_000,
     });
   });
@@ -76,8 +75,7 @@ describe("event processor configuration", () => {
 
     for (const [name, value] of [
       ["REEF_EVENT_PROCESSOR_PORT", "65536"],
-      ["REEF_EVENT_PROCESSOR_RECONNECT_DELAY_MS", "99"],
-      ["REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS", "1000"],
+      ["REEF_EVENT_PROCESSOR_RECONCILIATION_INTERVAL_MS", "999"],
       ["REEF_EVENT_PROCESSOR_DRAIN_TIMEOUT_MS", "60001"],
     ]) {
       expect(() =>

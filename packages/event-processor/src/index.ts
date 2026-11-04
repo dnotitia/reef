@@ -1,38 +1,19 @@
+import pLimit from "p-limit";
 import {
   akbProjectNotifications,
   createAkbAdapter,
   createAkbAppInstallationInventoryReader,
-  createAkbChangeEventTail,
+  type AkbAdapter,
   type AkbRequestPolicy,
-  type ControlPlaneInstallationInventoryItem,
 } from "@reef/core";
 import {
   runEventProcessorFleet,
   type EventProcessorFleetOptions,
-  type EventProcessorFleetWorkerHandlers,
 } from "./fleet.js";
 import {
+  DEFAULT_RECONCILIATION_INTERVAL_MS,
   runEventProcessor,
-  type EventProcessorReconciliationOutcome,
-  type EventProcessorTailState,
-  type EventProcessorRuntime,
-  type RunEventProcessorOptions,
 } from "./processor.js";
-
-export interface EventProcessorOptions {
-  baseUrl: string;
-  credential: string;
-  vault: string;
-  batchSize?: number;
-  reconnectDelayMs?: number;
-  reconciliationIntervalMs?: number;
-  onError?: (error: unknown) => void;
-  onReady?: () => void;
-  onTailState?: (state: EventProcessorTailState) => void;
-  onRecoveryChange?: (recovering: boolean) => void;
-  onReconciliation?: (outcome: EventProcessorReconciliationOutcome) => void;
-  requestPolicy?: AkbRequestPolicy;
-}
 
 export interface EventProcessorFleetCompositionOptions
   extends Omit<
@@ -43,7 +24,6 @@ export interface EventProcessorFleetCompositionOptions
   credential: string;
   appCredential: string;
   batchSize?: number;
-  reconnectDelayMs?: number;
   reconciliationIntervalMs?: number;
   requestPolicy?: AkbRequestPolicy;
 }
@@ -52,46 +32,7 @@ export interface EventProcessor {
   run(signal?: AbortSignal): Promise<void>;
 }
 
-/**
- * Compose the private processor from deployment-managed AKB credentials and
- * Core's public adapter/projector contracts. No browser or web code
- * is reachable from this package.
- */
-export function createEventProcessor(
-  options: EventProcessorOptions,
-): EventProcessor {
-  const adapter = createAkbAdapter({
-    baseUrl: options.baseUrl,
-    credential: options.credential,
-    requestPolicy: options.requestPolicy,
-  });
-  const tail = createAkbChangeEventTail(adapter);
-  const runtime: EventProcessorRuntime = {
-    tail,
-    projectNotifications: () =>
-      akbProjectNotifications({
-        adapter,
-        vault: options.vault,
-        batchSize: options.batchSize,
-      }),
-  };
-  const runOptions = (signal?: AbortSignal): RunEventProcessorOptions => ({
-    vault: options.vault,
-    signal,
-    reconnectDelayMs: options.reconnectDelayMs ?? 1_000,
-    reconciliationIntervalMs: options.reconciliationIntervalMs,
-    onError: options.onError,
-    onReady: options.onReady,
-    onTailState: options.onTailState,
-    onRecoveryChange: options.onRecoveryChange,
-    onReconciliation: options.onReconciliation,
-  });
-  return {
-    run: (signal) => runEventProcessor(runtime, runOptions(signal)),
-  };
-}
-
-/** Compose a dynamically refreshed worker for every active app installation. */
+/** Bound source reconciliation across the entire deployment, independent of Vault count. */
 export function createEventProcessorFleet(
   options: EventProcessorFleetCompositionOptions,
 ): EventProcessor {
@@ -100,44 +41,58 @@ export function createEventProcessorFleet(
     credential,
     appCredential,
     batchSize,
-    reconnectDelayMs,
-    reconciliationIntervalMs: configuredReconciliationIntervalMs,
+    reconciliationIntervalMs = DEFAULT_RECONCILIATION_INTERVAL_MS,
     requestPolicy,
-    ...fleetCallbacks
+    ...callbacks
   } = options;
   const inventory = createAkbAppInstallationInventoryReader({
     baseUrl,
     appCredential,
     requestPolicy,
   });
-  const reconciliationIntervalMs =
-    configuredReconciliationIntervalMs ?? 5 * 60 * 1_000;
-
+  const adapter = createAkbAdapter({ baseUrl, credential, requestPolicy });
   return {
-    run: (signal) =>
-      runEventProcessorFleet({
-        ...fleetCallbacks,
+    async run(signal) {
+      const limit = pLimit(2);
+      await runEventProcessorFleet({
+        ...callbacks,
         listActiveInstallations: () => inventory.listActiveInstallations(),
         refreshIntervalMs: reconciliationIntervalMs,
         signal,
-        createRunner: (
-          installation: ControlPlaneInstallationInventoryItem,
-          handlers: EventProcessorFleetWorkerHandlers,
-        ) =>
-          createEventProcessor({
-            baseUrl,
-            credential,
-            vault: installation.vaultName,
-            batchSize,
-            reconnectDelayMs,
-            reconciliationIntervalMs: configuredReconciliationIntervalMs,
-            requestPolicy,
-            onReady: handlers.onReady,
-            onTailState: handlers.onTailState,
-            onRecoveryChange: handlers.onRecoveryChange,
-            onReconciliation: handlers.onReconciliation,
-            onError: handlers.onError,
-          }),
-      }),
+        createRunner: (installation, handlers) => ({
+          run: (workerSignal) => {
+            const workerAdapter: AkbAdapter = {
+              request: (path, init) =>
+                adapter.request(path, {
+                  ...init,
+                  signal: init?.signal
+                    ? AbortSignal.any([workerSignal, init.signal])
+                    : workerSignal,
+                }),
+            };
+            return runEventProcessor(
+              {
+                projectNotifications: () =>
+                  limit(() => {
+                    workerSignal.throwIfAborted();
+                    return akbProjectNotifications({
+                      adapter: workerAdapter,
+                      vault: installation.vaultName,
+                      batchSize,
+                    });
+                  }),
+              },
+              {
+                signal: workerSignal,
+                reconciliationIntervalMs,
+                onReady: handlers.onReady,
+                onReconciliation: handlers.onReconciliation,
+                onError: handlers.onError,
+              },
+            );
+          },
+        }),
+      });
+    },
   };
 }
