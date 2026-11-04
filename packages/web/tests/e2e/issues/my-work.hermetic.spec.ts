@@ -5,6 +5,10 @@ import {
   setIssueListFailure,
   setWorkspaceInitializationControl,
   readFixtureState,
+  fixtureReaderLogin,
+  signInAsUser,
+  setInstallationControl,
+  setVaultListControl,
 } from "../harness/fixture";
 
 const test = workspaceTest.extend({ scenario: "my_work_multi" });
@@ -333,3 +337,90 @@ test.describe("Hermetic My Work flow", () => {
     },
   );
 });
+
+test.extend({ scenario: "public_mixed" })(
+  "keeps personal results within active member workspaces as access changes",
+  async ({ page, request }) => {
+    await signInAsUser(page, fixtureReaderLogin);
+    await page.goto("/workspace/member-admin/my-work");
+    const rows = page.locator('a[data-testid^="my-work-row-"]');
+    await expect(rows).toHaveCount(4);
+    const sources = [
+      "member-admin",
+      "member-owner",
+      "member-reader",
+      "member-writer",
+    ];
+    const readSources = async (
+      path: string,
+      key: "issues" | "notifications",
+    ) => {
+      const response = await page.request.get(path);
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      return body[key]
+        .map((item: { workspace: string }) => item.workspace)
+        .sort();
+    };
+    expect(await readSources("/api/my-work", "issues")).toEqual(sources);
+    expect(await readSources("/api/notifications", "notifications")).toEqual(
+      sources,
+    );
+    await setVaultListControl(request, { failures: 1 });
+    expect((await page.request.get("/api/my-work")).status()).not.toBe(200);
+    await setVaultListControl(request, { failures: 1 });
+    expect((await page.request.get("/api/notifications")).status()).not.toBe(
+      200,
+    );
+    await setInstallationControl(request, {
+      vault: "public-reader-active",
+      publicNonMember: false,
+    });
+    expect(await readSources("/api/my-work", "issues")).toEqual([
+      ...sources,
+      "public-reader-active",
+    ]);
+    expect(await readSources("/api/notifications", "notifications")).toEqual([
+      ...sources,
+      "public-reader-active",
+    ]);
+    await setInstallationControl(request, {
+      vault: "public-reader-active",
+      lifecycle: "uninstalled",
+    });
+    expect(await readSources("/api/my-work", "issues")).toEqual(sources);
+    await setInstallationControl(request, {
+      vault: "public-reader-active",
+      lifecycle: "active",
+    });
+    expect(await readSources("/api/notifications", "notifications")).toEqual([
+      ...sources,
+      "public-reader-active",
+    ]);
+    await setInstallationControl(request, {
+      vault: "public-reader-active",
+      publicNonMember: true,
+    });
+    expect(await readSources("/api/my-work", "issues")).toEqual(sources);
+    expect(await readSources("/api/notifications", "notifications")).toEqual(
+      sources,
+    );
+    await setInstallationControl(request, {
+      vault: "public-writer-active",
+      publicNonMember: false,
+    });
+    expect(await readSources("/api/my-work", "issues")).toEqual([
+      ...sources,
+      "public-writer-active",
+    ]);
+    await setInstallationControl(request, {
+      vault: "public-writer-active",
+      publicNonMember: true,
+    });
+    await page.goto("/workspace/member-reader/my-work");
+    await expect(rows).toHaveCount(4);
+    await page.goto("/workspace/member-admin/inbox");
+    await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
+    await expect(page.getByTestId("notification-item")).toHaveCount(4);
+  },
+);

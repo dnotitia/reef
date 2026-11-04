@@ -1,6 +1,11 @@
-import { readWorkspaceAvailabilities } from "@/server/adapters/workspaceAvailability";
 import { readInstallationTarget } from "@/server/adapters/installationTarget";
-import { akbListVaults, type AkbAdapter } from "@reef/core";
+import {
+  akbGetMe,
+  akbListAdminActiveInstallations,
+  akbListMemberActiveVaults,
+  akbListVaults,
+  type AkbAdapter,
+} from "@reef/core";
 
 /** Resolve the active workspace scope shared by account-wide personal surfaces. */
 export async function listActiveWorkspaces(params: {
@@ -8,18 +13,22 @@ export async function listActiveWorkspaces(params: {
 }): Promise<string[]> {
   const target = readInstallationTarget();
   if (!target) return [];
+  const { profile } = await akbGetMe({ adapter: params.adapter });
+  if (!profile.is_admin) {
+    const { vaults } = await akbListMemberActiveVaults({
+      adapter: params.adapter,
+      appId: target.appId,
+    });
+    return vaults.map((vault) => vault.name).sort();
+  }
   const { vaults } = await akbListVaults({ adapter: params.adapter });
-  const availability = await readWorkspaceAvailabilities({
+  const installations = await akbListAdminActiveInstallations({
     adapter: params.adapter,
     appId: target.appId,
-    vaults,
   });
+  const activeIds = new Set(installations.map((item) => item.vaultId));
   return vaults
-    .filter((_vault, index) => {
-      const active = availability[index];
-      if (active.status === "rejected") throw active.reason;
-      return active.value === true;
-    })
+    .filter((vault) => vault.id && activeIds.has(vault.id))
     .map((vault) => vault.name)
     .sort();
 }

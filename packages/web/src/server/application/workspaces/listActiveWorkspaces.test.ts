@@ -1,15 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthError, type AkbAdapter } from "@reef/core";
 
-const { listVaults, getMe, listInventory, readActive } = vi.hoisted(() => ({
+const {
+  listVaults,
+  getMe,
+  listInventory,
+  readActive,
+  listMembers,
+  readTarget,
+} = vi.hoisted(() => ({
   listVaults: vi.fn(),
   getMe: vi.fn(),
   listInventory: vi.fn(),
   readActive: vi.fn(),
+  listMembers: vi.fn(),
+  readTarget: vi.fn(),
 }));
 vi.mock("@reef/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@reef/core")>()),
   akbListVaults: listVaults,
+  akbListMemberActiveVaults: listMembers,
   akbGetMe: getMe,
   akbListAdminActiveInstallations: listInventory,
 }));
@@ -17,9 +27,7 @@ vi.mock("@/server/adapters/workspaceInstallation", () => ({
   readWorkspaceInstallationActive: readActive,
 }));
 vi.mock("@/server/adapters/installationTarget", () => ({
-  readInstallationTarget: () => ({
-    appId: "33333333-3333-4333-8333-333333333333",
-  }),
+  readInstallationTarget: readTarget,
 }));
 import { listActiveWorkspaces } from "./listActiveWorkspaces";
 
@@ -38,18 +46,43 @@ const denied = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  readTarget.mockReturnValue({ appId: "33333333-3333-4333-8333-333333333333" });
   listVaults.mockResolvedValue({ vaults });
   getMe.mockResolvedValue({ profile: { username: "alice", is_admin: false } });
-  readActive.mockImplementation(async ({ vault }) => {
-    return vault.id === "active";
-  });
+  listMembers.mockResolvedValue({ vaults: [vaults[0]] });
 });
 
 describe("personal active workspace discovery", () => {
   it("only inspects active installations for an ordinary user", async () => {
+    listMembers.mockResolvedValue({
+      vaults: [{ name: "zeta" }, { name: "alpha" }],
+    });
     await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([
-      "reef-test",
+      "alpha",
+      "zeta",
     ]);
+    expect(listMembers).toHaveBeenCalledExactlyOnceWith({
+      adapter,
+      appId: "33333333-3333-4333-8333-333333333333",
+    });
+    expect(listVaults).not.toHaveBeenCalled();
+    expect(listInventory).not.toHaveBeenCalled();
+    expect(readActive).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty scope without an installation target", async () => {
+    readTarget.mockReturnValue(null);
+    await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([]);
+    expect(getMe).not.toHaveBeenCalled();
+    expect(listMembers).not.toHaveBeenCalled();
+  });
+
+  it("propagates member list failures without falling back to the directory", async () => {
+    const failure = new Error("unavailable");
+    listMembers.mockRejectedValue(failure);
+    await expect(listActiveWorkspaces({ adapter })).rejects.toBe(failure);
+    expect(listVaults).not.toHaveBeenCalled();
+    expect(readActive).not.toHaveBeenCalled();
   });
 
   it("filters all accessible vaults using one authoritative admin inventory read", async () => {
@@ -72,7 +105,7 @@ describe("personal active workspace discovery", () => {
   });
 
   it("propagates a resource denial during ordinary discovery instead of returning partial work", async () => {
-    readActive.mockRejectedValue(denied());
+    listMembers.mockRejectedValue(denied());
     await expect(listActiveWorkspaces({ adapter })).rejects.toMatchObject({
       context: { status: 403, code: "permission_denied" },
     });
@@ -86,8 +119,8 @@ describe("personal active workspace discovery", () => {
     expect(readActive).not.toHaveBeenCalled();
   });
 
-  it("skips unknown availability without inspecting workspace tables or initialization", async () => {
-    readActive.mockResolvedValue(null);
+  it("returns an empty scope when the canonical member list is empty", async () => {
+    listMembers.mockResolvedValue({ vaults: [] });
     await expect(listActiveWorkspaces({ adapter })).resolves.toEqual([]);
   });
 
@@ -100,7 +133,7 @@ describe("personal active workspace discovery", () => {
     "propagates authoritative account/session denial $code",
     async ({ status, code }) => {
       const error = new AuthError({ origin: "akb", status, code });
-      readActive.mockRejectedValue(error);
+      listMembers.mockRejectedValue(error);
       await expect(listActiveWorkspaces({ adapter })).rejects.toBe(error);
     },
   );

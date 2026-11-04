@@ -278,6 +278,25 @@ export function createScenarioVaults(scenario) {
         memberVault.explicitMemberRole = role;
         vaults.set(memberVault.name, memberVault);
       }
+      vaults.set("member-raw", rawVault("member-raw"));
+    }
+    for (const vault of vaults.values()) {
+      if (!vault.installation) continue;
+      vault.issues[0].assigned_to = "bob";
+      vault.issues[0].document_uri = issueDocumentUri(vault.name, "REEF-001");
+      vault.notifications.push(
+        notificationRow({
+          id: 7102,
+          recipient: "bob",
+          reefId: "REEF-001",
+          sourceType: "activity",
+          sourceRef: "bob-only",
+          eventType: "comment_created",
+          actor: "alice",
+          occurredAt: NOW,
+          state: "unread",
+        }),
+      );
     }
   } else if (scenario === "markdown_fixture") {
     vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));
