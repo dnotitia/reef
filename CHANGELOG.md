@@ -40,6 +40,14 @@ issues, not public GitHub issues.
 - Relationship repair preserves independent explicit AKB links when verifying
   issue document projections.
 
+### Security
+
+- Upgrade Next.js from 16.3.8 to 16.4.1 to address two critical remote code
+  execution advisories and one high-severity Server Actions denial of service:
+  [GHSA-673q-mjm6-r5xr](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr),
+  [GHSA-2464-fhr4-w9xw](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw),
+  and [GHSA-p3m5-59mp-jv5r](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r).
+
 ### Migration
 
 - **Breaking:** Milestone filters now store arrays. Existing scalar selections
