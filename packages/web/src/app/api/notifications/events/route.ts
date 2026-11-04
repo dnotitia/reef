@@ -1,4 +1,8 @@
-import { getAkbAdapter, respondWithError } from "@/lib/api/requestHelpers";
+import {
+  getAkbAdapter,
+  getAkbCurrentActor,
+  respondWithError,
+} from "@/lib/api/requestHelpers";
 import { runRouteSpan } from "@/lib/api/routeTracing";
 import { logger } from "@/lib/logging/logger";
 import {
@@ -19,6 +23,8 @@ const SSE_HEADERS = {
 export async function GET(request: Request): Promise<Response> {
   const adapterResult = getAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
+  const actorResult = await getAkbCurrentActor(request);
+  if ("response" in actorResult) return actorResult.response;
 
   let feed: PersonalNotificationChangeFeed;
   try {
@@ -27,6 +33,7 @@ export async function GET(request: Request): Promise<Response> {
       run: () =>
         openPersonalNotificationChangeFeed({
           adapter: adapterResult.adapter,
+          actor: actorResult.actor,
           signal: request.signal,
         }),
     });

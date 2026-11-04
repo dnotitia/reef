@@ -21,12 +21,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@reef/core": "workspace:*"
+    "@reef/core": "workspace:*",
+    "p-limit": "7.3.3"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:",
     "tsx": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   }
 }

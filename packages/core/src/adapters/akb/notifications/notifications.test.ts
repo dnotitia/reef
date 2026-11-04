@@ -6,6 +6,7 @@ import {
   akbCreateNotification,
   akbGetEffectiveSubscriptionState,
   akbListPersonalNotifications,
+  akbReadPersonalNotificationRevision,
   akbListSubscriptions,
   akbMarkAllPersonalNotificationsRead,
   akbMuteIssue,
@@ -70,6 +71,70 @@ function subscriptionRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("notification adapter", () => {
+  it("reads a complete account revision with one short cross-vault SQL request", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            {
+              workspace: "reef_beta",
+              revision: "2026-11-04 01:00:00+00",
+              total: "2",
+            },
+            { workspace: "reef-alpha", revision: null, total: "0" },
+          ],
+          ["workspace", "revision", "total"],
+        ),
+      },
+    ]);
+    const revision = await akbReadPersonalNotificationRevision(makeAdapter(), {
+      recipient: "kim",
+      workspaces: ["reef_beta", "reef-alpha"],
+    });
+    expect(revision).toBe(
+      JSON.stringify([
+        { workspace: "reef-alpha", revision: null, total: "0" },
+        {
+          workspace: "reef_beta",
+          revision: "2026-11-04 01:00:00+00",
+          total: "2",
+        },
+      ]),
+    );
+    expect(calls).toHaveLength(1);
+    expect(sqlRequestBody(calls[0])).toMatchObject({
+      vaults: ["reef-alpha", "reef_beta"],
+    });
+  });
+
+  it("returns an empty revision without AKB I/O for an empty account scope", async () => {
+    const { calls } = setupFetch([]);
+    await expect(
+      akbReadPersonalNotificationRevision(makeAdapter(), {
+        recipient: "kim",
+        workspaces: [],
+      }),
+    ).resolves.toBe("[]");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects a partial revision instead of treating an omitted workspace as unchanged", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [{ workspace: "reef-alpha", revision: null, total: "0" }],
+          ["workspace", "revision", "total"],
+        ),
+      },
+    ]);
+    await expect(
+      akbReadPersonalNotificationRevision(makeAdapter(), {
+        recipient: "kim",
+        workspaces: ["reef-alpha", "reef-beta"],
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+  });
+
   it("returns an empty read snapshot without querying when no workspaces are available", async () => {
     const { calls } = setupFetch([]);
 

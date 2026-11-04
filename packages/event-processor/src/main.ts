@@ -1,4 +1,4 @@
-import { AuthError, ControlPlaneError, EventTailError } from "@reef/core";
+import { AuthError, ControlPlaneError } from "@reef/core";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createEventProcessorFleet } from "./index.js";
@@ -32,13 +32,6 @@ function writeLog(
 }
 
 export function errorFields(error: unknown): Record<string, string | number> {
-  if (error instanceof EventTailError) {
-    return {
-      error_name: error.name,
-      error_code: error.code,
-      upstream_status: error.status,
-    };
-  }
   if (error instanceof AuthError) {
     const { origin, status } = error.context;
     return {
@@ -117,7 +110,6 @@ export async function main(): Promise<number> {
     baseUrl: config.baseUrl,
     credential: config.credential,
     appCredential: config.appCredential,
-    reconnectDelayMs: config.reconnectDelayMs,
     reconciliationIntervalMs: config.reconciliationIntervalMs,
     requestPolicy: {
       timeoutMs: REQUEST_TIMEOUT_MS,
@@ -161,35 +153,6 @@ export async function main(): Promise<number> {
         vault_id: installation.vaultId,
         vault_name: installation.vaultName,
       });
-    },
-    onInstallationTailState: (installation, state) => {
-      health.markInstallationTailState(installation.installationId, state);
-      if (state === "connected") {
-        writeLog("info", "event_tail_connected", {
-          installation_id: installation.installationId,
-          vault_id: installation.vaultId,
-        });
-      }
-      if (state === "disconnected") {
-        writeLog("warn", "event_tail_disconnected", {
-          installation_id: installation.installationId,
-          vault_id: installation.vaultId,
-        });
-      }
-    },
-    onInstallationRecoveryChange: (installation, recovering) => {
-      health.markInstallationRecoveryChange(
-        installation.installationId,
-        recovering,
-      );
-      writeLog(
-        recovering ? "warn" : "info",
-        `event_gap_recovery_${recovering ? "started" : "completed"}`,
-        {
-          installation_id: installation.installationId,
-          vault_id: installation.vaultId,
-        },
-      );
     },
     onInstallationReconciliation: (installation, outcome) =>
       health.recordInstallationReconciliation(

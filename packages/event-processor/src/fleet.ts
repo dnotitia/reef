@@ -1,18 +1,13 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ControlPlaneInstallationInventoryItem } from "@reef/core";
-import type {
-  EventProcessorReconciliationOutcome,
-  EventProcessorTailState,
-} from "./processor.js";
+import type { EventProcessorReconciliationOutcome } from "./processor.js";
 
 export interface EventProcessorFleetRunner {
-  run(signal?: AbortSignal): Promise<void>;
+  run(signal: AbortSignal): Promise<void>;
 }
 
 export interface EventProcessorFleetWorkerHandlers {
   onReady: () => void;
-  onTailState: (state: EventProcessorTailState) => void;
-  onRecoveryChange: (recovering: boolean) => void;
   onReconciliation: (outcome: EventProcessorReconciliationOutcome) => void;
   onError: (error: unknown) => void;
 }
@@ -40,14 +35,6 @@ export interface EventProcessorFleetOptions {
   ) => void;
   onInstallationReady: (
     installation: ControlPlaneInstallationInventoryItem,
-  ) => void;
-  onInstallationTailState: (
-    installation: ControlPlaneInstallationInventoryItem,
-    state: EventProcessorTailState,
-  ) => void;
-  onInstallationRecoveryChange: (
-    installation: ControlPlaneInstallationInventoryItem,
-    recovering: boolean,
   ) => void;
   onInstallationReconciliation: (
     installation: ControlPlaneInstallationInventoryItem,
@@ -93,7 +80,7 @@ async function waitForRefresh(
   }
 }
 
-/** Keep one independent processor and event cursor per active installation. */
+/** Reconcile each active installation through the shared bounded scheduler. */
 export async function runEventProcessorFleet(
   options: EventProcessorFleetOptions,
 ): Promise<void> {
@@ -125,10 +112,6 @@ export async function runEventProcessorFleet(
   ): void => {
     const handlers: EventProcessorFleetWorkerHandlers = {
       onReady: () => options.onInstallationReady(installation),
-      onTailState: (state) =>
-        options.onInstallationTailState(installation, state),
-      onRecoveryChange: (recovering) =>
-        options.onInstallationRecoveryChange(installation, recovering),
       onReconciliation: (outcome) =>
         options.onInstallationReconciliation(installation, outcome),
       onError: (error) => options.onInstallationError(installation, error),
@@ -138,7 +121,7 @@ export async function runEventProcessorFleet(
       .then(() =>
         options
           .createRunner(installation, handlers)
-          .run(current.controller.signal),
+          .run(AbortSignal.any([signal, current.controller.signal])),
       )
       .then(
         () => {

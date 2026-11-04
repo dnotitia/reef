@@ -15,7 +15,6 @@ import {
   emitNotificationStreamEvent,
   signInAsUser,
   waitForResponseHoldPending,
-  setNotificationStreamControl,
 } from "../harness/fixture";
 
 const test = workspaceTest.extend({ scenario: "notifications_personal" });
@@ -104,6 +103,20 @@ function schemaMutationSql(
   });
 }
 
+function notificationRevisionReads(
+  state: Awaited<ReturnType<typeof readFixtureState>>,
+) {
+  return state.sql_calls.filter(({ sql }) => /MD5\(STRING_AGG\(/i.test(sql));
+}
+
+async function touchNotification(page: Page, workspace: string, key: string) {
+  const response = await page.request.patch(
+    `/api/notifications/${encodeURIComponent(key)}`,
+    { data: { vault: workspace, state: "unread" } },
+  );
+  expect(response.status()).toBe(200);
+}
+
 test.describe("Hermetic notification Inbox", () => {
   test("filters the capped list locally and reload resets it to All", async ({
     page,
@@ -135,6 +148,9 @@ test.describe("Hermetic notification Inbox", () => {
   }) => {
     const feedRequests: string[] = [];
     let notificationListReads = 0;
+    const pendingNotificationReads = new Set<
+      import("@playwright/test").Request
+    >();
     page.on("request", (browserRequest) => {
       const url = new URL(browserRequest.url());
       if (url.pathname === "/api/notifications/events") {
@@ -145,9 +161,16 @@ test.describe("Hermetic notification Inbox", () => {
         browserRequest.method() === "GET"
       ) {
         notificationListReads += 1;
+        pendingNotificationReads.add(browserRequest);
       }
     });
 
+    page.on("requestfinished", (request) =>
+      pendingNotificationReads.delete(request),
+    );
+    page.on("requestfailed", (request) =>
+      pendingNotificationReads.delete(request),
+    );
     await signInThroughApi(page);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
@@ -155,19 +178,33 @@ test.describe("Hermetic notification Inbox", () => {
     await expect
       .poll(
         async () =>
-          (await readFixtureState(request)).notification_stream.active,
+          notificationRevisionReads(await readFixtureState(request)).length,
       )
-      .toBe(3);
+      .toBeGreaterThan(0);
+    expect((await readFixtureState(request)).notification_stream.active).toBe(
+      0,
+    );
     expect(feedRequests).toHaveLength(1);
-    const openedStreams = (await readFixtureState(request)).notification_stream;
-    expect(openedStreams.checkpoints).toBe(3);
+    const initialPolls = notificationRevisionReads(
+      await readFixtureState(request),
+    ).length;
+    await expect
+      .poll(
+        async () =>
+          notificationRevisionReads(await readFixtureState(request)).length,
+      )
+      .toBeGreaterThan(initialPolls);
+    await expect.poll(() => pendingNotificationReads.size).toBe(0);
+    const openedPolls = notificationRevisionReads(
+      await readFixtureState(request),
+    ).length;
     const readsDuringIdle = notificationListReads;
     await expect
       .poll(
         async () =>
-          (await readFixtureState(request)).notification_stream.heartbeats,
+          notificationRevisionReads(await readFixtureState(request)).length,
       )
-      .toBeGreaterThan(openedStreams.heartbeats + 1);
+      .toBeGreaterThan(openedPolls);
     expect(notificationListReads).toBe(readsDuringIdle);
 
     await page.getByRole("button", { name: "Mark all read" }).click();
@@ -187,24 +224,34 @@ test.describe("Hermetic notification Inbox", () => {
     await page.getByRole("button", { name: "Unread", exact: true }).click();
     await expect(page.getByTestId("notification-item")).toHaveCount(0);
 
+    // Drain the mutation's own refresh and its next revision before measuring idle work.
+    const pollsAfterReadAll = notificationRevisionReads(
+      await readFixtureState(request),
+    ).length;
+    await expect
+      .poll(
+        async () =>
+          notificationRevisionReads(await readFixtureState(request)).length,
+      )
+      .toBeGreaterThanOrEqual(pollsAfterReadAll + 2);
+    await expect.poll(() => pendingNotificationReads.size).toBe(0);
     const readsBeforeIrrelevantEvent = notificationListReads;
-    let irrelevantEventCount = (await readFixtureState(request))
-      .notification_stream.events;
+    const pollsBeforeIrrelevantEvents = notificationRevisionReads(
+      await readFixtureState(request),
+    ).length;
     for (const table of ["reef_activity", "reef_comments"] as const) {
       await emitNotificationStreamEvent(request, {
         vault: REEF_E2E_VAULT,
         table,
         operation: "insert",
       });
-      irrelevantEventCount += 1;
-      await expect
-        .poll(
-          async () =>
-            (await readFixtureState(request)).notification_stream.events,
-        )
-        .toBe(irrelevantEventCount);
     }
-    await page.waitForTimeout(1_000);
+    await expect
+      .poll(
+        async () =>
+          notificationRevisionReads(await readFixtureState(request)).length,
+      )
+      .toBeGreaterThan(pollsBeforeIrrelevantEvents);
     expect(notificationListReads).toBe(readsBeforeIrrelevantEvent);
 
     // Start before fixture persistence so this monotonic measurement is a
@@ -228,21 +275,13 @@ test.describe("Hermetic notification Inbox", () => {
     expect(feedRequests).toHaveLength(1);
 
     const readsBeforeReconnect = notificationListReads;
-    await setNotificationStreamControl(request, {
-      closeExisting: true,
-      failNextConnections: 1,
-    });
-    await expect
-      .poll(
-        async () =>
-          (await readFixtureState(request)).notification_stream.active,
-      )
-      .toBe(0);
+    await page.context().setOffline(true);
     const missedDuringReconnect = await addLateUnreadNotification(
       request,
       "reef-e2e",
       "live-notification-during-reconnect",
     );
+    await page.context().setOffline(false);
     await expect(page.getByTestId("inbox-unread-badge")).toHaveText("2");
     await expect(
       page.locator(`[data-notification-key="${missedDuringReconnect}"]`),
@@ -250,9 +289,12 @@ test.describe("Hermetic notification Inbox", () => {
     await expect
       .poll(
         async () =>
-          (await readFixtureState(request)).notification_stream.active,
+          notificationRevisionReads(await readFixtureState(request)).length,
       )
-      .toBe(3);
+      .toBeGreaterThan(0);
+    expect((await readFixtureState(request)).notification_stream.active).toBe(
+      0,
+    );
     await expect.poll(() => feedRequests.length).toBeGreaterThan(1);
     expect(notificationListReads).toBeGreaterThan(readsBeforeReconnect);
   });
@@ -274,9 +316,12 @@ test.describe("Hermetic notification Inbox", () => {
     await expect
       .poll(
         async () =>
-          (await readFixtureState(request)).notification_stream.active,
+          notificationRevisionReads(await readFixtureState(request)).length,
       )
-      .toBe(3);
+      .toBeGreaterThan(0);
+    expect((await readFixtureState(request)).notification_stream.active).toBe(
+      0,
+    );
 
     // This starts before the fixture commits the row, so the measured interval
     // is a conservative upper bound on saved-to-badge latency.
@@ -313,9 +358,12 @@ test.describe("Hermetic notification Inbox", () => {
       await expect
         .poll(
           async () =>
-            (await readFixtureState(request)).notification_stream.active,
+            notificationRevisionReads(await readFixtureState(request)).length,
         )
-        .toBe(6);
+        .toBeGreaterThanOrEqual(2);
+      expect((await readFixtureState(request)).notification_stream.active).toBe(
+        0,
+      );
 
       await setResponseHold(request, "notification-read", true);
       const delayedReadPromise = page.waitForResponse(
@@ -323,11 +371,11 @@ test.describe("Hermetic notification Inbox", () => {
           new URL(response.url()).pathname === "/api/notifications" &&
           response.request().method() === "GET",
       );
-      await emitNotificationStreamEvent(request, {
-        vault: REEF_E2E_VAULT,
-        table: "reef_notifications",
-        operation: "update",
-      });
+      await touchNotification(
+        page,
+        REEF_E2E_VAULT,
+        primaryNotification(await readFixtureState(request)).notification_key,
+      );
       await waitForResponseHoldPending(request, "notification-read");
 
       const savedResponsePromise = otherInbox.waitForResponse(
@@ -415,9 +463,12 @@ test.describe("Hermetic notification Inbox", () => {
       await expect
         .poll(
           async () =>
-            (await readFixtureState(request)).notification_stream.active,
+            notificationRevisionReads(await readFixtureState(request)).length,
         )
-        .toBe(6);
+        .toBeGreaterThanOrEqual(2);
+      expect((await readFixtureState(request)).notification_stream.active).toBe(
+        0,
+      );
 
       await setResponseHold(request, "notification-read", true);
       await setResponseHold(request, "notification-write", true);
@@ -426,11 +477,11 @@ test.describe("Hermetic notification Inbox", () => {
           new URL(response.url()).pathname === "/api/notifications" &&
           response.request().method() === "GET",
       );
-      await emitNotificationStreamEvent(request, {
-        vault: REEF_E2E_VAULT,
-        table: "reef_notifications",
-        operation: "update",
-      });
+      await touchNotification(
+        page,
+        REEF_E2E_VAULT,
+        primaryNotification(await readFixtureState(request)).notification_key,
+      );
       await waitForResponseHoldPending(request, "notification-read");
 
       const readAllResponsePromise = otherInbox.waitForResponse(
@@ -510,79 +561,47 @@ test.describe("Hermetic notification Inbox", () => {
     }
   });
 
-  test("rechecks notifications after an AKB event_gap without waiting for another change", async ({
+  test("recovers notifications committed while the browser feed is disconnected", async ({
     page,
     request,
   }) => {
     await signInThroughApi(page);
-    const cleared = await page.request.post("/api/notifications/read-all", {
-      data: {},
-    });
-    expect(cleared.status()).toBe(200);
-    const noUnread = await readFixtureState(request);
     expect(
-      noUnread.vaults
-        .flatMap((vault) => vault.notifications)
-        .filter(
-          (notification) =>
-            notification.recipient === "alice" &&
-            notification.state === "unread",
-        ),
-    ).toHaveLength(0);
-
-    await setNotificationStreamControl(request, {
-      eventGapNextConnections: 1,
-    });
+      (
+        await page.request.post("/api/notifications/read-all", { data: {} })
+      ).status(),
+    ).toBe(200);
     const feedRequests: string[] = [];
-    page.on("request", (browserRequest) => {
-      if (
-        new URL(browserRequest.url()).pathname === "/api/notifications/events"
-      )
-        feedRequests.push(browserRequest.url());
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/notifications/events")
+        feedRequests.push(request.url());
     });
     await page.goto(`/workspace/${REEF_E2E_VAULT}/inbox`);
     await expect(page.getByTestId("notification-inbox-list")).toBeVisible();
     await expect
       .poll(
         async () =>
-          (await readFixtureState(request)).notification_stream
-            .event_gap_failures,
+          notificationRevisionReads(await readFixtureState(request)).length,
       )
-      .toBe(1);
-    await expect
-      .poll(
-        async () =>
-          (await readFixtureState(request)).notification_stream.active,
-      )
-      .toBe(0);
-
-    const eventsWhileDisconnected = (await readFixtureState(request))
-      .notification_stream.events;
-    // Start while disconnected and before the missed row is committed; this
-    // conservatively bounds persistence, stream recovery, and UI visibility.
-    const recoveryStartedAt = performance.now();
+      .toBeGreaterThan(0);
+    await page.context().setOffline(true);
     const recoveredKey = await addLateUnreadNotification(
       request,
       REEF_E2E_VAULT,
-      "notification-created-during-event-gap",
+      "notification-created-while-disconnected",
     );
-    expect((await readFixtureState(request)).notification_stream.events).toBe(
-      eventsWhileDisconnected,
-    );
-    await expect
-      .poll(
-        async () =>
-          (await readFixtureState(request)).notification_stream.active,
-      )
-      .toBe(3);
+    const recoveryStartedAt = performance.now();
+    await page.context().setOffline(false);
     await expect(
       page.locator(
         `[data-testid="notification-item"][data-notification-key="${recoveredKey}"]`,
       ),
     ).toBeVisible();
     await expect(page.getByTestId("inbox-unread-badge")).toHaveText("1");
-    const recoveredVisibleAt = performance.now();
-    expect(recoveredVisibleAt - recoveryStartedAt).toBeLessThanOrEqual(5_000);
+    expect(performance.now() - recoveryStartedAt).toBeLessThanOrEqual(5_000);
+    expect((await readFixtureState(request)).notification_stream.active).toBe(
+      0,
+    );
     expect(feedRequests.length).toBeGreaterThan(1);
   });
 
@@ -615,9 +634,12 @@ test.describe("Hermetic notification Inbox", () => {
     await expect
       .poll(
         async () =>
-          (await readFixtureState(request)).notification_stream.active,
+          notificationRevisionReads(await readFixtureState(request)).length,
       )
-      .toBe(3);
+      .toBeGreaterThan(0);
+    expect((await readFixtureState(request)).notification_stream.active).toBe(
+      0,
+    );
 
     await setResponseHold(request, "notification-read", true);
     const delayedReadPromise = page.waitForResponse(
@@ -625,31 +647,28 @@ test.describe("Hermetic notification Inbox", () => {
         new URL(response.url()).pathname === "/api/notifications" &&
         response.request().method() === "GET",
     );
-    await emitNotificationStreamEvent(request, {
-      vault: "reef-alpha",
-      table: "reef_notifications",
-      operation: "update",
-    });
+    await touchNotification(
+      page,
+      REEF_E2E_VAULT,
+      primaryNotification(await readFixtureState(request)).notification_key,
+    );
     await waitForResponseHoldPending(request, "notification-read");
 
     await setNotificationControl(request, {
       vault: "reef-alpha",
       role: "none",
     });
-    await setNotificationStreamControl(request, { closeExisting: true });
     await expect
-      .poll(
-        async () =>
-          (await readFixtureState(request)).notification_stream.active,
-      )
-      .toBe(0);
-    await expect
-      .poll(
-        async () =>
-          (await readFixtureState(request)).notification_stream.active,
-      )
-      .toBe(2);
-    await expect.poll(() => feedRequests.length).toBeGreaterThan(1);
+      .poll(async () => {
+        const reads = notificationRevisionReads(
+          await readFixtureState(request),
+        );
+        return (
+          reads.at(-1)?.sql.includes("reef_alpha__reef_notifications") ?? true
+        );
+      })
+      .toBe(false);
+    expect(feedRequests).toHaveLength(1);
 
     await setResponseHold(request, "notification-read", false);
     const delayedRead = await delayedReadPromise;

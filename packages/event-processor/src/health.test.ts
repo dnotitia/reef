@@ -55,11 +55,8 @@ describe("event processor health endpoints", () => {
     expect((await fetch(`${baseUrl}/readyz`)).status).toBe(503);
   });
 
-  it("exposes tail, recovery, projection counts, and last success", async () => {
+  it("exposes projection counts and the last successful reconciliation", async () => {
     const health = new ProcessorHealth();
-    health.markTailState("connecting");
-    health.markTailState("connected");
-    health.markRecoveryChange(true);
     health.recordReconciliation({
       status: "success",
       result: {
@@ -90,8 +87,6 @@ describe("event processor health endpoints", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toContain("reef_event_processor_tail_connected 1");
-    expect(body).toContain("reef_event_processor_recovering 1");
     expect(body).toContain(
       'reef_event_processor_reconciliation_total{result="success"} 1',
     );
@@ -141,10 +136,6 @@ describe("event processor health endpoints", () => {
     health.markInventoryRefresh("success");
     health.markInstallationReady("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     health.markInstallationReady("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
-    health.markInstallationTailState(
-      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      "connected",
-    );
     health.recordInstallationReconciliation(
       "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       {
@@ -184,9 +175,6 @@ describe("event processor health endpoints", () => {
     expect(metrics).toContain("reef_event_processor_active_installations 2");
     expect(metrics).toContain(
       'reef_event_processor_installation_ready{installation_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",vault_id="11111111-1111-4111-8111-111111111111"} 0',
-    );
-    expect(metrics).toContain(
-      'reef_event_processor_installation_tail_connected{installation_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",vault_id="22222222-2222-4222-8222-222222222222"} 1',
     );
     expect(metrics).toContain(
       'reef_event_processor_installation_reconciliation_total{installation_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",vault_id="11111111-1111-4111-8111-111111111111",result="failure"} 1',

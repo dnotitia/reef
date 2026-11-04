@@ -49,6 +49,7 @@ export interface AkbRequestInit {
   /** Resource label used to translate 404 responses into NotFoundError. */
   resource?: string;
   responseType?: "json" | "arrayBuffer";
+  signal?: AbortSignal;
 }
 
 export type AkbRequest = (
@@ -243,9 +244,14 @@ function makeRequest(
           body = init.rawBody;
         }
         let response: Response;
-        const signal = requestPolicy
-          ? AbortSignal.timeout(requestPolicy.timeoutMs)
-          : undefined;
+        const signals = [
+          ...(requestPolicy
+            ? [AbortSignal.timeout(requestPolicy.timeoutMs)]
+            : []),
+          ...(init.signal ? [init.signal] : []),
+        ];
+        const signal =
+          signals.length > 0 ? AbortSignal.any(signals) : undefined;
         try {
           response = await requestFetch(url, {
             method,

@@ -1010,6 +1010,15 @@ caps at `9+`, while assistive text announces `100 or more unread notifications`
 (or the equivalent localized wording) when the boundary is reached. The
 selected workspace in the URL does not filter the Inbox.
 
+The list and badge share one browser change feed. Reef checks a complete,
+actor-scoped notification revision every three seconds using short AKB reads;
+it does not open an AKB stream for each workspace. Unchanged revisions leave
+the full list alone. A changed revision, changed membership, or reconnect
+refreshes the account query. The private processor reconciles durable activity
+and comment sources every five seconds after prior work, with two projection
+jobs active across the whole installation fleet. Processing and queueing can
+extend notification delivery beyond those intervals.
+
 The **All** and **Unread** filters only change the current view; the list
 defaults to **All** again after reload. **Mark all read** captures the signed-in
 actor's unread identities across every accessible ready workspace when clicked,

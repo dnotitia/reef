@@ -436,6 +436,7 @@ export {
   type RolloutResumeInput,
   createNotification as akbCreateNotification,
   listPersonalNotifications as akbListPersonalNotifications,
+  readPersonalNotificationRevision as akbReadPersonalNotificationRevision,
   markAllPersonalNotificationsRead as akbMarkAllPersonalNotificationsRead,
   updateNotificationState as akbUpdateNotificationState,
   upsertSubscription as akbUpsertSubscription,

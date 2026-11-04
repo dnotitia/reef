@@ -11,6 +11,44 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+## v0.19.2 - 2026-11-04
+
+### Fixed
+
+- Keep account-wide Inbox refreshes from opening an AKB event stream per
+  workspace. The browser retains one Reef SSE feed, while the server checks a
+  complete account revision using short, actor-scoped cross-vault SQL reads.
+  Membership changes and notification changes refresh the list and badge;
+  closing the browser feed cancels its pending reads.
+- Reconcile persisted activity and comment cursors without long-lived AKB
+  subscriptions. The private processor limits all installations together to
+  two concurrent projection jobs, runs each job serially, and cancels queued
+  work on shutdown. Failed work resumes from AKB's existing durable cursors.
+
+### Security
+
+- Restore Node.js 24.22.1 and the Next.js, DOMPurify, undici, Zod, Vite, and
+  Vitest security updates from v0.18.0 through v0.19.1 after the emergency
+  runtime rollback to v0.17.6.
+
+### Operational
+
+- The Inbox checks account revisions every three seconds without polling its
+  full list while unchanged. Processor reconciliation defaults to five seconds;
+  queueing or active work can extend the next cycle. The obsolete processor
+  reconnect setting and event-tail metrics are removed.
+- v0.18.0 through v0.19.1 were withdrawn because workspace subscriptions could
+  exhaust AKB request connection pools. Use v0.19.2 for the corrected runtime.
+
+### Migration
+
+- AKB schema v4 and vault skill version 24 are unchanged. The manifest accepts
+  the deployed v0.17.6 runtime and existing v0.19.1 installation state. Keep the
+  same operator migration state and acknowledged checkpoints, run required
+  repairs explicitly, and confirm no required or failed data migration remains.
+- The v0.19.0 cache and filter changes still apply. Replace both runtime images
+  together using their new immutable digests and matching release identity.
+
 ## v0.19.1 - 2026-11-04
 
 ### Security

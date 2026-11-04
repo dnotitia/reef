@@ -40,6 +40,12 @@ export const PersonalNotificationListInputSchema = z.strictObject({
   workspaces: z.array(VaultNameSchema),
 });
 
+export const PersonalNotificationRevisionRowSchema = z.strictObject({
+  workspace: VaultNameSchema,
+  revision: z.string().min(1).nullable(),
+  total: z.string().regex(/^\d+$/u),
+});
+
 export const PersonalNotificationTargetSchema = z.strictObject({
   workspace: VaultNameSchema,
   notification_key: NonEmptyIdentitySchema,
