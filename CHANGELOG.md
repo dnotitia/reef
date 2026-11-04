@@ -11,60 +11,84 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+## v0.19.0 - 2026-11-04
+
 ### Added
 
-- Filter issues with no requester, alone or alongside selected requesters.
-- Filter issues with no sprint or release, alone or alongside selected plans.
-- Select multiple milestones and include issues without a milestone in issue filters.
+- Filter issues without a requester, sprint, release, or milestone, alone or
+  alongside selected values. Milestone filters now support multiple selections.
 
 ### Changed
 
-- The persisted browser query cache advances to `reef-cache-v9`, discarding previous cached responses on first visit while preserving saved workspace favorites.
-- The hermetic preview runtime now starts a declared task with `dev:e2e -- --task <task-id>`. Use `--list-tasks` to discover entries; fixture scenario names remain inputs to `reset:e2e`.
-- **Breaking:** Milestone filters now store arrays. Existing scalar selections are excluded when restoring current filters or My Views and must be selected again.
-- Unset issue filters appear first and use consistent summaries and individual clear controls.
-- Open filter menus remain visible when a selection wraps the toolbar.
+- Unset filter options appear first, with consistent summaries and individual
+  clear controls. Open menus stay visible when selections wrap the toolbar.
+- Workspace discovery reads the signed-in member's active Reef installations
+  in one AKB request. Administrators retain their full workspace directory, and
+  workspace owners retain installation diagnostics and recovery controls.
+- The hermetic preview runtime starts declared tasks with
+  `dev:e2e -- --task <task-id>`. Use `--list-tasks` to discover task IDs.
 
 ### Fixed
 
-- Personal work and notifications use active member workspaces, so public-only vaults no longer block account-wide results.
+- Public-only vaults no longer block onboarding, My Work, or notification
+  results. Personal surfaces use active workspaces accessible to the account.
+- Workspace queries wait for the account profile and isolate cached results by
+  account and directory scope. Profile failures stop automatic retries and can
+  be retried explicitly.
+- Release verification ignores terminating and historical terminal Pods while
+  checking live runtime images and readiness.
+- Relationship repair preserves independent explicit AKB links when verifying
+  issue document projections.
 
-- Workspace discovery uses the signed-in member's active installations, so public vaults no longer block first-time onboarding and discovery needs one AKB request.
-- Release verification ignores historical terminal Pods and preserves independent
-  explicit AKB links when checking issue relationship projections.
+### Security
 
-### Operational
-
-- Use receipts for registration, deployment retries, and rollout resume across
-  all release versions. Save release intent and resume keys before requests,
-  reuse acknowledged rollout jobs, and reject mismatched release receipts.
-- Add read-only `deploy/k8s/deploy.sh migrations` to assess current migration
-  requirements alongside attempt history. Keep operator data migration state
-  independent of deployment receipts, keyed by backend, App, migration, and
-  installation. Completed history does not hide drift or new installations.
-- Run relationship backfill explicitly with `repair --migration
-  issue-relation-uris`. Save attempt intent before writes, retain failures and
-  completed targets, and resume document checkpoints across release receipts.
-  Matching acknowledged document commits avoid repeat PATCHes. Bound requests and vault
-  concurrency, finish initial writes before graph verification, and exclude
-  concurrent operators with a process lock. Verification defaults to 30 minutes.
+- Upgrade Next.js from 16.3.8 to 16.4.1 to address two critical remote code
+  execution advisories and one high-severity Server Actions denial of service:
+  [GHSA-673q-mjm6-r5xr](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr),
+  [GHSA-2464-fhr4-w9xw](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw),
+  and [GHSA-p3m5-59mp-jv5r](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r).
 
 ### Migration
 
+- **Breaking:** Milestone filters now store arrays. Existing scalar selections
+  are omitted when restoring current filters or My Views and must be selected
+  again.
+- The browser query cache advances to `reef-cache-v9`. First visit discards
+  previous cached responses and preserves saved workspace favorites. No
+  IndexedDB schema migration is required.
+- Requires the AKB member-active workspace endpoint
+  `GET /api/v1/apps/{app_id}/installations/active/vaults`, in addition to the
+  existing administrator installation inventory API. Deploy the supporting AKB
+  backend before Reef. AKB schema v4 and vault skill version 24 are unchanged.
 - **Breaking:** Every AKB release command requires a deployment receipt.
   `migrations` and `repair` also require `--migration-state` or
   `REEF_MIGRATION_STATE`; `repair` requires an explicit `--migration` ID.
-  Automatic release-specific backfill is removed from `deploy` and `resume`.
-- Deployment receipts no longer accept embedded relationship repair progress.
-  Retain old receipts and checkpoints as historical artifacts. Use a current
-  deployment receipt and the separate operator state for the explicit workflow.
-  Use a new deployment receipt for each different release identity and reuse
-  the same migration state for the same backend and App across releases.
-- Preserve the operator state together with its `<state>.checkpoints/`
-  directory. Missing acknowledged files, corrupt state, and foreign backend or
-  App identities stop work. Failed and interrupted attempts remain in history.
-  Successful repair reports `repaired`. AKB schema v4 and vault skill version
-  24 are unchanged.
+  `deploy` and `resume` no longer run release-specific relationship backfills.
+- Deployment receipts reject embedded relationship repair progress. Retain old
+  receipts and checkpoints as historical artifacts. Use a new receipt for each
+  release identity and one operator state file per backend and App across
+  releases. Preserve that file with its `<state>.checkpoints/` directory.
+
+### Operational
+
+- Registration, deployment retries, and rollout resume save release coordinates
+  and request keys before requests. Retries reuse acknowledged jobs and reject
+  receipts for another release identity.
+- After runtime deployment, run `deploy/k8s/deploy.sh migrations` with the
+  deployment receipt and operator state. It reads current requirements and
+  attempt history without writes, and exits non-zero for `required` or `failed`
+  targets. Completed history does not hide drift or new installations.
+- Run `repair --migration issue-relation-uris` for required relationship work,
+  then repeat `migrations`. Repair records intent before writes, retains failed
+  attempts and completed targets, and resumes acknowledged document checkpoints
+  across release receipts. Missing checkpoints or corrupt or foreign state stop
+  work. A process lock excludes concurrent operators.
+- Relationship repair bounds requests and vault concurrency, completes initial
+  writes before graph verification, and waits up to 30 minutes by default.
+- Deploy both runtimes from the same source revision with separate immutable
+  image digests. Preserve the current resource, SSO, and SSE settings. To roll
+  back, restore both runtimes with the previous release's matching images and
+  identity. After rollback, reassess migrations with the same operator state.
 
 ## v0.18.0 - 2026-10-30
 
