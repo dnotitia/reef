@@ -123,7 +123,11 @@ Before creating a release tag:
    - `pnpm run build`
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
 5. Run `pnpm run release:blueprint:check` to verify the committed schema-v4
-   Release Blueprint against the Core schema source.
+   Release Blueprint against the Core schema source. The gate also requires an
+   exact-schema no-op source plan for the root product version, so the next
+   release can upgrade installations of this release. Confirm that the target
+   environment's installed release versions and schema fingerprints have
+   matching source plans before registration.
 6. After both runtime images are built and a release payload has been
    assembled, run `pnpm run release:manifest:check <finalized-payload.json>` to
    verify the full source revision, immutable **web** image digest, desired

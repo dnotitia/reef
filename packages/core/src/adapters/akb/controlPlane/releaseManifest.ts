@@ -439,6 +439,9 @@ export async function buildReleaseBlueprint(): Promise<ReleaseBlueprint> {
         "0.17.4",
         "0.17.5",
         "0.17.6",
+        "0.18.0",
+        "0.19.0",
+        "0.19.1",
       ].map((releaseVersion) => ({
         source: {
           release_version: releaseVersion,

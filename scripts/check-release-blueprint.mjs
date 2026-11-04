@@ -27,6 +27,20 @@ async function main() {
   if (generated.schema.tables.length !== 12) {
     fail("Reef Release Blueprint must contain all twelve desired tables");
   }
+  const { version } = JSON.parse(
+    await readFile(path.join(root, "package.json"), "utf8"),
+  );
+  const currentReleasePlan = generated.transition_plans.find(
+    (plan) =>
+      plan.source !== "fresh" &&
+      plan.source.release_version === version &&
+      plan.source.schema_fingerprint === generated.schema.fingerprint,
+  );
+  if (!currentReleasePlan || currentReleasePlan.steps.length !== 0) {
+    fail(
+      `Release v${version} needs an exact-schema no-op source plan so the next release can upgrade it`,
+    );
+  }
   console.log(
     `release blueprint check passed: schema v${generated.schema_version}, ${generated.schema.tables.length} tables, fingerprint ${generated.schema.fingerprint}`,
   );

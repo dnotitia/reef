@@ -11,6 +11,27 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+## v0.19.1 - 2026-11-04
+
+### Fixed
+
+- Include exact-schema no-op transitions from v0.18.0, v0.19.0, and v0.19.1
+  in the Release Blueprint. The v0.19.0 manifest omitted the deployed v0.18.0
+  source, so AKB rejected its rollout before Kubernetes changed.
+
+### Migration
+
+- Use v0.19.1 with a new deployment receipt to upgrade v0.18.0 installations.
+  Preserve the v0.19.0 tag, images, registration, and receipt as release history.
+  AKB schema v4 and vault skill version 24 are unchanged. The v0.19.0 browser
+  filter and operator migration requirements still apply.
+
+### Operational
+
+- The release gate requires an exact-schema no-op source plan for the product
+  version being shipped. A version bump without that plan now fails before
+  publication, preserving an upgrade source for the following release.
+
 ## v0.19.0 - 2026-11-04
 
 ### Added
