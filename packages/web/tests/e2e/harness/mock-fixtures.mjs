@@ -312,7 +312,27 @@ export function createScenarioVaults(scenario) {
     vault.issues[1].updated_at = new Date(now - 2 * day).toISOString();
     vault.issues[1].status = "closed";
     vault.issues[2].updated_at = new Date(now - 14 * day).toISOString();
+    for (let index = 0; index < 50; index++) {
+      vault.issues.push(
+        issueRow({
+          id: `REEF-${100 + index}`,
+          title: `Older issue ${100 + index}`,
+          status: "in_progress",
+          updated_at: new Date(now - 9 * day - index * 60_000).toISOString(),
+        }),
+      );
+    }
     vaults.set(REEF_VAULT, vault);
+    const second = configuredVault("reef-second");
+    second.issues = [
+      issueRow({
+        id: "REEF-901",
+        title: "Second workspace issue",
+        status: "todo",
+        updated_at: new Date(now - day).toISOString(),
+      }),
+    ];
+    vaults.set(second.name, second);
   } else if (scenario === "demo_board") {
     vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
     vaults.set("raw-vault", rawVault("raw-vault"));

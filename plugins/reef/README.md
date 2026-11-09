@@ -10,8 +10,11 @@ The plugin uses the CLI's active user configuration and credential store.
 2. Give the setup conversation your Reef deployment's HTTPS URL.
 3. Finish sign-in in the browser and choose **Allow read access**.
 4. Open a new Codex conversation and ask **Open the Reef Issue Picker**.
-5. Choose a workspace. The App lists up to 50 snapshots updated in the last
-   seven days. Choose **Refresh** to query again.
+5. Choose a workspace and filter recent snapshots by period or status. Choose
+   **Load more** to append results and keep your selection. **Refresh** and
+   filter changes query current data and clear the selection.
+6. Select issues and choose **Preview Issue Context**. Review the message, then
+   choose **Send to this conversation**. Check the conversation for the message.
 
 If setup is canceled or the Reef connection expires, run the plugin's setup
 again with the same URL. Reef grants read access for up to one hour and checks

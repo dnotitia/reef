@@ -11,6 +11,7 @@ import {
   type AkbAdapter,
   AuthError,
   IssueListQuerySchema,
+  StatusEnum,
   VaultNameSchema,
   akbIssueDocumentUri,
   akbListIssues,
@@ -23,16 +24,18 @@ import { listActiveWorkspaces } from "@/server/application/workspaces/listActive
 import { issueHtml } from "./issueHtml";
 import {
   ISSUES_TOOL,
+  IssuePeriod,
   IssuesResult,
   WORKSPACES_TOOL,
   WorkspacesResult,
 } from "@/lib/reefPlugin/issueContract";
 import { authenticateMcp, isResourceDenial, mcpAuthError } from "./oauth";
 import { OAuthFailure } from "./oauthProtocol";
+import { GRANT_TTL } from "./oauthStore";
 
 const UI_URI = "ui://reef/recent-issues.html";
 const PAGE_SIZE = 50;
-const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 const READ_ONLY = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -145,27 +148,48 @@ export async function serveIssueApp(request: Request) {
     server,
     ISSUES_TOOL,
     {
-      description: "Read up to 50 recent issue snapshots in a Reef workspace.",
-      inputSchema: z.strictObject({ workspace: VaultNameSchema }),
+      description:
+        "Read the next page of recent issue snapshots in a Reef workspace.",
+      inputSchema: z
+        .strictObject({
+          workspace: VaultNameSchema,
+          days: IssuePeriod.default(7),
+          status: StatusEnum.optional(),
+          cursor: IssueListQuerySchema.shape.cursor
+            .unwrap()
+            .max(512)
+            .optional(),
+          as_of: z.iso.datetime().optional(),
+        })
+        .refine(
+          ({ cursor, as_of }) => Boolean(cursor) === Boolean(as_of),
+          "A page cursor requires its original query cutoff.",
+        ),
       annotations: READ_ONLY,
       _meta: APP_ONLY,
     },
-    ({ workspace }) =>
+    ({ workspace, days, status, cursor, as_of }) =>
       read(async () => {
         if (!(await activeWorkspaces(adapter)).includes(workspace)) {
           throw new OAuthFailure("workspace_denied", 403);
         }
         const now = Date.now();
         const queriedAt = new Date(now).toISOString();
-        const { issues } = await akbListIssues({
+        const cutoff = as_of ? Date.parse(as_of) : now;
+        if (cutoff > now || cutoff < now - GRANT_TTL * 1_000) {
+          throw new OAuthFailure("invalid_query");
+        }
+        const { issues, next_cursor } = await akbListIssues({
           adapter,
           vault: workspace,
           query: IssueListQuerySchema.parse({
             date_range: {
               field: "updated_at",
-              from: new Date(now - WEEK_MS).toISOString(),
-              to: queriedAt,
+              from: new Date(cutoff - days * DAY_MS).toISOString(),
+              to: as_of ?? queriedAt,
             },
+            status: status ? [status] : undefined,
+            cursor,
             sort_field: "updated_at",
             sort_order: "desc",
             limit: PAGE_SIZE,
@@ -173,6 +197,8 @@ export async function serveIssueApp(request: Request) {
         });
         return IssuesResult.parse({
           queried_at: queriedAt,
+          as_of: as_of ?? queriedAt,
+          next_cursor,
           issues: issues.map(({ id, title, status, updated_at }) => ({
             id,
             title,
