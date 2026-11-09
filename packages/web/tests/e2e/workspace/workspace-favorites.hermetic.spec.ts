@@ -29,6 +29,9 @@ test.describe("Hermetic workspace favorites", () => {
     await openMultiVaultWorkspace(page, "reef-e2e");
     await page.getByTestId("sidebar-workspace-trigger").click();
     await page.getByTestId("workspace-switcher-favorite-reef-zeta").click();
+    await expect
+      .poll(() => readIndexedDbConfig(page, FAVORITES_KEY))
+      .toBe(JSON.stringify({ version: 1, favorites: ["reef-zeta"] }));
     await setVaultListControl(request, { failures: 1 });
     await page.reload();
     await expect
