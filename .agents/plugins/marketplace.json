@@ -1,0 +1,20 @@
+{
+  "name": "reef-plugins",
+  "interface": {
+    "displayName": "Reef"
+  },
+  "plugins": [
+    {
+      "name": "reef",
+      "source": {
+        "source": "local",
+        "path": "./plugins/reef"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

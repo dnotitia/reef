@@ -1,4 +1,29 @@
 {
+  "reefPlugin": {
+    "picker": {
+      "title": "최근 Reef 이슈",
+      "workspace": "워크스페이스",
+      "refresh": "새로고침",
+      "connecting": "Reef에 연결하는 중…",
+      "loadingWorkspaces": "워크스페이스를 불러오는 중…",
+      "loadingIssues": "최근 7일 이슈를 불러오는 중…",
+      "emptyWorkspaces": "접근 가능한 Reef 워크스페이스가 없습니다.",
+      "emptyIssues": "최근 7일 동안 변경된 이슈가 없습니다.",
+      "updated": "업데이트",
+      "queried": "조회",
+      "workspace_denied": "이 계정으로는 해당 워크스페이스에 접근할 수 없습니다.",
+      "unavailable": "Reef 데이터를 불러오지 못했습니다. 새로고침해 주세요.",
+      "reauthentication_required": "Reef 연결이 만료되었습니다. Reef 설정을 다시 실행해 주세요.",
+      "connectionFailed": "Codex App 호스트에 연결하지 못했습니다."
+    },
+    "consent": {
+      "returnToClient": "앱으로 돌아가기",
+      "title": "앱에 Reef 연결",
+      "description": "이 기기의 앱에 접근 가능한 Reef 워크스페이스와 최근 이슈를 읽을 권한을 허용합니다. 연결은 현재 Reef 로그인에 연결됩니다.",
+      "deny": "취소",
+      "approve": "읽기 허용"
+    }
+  },
   "linkSafety": {
     "title": "외부 링크 열기",
     "warning": "reef를 벗어나 외부 링크로 이동하려고 합니다. 계속하기 전에 아래 목적지를 확인하세요.",

@@ -1,4 +1,29 @@
 {
+  "reefPlugin": {
+    "picker": {
+      "title": "Recent Reef issues",
+      "workspace": "Workspace",
+      "refresh": "Refresh",
+      "connecting": "Connecting to Reef…",
+      "loadingWorkspaces": "Loading workspaces…",
+      "loadingIssues": "Loading issues from the last seven days…",
+      "emptyWorkspaces": "No accessible Reef workspaces.",
+      "emptyIssues": "No issues changed in the last seven days.",
+      "updated": "Updated",
+      "queried": "Queried",
+      "workspace_denied": "This workspace is unavailable to your account.",
+      "unavailable": "Reef could not load this data. Try refreshing.",
+      "reauthentication_required": "The Reef connection expired. Run Reef setup again.",
+      "connectionFailed": "Could not connect to the Codex App host."
+    },
+    "consent": {
+      "returnToClient": "Return to the app",
+      "title": "Connect Reef to your app",
+      "description": "Allow this app on your device to read your accessible Reef workspaces and recent issue snapshots. This connection follows your Reef sign-in.",
+      "deny": "Cancel",
+      "approve": "Allow read access"
+    }
+  },
   "linkSafety": {
     "title": "Open external link",
     "warning": "You're about to leave reef and open an external link. Check the destination below before you continue.",

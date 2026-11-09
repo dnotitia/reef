@@ -11,6 +11,12 @@ issues, not public GitHub issues.
 
 ## Unreleased
 
+### Added
+
+- Connect a self-hosted Reef SSO deployment to Codex through the Reef plugin.
+  Open the issue picker in a new conversation to see recent issue snapshots
+  from your accessible workspaces.
+
 ## v0.19.2 - 2026-11-04
 
 ### Fixed
