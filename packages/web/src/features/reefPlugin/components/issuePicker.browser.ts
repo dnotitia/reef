@@ -215,7 +215,6 @@ async function loadWorkspaces() {
       feedback.textContent = errorLabel(result.structuredContent);
     } else if (!parsed.data.workspaces.length) {
       feedback.textContent = locale.picker.emptyWorkspaces;
-      return;
     } else {
       workspace.replaceChildren(
         ...parsed.data.workspaces.map((name) => new Option(name, name)),

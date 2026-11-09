@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
+import { akbListVaults } from "@reef/core";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   authenticateMcp,
@@ -50,6 +51,7 @@ function config() {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.resetAllMocks();
 });
@@ -120,8 +122,7 @@ it("validates signed registration and seals anonymous consent without Redis or A
   expect(mocks.getRuntime).not.toHaveBeenCalled();
 });
 
-it("rejects an expired opaque grant with discovery and does not touch browser cookies", async () => {
-  vi.useFakeTimers();
+async function grantRequest(ttl: number) {
   const settings = config();
   const saved = new Map<string, string>();
   const redis = {
@@ -147,6 +148,7 @@ it("rejects an expired opaque grant with discovery and does not touch browser co
   mocks.getRedis.mockResolvedValue(redis);
   mocks.getRuntime.mockResolvedValue({ now: nowSeconds });
   const resource = `${origin}/mcp`;
+  const handle = opaqueValue();
   const token = await createPluginOAuthStore(
     settings,
     redis,
@@ -156,19 +158,26 @@ it("rejects an expired opaque grant with discovery and does not touch browser co
       clientId: createOAuthBrowserState(settings).register(callback),
       resource,
       scope: PLUGIN_SCOPE,
-      session: { handle: opaqueValue(), deadline: nowSeconds() + 60 },
+      session: { handle, deadline: nowSeconds() + 60 },
     },
-    1,
+    ttl,
   );
-  vi.advanceTimersByTime(1_000);
-  const response = await authenticateMcp(
-    new Request(resource, {
+  return {
+    handle,
+    request: new Request(resource, {
       headers: {
         Authorization: `Bearer ${token}`,
         Cookie: "__reef_auth_v2=fixture",
       },
     }),
-  ).catch(mcpAuthError);
+  };
+}
+
+it("rejects an expired opaque grant with discovery and does not touch browser cookies", async () => {
+  vi.useFakeTimers();
+  const { request } = await grantRequest(1);
+  vi.advanceTimersByTime(1_000);
+  const response = await authenticateMcp(request).catch(mcpAuthError);
   if (!(response instanceof Response))
     throw new Error("Expired grant authenticated");
   expect(response.status).toBe(401);
@@ -177,4 +186,36 @@ it("rejects an expired opaque grant with discovery and does not touch browser co
   );
   expect(response.headers.has("Set-Cookie")).toBe(false);
   expect(mocks.resolveCredential).not.toHaveBeenCalled();
+});
+
+it("uses the rotated AKB bearer after verifying the account on the same adapter", async () => {
+  const { request, handle } = await grantRequest(60);
+  vi.stubEnv("AKB_BACKEND_URL", "https://akb.test");
+  mocks.resolveCredential
+    .mockResolvedValueOnce("fixture-initial-access")
+    .mockResolvedValueOnce("fixture-rotated-access");
+  const fetchAkb = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      Response.json({ username: "alice", is_admin: false }),
+    )
+    .mockResolvedValueOnce(Response.json({ vaults: [] }));
+  vi.stubGlobal("fetch", fetchAkb);
+
+  const adapter = await authenticateMcp(request);
+  expect(await akbListVaults({ adapter })).toEqual({ vaults: [] });
+
+  expect(
+    fetchAkb.mock.calls.map(([url, init]) => [
+      String(url),
+      new Headers(init?.headers).get("Authorization"),
+    ]),
+  ).toEqual([
+    ["https://akb.test/api/v1/auth/me", "Bearer fixture-initial-access"],
+    ["https://akb.test/api/v1/my/vaults", "Bearer fixture-rotated-access"],
+  ]);
+  expect(mocks.resolveCredential.mock.calls).toEqual([
+    [request, handle],
+    [request, handle],
+  ]);
 });

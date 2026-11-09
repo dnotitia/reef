@@ -418,13 +418,30 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
       return {};
     });
 
+    async function setWorkspaceLifecycle(lifecycle: "uninstalled" | "active") {
+      for (const vault of ["reef-e2e", "reef-second"]) {
+        const response = await request.post(
+          `${E2E_MOCK_URL}/__e2e/installation-control`,
+          { data: { vault, lifecycle } },
+        );
+        expect(response.ok(), await response.text()).toBe(true);
+      }
+    }
+
+    await setWorkspaceLifecycle("uninstalled");
     await page.setViewportSize({ width: 340, height: 760 });
     const app = await mountIssuePicker(page, resource.result.contents[0].text);
     const preview = app.getByRole("button", { name: "Preview Issue Context" });
     const alpha = app.getByRole("checkbox", {
       name: "REEF-001 Initial issue Alpha",
     });
+    await expect(app.getByText("No accessible Reef workspaces.")).toBeVisible();
+    await setWorkspaceLifecycle("active");
+    await app.getByRole("button", { name: "Try again" }).click();
     await expect(alpha).toBeVisible();
+    expect(
+      calls.filter(({ name }) => name === "reef_list_workspaces"),
+    ).toHaveLength(2);
     await expect(preview).toBeDisabled();
     await expect(app.getByRole("combobox", { name: "Period" })).toHaveValue(
       "7",

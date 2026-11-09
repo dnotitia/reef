@@ -232,8 +232,10 @@ function browserHandle(request: Request) {
 }
 
 async function verifiedAdapter(request: Request, handle: string) {
-  const credential = await resolveAuthV2Credential(request, handle);
-  const adapter = createAkbAdapter({ baseUrl: getAkbBackendUrl(), credential });
+  const adapter = createAkbAdapter({
+    baseUrl: getAkbBackendUrl(),
+    credential: () => resolveAuthV2Credential(request, handle),
+  });
   await akbGetMe({ adapter });
   return adapter;
 }

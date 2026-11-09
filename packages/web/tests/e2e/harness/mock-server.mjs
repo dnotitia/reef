@@ -319,6 +319,7 @@ const server = createServer(async (req, res) => {
         state.scenario !== "installation_drift" &&
         state.scenario !== "configured_multi" &&
         state.scenario !== "public_mixed" &&
+        state.scenario !== "plugin_recent_issues" &&
         state.scenario !== "notifications_personal"
       ) {
         return json(res, 409, { error: "unsupported fixture scenario" });
