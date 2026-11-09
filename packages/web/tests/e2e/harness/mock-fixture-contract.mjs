@@ -50,6 +50,7 @@ export const SUPPORTED_SCENARIOS = [
   "assignee_picker",
   "backlog_bulk_partial_failure",
   "demo_board",
+  "plugin_recent_issues",
   "content_search",
   "raw_only",
   "workspace_recovery",

@@ -6,8 +6,7 @@ import {
   WORKSPACES_TOOL,
   WorkspacesResult,
 } from "../../../lib/reefPlugin/issueContract";
-import en from "../../../i18n/messages/en.json";
-import ko from "../../../i18n/messages/ko.json";
+import { z } from "zod";
 
 const heading = document.querySelector("h1");
 const chooser = document.querySelector("label");
@@ -15,14 +14,30 @@ const workspace = document.querySelector("select");
 const refresh = document.querySelector("button");
 const status = document.querySelector("[role=status]");
 const rows = document.querySelector("ul");
-if (!heading || !chooser || !workspace || !refresh || !status || !rows) {
+const localeData = document.querySelector("#reef-picker-messages");
+if (
+  !heading ||
+  !chooser ||
+  !workspace ||
+  !refresh ||
+  !status ||
+  !rows ||
+  !localeData
+) {
   throw new Error("Reef App template is incomplete");
 }
 
+const StringLabels = z.record(z.string(), z.string());
+const LocaleData = z.object({ picker: StringLabels, status: StringLabels });
+const { en, ko } = z
+  .object({ en: LocaleData, ko: LocaleData })
+  .parse(JSON.parse(localeData.textContent ?? ""));
+
 const app = new App({ name: "Reef Issue Picker", version: "1.0.0" }, {});
 let requestNumber = 0;
-let copy = en.reefPlugin.picker;
+let copy = en.picker;
 let language = "en";
+let statusLabels = en.status;
 
 function report(result: unknown) {
   const parsed = ReadError.safeParse(result);
@@ -39,7 +54,7 @@ function renderIssue(issue: typeof IssuesResult.shape.issues.element._output) {
   const title = document.createElement("strong");
   title.textContent = `${issue.id} · ${issue.title}`;
   const details = document.createElement("p");
-  details.textContent = `${issue.status} · ${copy.updated} ${formatTime(issue.updated_at)}`;
+  details.textContent = `${statusLabels[issue.status] ?? issue.status} · ${copy.updated} ${formatTime(issue.updated_at)}`;
   const reference = document.createElement("code");
   reference.textContent = issue.document_uri;
   row.append(title, details, reference);
@@ -112,10 +127,10 @@ async function connect() {
   try {
     await app.connect();
     language = app.getHostContext()?.locale ?? "en";
-    copy = language.toLowerCase().startsWith("ko")
-      ? ko.reefPlugin.picker
-      : en.reefPlugin.picker;
-    document.documentElement.lang = copy === ko.reefPlugin.picker ? "ko" : "en";
+    copy = language.toLowerCase().startsWith("ko") ? ko.picker : en.picker;
+    const korean = copy === ko.picker;
+    document.documentElement.lang = korean ? "ko" : "en";
+    statusLabels = korean ? ko.status : en.status;
     heading.textContent = copy.title;
     chooser.textContent = copy.workspace;
     refresh.textContent = copy.refresh;

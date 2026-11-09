@@ -42,14 +42,14 @@ it("shares encrypted records across instances, consumes codes once and enforces 
         records.delete(key);
       },
     },
-    async setBounded() {
+    async claim() {
       return false;
     },
   };
   const writer = createPluginOAuthStore(config, redis, () => time);
   const reader = createPluginOAuthStore(config, redis, () => time);
   const grant = {
-    clientId: opaqueValue(),
+    clientId: `10000.${opaqueValue()}`,
     session: { handle: opaqueValue(), deadline: time + 15 },
     resource: "https://reef.test/mcp",
     scope: PLUGIN_SCOPE,

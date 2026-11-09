@@ -95,21 +95,6 @@ export function createRedisFixture() {
         const [script, keyCount, recordKey, expected, replacement, seconds] =
           params;
         const normalized = script.replace(/\s+/gu, " ").trim();
-        if (
-          keyCount === "2" &&
-          normalized.startsWith('local now = tonumber(redis.call("TIME")[1])')
-        ) {
-          const [index, member, data, ttl, cap] = params.slice(2);
-          const members = get(index) ?? new Map();
-          for (const [record, expiry] of members) {
-            if (expiry <= Date.now()) members.delete(record);
-          }
-          if (members.size >= Number(cap)) return 0;
-          set(member, data, ttl);
-          members.set(member, Date.now() + Number(ttl) * 1_000);
-          set(index, members, ttl);
-          return 1;
-        }
         if (keyCount !== "1") throw new Error("unsupported EVAL keys");
         const compareSet =
           'if redis.call("GET", KEYS[1]) == ARGV[1] then redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3]) return 1 end return 0';

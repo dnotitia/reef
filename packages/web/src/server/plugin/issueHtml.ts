@@ -1,8 +1,14 @@
-import en from "@/i18n/messages/en.json";
+import { loadMessages } from "@/i18n/messages";
 import script from "@/features/reefPlugin/components/issuePicker.browser?bundle";
 
 export function issueHtml() {
+  const en = loadMessages("en");
+  const ko = loadMessages("ko");
   const { title, workspace, refresh, connecting } = en.reefPlugin.picker;
+  const messages = JSON.stringify({
+    en: { picker: en.reefPlugin.picker, status: en.fields.status },
+    ko: { picker: ko.reefPlugin.picker, status: ko.fields.status },
+  }).replaceAll("<", "\\u003c");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
 <style>
@@ -11,11 +17,13 @@ main{max-width:48rem;margin:auto}h1{font-size:1.2rem;margin:0 0 .75rem}
 .controls{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 select,button{font:inherit;padding:.35rem .6rem;color:inherit;background:inherit;border:1px solid #75857d;border-radius:.4rem;max-width:100%}
 :focus-visible{outline:2px solid #168462;outline-offset:2px}button:enabled{cursor:pointer}
+select:disabled,button:disabled{opacity:.55;cursor:not-allowed}
 ul{list-style:none;padding:0;margin:0}li{padding:.75rem 0;border-top:1px solid #75857d55;overflow-wrap:anywhere}
 li p{margin:.2rem 0}code{font-size:.82em}
 </style></head>
 <body><main><h1>${title}</h1>
 <div class="controls"><label for="workspace">${workspace}</label><select id="workspace" disabled></select><button type="button" disabled>${refresh}</button></div>
 <p role="status">${connecting}</p><ul></ul>
-</main><script type="module">${script.replace(/<\/script/giu, "<\\/script")}</script></body></html>`;
+</main><script id="reef-picker-messages" type="application/json">${messages}</script>
+<script type="module">${script.replace(/<\/script/giu, "<\\/script")}</script></body></html>`;
 }

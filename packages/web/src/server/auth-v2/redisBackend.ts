@@ -144,33 +144,9 @@ async function redisCall<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-type BoundedWrite = {
-  key: string;
-  data: string;
-  expiresIn: number;
-  index: string;
-  cap: number;
-};
-
-export function createBoundedRedisWrite(client: AuthV2RedisClient) {
-  return async ({ key, data, expiresIn, index, cap }: BoundedWrite) => {
-    const result = await redisCall(() =>
-      client.eval(BOUNDED_INSERT, {
-        keys: [index, key],
-        arguments: [data, String(expiresIn), String(cap)],
-      }),
-    );
-    return Number(result) === 1;
-  };
+export function createAuthV2RedisClaim(client: AuthV2RedisClient) {
+  return async (key: string, ttlSeconds: number): Promise<boolean> =>
+    (await redisCall(() =>
+      client.set(key, "used", { EX: ttlSeconds, NX: true }),
+    )) === "OK";
 }
-
-const BOUNDED_INSERT = `
-local now = tonumber(redis.call("TIME")[1])
-local ttl = tonumber(ARGV[2])
-redis.call("ZREMRANGEBYSCORE", KEYS[1], "-inf", now)
-if redis.call("ZCARD", KEYS[1]) >= tonumber(ARGV[3]) then return 0 end
-redis.call("SET", KEYS[2], ARGV[1], "EX", ttl)
-redis.call("ZADD", KEYS[1], now + ttl + 1, KEYS[2])
-redis.call("EXPIRE", KEYS[1], ttl + 1)
-return 1
-`;

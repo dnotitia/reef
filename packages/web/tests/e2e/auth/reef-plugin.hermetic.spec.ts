@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { test } from "../harness/workspace-fixture";
+import { test as workspaceTest } from "../harness/workspace-fixture";
+
+const test = workspaceTest.extend({ scenario: "plugin_recent_issues" });
 
 const callback = "http://127.0.0.1:49073/callback/fixture";
 const verifier = "fixture_verifier_".repeat(4);
@@ -94,9 +96,14 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
     const browserUrl = authorization(flow);
     const wrongCallback = new URL(browserUrl);
     wrongCallback.searchParams.set("redirect_uri", `${callback}-different`);
-    expect(
-      (await request.get(wrongCallback.href, { maxRedirects: 0 })).status(),
-    ).toBe(400);
+    const rejected = await request.get(wrongCallback.href, {
+      maxRedirects: 0,
+      headers: { "Accept-Language": "ko" },
+    });
+    expect(rejected.status()).toBe(400);
+    expect(await rejected.text()).toContain(
+      "Codex로 돌아가 배포 URL로 Reef 설정을 다시 실행해 주세요.",
+    );
     const wrongResource = new URL(browserUrl);
     wrongResource.searchParams.set("resource", `${flow.resource}-different`);
     expect(
@@ -122,7 +129,16 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
     });
     expect(badOrigin.status()).toBe(403);
 
+    const consentCookies = (await page.context().cookies(consent.href))
+      .map(({ name, value }) => `${name}=${value}`)
+      .join("; ");
     const callbackParams = await receiveCallback(page, "Allow read access");
+    const replay = await request.post("/oauth/consent", {
+      headers: { Origin: flow.issuer, Cookie: consentCookies },
+      form: approval,
+    });
+    expect(replay.status()).toBe(400);
+    expect(await replay.text()).toContain("run Reef setup again");
     const code = callbackParams.get("code") ?? "";
     expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/u);
     const tokenForm = {
@@ -134,7 +150,7 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
       code_verifier: verifier,
     };
     for (const invalid of [
-      { client_id: "A".repeat(43) },
+      { client_id: `9999999999.${"A".repeat(43)}` },
       { redirect_uri: `${callback}-wrong` },
       { resource: `${flow.resource}-wrong` },
       { code_verifier: "B".repeat(43) },
@@ -201,6 +217,39 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
     expect(workspaces.result.structuredContent.workspaces).toContain(
       "reef-e2e",
     );
+    const queryStarted = Date.now();
+    const recent = await (
+      await mcp(request, token, "tools/call", {
+        name: "reef_list_recent_issues",
+        arguments: { workspace: "reef-e2e" },
+      })
+    ).json();
+    expect(recent.result.isError).toBeFalsy();
+    const { queried_at, issues } = recent.result.structuredContent;
+    expect(issues).toEqual([
+      {
+        id: "REEF-001",
+        title: "Initial issue Alpha",
+        status: "todo",
+        updated_at: expect.any(String),
+        document_uri: "akb://reef-e2e/coll/issues/doc/reef-001.md",
+      },
+      {
+        id: "REEF-002",
+        title: "Initial issue Beta",
+        status: "closed",
+        updated_at: expect.any(String),
+        document_uri: "akb://reef-e2e/coll/issues/doc/reef-002.md",
+      },
+    ]);
+    const queried = Date.parse(queried_at);
+    expect(queried).toBeGreaterThanOrEqual(queryStarted);
+    expect(queried).toBeLessThanOrEqual(Date.now());
+    for (const [index, issue] of issues.entries()) {
+      const age = queried - Date.parse(issue.updated_at);
+      expect(age).toBeGreaterThanOrEqual((index + 1) * 86_400_000);
+      expect(age).toBeLessThan((index + 1) * 86_400_000 + 60_000);
+    }
     const denied = await (
       await mcp(request, token, "tools/call", {
         name: "reef_list_recent_issues",

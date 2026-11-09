@@ -9,7 +9,7 @@ export const OPAQUE = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 export const PENDING_TTL = 300;
 export const GRANT_TTL = 3_600;
 const CODE_TTL = 60;
-const CLIENT_TTL = 86_400;
+export const ClientId = z.string().regex(/^\d{1,12}\.[A-Za-z0-9_-]{43}$/u);
 
 export function opaqueValue(): string {
   return randomBytes(32).toString("base64url");
@@ -19,17 +19,12 @@ export function digest(value: string): string {
   return createHash("sha256").update(value).digest("base64url");
 }
 
-const ClientRegistration = z.object({ callback: z.string() });
-const AuthorizationBinding = z.object({
-  clientId: OPAQUE,
+export const AuthorizationBinding = z.object({
+  clientId: ClientId,
   callback: z.string(),
   resource: z.string(),
   scope: z.literal(PLUGIN_SCOPE),
   challenge: OPAQUE,
-});
-const PendingConsent = AuthorizationBinding.extend({
-  state: z.string(),
-  browserDigest: OPAQUE,
 });
 const SessionReference = z.object({
   handle: OPAQUE,
@@ -47,17 +42,12 @@ const PluginGrant = AuthorizationCode.pick({
 
 export function createPluginOAuthStore(
   config: AuthV2EnabledRuntimeConfig,
-  { backend, setBounded }: Pick<AuthV2ProcessRedis, "backend" | "setBounded">,
+  { backend, claim }: Pick<AuthV2ProcessRedis, "backend" | "claim">,
   now: () => number,
 ) {
   const cipher = createAuthV2SessionCipher(config.encryptionKey);
   const prefix = `${config.sessionNamespace}:reef:plugin:`;
-  function records<T>(
-    kind: string,
-    schema: z.ZodType<T>,
-    ttl: number,
-    cap?: number,
-  ) {
+  function records<T>(kind: string, schema: z.ZodType<T>, ttl: number) {
     const keyFor = (id: string) => `${prefix}${kind}:${digest(id)}`;
     return {
       async issue(value: T, lifetime = ttl) {
@@ -68,19 +58,7 @@ export function createPluginOAuthStore(
           JSON.stringify({ value, expiresAt: now() + expiresIn }),
           key,
         );
-        if (cap === undefined) {
-          await backend.set(key, data, expiresIn);
-        } else if (
-          !(await setBounded({
-            key,
-            data,
-            expiresIn,
-            index: `${prefix}quota:${kind}`,
-            cap,
-          }))
-        ) {
-          return null;
-        }
+        await backend.set(key, data, expiresIn);
         return id;
       },
       async read(id: string, consume = false): Promise<T | null> {
@@ -97,8 +75,10 @@ export function createPluginOAuthStore(
   }
 
   return {
-    clients: records("client", ClientRegistration, CLIENT_TTL, 10_000),
-    pending: records("pending", PendingConsent, PENDING_TTL, 1_000),
+    async claimConsent(transaction: string, expiresAt: number) {
+      const ttl = expiresAt - now();
+      return ttl > 0 && claim(`${prefix}consent:${digest(transaction)}`, ttl);
+    },
     codes: records("code", AuthorizationCode, CODE_TTL),
     grants: records("grant", PluginGrant, GRANT_TTL),
   };

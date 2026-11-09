@@ -4,7 +4,7 @@ import type {
   OAuthProtectedResourceMetadata,
   OAuthTokens,
 } from "@modelcontextprotocol/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 import {
   akbGetMe,
   AuthError,
@@ -13,16 +13,13 @@ import {
 } from "@reef/core";
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { buildPathWithParams } from "@/lib/akb/safeRedirect";
-import { buildClearedEstablishedAuthCookies } from "@/lib/akb/sessionCookie";
+import { withClearedEstablishedAuthCookies } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import { LOCALE_COOKIE } from "@/i18n/locales";
 import { resolveLocale } from "@/i18n/detectLocale";
 import { loadMessages } from "@/i18n/messages";
 import {
   AUTH_V2_SESSION_COOKIE,
-  buildClearedAuthV2LogoutCookie,
-  buildClearedAuthV2SessionCookie,
-  buildClearedAuthV2StateCookie,
   readAuthV2Cookies,
 } from "@/server/auth-v2/cookie";
 import { getProcessAuthV2Redis } from "@/server/auth-v2/redisRuntime";
@@ -55,8 +52,9 @@ import {
   PLUGIN_SCOPE,
   createPluginOAuthStore,
   digest,
-  opaqueValue,
 } from "./oauthStore";
+
+import { createOAuthBrowserState, equalOpaque } from "./oauthBrowserState";
 
 const BROWSER_COOKIE = "__reef_plugin_consent";
 
@@ -78,28 +76,40 @@ async function oauthContext(request: Request) {
     runtime,
     origin,
     resource,
+    browserState: createOAuthBrowserState(config),
     store: createPluginOAuthStore(config, redis, runtime.now),
   };
 }
 
-async function runOAuth(operation: () => Promise<Response>) {
+async function runOAuth(
+  operation: () => Promise<Response>,
+  browserRequest?: Request,
+) {
+  const failure = (code: string, status: number) =>
+    browserRequest
+      ? browserFailure(browserRequest, code, status)
+      : oauthJson({ error: code }, status);
   try {
     return await operation();
   } catch (error) {
-    if (error instanceof OAuthFailure) {
-      return oauthJson({ error: error.code }, error.status);
+    if (browserRequest && error instanceof AuthError) {
+      const code = accountError(error);
+      return withClearedEstablishedAuthCookies(
+        failure(code ?? "invalid_token", 401),
+        code,
+      );
     }
+    if (error instanceof OAuthFailure) return failure(error.code, error.status);
     if (
       error instanceof AuthV2RouteRuntimeError &&
       error.code === "auth_v2_contract_invalid"
-    ) {
-      return oauthJson({ error: "reef_sso_required" }, 404);
-    }
+    )
+      return failure("reef_sso_required", 404);
     logger.warn(
       { code: "plugin_oauth_unavailable" },
       "Reef plugin OAuth request failed",
     );
-    return oauthJson({ error: "temporarily_unavailable" }, 503);
+    return failure("temporarily_unavailable", 503);
   }
 }
 
@@ -138,10 +148,9 @@ export function registerClient(request: Request) {
       await requestBody(request, "application/json"),
     );
     if (!input.success) throw new OAuthFailure("invalid_client_metadata");
-    const { store } = await oauthContext(request);
+    const { config } = deployment();
     const callback = input.data.redirect_uris[0];
-    const clientId = await store.clients.issue({ callback });
-    if (!clientId) throw new OAuthFailure("temporarily_unavailable", 429);
+    const clientId = createOAuthBrowserState(config).register(callback);
     return oauthJson(
       {
         client_id: clientId,
@@ -165,27 +174,24 @@ export function authorize(request: Request) {
       uniqueParams(new URLSearchParams(query)),
     );
     if (!input.success) throw new OAuthFailure("invalid_request");
-    const { resource, origin, store } = await oauthContext(request);
+    const { resource, origin, config } = deployment();
     const fields = input.data;
     if (fields.resource !== resource) throw new OAuthFailure("invalid_target");
-    const client = await store.clients.read(fields.client_id);
-    if (client?.callback !== fields.redirect_uri)
+    const browserState = createOAuthBrowserState(config);
+    if (!browserState.isRegistered(fields.client_id, fields.redirect_uri)) {
       throw new OAuthFailure("invalid_client");
-    const browser = opaqueValue();
-    const transaction = await store.pending.issue({
+    }
+    const { transaction, sealed } = browserState.issueConsent({
       clientId: fields.client_id,
-      callback: client.callback,
-      resource,
+      callback: fields.redirect_uri,
       scope: fields.scope,
       challenge: fields.code_challenge,
       state: fields.state,
-      browserDigest: digest(browser),
     });
-    if (!transaction) throw new OAuthFailure("temporarily_unavailable", 429);
     return redirect(consentPath(transaction), {
-      "Set-Cookie": consentCookie(origin, browser, PENDING_TTL),
+      "Set-Cookie": consentCookie(origin, sealed, PENDING_TTL),
     });
-  });
+  }, request);
 }
 
 function consentPath(transaction: string) {
@@ -217,12 +223,8 @@ function actionNonce(browser: string, transaction: string, handle: string) {
     .digest("base64url");
 }
 
-function equalOpaque(expected: string, value: string) {
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(value));
-}
-
 function browserValue(request: Request) {
-  return OPAQUE.safeParse(readAuthV2Cookies(request)[BROWSER_COOKIE]);
+  return readAuthV2Cookies(request)[BROWSER_COOKIE] ?? "";
 }
 
 function browserHandle(request: Request) {
@@ -236,28 +238,9 @@ async function verifiedAdapter(request: Request, handle: string) {
   return adapter;
 }
 
-function invalidateCookies(response: Response) {
-  for (const cookie of [
-    ...buildClearedEstablishedAuthCookies(),
-    buildClearedAuthV2SessionCookie(),
-    buildClearedAuthV2StateCookie(),
-    buildClearedAuthV2LogoutCookie(),
-  ]) {
-    response.headers.append("Set-Cookie", cookie);
-  }
-  return response;
-}
-
-function authFailure(error: AuthError) {
+function accountError(error: AuthError) {
   const code = error.context.code;
-  return invalidateCookies(
-    oauthJson(
-      {
-        error: isAkbAccountErrorCode(code) ? code : "invalid_token",
-      },
-      401,
-    ),
-  );
+  return isAkbAccountErrorCode(code) ? code : undefined;
 }
 
 function consentLocale(request: Request) {
@@ -268,6 +251,32 @@ function consentLocale(request: Request) {
   return { locale, copy: loadMessages(locale).reefPlugin.consent };
 }
 
+function browserFailure(request: Request, code: string, status: number) {
+  const { locale, copy } = consentLocale(request);
+  const reason =
+    status === 401
+      ? copy.accountFailure
+      : status >= 500
+        ? copy.unavailable
+        : code === "reef_sso_required"
+          ? copy.ssoRequired
+          : code === "invalid_target" || code === "invalid_client"
+            ? copy.invalidConnection
+            : copy.invalidConsent;
+  return new Response(
+    `<!doctype html><html lang="${locale}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>${copy.failureTitle}</title>
+</head><body><main><h1>${copy.failureTitle}</h1><p>${reason}</p><p>${copy.retry}</p></main></body></html>`,
+    {
+      status,
+      headers: {
+        ...RESPONSE_HEADERS,
+        "Content-Type": "text/html; charset=utf-8",
+      },
+    },
+  );
+}
+
 export function renderConsent(request: Request) {
   return runOAuth(async () => {
     const query = new URL(request.url).search;
@@ -275,19 +284,14 @@ export function renderConsent(request: Request) {
     const input = ConsentInput.pick({ transaction: true }).safeParse(
       uniqueParams(new URLSearchParams(query)),
     );
-    const browser = browserValue(request);
-    if (!input.success || !browser.success)
-      throw new OAuthFailure("invalid_request");
+    if (!input.success) throw new OAuthFailure("invalid_request");
     const { transaction } = input.data;
-    const { store, runtime, resource } = await oauthContext(request);
-    const pending = await store.pending.read(transaction);
-    if (
-      !pending ||
-      pending.resource !== resource ||
-      !equalOpaque(pending.browserDigest, digest(browser.data))
-    ) {
+    const browser = browserValue(request);
+    const { config } = deployment();
+    if (!createOAuthBrowserState(config).readConsent(transaction, browser)) {
       throw new OAuthFailure("invalid_request");
     }
+    const runtime = await getAuthV2RouteRuntime(request);
     const handle = browserHandle(request);
     const login = () =>
       redirect(
@@ -296,16 +300,12 @@ export function renderConsent(request: Request) {
         }),
       );
     if (!handle.success) return login();
-    if (!(await runtime.store.resolve(handle.data)))
-      return invalidateCookies(login());
-    try {
-      await verifiedAdapter(request, handle.data);
-    } catch (error) {
-      if (error instanceof AuthError) return authFailure(error);
-      throw error;
+    if (!(await runtime.store.resolve(handle.data))) {
+      return withClearedEstablishedAuthCookies(login());
     }
+    await verifiedAdapter(request, handle.data);
     const { locale, copy } = consentLocale(request);
-    const nonce = actionNonce(browser.data, transaction, handle.data);
+    const nonce = actionNonce(browser, transaction, handle.data);
     return new Response(
       `<!doctype html><html lang="${locale}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${copy.title}</title>
@@ -327,7 +327,7 @@ button[value=approve]{background:#226349;color:white}p{line-height:1.5}</style><
         },
       },
     );
-  });
+  }, request);
 }
 
 export function decideConsent(request: Request) {
@@ -340,46 +340,39 @@ export function decideConsent(request: Request) {
     );
     const browser = browserValue(request);
     const handle = browserHandle(request);
-    if (!input.success || !browser.success || !handle.success) {
+    if (!input.success || !handle.success)
       throw new OAuthFailure("invalid_request");
-    }
     const { transaction, action, decision } = input.data;
+    const { config, resource } = deployment();
+    const pending = createOAuthBrowserState(config).readConsent(
+      transaction,
+      browser,
+    );
     if (
-      !equalOpaque(actionNonce(browser.data, transaction, handle.data), action)
+      !pending ||
+      !equalOpaque(actionNonce(browser, transaction, handle.data), action)
     ) {
       throw new OAuthFailure("invalid_request", 403);
     }
-    const { store, resource, runtime } = await oauthContext(request);
-    const pending = await store.pending.read(transaction);
-    if (
-      !pending ||
-      pending.resource !== resource ||
-      !equalOpaque(pending.browserDigest, digest(browser.data))
-    ) {
+    const { store, runtime } = await oauthContext(request);
+    await verifiedAdapter(request, handle.data);
+    const session = await runtime.store.resolve(handle.data);
+    if (!session) {
+      return withClearedEstablishedAuthCookies(
+        browserFailure(request, "invalid_token", 401),
+      );
+    }
+    const { state, expiresAt, ...binding } = pending;
+    if (!(await store.claimConsent(transaction, expiresAt))) {
       throw new OAuthFailure("invalid_request");
     }
-    const client = await store.clients.read(pending.clientId);
-    if (client?.callback !== pending.callback)
-      throw new OAuthFailure("invalid_client");
-    try {
-      await verifiedAdapter(request, handle.data);
-    } catch (error) {
-      if (error instanceof AuthError) return authFailure(error);
-      throw error;
-    }
-    const session = await runtime.store.resolve(handle.data);
-    if (!session)
-      return invalidateCookies(oauthJson({ error: "invalid_token" }, 401));
-    const consumed = await store.pending.read(transaction, true);
-    if (!consumed) throw new OAuthFailure("invalid_request");
-    const { state, browserDigest: _browserDigest, ...binding } = consumed;
     const callback = new URL(binding.callback);
     if (decision === "approve") {
       const code = await store.codes.issue({
         ...binding,
+        resource,
         session: { handle: handle.data, deadline: session.absolute_expires_at },
       });
-      if (!code) throw new OAuthFailure("temporarily_unavailable", 503);
       callback.searchParams.set("code", code);
     } else {
       callback.searchParams.set("error", "access_denied");
@@ -406,7 +399,7 @@ export function decideConsent(request: Request) {
     );
     response.headers.set("Set-Cookie", consentCookie(origin, "", 0));
     return response;
-  });
+  }, request);
 }
 
 export function exchangeCode(request: Request) {
@@ -425,7 +418,8 @@ export function exchangeCode(request: Request) {
     }
     const input = TokenInput.safeParse(body);
     if (!input.success) throw new OAuthFailure("invalid_request");
-    const { resource, store, runtime } = await oauthContext(request);
+    const { resource, store, runtime, browserState } =
+      await oauthContext(request);
     const fields = input.data;
     if (fields.resource !== resource) throw new OAuthFailure("invalid_target");
     const code = await store.codes.read(fields.code);
@@ -438,8 +432,7 @@ export function exchangeCode(request: Request) {
     ) {
       throw new OAuthFailure("invalid_grant");
     }
-    const client = await store.clients.read(code.clientId);
-    if (client?.callback !== code.callback)
+    if (!browserState.isRegistered(code.clientId, code.callback))
       throw new OAuthFailure("invalid_grant");
     const session = await runtime.store.resolve(code.session.handle);
     const ttl = Math.min(GRANT_TTL, code.session.deadline - runtime.now());
@@ -455,7 +448,6 @@ export function exchangeCode(request: Request) {
       },
       ttl,
     );
-    if (!accessToken) throw new OAuthFailure("temporarily_unavailable", 503);
     return oauthJson({
       access_token: accessToken,
       token_type: "Bearer",
@@ -499,7 +491,7 @@ export function mcpAuthError(error: unknown) {
   const response = isResourceDenial(error)
     ? oauthJson({ error: "access_denied" }, 403)
     : error instanceof AuthError
-      ? authFailure(error)
+      ? oauthJson({ error: accountError(error) ?? "invalid_token" }, 401)
       : error instanceof OAuthFailure
         ? oauthJson({ error: error.code }, error.status)
         : oauthJson({ error: "temporarily_unavailable" }, 503);

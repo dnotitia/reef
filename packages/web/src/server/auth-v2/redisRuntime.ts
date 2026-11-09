@@ -2,7 +2,7 @@ import { createClient } from "redis";
 import type { AuthV2EnabledRuntimeConfig } from "./config";
 import {
   createAuthV2RedisBackend,
-  createBoundedRedisWrite,
+  createAuthV2RedisClaim,
   type AuthV2RedisClient,
 } from "./redisBackend";
 import {
@@ -24,7 +24,7 @@ export class AuthV2RedisRuntimeError extends Error {
 export interface AuthV2RedisRuntime {
   backend: AuthV2SessionBackend;
   refreshLock: AuthV2RefreshLock;
-  setBounded: ReturnType<typeof createBoundedRedisWrite>;
+  claim: ReturnType<typeof createAuthV2RedisClaim>;
   ping(): Promise<string>;
   close(): Promise<void>;
 }
@@ -45,8 +45,8 @@ export function getProcessAuthV2Redis(
   }
   if (!processRedis) {
     const promise = connectAuthV2Redis(config)
-      .then(({ backend, refreshLock, setBounded, ping }) =>
-        Object.freeze({ backend, refreshLock, setBounded, ping }),
+      .then(({ backend, refreshLock, claim, ping }) =>
+        Object.freeze({ backend, refreshLock, claim, ping }),
       )
       .catch((error: unknown) => {
         processRedis = undefined;
@@ -78,7 +78,7 @@ export async function connectAuthV2Redis(
       AuthV2RefreshLockClient;
     return {
       backend: createAuthV2RedisBackend(redisClient),
-      setBounded: createBoundedRedisWrite(redisClient),
+      claim: createAuthV2RedisClaim(redisClient),
       refreshLock: createAuthV2RefreshLock(
         redisClient,
         config.sessionNamespace,

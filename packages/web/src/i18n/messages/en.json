@@ -17,6 +17,13 @@
       "connectionFailed": "Could not connect to the Codex App host."
     },
     "consent": {
+      "failureTitle": "Could not connect Reef",
+      "accountFailure": "Your Reef session ended or the account no longer has access.",
+      "unavailable": "Reef sign-in is temporarily unavailable.",
+      "ssoRequired": "This Reef deployment requires browser SSO for the Codex plugin.",
+      "invalidConnection": "The connection does not match this Reef deployment or the Codex callback.",
+      "invalidConsent": "The consent request expired or does not match this browser.",
+      "retry": "Return to Codex and run Reef setup again with your deployment URL.",
       "returnToClient": "Return to the app",
       "title": "Connect Reef to your app",
       "description": "Allow this app on your device to read your accessible Reef workspaces and recent issue snapshots. This connection follows your Reef sign-in.",

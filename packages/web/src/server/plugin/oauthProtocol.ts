@@ -1,6 +1,6 @@
 import { readRequestBody } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { OPAQUE, PLUGIN_SCOPE } from "./oauthStore";
+import { ClientId, OPAQUE, PLUGIN_SCOPE } from "./oauthStore";
 
 export const RESOURCE_METADATA = "/.well-known/oauth-protected-resource/mcp";
 export const REGISTER = "/oauth/register";
@@ -42,11 +42,11 @@ export const RegistrationInput = z.strictObject({
 });
 
 export const AuthorizationInput = z.strictObject({
-  client_id: OPAQUE,
+  client_id: ClientId,
   redirect_uri: Callback,
   resource: z.string().max(2_048),
   response_type: z.literal("code"),
-  state: z.string().min(1).max(512),
+  state: z.string().regex(/^[ -~]{1,512}$/u),
   code_challenge: OPAQUE,
   code_challenge_method: z.literal("S256"),
   scope: Scope.default(PLUGIN_SCOPE),
@@ -59,7 +59,7 @@ export const ConsentInput = z.strictObject({
 });
 
 export const TokenInput = z.strictObject({
-  client_id: OPAQUE,
+  client_id: ClientId,
   redirect_uri: Callback,
   resource: z.string().max(2_048),
   grant_type: z.literal("authorization_code"),

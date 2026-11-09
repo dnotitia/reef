@@ -37,27 +37,13 @@ describe.skipIf(!redisUrl)("real Redis auth-v2 backend", () => {
     ).resolves.toBeNull();
     if (owner) await runtime.refreshLock.release("A".repeat(43), owner);
     await runtime.backend.del(key);
-    const index = `${key}:quota`;
-    const candidates = [`${key}:a`, `${key}:b`];
-    const admitted = await Promise.all(
-      candidates.map((candidate) =>
-        runtime.setBounded({
-          key: candidate,
-          data: "ciphertext",
-          index,
-          cap: 1,
-          expiresIn: 10,
-        }),
-      ),
-    );
-    expect(admitted.filter(Boolean)).toHaveLength(1);
-    for (const [position, candidate] of candidates.entries()) {
-      expect(await runtime.backend.get(candidate)).toBe(
-        admitted[position] ? "ciphertext" : null,
-      );
-      await runtime.backend.del(candidate);
-    }
-    await runtime.backend.del(index);
+    const consent = `${key}:consent`;
+    const claimed = await Promise.all([
+      runtime.claim(consent, 10),
+      runtime.claim(consent, 10),
+    ]);
+    expect(claimed.filter(Boolean)).toHaveLength(1);
+    await runtime.backend.del(consent);
     await runtime.close();
   });
 });
