@@ -208,7 +208,7 @@ jobs:
     # `--shard` flag are one logical value. `env:` is not available in a job
     # `name:`, so it is spelled out literally — keep all three in sync.
     name: E2E (shard ${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Gate only on the *fast* checks plus the single production artifact. Vitest used to be a
     # `needs` here too, which serialized the whole ~2.5min unit suite ahead of
     # E2E even though the two are independent — now they run in parallel. We
