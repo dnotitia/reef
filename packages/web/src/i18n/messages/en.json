@@ -2,6 +2,7 @@
   "reefPlugin": {
     "picker": {
       "title": "Recent Reef issues",
+      "browsePurpose": "Choose issues to share in this conversation.",
       "workspace": "Workspace",
       "refresh": "Refresh",
       "connecting": "Connecting to Reef…",
@@ -10,6 +11,8 @@
       "emptyWorkspaces": "No accessible Reef workspaces.",
       "emptyIssues": "No issues match these filters.",
       "updated": "Updated",
+      "reference": "Source",
+      "details": "Details for {id}",
       "queried": "Queried",
       "workspace_denied": "This workspace is unavailable to your account.",
       "unavailable": "Reef could not load this data. Try refreshing.",
@@ -26,6 +29,8 @@
       "selectedCount": "Selected issues ({count})",
       "preview": "Preview Issue Context",
       "previewHeading": "Issue Context preview",
+      "reviewPurpose": "These issue snapshots will be sent as a message in this conversation.",
+      "exactContent": "Exact message content",
       "back": "Back to issues",
       "send": "Send to this conversation",
       "sending": "Sending Issue Context…",

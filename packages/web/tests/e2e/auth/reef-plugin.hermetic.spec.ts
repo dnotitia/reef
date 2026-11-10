@@ -48,7 +48,19 @@ async function mountIssuePicker(page: Page, html: string) {
         const frame = document.querySelector("iframe");
         const bridge = new AppBridge(null, {name:"Reef test host",version:"1"}, {
           serverTools:{}, message:{text:{}}, updateModelContext:{text:{}},
-        }, {hostContext:{locale:"en"}});
+        }, {hostContext:{
+          locale:"en", timeZone:"UTC", theme:"light",
+          styles:{variables:{"--color-background-primary":"#fcfcff"}},
+          containerDimensions:{maxHeight:560},
+        }});
+        bridge.onsizechange = ({height}) => {
+          document.body.dataset.appHeight = String(height);
+          document.body.dataset.sizeNotifications = String(Number(document.body.dataset.sizeNotifications ?? 0) + 1);
+          frame.style.height = Math.min(height, 560) + "px";
+        };
+        window.reefTheme = (theme, background) => bridge.sendHostContextChange({
+          theme, styles:{variables:{"--color-background-primary":background}},
+        });
         bridge.oncalltool = (params) => window.reefCall(params);
         bridge.onmessage = (params) => window.reefMessage(params);
         bridge.onupdatemodelcontext = (params) => window.reefContext(params);
@@ -78,7 +90,7 @@ async function mountIssuePicker(page: Page, html: string) {
             body:
               path === "/app"
                 ? html
-                : '<style>body{margin:0}iframe{width:100%;height:720px;border:0}</style><iframe title="Reef App" sandbox="allow-scripts"></iframe><script type="module" src="/sdk.js"></script>',
+                : '<style>body{margin:0}iframe{display:block;width:100%;height:560px;border:0}</style><iframe title="Reef App" sandbox="allow-scripts"></iframe><script type="module" src="/sdk.js"></script>',
           },
     );
   });
@@ -313,6 +325,7 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
     }[] = [];
     let holdNextThirtyDay = false;
     let releaseOldPage: (() => void) | undefined;
+    let releaseFirstSend: (() => void) | undefined;
 
     await page.exposeFunction(
       "reefCall",
@@ -330,9 +343,16 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
         return result;
       },
     );
-    await page.exposeFunction("reefMessage", (params: unknown) => {
+    await page.exposeFunction("reefMessage", async (params: unknown) => {
       messages.push(params);
-      return { isError: messages.length === 1 };
+      if (messages.length === 1) {
+        await new Promise<void>((resolve) => {
+          releaseFirstSend = resolve;
+        });
+        return { isError: true };
+      }
+      if (messages.length === 2) throw new Error("Fixture host disconnected");
+      return {};
     });
     await page.exposeFunction("reefContext", (params: unknown) => {
       contextUpdates.push(params);
@@ -350,13 +370,22 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
     }
 
     await setWorkspaceLifecycle("uninstalled");
-    await page.setViewportSize({ width: 340, height: 760 });
+    await page.setViewportSize({ width: 320, height: 640 });
     const app = await mountIssuePicker(page, resource.result.contents[0].text);
     const preview = app.getByRole("button", { name: "Preview Issue Context" });
     const alpha = app.getByRole("checkbox", {
       name: "REEF-001 Initial issue Alpha",
     });
     await expect(app.getByText("No accessible Reef workspaces.")).toBeVisible();
+    await expect(page.locator("body")).toHaveAttribute(
+      "data-app-height",
+      "560",
+    );
+    await expect(app.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(app.locator("body")).toHaveCSS(
+      "background-color",
+      "rgb(252, 252, 255)",
+    );
     await setWorkspaceLifecycle("active");
     await app.getByRole("button", { name: "Try again" }).click();
     await expect(alpha).toBeVisible();
@@ -432,7 +461,12 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
     ).toBe(true);
     await app.getByRole("button", { name: "Try again" }).click();
     await expect(app.getByRole("checkbox")).toHaveCount(53);
+    await expect(app.getByRole("checkbox").nth(50)).toBeFocused();
     await expect(alpha).toBeChecked();
+    await expect(preview).toBeInViewport({ ratio: 1 });
+    await expect(app.getByText("Selected issues (1)")).toBeInViewport({
+      ratio: 1,
+    });
     const continuations = calls.filter(
       ({ arguments: args }) => typeof args.cursor === "string",
     );
@@ -471,35 +505,109 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
       },
     });
     expect(edited.status(), await edited.text()).toBe(200);
-    await app.getByRole("button", { name: "Refresh" }).click();
+    const refresh = app.getByRole("button", { name: "Refresh" });
+    await refresh.click();
     const updated = app.getByRole("checkbox", {
       name: "REEF-001 Updated from Reef",
     });
     await expect(updated).toBeVisible();
+    await expect(refresh).toBeFocused();
     await expect(updated).not.toBeChecked();
     await expect(preview).toBeDisabled();
-    await updated.check();
-    const summary = app
-      .locator("summary")
-      .filter({ hasText: "Updated from Reef" });
-    await summary.focus();
+    await app
+      .getByRole("checkbox", { name: "REEF-002 Initial issue Beta" })
+      .check();
+    const label = app.locator("label").filter({ hasText: "Updated from Reef" });
+    const hitTarget = await label.boundingBox();
+    expect(hitTarget?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await label.getByText("Updated from Reef").click();
+    await expect(updated).toBeChecked();
+    const details = app.getByRole("button", { name: "Details for REEF-001" });
+    await details.focus();
     await page.keyboard.press("Enter");
+    await expect(details).toHaveAttribute("aria-expanded", "true");
+    await expect(updated).toBeChecked();
     await expect(
       app.getByText("akb://reef-e2e/coll/issues/doc/reef-001.md", {
         exact: true,
       }),
     ).toBeVisible();
-    expect(
-      await app
-        .locator("body")
-        .evaluate((body) => body.scrollWidth <= window.innerWidth),
-    ).toBe(true);
+    await page.evaluate(() => {
+      Reflect.get(window, "reefTheme")("dark", "#20242a");
+    });
+    await expect(app.locator("html")).toHaveCSS("color-scheme", "dark");
+    await expect(app.locator("body")).toHaveCSS(
+      "background-color",
+      "rgb(32, 36, 42)",
+    );
+    await expect(updated).toBeChecked();
+    await expect(details).toBeFocused();
 
     await preview.click();
+    const review = app.getByRole("region", { name: "Issue Context preview" });
+    const heading = review.getByRole("heading", {
+      name: "Issue Context preview",
+    });
+    await expect(heading).toBeFocused();
+    await expect(
+      review.getByText(
+        "These issue snapshots will be sent as a message in this conversation.",
+      ),
+    ).toBeVisible();
+    const reviewItems = review.getByRole("listitem");
+    await expect(reviewItems.nth(0)).toContainText("Initial issue Beta");
+    await expect(reviewItems.nth(1)).toContainText("Updated from Reef");
+    await expect(reviewItems.nth(1).locator("time")).toHaveCount(2);
+    await expect(
+      reviewItems
+        .nth(1)
+        .getByText("akb://reef-e2e/coll/issues/doc/reef-001.md"),
+    ).toBeVisible();
+    const back = review.getByRole("button", { name: "Back to issues" });
+    const send = review.getByRole("button", {
+      name: "Send to this conversation",
+    });
+    await expect(back).toBeInViewport({ ratio: 1 });
+    await expect(send).toBeInViewport({ ratio: 1 });
+    await back.click();
+    await expect(preview).toBeFocused();
+    await expect(updated).toBeChecked();
+    await preview.click();
+    const exact = review.getByText("Exact message content", { exact: true });
+    await expect(review.locator("#preview-text")).toBeHidden();
+    await exact.click();
+    await expect(review.locator("#preview-text")).toBeVisible();
+    for (const width of [320, 500]) {
+      await page.setViewportSize({ width, height: 640 });
+      expect(
+        await review
+          .locator(".panel-scroll")
+          .evaluate(
+            (element) =>
+              element.scrollWidth <= element.clientWidth &&
+              document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+      ).toBe(true);
+      await expect(send).toBeInViewport({ ratio: 1 });
+    }
     const text = await app.locator("#preview-text").textContent();
     expect(text).toMatch(/^Issue Context\n\n/u);
+    await page.evaluate(() => {
+      Reflect.get(window, "reefTheme")("light", "#fcfcff");
+    });
+    await expect(app.locator("html")).toHaveCSS("color-scheme", "light");
+    await expect(review.locator("#preview-text")).toBeVisible();
+    expect(await review.locator("#preview-text").textContent()).toBe(text);
     expect(JSON.parse(text?.split("\n\n")[1] ?? "")).toEqual({
       issues: [
+        {
+          id: "REEF-002",
+          title: "Initial issue Beta",
+          status: "closed",
+          updated_at: expect.any(String),
+          queried_at: expect.any(String),
+          document_uri: "akb://reef-e2e/coll/issues/doc/reef-002.md",
+        },
         {
           id: "REEF-001",
           title: "Updated from Reef",
@@ -513,20 +621,34 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
     expect(messages).toEqual([]);
     expect(contextUpdates).toEqual([]);
 
-    const send = app.getByRole("button", { name: "Send to this conversation" });
     await send.click();
+    await expect(review.getByText("Sending Issue Context…")).toBeVisible();
+    await expect(send).toBeDisabled();
+    await expect(back).toBeDisabled();
+    await expect.poll(() => messages.length).toBe(1);
+    releaseFirstSend?.();
     await expect(
       app.getByText("The host declined the request.", { exact: false }),
     ).toBeVisible();
     await expect(send).toBeEnabled();
+    await expect(send).toBeFocused();
     await expect(app.locator("#preview-text")).toHaveText(text ?? "");
+    await send.click();
+    await expect(
+      review.getByText("Delivery could not be confirmed.", { exact: false }),
+    ).toBeVisible();
     await send.click();
     await expect(
       app.getByText("The host accepted the request.", { exact: false }),
     ).toBeVisible();
     await expect(send).toBeDisabled();
+    await expect(back).toBeFocused();
     const payload = { role: "user", content: [{ type: "text", text }] };
-    expect(messages).toEqual([payload, payload]);
+    expect(messages).toEqual([payload, payload, payload]);
     expect(contextUpdates).toEqual([]);
+    await expect(page.locator("body")).toHaveAttribute(
+      "data-size-notifications",
+      "1",
+    );
   });
 });
