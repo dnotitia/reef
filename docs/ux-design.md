@@ -586,6 +586,9 @@ fluid main column:
   Sub-issues stays directly below Description. Its pending state uses a row
   placeholder until the whole-vault list succeeds; request failures offer retry,
   and cached child rows remain visible while the list revalidates.
+  The Parent section shows the current parent as a link with its issue type,
+  ID, and title above the parent picker. When no parent is set, the section
+  displays "No parent issue".
   Relation targets render as compact issue rows rather than pill chips.
   The attachment section appears only for downloadable files or a read error.
   An initial read keeps one polite, visually hidden status and reserves no

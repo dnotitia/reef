@@ -923,7 +923,9 @@
     },
     "detailSidebar": {
       "noRequester": "No requester",
-      "noReporter": "No reporter"
+      "noReporter": "No reporter",
+      "noParent": "No parent issue",
+      "openParent": "Open"
     },
     "sort": {
       "sortBy": "Sort by",

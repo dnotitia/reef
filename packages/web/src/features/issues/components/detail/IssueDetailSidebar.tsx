@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { PriorityOption } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
+import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import {
   useEnrichmentEmptyLabels,
@@ -17,6 +18,7 @@ import {
 import type {
   IssueListItem,
   IssueMetadata,
+  IssueRelation,
   IssueType,
   IssueUpdatePatch,
   Priority,
@@ -25,8 +27,9 @@ import type {
 } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
+import { ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { ComponentProps } from "react";
+import Link from "next/link";
 import {
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
@@ -64,7 +67,7 @@ interface IssueDetailSidebarProps {
   issueId: string;
   issue: IssueMetadata | undefined;
   allIssues: readonly IssueListItem[];
-  relations: ComponentProps<typeof IssueRelationInput>["relationGraph"];
+  relations: readonly IssueRelation[] | undefined;
   issueType: IssueType;
   status: Status;
   priority: Priority | "";
@@ -166,6 +169,13 @@ export function IssueDetailSidebar({
   const s = useTranslations("sections");
   const c = useTranslations("common");
   const t = useTranslations("issues.detailSidebar");
+  const getDrillProps = useIssueDrill(issueId, vault);
+  const currentParentId = issue?.parent_id;
+  const parent = currentParentId
+    ? (allIssues.find(({ id }) => id === currentParentId) ??
+      relations?.find(({ id }) => id === currentParentId))
+    : undefined;
+
   return (
     // Property-list rail (REEF-149): every scalar field is one `IssueFieldRow`
     // (fixed label + full-width value) instead of `grid-cols-2` half-cells, so
@@ -431,6 +441,39 @@ export function IssueDetailSidebar({
       </IssueFormSection>
 
       <IssueFormSection title={fieldNames.parent}>
+        {currentParentId ? (
+          <Link
+            {...getDrillProps(currentParentId)}
+            className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+          >
+            {parent && (
+              <TypePill
+                type={parent.issue_type}
+                variant="badge"
+                labelClassName="sr-only"
+              />
+            )}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span
+                className="type-compact-mono text-muted-foreground"
+                translate="no"
+              >
+                {currentParentId}
+              </span>
+              {parent && (
+                <span className="type-control break-words text-foreground">
+                  {parent.title}
+                </span>
+              )}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 type-control text-muted-foreground">
+              {t("openParent")}
+              <ArrowUpRight className="size-3.5" aria-hidden="true" />
+            </span>
+          </Link>
+        ) : (
+          <p className="type-control text-muted-foreground">{t("noParent")}</p>
+        )}
         <IssueRelationInput
           id="issue-parent"
           label={fieldNames.parent}

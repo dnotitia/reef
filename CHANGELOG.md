@@ -19,6 +19,7 @@ issues, not public GitHub issues.
   Open the issue picker in a new conversation to see recent issue snapshots
   from your accessible workspaces. Filter the snapshots, preview a selection,
   and send it to the conversation that owns the App.
+- Open a parent issue from the Parent section while editing a child issue.
 
 ## v0.19.2 - 2026-11-04
 
