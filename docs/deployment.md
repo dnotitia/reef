@@ -477,6 +477,7 @@ The event processor reads the processor ConfigMap and Secret shown above.
 | `REEF_KEYCLOAK_TRANSPORT_URL` | yes in production SSO | Private/in-cluster realm URL used for token, JWKS, and revocation calls. Its realm path must match the issuer. |
 | `REEF_KEYCLOAK_CLIENT_ID` | yes for SSO | Dedicated Reef companion client id, registered in AKB's human API allowlist. |
 | `REEF_AKB_API_AUDIENCE` | yes for SSO | Exact AKB human API audience required on the Keycloak access token. |
+| `REEF_MCP_EXCHANGE_CLIENT_SECRET` | for Codex access | Client secret for the Keycloak client whose ID is the canonical Reef `/mcp` URL. Store it in the Reef server Secret. |
 | `REEF_SESSION_REDIS_URL` | yes in production SSO | Authenticated Redis endpoint for encrypted session/login-state custody and refresh locks. |
 | `REEF_SESSION_ENCRYPTION_KEY` | yes in production SSO | Independent 32-byte AES-256-GCM key, base64/base64url encoded, stored in the deployment Secret. |
 | `REEF_AUTH_SESSION_NAMESPACE` | yes in production SSO | Deployment-managed namespace/epoch for encrypted session records. Change it for mode, issuer, client, key, or record-schema cutover; old records are not parsed or migrated. Never reuse an old SSO namespace. |
@@ -508,6 +509,68 @@ encrypted Redis and its cookie is only an opaque handle. GitHub and LLM credenti
 deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
 values must be set together; with none set, AI routes are unavailable but Reef,
 AKB, and Keycloak flows remain ready.
+
+### Codex access with Keycloak
+
+Keep the existing Reef web companion client, callback, and AKB mapping. The
+Codex plugin uses the same Keycloak realm with its own OAuth client and native
+credential store. For example, if `REEF_PUBLIC_ORIGIN=https://reef.example.com`,
+the MCP resource and confidential exchange client ID are both
+`https://reef.example.com/mcp`.
+
+1. In Keycloak, add `reef:issues:read` as an optional client scope available to
+   Codex clients through the realm's existing dynamic client registration
+   (DCR) policy. Include the scope name in the access token. Add an access-token
+   Audience mapper with **Included Custom Audience** set to the exact MCP
+   resource URL. Use the mapper to bind the audience when the realm does not
+   process RFC 8707 resource indicators. The signed Codex access token must
+   have that sole audience, the read scope, and a user session ID.
+2. Preserve existing DCR clients and policies when adding the scope. Codex
+   registers a public native client and uses authorization code with S256 PKCE
+   and a loopback redirect. Publish the realm's RFC 8414 discovery endpoint
+   (`/.well-known/oauth-authorization-server/realms/<realm>`) and the registration
+   endpoint it advertises. Keep `offline_access` available as an optional scope
+   and retain the existing user role for it. Codex adds it to its authorization
+   request and uses the resulting grant to refresh its access token.
+3. Create the confidential exchange client with the MCP resource URL as its
+   client ID. Enable **Standard token exchange** (V2) and client-secret
+   authentication. Disable interactive and implicit flows, direct access
+   grants, service accounts, and issuance of refresh tokens for exchange.
+   Keep the human claims required by AKB. Give the client a default Audience
+   mapper for the exact `REEF_AKB_API_AUDIENCE` as its sole access-token
+   audience. Reef uses `client_secret_post` and lets this mapper select the
+   audience. Use short access-token lifetimes for both clients.
+4. In AKB's `keycloak_companion_client_ids_by_origin`, keep the existing
+   public origin mapped to the Reef web client. Add the actual Reef service
+   origin mapped to the exchange client ID. For example, for the `reef-web`
+   Service in namespace `akb`, the entries would be:
+
+   ```yaml
+   keycloak_companion_client_ids_by_origin:
+     https://reef.example.com: reef-web
+     http://reef-web.akb.svc.cluster.local:3000: https://reef.example.com/mcp
+   ```
+
+   Use the service origin from your cluster. AKB admits the exchange client
+   as a human API client and still checks live account and workspace
+   permissions. Reef exposes read operations through MCP. The exchanged
+   token has the user's AKB REST authority and stays in the Reef server.
+5. After the AKB configuration is active, set
+   `REEF_MCP_EXCHANGE_CLIENT_SECRET` in Reef's deployment Secret. Restart Reef
+   and verify both web SSO and Codex setup. Check that MCP discovery advertises
+   the public Keycloak issuer and that Codex can list only the user's
+   accessible workspaces.
+
+Reef exchanges a fresh AKB access token per authenticated MCP HTTP request and
+keeps it in memory for that request, bounded by the earlier token expiry.
+Reef web sign-out clears the browser session. Codex can retain an independent
+Keycloak offline grant. Use Codex logout to remove the native connection's
+saved OAuth credentials, or revoke the grant in Keycloak to end its ability
+to refresh. Already-issued access tokens remain subject to Keycloak exchange
+checks, AKB account checks, and their expiry.
+
+See [Keycloak's MCP setup](https://www.keycloak.org/securing-apps/mcp-authz-server)
+and [standard token exchange](https://www.keycloak.org/securing-apps/token-exchange).
 
 ### One-shot release CLI inputs
 

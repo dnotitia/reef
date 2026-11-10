@@ -1,1 +1,1 @@
-export { resourceMetadata as GET } from "@/server/plugin/oauth";
+export { resourceMetadata as GET } from "@/server/plugin/mcpAuth";

@@ -11,6 +11,7 @@ import {
   type AkbAdapter,
   AuthError,
   IssueListQuerySchema,
+  NotFoundError,
   StatusEnum,
   VaultNameSchema,
   akbIssueDocumentUri,
@@ -29,13 +30,12 @@ import {
   WORKSPACES_TOOL,
   WorkspacesResult,
 } from "@/lib/reefPlugin/issueContract";
-import { authenticateMcp, isResourceDenial, mcpAuthError } from "./oauth";
-import { OAuthFailure } from "./oauthProtocol";
-import { GRANT_TTL } from "./oauthStore";
+import { authenticateMcp, isResourceDenial, mcpAuthError } from "./mcpAuth";
 
 const UI_URI = "ui://reef/recent-issues.html";
 const PAGE_SIZE = 50;
 const DAY_MS = 24 * 60 * 60 * 1_000;
+const PAGE_CUTOFF_MAX_AGE_MS = 60 * 60 * 1_000;
 const READ_ONLY = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -45,7 +45,7 @@ const APP_ONLY = { ui: { visibility: ["app" as const] } };
 
 async function activeWorkspaces(adapter: AkbAdapter) {
   if (!readInstallationTarget())
-    throw new OAuthFailure("temporarily_unavailable", 503);
+    throw new Error("Reef installation unavailable");
   return listActiveWorkspaces({ adapter });
 }
 
@@ -75,13 +75,7 @@ export async function serveIssueApp(request: Request) {
         invalidAuth = error;
         return errorResult("reauthentication_required");
       }
-      if (
-        [403, 404].includes(
-          error instanceof OAuthFailure
-            ? error.status
-            : describeError(error).status,
-        )
-      ) {
+      if ([403, 404].includes(describeError(error).status)) {
         return errorResult("workspace_denied");
       }
       logger.warn(
@@ -171,13 +165,13 @@ export async function serveIssueApp(request: Request) {
     ({ workspace, days, status, cursor, as_of }) =>
       read(async () => {
         if (!(await activeWorkspaces(adapter)).includes(workspace)) {
-          throw new OAuthFailure("workspace_denied", 403);
+          throw new NotFoundError({ resourceKind: "workspace" });
         }
         const now = Date.now();
         const queriedAt = new Date(now).toISOString();
         const cutoff = as_of ? Date.parse(as_of) : now;
-        if (cutoff > now || cutoff < now - GRANT_TTL * 1_000) {
-          throw new OAuthFailure("invalid_query");
+        if (cutoff > now || cutoff < now - PAGE_CUTOFF_MAX_AGE_MS) {
+          throw new Error("Issue snapshot query expired");
         }
         const { issues, next_cursor } = await akbListIssues({
           adapter,

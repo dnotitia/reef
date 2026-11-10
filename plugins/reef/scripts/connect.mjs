@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url";
 
 const RESOURCE_METADATA = "/.well-known/oauth-protected-resource/mcp";
 const ISSUER_METADATA = "/.well-known/oauth-authorization-server";
+const READ_SCOPE = "reef:issues:read";
+const SCOPES = ["openid", "profile", "email", READ_SCOPE];
 const LOOPBACK = new Set(["127.0.0.1", "[::1]", "localhost"]);
 const NATIVE_NAME = /^[A-Za-z0-9_-]+$/u;
 
@@ -29,16 +31,16 @@ export function reefResource(input) {
 }
 
 async function preflight(resource) {
-  const { origin } = new URL(resource);
-  async function discover(path) {
-    const response = await fetch(origin + path, {
+  const { origin, hostname } = new URL(resource);
+  async function discover(url) {
+    const response = await fetch(url, {
       redirect: "error",
       signal: AbortSignal.timeout(8_000),
     });
     const metadata = await response.json();
     if (response.status === 404 && metadata.error === "reef_sso_required") {
       throw new Error(
-        "This Reef deployment requires OAuth/SSO for the Codex plugin. Contact your Reef administrator.",
+        "This Reef deployment does not have Codex OAuth enabled. Contact your Reef administrator.",
       );
     }
     if (!response.ok)
@@ -48,35 +50,43 @@ async function preflight(resource) {
     return metadata;
   }
 
-  const protectedResource = await discover(RESOURCE_METADATA);
+  const protectedResource = await discover(origin + RESOURCE_METADATA);
+  const servers = protectedResource?.authorization_servers;
+  const issuerUrl =
+    Array.isArray(servers) && servers.length === 1
+      ? publicUrl(servers[0])
+      : null;
   if (
     protectedResource?.resource !== resource ||
-    protectedResource.authorization_servers?.length !== 1 ||
-    protectedResource.authorization_servers[0] !== origin
+    !Array.isArray(protectedResource.scopes_supported) ||
+    !protectedResource.scopes_supported.includes(READ_SCOPE) ||
+    !issuerUrl ||
+    (issuerUrl.protocol === "http:" && !LOOPBACK.has(hostname)) ||
+    !/^\/realms\/[A-Za-z0-9._~-]+$/u.test(issuerUrl.pathname)
   ) {
     throw new Error(
       "The URL did not identify the deployment's canonical Reef MCP endpoint.",
     );
   }
 
-  const issuer = await discover(ISSUER_METADATA);
+  const issuer = await discover(
+    issuerUrl.origin + ISSUER_METADATA + issuerUrl.pathname,
+  );
   if (
-    issuer?.issuer !== origin ||
+    issuer?.issuer !== issuerUrl.href ||
     ![
       "authorization_endpoint",
       "token_endpoint",
       "registration_endpoint",
     ].every((key) => {
-      const url =
-        typeof issuer[key] === "string" ? URL.parse(issuer[key]) : null;
+      const url = publicUrl(issuer[key]);
       return (
-        url?.origin === origin &&
-        !url.username &&
-        !url.password &&
-        url.href === origin + url.pathname
+        url?.origin === issuerUrl.origin &&
+        url.pathname.startsWith(`${issuerUrl.pathname}/`)
       );
     }) ||
-    !issuer.code_challenge_methods_supported?.includes("S256")
+    !Array.isArray(issuer.code_challenge_methods_supported) ||
+    !issuer.code_challenge_methods_supported.includes("S256")
   ) {
     throw new Error(
       "The deployment did not advertise Reef's native OAuth setup. Check the deployment URL and retry.",
@@ -84,17 +94,36 @@ async function preflight(resource) {
   }
 }
 
+function publicUrl(value) {
+  const url = typeof value === "string" ? URL.parse(value) : null;
+  if (
+    !url ||
+    url.href !== url.origin + url.pathname ||
+    url.username ||
+    url.password ||
+    (url.protocol !== "https:" &&
+      !(url.protocol === "http:" && LOOPBACK.has(url.hostname)))
+  )
+    return null;
+  return url;
+}
+
 function compatible(entry, resource) {
   return (
     entry?.url === resource &&
     entry.enabled !== false &&
+    entry.oauth_resource === resource &&
+    Array.isArray(entry.scopes) &&
+    entry.scopes.length === SCOPES.length &&
+    SCOPES.every((scope) => entry.scopes.includes(scope)) &&
     ![
       "bearer_token_env_var",
       "http_headers",
       "env_http_headers",
+      "http_headers_helper",
       "oauth",
       "oauth_client_id",
-      "oauth_resource",
+      "auth",
     ].some((key) => Object.hasOwn(entry, key))
   );
 }
@@ -176,7 +205,7 @@ export async function register(resource) {
       throw new Error("Codex did not provide a writable user configuration.");
     await rpc("config/value/write", {
       keyPath: `mcp_servers.${name}`,
-      value: { url: resource },
+      value: { url: resource, scopes: SCOPES, oauth_resource: resource },
       mergeStrategy: "replace",
       filePath: user.name.file,
       expectedVersion: user.version,
@@ -203,12 +232,20 @@ async function connect(input) {
         registration,
         oauth: "pending",
         ui: "unverified",
-        next: "Complete Reef sign-in and allow read access in the browser.",
+        next: "Sign in to Keycloak and approve Reef issue read access in the browser.",
       }),
     );
     const child = spawn(
       "codex",
-      ["mcp", "login", connection.name, "--oauth-client-registration", "dcr"],
+      [
+        "mcp",
+        "login",
+        connection.name,
+        "--oauth-client-registration",
+        "dcr",
+        "--scopes",
+        SCOPES.join(","),
+      ],
       {
         stdio: "ignore",
       },

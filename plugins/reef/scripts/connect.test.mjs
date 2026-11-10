@@ -77,18 +77,36 @@ test("onboarding preserves config, reuses a match and rejects collisions and sta
 
   const directory = await mkdtemp(join(tmpdir(), "reef-connect-test-"));
   const statePath = join(directory, "state.json");
+  const issuerServer = createServer((request, response) => {
+    const issuer = `http://127.0.0.1:${issuerServer.address().port}/realms/reef`;
+    if (request.url !== "/.well-known/oauth-authorization-server/realms/reef") {
+      response.writeHead(404).end("{}");
+      return;
+    }
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(
+      JSON.stringify({
+        issuer,
+        authorization_endpoint: `${issuer}/protocol/openid-connect/auth`,
+        registration_endpoint: `${issuer}/clients-registrations/openid-connect`,
+        token_endpoint: `${issuer}/protocol/openid-connect/token`,
+        code_challenge_methods_supported: ["S256"],
+      }),
+    );
+  });
   const server = createServer((request, response) => {
     const origin = `http://127.0.0.1:${server.address().port}`;
-    const metadata =
-      request.url === "/.well-known/oauth-protected-resource/mcp"
-        ? { resource: `${origin}/mcp`, authorization_servers: [origin] }
-        : {
-            issuer: origin,
-            authorization_endpoint: `${origin}/oauth/authorize`,
-            registration_endpoint: `${origin}/oauth/register`,
-            token_endpoint: `${origin}/oauth/token`,
-            code_challenge_methods_supported: ["S256"],
-          };
+    if (request.url !== "/.well-known/oauth-protected-resource/mcp") {
+      response.writeHead(404).end("{}");
+      return;
+    }
+    const metadata = {
+      resource: `${origin}/mcp`,
+      authorization_servers: [
+        `http://127.0.0.1:${issuerServer.address().port}/realms/reef`,
+      ],
+      scopes_supported: ["reef:issues:read"],
+    };
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify(metadata));
   });
@@ -120,10 +138,13 @@ test("onboarding preserves config, reuses a match and rejects collisions and sta
   const save = (state) => writeFile(statePath, JSON.stringify(state));
   try {
     await writeFile(join(directory, "codex"), FAKE_CODEX, { mode: 0o700 });
+    issuerServer.listen(0, "127.0.0.1");
+    await once(issuerServer, "listening");
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
     const resource = `http://127.0.0.1:${server.address().port}/mcp`;
     const name = `reef-${createHash("sha256").update(resource).digest("hex").slice(0, 12)}`;
+    const scopes = ["openid", "profile", "email", "reef:issues:read"];
     const original = {
       model: "unrelated-model",
       mcp_servers: { other: { command: "unrelated-command" } },
@@ -144,14 +165,21 @@ test("onboarding preserves config, reuses a match and rejects collisions and sta
     assert.equal(rerun.result.registration, "existing");
     assert.deepEqual((await read()).config, {
       ...original,
-      mcp_servers: { ...original.mcp_servers, [name]: { url: resource } },
+      mcp_servers: {
+        ...original.mcp_servers,
+        [name]: { url: resource, scopes, oauth_resource: resource },
+      },
     });
     assert.equal((await read()).writes.length, 1);
     assert.equal((await read()).writes[0].expectedVersion, "initial");
-    assert.deepEqual((await read()).logins, [
-      [name, "--oauth-client-registration", "dcr"],
-      [name, "--oauth-client-registration", "dcr"],
-    ]);
+    const login = [
+      name,
+      "--oauth-client-registration",
+      "dcr",
+      "--scopes",
+      scopes.join(","),
+    ];
+    assert.deepEqual((await read()).logins, [login, login]);
 
     const collision = {
       ...original,
@@ -172,6 +200,7 @@ test("onboarding preserves config, reuses a match and rejects collisions and sta
     assert.deepEqual((await read()).logins, []);
   } finally {
     server.close();
+    issuerServer.close();
     await rm(directory, { recursive: true, force: true });
   }
 });

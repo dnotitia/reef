@@ -11,5 +11,6 @@ export function ssoFixtureConfig(webUrl, mockUrl) {
     redisPort,
     clientId: "reef-e2e",
     audience: "reef-akb-e2e",
+    mcpSecret: "fixture-mcp-exchange",
   };
 }

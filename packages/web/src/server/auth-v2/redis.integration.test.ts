@@ -37,13 +37,6 @@ describe.skipIf(!redisUrl)("real Redis auth-v2 backend", () => {
     ).resolves.toBeNull();
     if (owner) await runtime.refreshLock.release("A".repeat(43), owner);
     await runtime.backend.del(key);
-    const consent = `${key}:consent`;
-    const claimed = await Promise.all([
-      runtime.claim(consent, 10),
-      runtime.claim(consent, 10),
-    ]);
-    expect(claimed.filter(Boolean)).toHaveLength(1);
-    await runtime.backend.del(consent);
     await runtime.close();
   });
 });

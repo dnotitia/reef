@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { buildSync } from "esbuild";
 import { E2E_MOCK_URL } from "../harness/fixture";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
@@ -6,72 +5,17 @@ import { test as workspaceTest } from "../harness/workspace-fixture";
 
 const test = workspaceTest.extend({ scenario: "plugin_recent_issues" });
 
-const callback = "http://127.0.0.1:49073/callback/fixture";
-const verifier = "fixture_verifier_".repeat(4);
-const challenge = createHash("sha256").update(verifier).digest("base64url");
-const state = 'client state "<reef>&"';
-
-async function discover(request: APIRequestContext) {
-  const challengeResponse = await request.get("/mcp");
-  expect(challengeResponse.status()).toBe(401);
-  const resourceDiscovery = challengeResponse
-    .headers()
-    ["www-authenticate"]?.match(/resource_metadata="([^"]+)"/u)?.[1];
-  expect(resourceDiscovery).toBeDefined();
-  const resourceMetadata = await (
-    await request.get(resourceDiscovery ?? "")
-  ).json();
-  const [issuer] = resourceMetadata.authorization_servers;
-  const metadata = await (
-    await request.get(`${issuer}/.well-known/oauth-authorization-server`)
-  ).json();
-  expect(metadata.issuer).toBe(issuer);
-  const registered = await request.post(metadata.registration_endpoint, {
-    data: {
-      client_name: "Codex",
-      redirect_uris: [callback],
-      grant_types: ["authorization_code", "refresh_token"],
-      token_endpoint_auth_method: "none",
-      response_types: ["code"],
-      application_type: "native",
-    },
+async function subjectToken(
+  request: APIRequestContext,
+  username: "alice" | "bob" = "alice",
+  variant?: "wrong-audience" | "expired" | "missing-scope",
+) {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/mcp-subject`, {
+    data: { username, variant },
   });
-  expect(registered.status()).toBe(201);
-  const { client_id, grant_types } = await registered.json();
-  expect(grant_types).toEqual(["authorization_code"]);
-  return {
-    ...metadata,
-    clientId: client_id,
-    resource: resourceMetadata.resource,
-  };
-}
-
-type Discovery = Awaited<ReturnType<typeof discover>>;
-
-function authorization(flow: Discovery) {
-  const url = new URL(flow.authorization_endpoint);
-  url.search = new URLSearchParams({
-    client_id: flow.clientId,
-    redirect_uri: callback,
-    resource: flow.resource,
-    response_type: "code",
-    state,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-  }).toString();
-  return url;
-}
-
-async function receiveCallback(page: Page, button: string) {
-  await page.route(`${callback}**`, async (route) => {
-    expect(route.request().headers().referer).toBeUndefined();
-    await route.fulfill({ body: "Native callback reached" });
-  });
-  await page.getByRole("button", { name: button }).click();
-  await expect(page.getByText("Native callback reached")).toBeVisible();
-  const params = new URL(page.url()).searchParams;
-  expect(params.get("state")).toBe(state);
-  return params;
+  expect(response.ok()).toBe(true);
+  const body: { access_token: string } = await response.json();
+  return body.access_token;
 }
 
 function mcp(
@@ -89,15 +33,10 @@ function mcp(
   });
 }
 
-function codeExchange(flow: Discovery, code: string) {
-  return {
-    client_id: flow.clientId,
-    redirect_uri: callback,
-    resource: flow.resource,
-    grant_type: "authorization_code",
-    code,
-    code_verifier: verifier,
-  };
+async function signInWeb(page: Page) {
+  await page.goto("/login?redirect=%2Fonboarding");
+  await page.getByRole("link", { name: "Continue", exact: true }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
 }
 
 async function mountIssuePicker(page: Page, html: string) {
@@ -147,84 +86,83 @@ async function mountIssuePicker(page: Page, html: string) {
   return page.frameLocator('iframe[title="Reef App"]');
 }
 
-test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
-  test("continues existing SSO, binds and consumes approval and code, serves the App, then honors logout", async ({
+test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
+  test("advertises Keycloak and exchanges only valid read-scoped Reef tokens", async ({
     page,
     request,
+    baseURL,
   }) => {
-    const flow = await discover(request);
-    const browserUrl = authorization(flow);
-    const wrongCallback = new URL(browserUrl);
-    wrongCallback.searchParams.set("redirect_uri", `${callback}-different`);
-    const rejected = await request.get(wrongCallback.href, {
-      maxRedirects: 0,
-      headers: { "Accept-Language": "ko" },
-    });
-    expect(rejected.status()).toBe(400);
-    expect(await rejected.text()).toContain(
-      "Codex로 돌아가 배포 URL로 Reef 설정을 다시 실행해 주세요.",
+    const resourceUrl = new URL("/mcp", baseURL);
+    const discoveryUrl = new URL(
+      "/.well-known/oauth-protected-resource/mcp",
+      resourceUrl,
     );
-    const wrongResource = new URL(browserUrl);
-    wrongResource.searchParams.set("resource", `${flow.resource}-different`);
+    const missing = await request.get("/mcp");
+    expect(missing.status()).toBe(401);
+    expect(missing.headers()["www-authenticate"]).toBe(
+      `Bearer resource_metadata="${discoveryUrl.href}"`,
+    );
+    const metadata = await request.get(discoveryUrl.href);
+    expect(await metadata.json()).toEqual({
+      resource: resourceUrl.href,
+      authorization_servers: [
+        `https://oidc.localhost:${resourceUrl.port}/realms/reef`,
+      ],
+      scopes_supported: ["reef:issues:read"],
+      bearer_methods_supported: ["header"],
+    });
     expect(
-      (await request.get(wrongResource.href, { maxRedirects: 0 })).status(),
-    ).toBe(400);
+      (await request.get("/.well-known/oauth-authorization-server")).status(),
+    ).toBe(404);
 
-    await page.goto(browserUrl.href);
-    await page.getByRole("link", { name: "Continue", exact: true }).click();
-    await expect(
-      page.getByRole("heading", { name: "Connect Reef to your app" }),
-    ).toBeVisible();
-    const consent = new URL(page.url());
-    expect(consent.pathname).toBe("/oauth/consent");
-    expect((await request.get(consent.href)).status()).toBe(400);
-    const approval = {
-      transaction: consent.searchParams.get("transaction") ?? "",
-      action: await page.locator('input[name="action"]').inputValue(),
-      decision: "approve",
-    };
-    const badOrigin = await page.request.post("/oauth/consent", {
-      headers: { Origin: "https://other.test" },
-      form: approval,
-    });
-    expect(badOrigin.status()).toBe(403);
-
-    const consentCookies = (await page.context().cookies(consent.href))
-      .map(({ name, value }) => `${name}=${value}`)
-      .join("; ");
-    const callbackParams = await receiveCallback(page, "Allow read access");
-    const replay = await request.post("/oauth/consent", {
-      headers: { Origin: flow.issuer, Cookie: consentCookies },
-      form: approval,
-    });
-    expect(replay.status()).toBe(400);
-    expect(await replay.text()).toContain("run Reef setup again");
-    const code = callbackParams.get("code") ?? "";
-    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/u);
-    const tokenForm = codeExchange(flow, code);
-    for (const invalid of [
-      { client_id: `9999999999.${"A".repeat(43)}` },
-      { redirect_uri: `${callback}-wrong` },
-      { resource: `${flow.resource}-wrong` },
-      { code_verifier: "B".repeat(43) },
+    for (const token of [
+      "invalid",
+      await subjectToken(request, "alice", "wrong-audience"),
+      await subjectToken(request, "alice", "expired"),
     ]) {
-      expect(
-        (
-          await request.post(flow.token_endpoint, {
-            form: { ...tokenForm, ...invalid },
-          })
-        ).status(),
-      ).toBe(400);
+      const refused = await mcp(request, token, "tools/list");
+      expect(refused.status()).toBe(401);
+      expect(refused.headers()["www-authenticate"]).toContain(
+        'error="invalid_token"',
+      );
     }
-    const exchanges = await Promise.all(
-      [1, 2].map(() => request.post(flow.token_endpoint, { form: tokenForm })),
+    const noScope = await mcp(
+      request,
+      await subjectToken(request, "alice", "missing-scope"),
+      "tools/list",
     );
-    expect(exchanges.map((response) => response.status()).sort()).toEqual([
-      200, 400,
-    ]);
-    const granted = exchanges.find((response) => response.ok());
-    const { access_token: token, expires_in } = await granted?.json();
-    expect(expires_in).toBeGreaterThan(0);
+    expect(noScope.status()).toBe(403);
+    expect(noScope.headers()["www-authenticate"]).toContain(
+      'error="insufficient_scope", scope="reef:issues:read"',
+    );
+
+    const token = await subjectToken(request);
+    const wrongOrigin = await request.get("/mcp", {
+      headers: {
+        Origin: "https://other.test",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    expect(wrongOrigin.status()).toBe(403);
+
+    await signInWeb(page);
+    const me = await page.request.get("/api/auth/akb/me");
+    expect(me.status()).toBe(200);
+    expect(await me.json()).toMatchObject({ username: "alice" });
+    expect((await page.request.get("/mcp")).status()).toBe(401);
+    const observation = `${E2E_MOCK_URL}/__e2e/sso`;
+    expect(await (await request.get(observation)).json()).toMatchObject({
+      exchanges: 1,
+      mcpExchanges: 0,
+      sessionRecords: 1,
+    });
+    expect(
+      (
+        await request.get(`${E2E_MOCK_URL}/akb/api/v1/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ).status(),
+    ).toBe(401);
 
     const initialized = await mcp(request, token, "initialize", {
       protocolVersion: "2025-11-25",
@@ -232,6 +170,10 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
       clientInfo: { name: "fixture", version: "1" },
     });
     expect(initialized.status()).toBe(200);
+    expect(await (await request.get(observation)).json()).toMatchObject({
+      mcpExchanges: 1,
+      sessionRecords: 1,
+    });
     const tools = await (await mcp(request, token, "tools/list")).json();
     expect(tools.result.tools).toEqual(
       expect.arrayContaining([
@@ -325,58 +267,37 @@ test.describe("Reef plugin OAuth", { tag: "@sso" }, () => {
       ).json();
       expect(invalid.result?.isError || invalid.error).toBeTruthy();
     }
+    const bobToken = await subjectToken(request, "bob");
+    const bobWorkspaces = await (
+      await mcp(request, bobToken, "tools/call", {
+        name: "reef_list_workspaces",
+        arguments: {},
+      })
+    ).json();
+    expect(bobWorkspaces.result.structuredContent.workspaces).toEqual([
+      "reef-e2e",
+    ]);
     const denied = await (
-      await mcp(request, token, "tools/call", {
+      await mcp(request, bobToken, "tools/call", {
         name: "reef_list_recent_issues",
-        arguments: { workspace: "hidden-workspace" },
+        arguments: { workspace: "reef-second" },
       })
     ).json();
     expect(denied.result).toMatchObject({
       isError: true,
       structuredContent: { error: "workspace_denied" },
     });
-
-    const logout = await page.request.post("/api/auth/akb/logout", {
-      headers: { Origin: flow.issuer },
-    });
-    expect(logout.status()).toBe(200);
-    const revoked = await mcp(request, token, "resources/read", {
-      uri: "ui://reef/recent-issues.html",
-    });
-    expect(revoked.status()).toBe(401);
-    expect(revoked.headers()["www-authenticate"]).toContain(
-      'error="invalid_token"',
-    );
-  });
-
-  test("reuses the signed-in browser and reports denial to the exact native callback", async ({
-    page,
-    request,
-  }) => {
-    await page.goto("/login?redirect=%2Fonboarding");
-    await page.getByRole("link", { name: "Continue", exact: true }).click();
-    await expect(page).toHaveURL(/\/onboarding$/);
-    const flow = await discover(request);
-    await page.goto(authorization(flow).href);
-    await expect(page).toHaveURL(/\/oauth\/consent\?/);
-    const params = await receiveCallback(page, "Cancel");
-    expect(params.get("error")).toBe("access_denied");
-    expect(params.has("code")).toBe(false);
+    const stats = await (await request.get(observation)).json();
+    expect(stats.sessionRecords).toBe(1);
+    expect(stats.bearerForwarded).toBe(true);
   });
 
   test("browses and refreshes fixture-backed snapshots and sends the exact preview only on request", async ({
     page,
     request,
   }) => {
-    const flow = await discover(request);
-    await page.goto(authorization(flow).href);
-    await page.getByRole("link", { name: "Continue", exact: true }).click();
-    const callbackParams = await receiveCallback(page, "Allow read access");
-    const grant = await request.post(flow.token_endpoint, {
-      form: codeExchange(flow, callbackParams.get("code") ?? ""),
-    });
-    expect(grant.ok()).toBe(true);
-    const { access_token: token } = await grant.json();
+    await signInWeb(page);
+    const token = await subjectToken(request);
     const resource = await (
       await mcp(request, token, "resources/read", {
         uri: "ui://reef/recent-issues.html",

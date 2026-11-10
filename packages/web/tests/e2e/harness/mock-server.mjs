@@ -69,6 +69,14 @@ const server = createServer(async (req, res) => {
 
     if (sso && url.pathname.startsWith("/realms/reef/"))
       return sso.oidc.handle(req, res, url);
+    if (
+      sso &&
+      state.scenario === "plugin_recent_issues" &&
+      url.pathname === "/__e2e/mcp-subject" &&
+      req.method === "POST"
+    ) {
+      return sso.oidc.mintMcpSubject(req, res);
+    }
     if (sso && url.pathname === "/__e2e/sso") {
       if (req.method === "POST") {
         const body = await readJson(req);

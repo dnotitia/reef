@@ -32,20 +32,6 @@
       "sendAccepted": "호스트가 전달 요청을 접수했습니다. 이 대화에서 메시지를 확인해 주세요.",
       "sendRejected": "호스트가 전달 요청을 거절했습니다. 이 미리보기 내용을 다시 보낼 수 있습니다.",
       "sendUnconfirmed": "전달 여부를 확인할 수 없습니다. 다시 보내기 전에 이 대화를 확인해 주세요."
-    },
-    "consent": {
-      "failureTitle": "Reef에 연결할 수 없습니다",
-      "accountFailure": "Reef 세션이 끝났거나 이 계정에 접근 권한이 없습니다.",
-      "unavailable": "현재 Reef에 로그인할 수 없습니다.",
-      "ssoRequired": "이 배포에서 Codex 플러그인을 사용하려면 브라우저 SSO가 필요합니다.",
-      "invalidConnection": "연결 정보가 이 Reef 배포 또는 Codex 콜백과 일치하지 않습니다.",
-      "invalidConsent": "동의 요청이 만료됐거나 이 브라우저와 일치하지 않습니다.",
-      "retry": "Codex로 돌아가 배포 URL로 Reef 설정을 다시 실행해 주세요.",
-      "returnToClient": "앱으로 돌아가기",
-      "title": "앱에 Reef 연결",
-      "description": "이 기기의 앱에 접근 가능한 Reef 워크스페이스와 최근 이슈를 읽을 권한을 허용합니다. 연결은 현재 Reef 로그인에 연결됩니다.",
-      "deny": "취소",
-      "approve": "읽기 허용"
     }
   },
   "linkSafety": {

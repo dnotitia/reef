@@ -9,7 +9,7 @@ export interface AuthV2RedisClient {
   set(
     key: string,
     value: string,
-    options: { EX: number; NX?: true },
+    options: { EX: number },
   ): Promise<string | null | undefined>;
   get(key: string): Promise<string | null>;
   getDel(key: string): Promise<string | null>;
@@ -142,11 +142,4 @@ async function redisCall<T>(operation: () => Promise<T>): Promise<T> {
     // the auth boundary. Callers map this bounded error to a retryable 503.
     throw new AuthV2RedisBackendError();
   }
-}
-
-export function createAuthV2RedisClaim(client: AuthV2RedisClient) {
-  return async (key: string, ttlSeconds: number): Promise<boolean> =>
-    (await redisCall(() =>
-      client.set(key, "used", { EX: ttlSeconds, NX: true }),
-    )) === "OK";
 }

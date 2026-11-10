@@ -14,6 +14,8 @@ issues, not public GitHub issues.
 ### Added
 
 - Connect a self-hosted Reef SSO deployment to Codex through the Reef plugin.
+  Keycloak signs in Codex, and Reef exchanges that credential for an AKB API
+  token for each MCP request.
   Open the issue picker in a new conversation to see recent issue snapshots
   from your accessible workspaces. Filter the snapshots, preview a selection,
   and send it to the conversation that owns the App.
