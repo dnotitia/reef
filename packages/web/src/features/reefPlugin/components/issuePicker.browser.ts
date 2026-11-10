@@ -209,21 +209,24 @@ function showFeedback(message: string, tone?: "error") {
   else delete feedback.dataset.tone;
 }
 
-async function loadPage(run: QueryRun, cursor?: string) {
-  const startedWithPageAction =
-    document.activeElement === more || document.activeElement === retry;
-  const canMoveFocus = () => {
-    const focused = document.activeElement;
-    return (
-      startedWithPageAction &&
-      stage.kind === "browse" &&
-      (focused === document.body || focused === more || focused === retry)
-    );
-  };
-  showFeedback(
-    cursor ? locale.picker.loadingMore : locale.picker.loadingIssues,
-  );
+function beginRead(message: string, action?: HTMLButtonElement) {
+  showFeedback(message);
+  const focused = document.activeElement;
+  const startedWithAction = focused === retry || focused === action;
+  if (startedWithAction) feedback.focus({ preventScroll: true });
   retry.hidden = true;
+  return startedWithAction;
+}
+
+async function loadPage(run: QueryRun, cursor?: string) {
+  const startedWithPageAction = beginRead(
+    cursor ? locale.picker.loadingMore : locale.picker.loadingIssues,
+    more,
+  );
+  const canMoveFocus = () =>
+    startedWithPageAction &&
+    stage.kind === "browse" &&
+    document.activeElement === feedback;
   more.disabled = true;
   let error = locale.picker.unavailable;
   try {
@@ -302,8 +305,7 @@ function loadMore() {
 }
 
 async function loadWorkspaces() {
-  showFeedback(locale.picker.loadingWorkspaces);
-  retry.hidden = true;
+  beginRead(locale.picker.loadingWorkspaces);
   try {
     const result = await app.callServerTool({
       name: WORKSPACES_TOOL,
@@ -423,6 +425,7 @@ function applyAppearance(context?: McpUiHostContext) {
 app.onhostcontextchanged = applyAppearance;
 
 async function connect() {
+  beginRead(locale.picker.connecting);
   try {
     await app.connect();
     const context = app.getHostContext();

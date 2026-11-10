@@ -373,6 +373,8 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
     await page.setViewportSize({ width: 320, height: 640 });
     const app = await mountIssuePicker(page, resource.result.contents[0].text);
     const preview = app.getByRole("button", { name: "Preview Issue Context" });
+    const retry = app.getByRole("button", { name: "Try again" });
+    const feedback = app.locator("#feedback");
     const alpha = app.getByRole("checkbox", {
       name: "REEF-001 Initial issue Alpha",
     });
@@ -387,8 +389,9 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
       "rgb(252, 252, 255)",
     );
     await setWorkspaceLifecycle("active");
-    await app.getByRole("button", { name: "Try again" }).click();
+    await retry.press("Enter");
     await expect(alpha).toBeVisible();
+    await expect(feedback).toBeFocused();
     expect(
       calls.filter(({ name }) => name === "reef_list_workspaces"),
     ).toHaveLength(2);
@@ -419,9 +422,10 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
         })
       ).ok(),
     ).toBe(true);
-    await app.getByRole("button", { name: "Try again" }).click();
+    await retry.press("Enter");
     await expect(app.getByRole("checkbox")).toHaveCount(1);
     await expect(app.getByRole("checkbox", { name: /REEF-002/ })).toBeVisible();
+    await expect(feedback).toBeFocused();
 
     await app.getByRole("combobox", { name: "Status" }).selectOption("");
     await expect(alpha).toBeVisible();
@@ -459,7 +463,7 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
     expect(
       (await request.post(listFailure, { data: { enabled: false } })).ok(),
     ).toBe(true);
-    await app.getByRole("button", { name: "Try again" }).click();
+    await retry.press("Enter");
     await expect(app.getByRole("checkbox")).toHaveCount(53);
     await expect(app.getByRole("checkbox").nth(50)).toBeFocused();
     await expect(alpha).toBeChecked();
@@ -532,6 +536,19 @@ test.describe("Keycloak-backed Reef plugin", { tag: "@sso" }, () => {
         exact: true,
       }),
     ).toBeVisible();
+    for (const width of [320, 500]) {
+      await page.setViewportSize({ width, height: 640 });
+      expect(
+        await app
+          .locator("#browse .panel-scroll")
+          .evaluate(
+            (element) =>
+              element.scrollWidth <= element.clientWidth &&
+              document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+      ).toBe(true);
+    }
+    await page.setViewportSize({ width: 320, height: 640 });
     await page.evaluate(() => {
       Reflect.get(window, "reefTheme")("dark", "#20242a");
     });
