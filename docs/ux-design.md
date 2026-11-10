@@ -587,8 +587,9 @@ fluid main column:
   placeholder until the whole-vault list succeeds; request failures offer retry,
   and cached child rows remain visible while the list revalidates.
   The Parent section shows the current parent as a link with its issue type,
-  ID, and title above the parent picker. When no parent is set, the section
-  displays "No parent issue".
+  ID, and title above the parent picker. The title stays on one line. If the
+  title is truncated, hovering or focusing the link shows the full title.
+  When no parent is set, the section displays "No parent issue".
   Relation targets render as compact issue rows rather than pill chips.
   The attachment section appears only for downloadable files or a read error.
   An initial read keeps one polite, visually hidden status and reserves no

@@ -7,6 +7,10 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
+import {
+  OverflowTooltip,
+  useTextOverflow,
+} from "@/components/ui/overflow-tooltip";
 import { PriorityOption } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
@@ -30,6 +34,7 @@ import { STATUS_OPTIONS } from "@reef/core/fields";
 import { ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useRef } from "react";
 import {
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
@@ -175,6 +180,13 @@ export function IssueDetailSidebar({
     ? (allIssues.find(({ id }) => id === currentParentId) ??
       relations?.find(({ id }) => id === currentParentId))
     : undefined;
+  const parentTitle = parent?.title ?? "";
+  const parentTitleRef = useRef<HTMLSpanElement>(null);
+  const isParentTitleOverflowing = useTextOverflow(
+    parentTitleRef,
+    parentTitle,
+    Boolean(parent),
+  );
 
   return (
     // Property-list rail (REEF-149): every scalar field is one `IssueFieldRow`
@@ -442,35 +454,43 @@ export function IssueDetailSidebar({
 
       <IssueFormSection title={fieldNames.parent}>
         {currentParentId ? (
-          <Link
-            {...getDrillProps(currentParentId)}
-            className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+          <OverflowTooltip
+            value={parentTitle}
+            isOverflowing={isParentTitleOverflowing}
           >
-            {parent && (
-              <TypePill
-                type={parent.issue_type}
-                variant="badge"
-                labelClassName="sr-only"
-              />
-            )}
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span
-                className="type-compact-mono text-muted-foreground"
-                translate="no"
-              >
-                {currentParentId}
-              </span>
+            <Link
+              {...getDrillProps(currentParentId)}
+              className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+            >
               {parent && (
-                <span className="type-control break-words text-foreground">
-                  {parent.title}
-                </span>
+                <TypePill
+                  type={parent.issue_type}
+                  variant="badge"
+                  labelClassName="sr-only"
+                />
               )}
-            </span>
-            <span className="flex shrink-0 items-center gap-1 type-control text-muted-foreground">
-              {t("openParent")}
-              <ArrowUpRight className="size-3.5" aria-hidden="true" />
-            </span>
-          </Link>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span
+                  className="type-compact-mono text-muted-foreground"
+                  translate="no"
+                >
+                  {currentParentId}
+                </span>
+                {parent && (
+                  <span
+                    ref={parentTitleRef}
+                    className="truncate type-control text-foreground"
+                  >
+                    {parentTitle}
+                  </span>
+                )}
+              </span>
+              <span className="flex shrink-0 items-center gap-1 type-control text-muted-foreground">
+                {t("openParent")}
+                <ArrowUpRight className="size-3.5" aria-hidden="true" />
+              </span>
+            </Link>
+          </OverflowTooltip>
         ) : (
           <p className="type-control text-muted-foreground">{t("noParent")}</p>
         )}

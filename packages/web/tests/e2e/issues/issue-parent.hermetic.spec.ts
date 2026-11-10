@@ -26,9 +26,17 @@ test("opens the saved parent from the property rail and reflects edits after reo
   const title = page.getByTestId("issue-title-input");
   const noParent = rail.getByText("No parent issue", { exact: true });
   const saved = page.getByTestId("issue-save-status");
+  const tooltip = page.getByRole("tooltip");
+  const points = rail.getByRole("spinbutton", { name: "Points" });
 
   await page.goto(`${issues}/REEF-002?view=list`);
   await expect(rootLink).toBeVisible();
+  await rootLink.hover();
+  await expect(tooltip).toHaveCount(0);
+  await points.focus();
+  await page.keyboard.press("Tab");
+  await expect(rootLink).toBeFocused();
+  await expect(tooltip).toHaveCount(0);
   await rootLink.click();
   await expect(title).toHaveValue(rootTitle);
   await expect(noParent).toBeVisible();
@@ -50,7 +58,18 @@ test("opens the saved parent from the property rail and reflects edits after reo
   await expect(newParentLink).toBeVisible();
   await expect(rootLink).toHaveCount(0);
   await page.reload();
-  await newParentLink.click();
+  await expect(
+    newParentLink.getByText(childEpicTitle, { exact: true }),
+  ).toHaveCSS("text-overflow", "ellipsis");
+  await newParentLink.hover();
+  await expect(tooltip).toHaveText(childEpicTitle);
+  await rail.getByRole("heading", { name: "Parent", exact: true }).hover();
+  await expect(tooltip).toHaveCount(0);
+  await points.focus();
+  await page.keyboard.press("Tab");
+  await expect(newParentLink).toBeFocused();
+  await expect(tooltip).toHaveText(childEpicTitle);
+  await newParentLink.press("Enter");
   await expect(title).toHaveValue(childEpicTitle);
 
   await page.goto(`${issues}/REEF-002?view=list`);
