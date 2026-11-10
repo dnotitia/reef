@@ -94,8 +94,8 @@ export function createRedisFixture() {
       case "EVAL": {
         const [script, keyCount, recordKey, expected, replacement, seconds] =
           params;
-        if (keyCount !== "1") throw new Error("unsupported EVAL keys");
         const normalized = script.replace(/\s+/gu, " ").trim();
+        if (keyCount !== "1") throw new Error("unsupported EVAL keys");
         const compareSet =
           'if redis.call("GET", KEYS[1]) == ARGV[1] then redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3]) return 1 end return 0';
         const compareDelete =

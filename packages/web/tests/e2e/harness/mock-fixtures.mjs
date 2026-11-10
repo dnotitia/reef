@@ -304,6 +304,35 @@ export function createScenarioVaults(scenario) {
   } else if (scenario === "markdown_mentions") {
     vaults.set(REEF_VAULT, markdownMentionsVault(REEF_VAULT));
     vaults.set("raw-vault", rawVault("raw-vault"));
+  } else if (scenario === "plugin_recent_issues") {
+    const vault = configuredVault(REEF_VAULT);
+    const now = Date.now();
+    const day = 86_400_000;
+    vault.issues[0].updated_at = new Date(now - day).toISOString();
+    vault.issues[1].updated_at = new Date(now - 2 * day).toISOString();
+    vault.issues[1].status = "closed";
+    vault.issues[2].updated_at = new Date(now - 14 * day).toISOString();
+    for (let index = 0; index < 50; index++) {
+      vault.issues.push(
+        issueRow({
+          id: `REEF-${100 + index}`,
+          title: `Older issue ${100 + index}`,
+          status: "in_progress",
+          updated_at: new Date(now - 9 * day - index * 60_000).toISOString(),
+        }),
+      );
+    }
+    vaults.set(REEF_VAULT, vault);
+    const second = configuredVault("reef-second");
+    second.issues = [
+      issueRow({
+        id: "REEF-901",
+        title: "Second workspace issue",
+        status: "todo",
+        updated_at: new Date(now - day).toISOString(),
+      }),
+    ];
+    vaults.set(second.name, second);
   } else if (scenario === "demo_board") {
     vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
     vaults.set("raw-vault", rawVault("raw-vault"));

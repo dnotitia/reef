@@ -183,7 +183,7 @@ export function parseIssueListQueryParams(
 // detection reads `next/headers`; a Route Handler returning `helper()` from its
 // async body flattens the Promise, so call sites are unchanged.
 
-async function withClearedEstablishedAuthCookies(
+export async function withClearedEstablishedAuthCookies(
   response: Response,
   accountError?: AkbAccountErrorCode,
 ): Promise<Response> {

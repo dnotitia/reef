@@ -8,6 +8,14 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  turbopack: {
+    rules: {
+      "*.browser.ts": {
+        loaders: ["./scripts/bundle-mcp-app.cjs"],
+        as: "*.js",
+      },
+    },
+  },
   // Keep pino (and its dev-only pino-pretty transport) out of the server bundle.
   // pino loads its transport via a worker thread and `require`, which the
   // bundler cannot trace — externalizing them lets pino resolve them at runtime.

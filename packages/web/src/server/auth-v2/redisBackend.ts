@@ -9,7 +9,7 @@ export interface AuthV2RedisClient {
   set(
     key: string,
     value: string,
-    options: { EX: number; NX?: true },
+    options: { EX: number },
   ): Promise<string | null | undefined>;
   get(key: string): Promise<string | null>;
   getDel(key: string): Promise<string | null>;

@@ -43,6 +43,7 @@ function buildWebServerEnv(): Record<string, string> {
           REEF_KEYCLOAK_TRANSPORT_URL: ssoConfig.transportUrl,
           REEF_KEYCLOAK_CLIENT_ID: ssoConfig.clientId,
           REEF_AKB_API_AUDIENCE: ssoConfig.audience,
+          REEF_MCP_EXCHANGE_CLIENT_SECRET: ssoConfig.mcpSecret,
           REEF_SESSION_REDIS_URL: ssoConfig.redisUrl,
           REEF_SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString(
             "base64url",

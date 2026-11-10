@@ -1,8 +1,12 @@
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
-import { SignJWT } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 
 import { fixtureLogin } from "./mock-fixture-contract.mjs";
 import { json, readRawBody } from "./mock-http.mjs";
+
+const MCP_SCOPE = "reef:issues:read";
+const ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+const EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
 
 export function createOidcFixture(config, getState) {
   const { privateKey, publicKey } = generateKeyPairSync("rsa", {
@@ -23,7 +27,13 @@ export function createOidcFixture(config, getState) {
     jwksReads: 0,
     revocations: 0,
     pkceVerified: false,
+    mcpExchanges: 0,
   };
+  const resource = `${config.publicOrigin}/mcp`;
+  const sign = (payload) =>
+    new SignJWT(payload)
+      .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: jwk.kid })
+      .sign(privateKey);
   let invalidNonce = false;
   function reset() {
     codes.clear();
@@ -45,10 +55,6 @@ export function createOidcFixture(config, getState) {
       iat: now,
       exp: now + 600,
     };
-    const sign = (payload) =>
-      new SignJWT(payload)
-        .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: jwk.kid })
-        .sign(privateKey);
     const accessToken = await sign({
       ...common,
       aud: config.audience,
@@ -80,6 +86,78 @@ export function createOidcFixture(config, getState) {
       expires_in: 600,
       refresh_expires_in: 3600,
     };
+  }
+  async function mintMcpSubject(req, res) {
+    const { username, variant } = JSON.parse(
+      (await readRawBody(req)).toString(),
+    );
+    const user = getState().users.get(username);
+    if (!user) return json(res, 400, { error: "unknown_fixture_user" });
+    const now = Math.floor(Date.now() / 1000);
+    return json(res, 200, {
+      access_token: await sign({
+        iss: config.issuer,
+        aud: variant === "wrong-audience" ? config.audience : resource,
+        azp: "fixture-dynamic-codex-client",
+        sub: user.id,
+        sid: randomUUID(),
+        typ: "Bearer",
+        iat: now - 60,
+        exp: variant === "expired" ? now - 1 : now + 600,
+        scope: variant === "missing-scope" ? "openid" : `openid ${MCP_SCOPE}`,
+      }),
+    });
+  }
+
+  async function exchangeMcp(p, res) {
+    if (
+      p.get("client_id") !== resource ||
+      p.get("client_secret") !== config.mcpSecret
+    )
+      return json(res, 401, { error: "invalid_client" });
+    if (
+      p.get("subject_token_type") !== ACCESS_TOKEN_TYPE ||
+      p.get("requested_token_type") !== ACCESS_TOKEN_TYPE ||
+      p.has("audience")
+    )
+      return json(res, 400, { error: "invalid_request" });
+    let subject;
+    try {
+      ({ payload: subject } = await jwtVerify(
+        p.get("subject_token") ?? "",
+        publicKey,
+        {
+          algorithms: ["RS256"],
+          issuer: config.issuer,
+          audience: resource,
+        },
+      ));
+    } catch {
+      return json(res, 400, { error: "invalid_grant" });
+    }
+    const user = [...getState().users.values()].find(
+      ({ id }) => id === subject.sub,
+    );
+    if (!user) return json(res, 400, { error: "invalid_grant" });
+    const accessToken = await sign({
+      iss: config.issuer,
+      aud: config.audience,
+      azp: resource,
+      sub: subject.sub,
+      sid: subject.sid,
+      iat: Math.floor(Date.now() / 1000),
+      exp: subject.exp,
+      typ: "Bearer",
+      jti: randomUUID(),
+    });
+    accessTokens.add(accessToken);
+    getState().sessions.set(accessToken, user.username);
+    stats.mcpExchanges++;
+    return json(res, 200, {
+      access_token: accessToken,
+      issued_token_type: ACCESS_TOKEN_TYPE,
+      token_type: "Bearer",
+    });
   }
   async function handle(req, res, url) {
     const endpoint = url.pathname;
@@ -133,6 +211,7 @@ export function createOidcFixture(config, getState) {
       req.method === "POST"
     ) {
       const p = new URLSearchParams((await readRawBody(req)).toString());
+      if (p.get("grant_type") === EXCHANGE_GRANT) return exchangeMcp(p, res);
       if (p.get("client_id") !== config.clientId)
         return json(res, 400, { error: "invalid_client" });
       let transaction;
@@ -181,6 +260,7 @@ export function createOidcFixture(config, getState) {
     reset,
     accessTokens,
     stats,
+    mintMcpSubject,
     setInvalidNonce: (value) => {
       invalidNonce = value;
     },

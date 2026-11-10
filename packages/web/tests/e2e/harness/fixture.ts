@@ -31,6 +31,7 @@ export type FixtureScenario =
   | "assignee_picker"
   | "backlog_bulk_partial_failure"
   | "demo_board"
+  | "plugin_recent_issues"
   | "raw_only"
   | "workspace_recovery"
   | "workspace_recovery_current_stamp"

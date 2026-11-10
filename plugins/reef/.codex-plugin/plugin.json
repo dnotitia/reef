@@ -1,0 +1,15 @@
+{
+  "name": "reef",
+  "version": "0.1.0",
+  "description": "Connect your Reef deployment and open recent issue snapshots in Codex.",
+  "skills": "./skills/",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md"
+    }
+  },
+  "interface": {
+    "displayName": "Reef",
+    "shortDescription": "Open recent Reef issues in Codex."
+  }
+}
