@@ -923,7 +923,10 @@
     },
     "detailSidebar": {
       "noRequester": "No requester",
-      "noReporter": "No reporter"
+      "noReporter": "No reporter",
+      "noParent": "No parent issue",
+      "openParentById": "Open parent issue {id}",
+      "openParentWithTitle": "Open parent {type} {id}: {title}"
     },
     "sort": {
       "sortBy": "Sort by",

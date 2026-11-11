@@ -394,18 +394,21 @@ export function IssueRelationInput({
     return () => panel.removeEventListener("wheel", stopWheel);
   }, [showPanel]);
 
-  // Close on a click outside the field and the (portaled) panel. A plain blur
-  // handler does not see the panel, since it lives outside this component's DOM.
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (e: MouseEvent) => {
-      const target = e.target as Node;
+    const closeOnOutsideInteraction = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
       if (wrapperRef.current?.contains(target)) return;
       if (panelRef.current?.contains(target)) return;
       setOpen(false);
     };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    document.addEventListener("mousedown", closeOnOutsideInteraction);
+    document.addEventListener("focusin", closeOnOutsideInteraction);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideInteraction);
+      document.removeEventListener("focusin", closeOnOutsideInteraction);
+    };
   }, [open]);
 
   const singleValueChanged =

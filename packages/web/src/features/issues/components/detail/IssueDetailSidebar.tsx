@@ -7,16 +7,23 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
+import {
+  OverflowTooltip,
+  useTextOverflow,
+} from "@/components/ui/overflow-tooltip";
 import { PriorityOption } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
+import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import {
   useEnrichmentEmptyLabels,
   useFieldNameLabels,
+  useIssueTypeLabels,
 } from "@/i18n/fieldLabels";
 import type {
   IssueListItem,
   IssueMetadata,
+  IssueRelation,
   IssueType,
   IssueUpdatePatch,
   Priority,
@@ -26,7 +33,8 @@ import type {
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import type { ComponentProps } from "react";
+import Link from "next/link";
+import { useRef } from "react";
 import {
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
@@ -64,7 +72,7 @@ interface IssueDetailSidebarProps {
   issueId: string;
   issue: IssueMetadata | undefined;
   allIssues: readonly IssueListItem[];
-  relations: ComponentProps<typeof IssueRelationInput>["relationGraph"];
+  relations: readonly IssueRelation[] | undefined;
   issueType: IssueType;
   status: Status;
   priority: Priority | "";
@@ -162,10 +170,26 @@ export function IssueDetailSidebar({
   onClosedStatusRequested,
 }: IssueDetailSidebarProps) {
   const fieldNames = useFieldNameLabels();
+  const issueTypeLabels = useIssueTypeLabels();
   const empty = useEnrichmentEmptyLabels();
   const s = useTranslations("sections");
   const c = useTranslations("common");
   const t = useTranslations("issues.detailSidebar");
+  const getDrillProps = useIssueDrill(issueId, vault);
+  const currentParentId = issue?.parent_id;
+  const parent = currentParentId
+    ? (allIssues.find(({ id }) => id === currentParentId) ??
+      relations?.find(({ id }) => id === currentParentId))
+    : undefined;
+  const parentTitle = parent?.title ?? "";
+  const parentType = parent?.issue_type ?? "task";
+  const parentTitleRef = useRef<HTMLSpanElement>(null);
+  const isParentTitleOverflowing = useTextOverflow(
+    parentTitleRef,
+    parentTitle,
+    Boolean(parent),
+  );
+
   return (
     // Property-list rail (REEF-149): every scalar field is one `IssueFieldRow`
     // (fixed label + full-width value) instead of `grid-cols-2` half-cells, so
@@ -431,6 +455,52 @@ export function IssueDetailSidebar({
       </IssueFormSection>
 
       <IssueFormSection title={fieldNames.parent}>
+        {currentParentId ? (
+          <OverflowTooltip
+            value={parentTitle}
+            isOverflowing={isParentTitleOverflowing}
+          >
+            <Link
+              {...getDrillProps(currentParentId)}
+              aria-label={
+                parent
+                  ? t("openParentWithTitle", {
+                      type: issueTypeLabels[parentType],
+                      id: currentParentId,
+                      title: parentTitle,
+                    })
+                  : t("openParentById", { id: currentParentId })
+              }
+              className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
+            >
+              {parent && (
+                <TypePill
+                  type={parentType}
+                  variant="badge"
+                  labelClassName="sr-only"
+                />
+              )}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span
+                  className="type-compact-mono text-muted-foreground"
+                  translate="no"
+                >
+                  {currentParentId}
+                </span>
+                {parent && (
+                  <span
+                    ref={parentTitleRef}
+                    className="truncate type-control text-foreground"
+                  >
+                    {parentTitle}
+                  </span>
+                )}
+              </span>
+            </Link>
+          </OverflowTooltip>
+        ) : (
+          <p className="type-control text-muted-foreground">{t("noParent")}</p>
+        )}
         <IssueRelationInput
           id="issue-parent"
           label={fieldNames.parent}

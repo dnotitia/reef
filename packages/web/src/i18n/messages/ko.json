@@ -1138,7 +1138,10 @@
     },
     "detailSidebar": {
       "noRequester": "요청자 없음",
-      "noReporter": "보고자 없음"
+      "noReporter": "보고자 없음",
+      "noParent": "상위 이슈 없음",
+      "openParentById": "상위 이슈 {id} 열기",
+      "openParentWithTitle": "상위 {type} {id}: {title} 열기"
     },
     "sort": {
       "sortBy": "정렬 기준",
