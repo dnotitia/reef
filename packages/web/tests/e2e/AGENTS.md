@@ -2,7 +2,8 @@
 
 - Playwright E2E is hermetic by default: reef-web and its Route Handlers run for
   real, while external services are replaced by the local fixture server under
-  `harness/`.
+  `harness/`. Playwright and `dev:e2e` start the production standalone server
+  and fixture server through `scripts/e2e-servers.mjs`.
 - Do not mock reef's own `/api/*` routes with `page.route` in default E2E unless
   the spec explicitly documents itself as UI-only.
 - When adding or changing a routed page, parallel/intercepting route, modal,

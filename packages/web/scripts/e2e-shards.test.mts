@@ -56,6 +56,7 @@ async function fixture() {
   await Promise.all(
     [
       "e2e-shards.mjs",
+      "e2e-environment.mjs",
       "e2e-scheduling.mts",
       "e2e-duration-profile.json",
       "production-build.mjs",
@@ -225,11 +226,23 @@ it("removes old provenance when a fresh build fails", async () => {
   expect(reuse.stdout).not.toContain("BROWSER_STARTED");
 });
 
-it("allows reuse of the same production inputs", async () => {
+it("reuses the same production inputs and stages the current standalone assets", async () => {
   const { web } = await fixture();
+  const standalone = join(web, ".next/standalone/packages/web");
+  await mkdir(join(standalone, "public"));
+  await writeFile(join(standalone, "public/deleted.txt"), "stale public asset");
+  await writeFile(join(web, ".next/static/runtime.js"), "current static asset");
   const result = run(web);
   expect(result.status, result.stderr).toBe(0);
   expect(result.stdout).toContain("BROWSER_STARTED");
+  expect(
+    await readFile(join(standalone, ".next/static/runtime.js"), "utf8"),
+  ).toBe("current static asset");
+  await expect(
+    readFile(join(standalone, "public/deleted.txt")),
+  ).rejects.toMatchObject({
+    code: "ENOENT",
+  });
 });
 
 it("rejects a build without provenance even inside a Turbo task", async () => {

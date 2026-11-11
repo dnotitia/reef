@@ -9,7 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/e2e-shards.mjs --shards=1",
     "test:e2e:sharded": "node scripts/e2e-shards.mjs",
     "reset:e2e": "node scripts/reset-e2e.mjs",
     "i18n:baseline": "I18N_BASELINE_UPDATE=prune vitest run src/i18n/guard/i18nGuard.test.ts",

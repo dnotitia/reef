@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { generateKeyPairSync } from "node:crypto";
 import { chmod, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,26 +9,14 @@ import {
   runtimeTasks,
 } from "../tests/e2e/harness/mock-runtime.mjs";
 import {
-  E2E_REEF_APP_ID,
-  E2E_REEF_IMAGE_DIGEST,
-  E2E_REEF_MANIFEST_CHECKSUM,
-  E2E_REEF_RELEASE_ID,
-  E2E_REEF_RELEASE_VERSION,
-  E2E_REEF_SOURCE_REVISION,
-} from "../tests/e2e/harness/mock-installation.mjs";
+  e2eEnvironmentVariables,
+  readE2eEnvironment,
+} from "./e2e-environment.mjs";
+import { prepareE2eBuild } from "./production-build.mjs";
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = resolve(dirname(MODULE_PATH), "..");
-const DEFAULT_WEB_URL = "http://localhost:7353";
-const DEFAULT_MOCK_URL = "http://127.0.0.1:7354";
 const DEFAULT_TASK = "auth_soft_navigation";
-const RUNTIME_BUILD_ARGS = [
-  "exec",
-  "turbo",
-  "run",
-  "build",
-  "--filter=@reef/web",
-];
 const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
 const CLIENT_READY_TIMEOUT_MS = 120_000;
 const CLIENT_READINESS = { mode: "browser", status: "ready" };
@@ -54,12 +41,6 @@ export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
     close: '[data-testid="new-issue-cancel"]',
   }),
 });
-const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
-  modulusLength: 2048,
-})
-  .privateKey.export({ type: "pkcs1", format: "pem" })
-  .toString();
-
 const children = new Set();
 let shuttingDown = false;
 let finishingShutdown = false;
@@ -68,14 +49,6 @@ let shutdownTimer;
 let removeReadyFileOnShutdown = false;
 let readyFilePath = null;
 
-function pnpmCommand() {
-  return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-}
-
-export function buildRuntimeCommand() {
-  return { command: pnpmCommand(), args: [...RUNTIME_BUILD_ARGS] };
-}
-
 export function validateScenario(value) {
   if (typeof value !== "string" || !SAFE_SCENARIO.test(value)) {
     throw new Error(
@@ -83,28 +56,6 @@ export function validateScenario(value) {
     );
   }
   return value;
-}
-
-function parseOrigin(value, name) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch (error) {
-    throw new Error(`${name} must be an absolute HTTP(S) origin`, {
-      cause: error,
-    });
-  }
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    url.pathname !== "/"
-  ) {
-    throw new Error(`${name} must be a credential-free HTTP(S) origin`);
-  }
-  return url.origin;
 }
 
 export function parseOptions(argv = process.argv.slice(2), env = process.env) {
@@ -143,31 +94,17 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
 
   const task = taskArg ?? env.REEF_E2E_TASK ?? DEFAULT_TASK;
   const { scenario } = resolveRuntimeTask(task);
-  const webOrigin = parseOrigin(
-    env.REEF_WEB_URL ?? DEFAULT_WEB_URL,
-    "REEF_WEB_URL",
-  );
-  const fixtureOrigin = parseOrigin(
-    env.REEF_E2E_MOCK_URL ?? DEFAULT_MOCK_URL,
-    "REEF_E2E_MOCK_URL",
-  );
   const readyFile = readyFileArg ?? env.REEF_E2E_READY_FILE ?? null;
   if (readyFile === "") {
     throw new Error("REEF_E2E_READY_FILE must be a non-empty path");
   }
 
-  const webUrl = new URL(webOrigin);
-  const fixtureUrl = new URL(fixtureOrigin);
   return {
     command: "start",
     task,
     scenario,
     readyFile,
-    webOrigin,
-    webPort: webUrl.port || "7353",
-    fixtureOrigin,
-    fixtureHost: fixtureUrl.hostname,
-    fixturePort: fixtureUrl.port || "7354",
+    environment: readE2eEnvironment(env, { authMode: "local" }),
   };
 }
 
@@ -602,6 +539,7 @@ function runOneShot(name, command, args) {
   process.stdout.write(`[dev:e2e] ${name}: ${command} ${args.join(" ")}\n`);
   const child = spawn(command, args, {
     cwd: PACKAGE_ROOT,
+    detached: process.platform !== "win32",
     env: process.env,
     stdio: "inherit",
   });
@@ -665,73 +603,31 @@ export async function resetScenario(fixtureOrigin, scenario) {
 }
 
 export async function startRuntime(options) {
-  const { scenario } = resolveRuntimeTask(options.task);
+  const { environment, scenario, task } = options;
+  const { webOrigin, fixtureOrigin } = environment;
   readyFilePath = options.readyFile;
   await removeReadyFile(readyFilePath);
 
-  const runtimeBuild = buildRuntimeCommand();
-  await runOneShot("workspace build", runtimeBuild.command, runtimeBuild.args);
-
-  spawnChild("fixture server", "node", ["tests/e2e/harness/mock-server.mjs"], {
-    REEF_E2E_MOCK_HOST: options.fixtureHost,
-    REEF_E2E_MOCK_PORT: options.fixturePort,
-  });
-  await waitForOk(`${options.fixtureOrigin}/__e2e/health`, 30_000);
-  const resetBody = await resetScenario(options.fixtureOrigin, scenario);
-
+  await prepareE2eBuild(runOneShot);
+  if (shuttingDown) return;
   spawnChild(
-    "reef-web",
-    pnpmCommand(),
-    ["exec", "next", "dev", "-p", options.webPort],
-    {
-      // The hermetic runtime owns its auth backend. Do not let an ambient
-      // operator/deployment backend replace the fixture that discovery
-      // advertises for browser login.
-      AKB_BACKEND_URL: `${options.fixtureOrigin}/akb`,
-      // The hermetic fixture exercises local AKB auth; production-like
-      // standalone is explicit and cannot use the development default.
-      REEF_AUTH_MODE: "local",
-      // The E2E-only asset rewrite uses this loopback origin in both dev and
-      // production-build harnesses; ordinary production has no fixture origin.
-      REEF_E2E_MOCK_URL: options.fixtureOrigin,
-      // Server-read akb web base (REEF-368) so linked-document backlinks render
-      // when browsing the hermetic runtime locally.
-      AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
-      REEF_LLM_API_KEY: process.env.REEF_LLM_API_KEY ?? "e2e-llm-endpoint-key",
-      REEF_LLM_BASE_URL:
-        process.env.REEF_LLM_BASE_URL ??
-        `${options.fixtureOrigin}/openrouter/v1`,
-      REEF_LLM_MODEL: process.env.REEF_LLM_MODEL ?? "e2e/mock-model",
-      REEF_GITHUB_API_BASE_URL:
-        process.env.REEF_GITHUB_API_BASE_URL ??
-        `${options.fixtureOrigin}/github`,
-      REEF_GITHUB_APP_ID: process.env.REEF_GITHUB_APP_ID ?? "123456",
-      REEF_GITHUB_APP_INSTALLATION_ID:
-        process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
-      REEF_GITHUB_APP_PRIVATE_KEY:
-        process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
-      REEF_APP_ID: E2E_REEF_APP_ID,
-      REEF_RELEASE_ID: E2E_REEF_RELEASE_ID,
-      REEF_RELEASE_VERSION: E2E_REEF_RELEASE_VERSION,
-      REEF_RELEASE_SOURCE_REVISION: E2E_REEF_SOURCE_REVISION,
-      REEF_RELEASE_IMAGE_DIGEST: E2E_REEF_IMAGE_DIGEST,
-      REEF_RELEASE_MANIFEST_CHECKSUM: E2E_REEF_MANIFEST_CHECKSUM,
-    },
+    "E2E servers",
+    process.execPath,
+    ["scripts/e2e-servers.mjs"],
+    e2eEnvironmentVariables(environment),
   );
-  await waitForOk(options.webOrigin, 120_000);
-  await waitForClientInteractionReady({
-    webOrigin: options.webOrigin,
-    fixtureOrigin: options.fixtureOrigin,
-    task: options.task,
-  });
+  await waitForOk(`${fixtureOrigin}/__e2e/health`, 30_000);
+  const resetBody = await resetScenario(fixtureOrigin, scenario);
+  await waitForOk(webOrigin, 120_000);
+  await waitForClientInteractionReady({ webOrigin, fixtureOrigin, task });
   process.stdout.write(
     "[dev:e2e] browser hydration and declared interaction readiness confirmed\n",
   );
 
   const payload = buildReadyPayload({
-    webOrigin: options.webOrigin,
-    fixtureOrigin: options.fixtureOrigin,
-    task: options.task,
+    webOrigin,
+    fixtureOrigin,
+    task,
     scenario: resetBody.scenario,
   });
   if (options.readyFile) await writeReadyFile(options.readyFile, payload);
@@ -759,7 +655,7 @@ async function main() {
     await startRuntime(options);
     process.stdout.write(
       `${[
-        `[dev:e2e] open ${options.webOrigin} in a real web browser`,
+        `[dev:e2e] open ${options.environment.webOrigin} in a real web browser`,
         `[dev:e2e] reset fixture: pnpm --filter @reef/web run reset:e2e -- ${options.scenario}`,
       ].join("\n")}\n`,
     );

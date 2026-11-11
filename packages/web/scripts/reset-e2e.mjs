@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-const MOCK_URL = process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
+import { DEFAULT_FIXTURE_ORIGIN } from "./e2e-environment.mjs";
+
+const MOCK_URL = process.env.REEF_E2E_MOCK_URL ?? DEFAULT_FIXTURE_ORIGIN;
 const SCENARIO =
   process.argv.slice(2).find((arg) => arg !== "--") ??
   process.env.REEF_E2E_SCENARIO ??

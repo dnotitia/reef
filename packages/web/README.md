@@ -174,9 +174,10 @@ pnpm test
 
 ## E2E Harness
 
-`pnpm --filter @reef/web run test:e2e` runs the hermetic Playwright suite by default.
-The suite starts reef-web on `localhost:7353` and its Route Handlers for real,
-plus a local fixture server on `127.0.0.1:7354` for external dependencies:
+The full suite, focused tests, and `dev:e2e` use the production Reef standalone
+build and the same fixture server. The first shard and `dev:e2e` use
+`localhost:7353` for Reef and `127.0.0.1:7354` for the fixture server by default.
+The fixture server provides these external dependencies.
 
 - AKB backend: mocked under `/akb`
 - OpenRouter: mocked under `/openrouter`
@@ -199,32 +200,34 @@ browser and HTTP surfaces. Reef does not package a portable execution runner or
 canonical behavior artifact. Canonical behavior and assertions remain in the
 hermetic Playwright specs.
 
-For a faster local full run, use:
+To run the full suite locally, use the sharded runner.
 
 ```bash
 pnpm --filter @reef/web run test:e2e:sharded
 ```
 
-This builds reef-web once, then starts one isolated standalone server and
-fixture-server pair per shard, offsetting ports by 10 (`7353`/`7354`,
-`7363`/`7364`, ...), and passes `--shard` to Playwright. Override the shard
-count with `--shards N`, or pass Playwright filters after `--`, for example:
+The runner builds Reef once and starts a server pair for each shard and project
+phase. Each shard offsets both ports by 10. The default shard count is three.
+Use `--shards N` to set a different count, or use `test:e2e` to run one shard.
+Pass Playwright filters after `--`.
 
 ```bash
-pnpm --filter @reef/web run test:e2e:sharded -- --grep "settings"
+pnpm --filter @reef/web run test:e2e -- --grep "settings"
 ```
 
-For browser runtime checks after UX or layout work, run:
+To check a task in a browser, start `dev:e2e`.
 
 ```bash
-pnpm --filter @reef/web run dev:e2e
+pnpm --filter @reef/web run dev:e2e -- --task issue_drill_navigation
 ```
 
-This starts the fixture server and reef-web with the same mock AKB, OpenRouter,
-and GitHub endpoints, then leaves `http://localhost:7353` open for a real web
-browser. Read `/__e2e/runtime` for the test-only `fixture_login` metadata, use
-its login path to sign in, and select `reef-e2e`. Reset the fixture while the
-server is running with:
+The command resets the fixture to the selected task's scenario and emits the
+ready payload after a browser verifies that the task's page responds to input.
+Open `http://localhost:7353` and use the test login from `/__e2e/runtime` on the
+fixture server. Use `--list-tasks` to list tasks without starting services.
+For overlapping runs, use separate worktrees and port pairs.
+
+To reset the fixture while the server is running, use the reset command.
 
 ```bash
 pnpm --filter @reef/web run reset:e2e -- configured

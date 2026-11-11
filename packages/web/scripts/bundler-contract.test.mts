@@ -10,6 +10,7 @@ const ENTRYPOINTS = [
   "playwright.config.ts",
   "scripts/dev-e2e.mjs",
   "scripts/e2e-shards.mjs",
+  "scripts/e2e-servers.mjs",
   "scripts/build.mjs",
 ];
 const BUNDLER_OVERRIDES = ["--webpack", "--turbopack"];

@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CLIENT_READINESS_INTERACTIONS,
   buildReadyPayload,
-  buildRuntimeCommand,
   getClientReadinessInputs,
   parseOptions,
   probeWorkspaceClickInteractions,
@@ -50,13 +49,6 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/Unknown option/);
   });
 
-  it("pre-builds the runtime workspace through the canonical Turbo graph", () => {
-    expect(buildRuntimeCommand()).toMatchObject({
-      args: ["exec", "turbo", "run", "build", "--filter=@reef/web"],
-    });
-    expect(buildRuntimeCommand().command).toMatch(/^pnpm(?:\.cmd)?$/u);
-  });
-
   it("accepts a source-owned task and an explicit ready-file path", () => {
     const options = parseOptions(
       ["--ready-file", "/tmp/reef-ready.json", "--", "comments"],
@@ -71,11 +63,11 @@ describe("dev:e2e runtime contract", () => {
       task: "comments",
       scenario: "comment_mentions",
       readyFile: "/tmp/reef-ready.json",
-      webOrigin: "http://localhost:9135",
-      webPort: "9135",
-      fixtureOrigin: "http://127.0.0.1:9136",
-      fixtureHost: "127.0.0.1",
-      fixturePort: "9136",
+      environment: {
+        webOrigin: "http://localhost:9135",
+        fixtureOrigin: "http://127.0.0.1:9136",
+        authMode: "local",
+      },
     });
   });
 
@@ -192,9 +184,7 @@ describe("dev:e2e runtime contract", () => {
     );
     expect(rejected.status).toBe(1);
     expect(rejected.stderr).toContain("Unknown runtime task");
-    expect(rejected.stdout).not.toMatch(
-      /workspace build|starting fixture|starting reef-web/,
-    );
+    expect(rejected.stdout).toBe("");
   });
 
   it("rejects incomplete task definitions and keeps fixture states out of task selection", () => {

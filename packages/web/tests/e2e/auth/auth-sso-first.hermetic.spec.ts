@@ -29,9 +29,8 @@ test.describe("SSO companion cutover", { tag: "@sso" }, () => {
     expect(session).toMatchObject({
       httpOnly: true,
       sameSite: "Lax",
+      secure: true,
     });
-    if (process.env.REEF_E2E_WEB_COMMAND?.includes(".next/standalone/"))
-      expect(session?.secure).toBe(true);
     expect(session?.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(
       cookies.some(

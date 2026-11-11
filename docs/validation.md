@@ -46,8 +46,8 @@ canonical build. Direct `next build` does not produce a reusable artifact.
 CI also retains its archive SHA-256 and exact commit checks before unpacking.
 Do not bypass an input mismatch to diagnose product behavior.
 
-For focused development-server debugging, use the existing single-server
-command. It does not reuse a production build:
+For a focused run, use the single-shard command with a file or test name filter.
+It starts the same standalone server and fixture as the full suite:
 
 ```sh
 pnpm --filter @reef/web run test:e2e tests/e2e/issues/markdown-editor.hermetic.spec.ts --grep 'categorized @ menu' --repeat-each=3

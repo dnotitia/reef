@@ -1,11 +1,12 @@
 /** Public test-only constants; never use these credentials in a deployment. */
-export function ssoFixtureConfig(webUrl, mockUrl) {
-  const tlsPort = Number(new URL(webUrl).port) + 3;
-  const redisPort = Number(new URL(mockUrl).port) + 1;
+export function ssoFixtureConfig(webOrigin, fixtureOrigin) {
+  const tlsPort = Number(new URL(webOrigin).port || 80) + 3;
+  const fixturePort = Number(new URL(fixtureOrigin).port || 80);
+  const redisPort = fixturePort + 1;
   return {
     publicOrigin: `https://localhost:${tlsPort}`,
     issuer: `https://oidc.localhost:${tlsPort}/realms/reef`,
-    transportUrl: `http://localhost:${new URL(mockUrl).port}/realms/reef`,
+    transportUrl: `http://localhost:${fixturePort}/realms/reef`,
     redisUrl: `redis://:fixture-password@localhost:${redisPort}`,
     tlsPort,
     redisPort,

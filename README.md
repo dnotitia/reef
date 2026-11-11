@@ -48,9 +48,8 @@ those versions.
 
 ### UI preview
 
-For a quick UI preview, you can run reef against the hermetic fixture harness.
-It exercises reef-web and its Route Handlers for real while replacing AKB,
-OpenRouter, and GitHub with local fixtures:
+Run Reef's production standalone server with local AKB, OpenRouter, and GitHub
+fixtures to preview the UI.
 
 ```bash
 pnpm install --frozen-lockfile
