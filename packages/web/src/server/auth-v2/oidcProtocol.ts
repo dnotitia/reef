@@ -495,11 +495,20 @@ export function createAuthV2OidcProtocol(params: {
       );
     }
     if (!response.ok) {
+      if (
+        operation === "refresh" &&
+        (response.status === 429 || response.status === 503)
+      ) {
+        throw new AuthV2OidcProtocolError(
+          "auth_v2_upstream_unavailable",
+          "unavailable",
+        );
+      }
       throw new AuthV2OidcProtocolError(
         operation === "refresh"
           ? "auth_v2_refresh_rejected"
           : "auth_v2_code_rejected",
-        operation === "refresh" ? "rejected" : "rejected",
+        "rejected",
       );
     }
     const contentLength = Number(response.headers.get("content-length"));
