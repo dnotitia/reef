@@ -18,29 +18,43 @@ test("opens the saved parent from the property rail and reflects edits after reo
     exact: true,
   });
   const rootLink = rail.getByRole("link", {
-    name: /Epic REEF-100 Platform foundation Open/,
+    name: `Open parent Epic REEF-100: ${rootTitle}`,
+    exact: true,
   });
   const newParentLink = rail.getByRole("link", {
-    name: new RegExp(`Epic REEF-101 ${childEpicTitle} Open`),
+    name: `Open parent Epic REEF-101: ${childEpicTitle}`,
+    exact: true,
   });
+  const parentLinks = rail.getByRole("link", { name: /^Open parent / });
   const title = page.getByTestId("issue-title-input");
   const noParent = rail.getByText("No parent issue", { exact: true });
   const saved = page.getByTestId("issue-save-status");
   const tooltip = page.getByRole("tooltip");
-  const points = rail.getByRole("spinbutton", { name: "Points" });
+  const parentOptions = page.getByTestId("relation-dropdown-panel");
+  const clearParent = rail.getByRole("button", {
+    name: "Clear Parent",
+    exact: true,
+  });
 
   await page.goto(`${issues}/REEF-002?view=list`);
   await expect(rootLink).toBeVisible();
   await rootLink.hover();
   await expect(tooltip).toHaveCount(0);
-  await points.focus();
+  await parentPicker.focus();
+  await expect(parentOptions).toBeVisible();
   await page.keyboard.press("Tab");
+  await expect(clearParent).toBeFocused();
+  await expect(parentOptions).toBeVisible();
+  await page.keyboard.press("Shift+Tab");
+  await expect(parentPicker).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
   await expect(rootLink).toBeFocused();
+  await expect(parentOptions).toHaveCount(0);
   await expect(tooltip).toHaveCount(0);
   await rootLink.click();
   await expect(title).toHaveValue(rootTitle);
   await expect(noParent).toBeVisible();
-  await expect(rail.getByRole("link", { name: /Open$/ })).toHaveCount(0);
+  await expect(parentLinks).toHaveCount(0);
 
   await page.goto(`${issues}/REEF-101?view=list`);
   await parentPicker.fill("REEF-100");
@@ -65,19 +79,21 @@ test("opens the saved parent from the property rail and reflects edits after reo
   await expect(tooltip).toHaveText(childEpicTitle);
   await rail.getByRole("heading", { name: "Parent", exact: true }).hover();
   await expect(tooltip).toHaveCount(0);
-  await points.focus();
-  await page.keyboard.press("Tab");
+  await parentPicker.focus();
+  await expect(parentOptions).toBeVisible();
+  await page.keyboard.press("Shift+Tab");
   await expect(newParentLink).toBeFocused();
+  await expect(parentOptions).toHaveCount(0);
   await expect(tooltip).toHaveText(childEpicTitle);
   await newParentLink.press("Enter");
   await expect(title).toHaveValue(childEpicTitle);
 
   await page.goto(`${issues}/REEF-002?view=list`);
-  await rail.getByRole("button", { name: "Clear Parent", exact: true }).click();
+  await clearParent.click();
   await expect(saved).toHaveText("Saved");
   await expect(noParent).toBeVisible();
   await expect(newParentLink).toHaveCount(0);
   await page.reload();
   await expect(noParent).toBeVisible();
-  await expect(rail.getByRole("link", { name: /Open$/ })).toHaveCount(0);
+  await expect(parentLinks).toHaveCount(0);
 });

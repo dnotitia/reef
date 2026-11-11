@@ -18,6 +18,7 @@ import { PlanningItemCombobox } from "@/features/planning/components/PlanningIte
 import {
   useEnrichmentEmptyLabels,
   useFieldNameLabels,
+  useIssueTypeLabels,
 } from "@/i18n/fieldLabels";
 import type {
   IssueListItem,
@@ -31,7 +32,7 @@ import type {
 } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
-import { ArrowUpRight } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRef } from "react";
@@ -170,6 +171,7 @@ export function IssueDetailSidebar({
   onClosedStatusRequested,
 }: IssueDetailSidebarProps) {
   const fieldNames = useFieldNameLabels();
+  const issueTypeLabels = useIssueTypeLabels();
   const empty = useEnrichmentEmptyLabels();
   const s = useTranslations("sections");
   const c = useTranslations("common");
@@ -181,6 +183,7 @@ export function IssueDetailSidebar({
       relations?.find(({ id }) => id === currentParentId))
     : undefined;
   const parentTitle = parent?.title ?? "";
+  const parentType = parent?.issue_type ?? "task";
   const parentTitleRef = useRef<HTMLSpanElement>(null);
   const isParentTitleOverflowing = useTextOverflow(
     parentTitleRef,
@@ -460,11 +463,20 @@ export function IssueDetailSidebar({
           >
             <Link
               {...getDrillProps(currentParentId)}
+              aria-label={
+                parent
+                  ? t("openParentWithTitle", {
+                      type: issueTypeLabels[parentType],
+                      id: currentParentId,
+                      title: parentTitle,
+                    })
+                  : t("openParentById", { id: currentParentId })
+              }
               className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-focus"
             >
               {parent && (
                 <TypePill
-                  type={parent.issue_type}
+                  type={parentType}
                   variant="badge"
                   labelClassName="sr-only"
                 />
@@ -487,7 +499,7 @@ export function IssueDetailSidebar({
               </span>
               <span className="flex shrink-0 items-center gap-1 type-control text-muted-foreground">
                 {t("openParent")}
-                <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                <ExternalLink className="size-3.5" aria-hidden="true" />
               </span>
             </Link>
           </OverflowTooltip>
