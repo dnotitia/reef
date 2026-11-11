@@ -32,7 +32,6 @@ import type {
 } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
-import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRef } from "react";
@@ -496,10 +495,6 @@ export function IssueDetailSidebar({
                     {parentTitle}
                   </span>
                 )}
-              </span>
-              <span className="flex shrink-0 items-center gap-1 type-control text-muted-foreground">
-                {t("openParent")}
-                <ExternalLink className="size-3.5" aria-hidden="true" />
               </span>
             </Link>
           </OverflowTooltip>

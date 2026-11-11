@@ -925,7 +925,6 @@
       "noRequester": "No requester",
       "noReporter": "No reporter",
       "noParent": "No parent issue",
-      "openParent": "Open",
       "openParentById": "Open parent issue {id}",
       "openParentWithTitle": "Open parent {type} {id}: {title}"
     },
