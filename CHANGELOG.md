@@ -21,6 +21,12 @@ issues, not public GitHub issues.
   and send it to the conversation that owns the App.
 - Open a parent issue from the Parent section while editing a child issue.
 
+### Fixed
+
+- Keep Rank moves within the current Priority group in Backlog List. Switch to
+  No grouping to reorder the whole backlog. Keyboard moves return focus to the
+  reorder handle after saving or cancelling.
+
 ## v0.19.2 - 2026-11-04
 
 ### Fixed

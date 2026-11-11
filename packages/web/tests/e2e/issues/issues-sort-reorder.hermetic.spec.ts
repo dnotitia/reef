@@ -1,6 +1,7 @@
 import { test } from "../harness/workspace-fixture";
 import { waitForPaint } from "../harness/browser-observations";
 import {
+  type APIRequestContext,
   type Locator,
   type Page,
   type Request,
@@ -172,6 +173,50 @@ function demoIssueState(
   );
   if (!vault) throw new Error("demo fixture vault is missing");
   return vault;
+}
+
+const backlogListPath = `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`;
+
+function backlogIds(page: Page): Promise<string[]> {
+  return page
+    .getByTestId("backlog-row")
+    .evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-issue-id") ?? ""),
+    );
+}
+
+async function persistedBacklogRows(request: APIRequestContext) {
+  return demoIssueState(await readFixtureState(request))
+    .issues.filter((issue) => issue.status === "backlog")
+    .sort(
+      (left, right) =>
+        (left.rank ?? Number.POSITIVE_INFINITY) -
+        (right.rank ?? Number.POSITIVE_INFINITY),
+    )
+    .map(({ id, priority, rank, status }) => ({ id, priority, rank, status }));
+}
+
+function waitForIssueReorder(page: Page) {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/issues/reorder",
+  );
+}
+
+async function moveBacklogGrip(
+  grip: Locator,
+  direction: "ArrowUp" | "ArrowDown",
+): Promise<void> {
+  const page = grip.page();
+  await grip.focus();
+  await page.keyboard.press("Space");
+  await expect(grip).toHaveAttribute("aria-pressed", "true");
+  await waitForPaint(page);
+  const announcement = page.locator('[role="status"][aria-live="assertive"]');
+  const pickup = await announcement.textContent();
+  await page.keyboard.press(direction);
+  await expect(announcement).not.toHaveText(pickup ?? "");
 }
 
 test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => {
@@ -1113,12 +1158,10 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
   });
 
   test.extend({ scenario: "backlog_bulk_partial_failure" })(
-    "shows identity-bound pending and success feedback for Manual Backlog reorder",
+    "persists an ungrouped Backlog pointer reorder with pending and success feedback",
     async ({ page, request }) => {
       await openExistingWorkspace(page);
-      await page.goto(
-        `/workspace/${REEF_E2E_VAULT}/issues?scope=backlog&view=list`,
-      );
+      await page.goto(`${backlogListPath}&group=none`);
 
       const movedRow = page
         .getByTestId("backlog-row")
@@ -1137,11 +1180,7 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
       await expectCursorAtPointer(grip, "grab");
       await setIssueReorderControl(request, { hold: true });
 
-      const responsePromise = page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          new URL(response.url()).pathname === "/api/issues/reorder",
-      );
+      const responsePromise = waitForIssueReorder(page);
       await dragGrip(
         page,
         "backlog-grip",
@@ -1162,6 +1201,215 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
       ).toHaveText(`${movedIssueId}'s position saved.`);
       await expectCursorAtPointer(grip, "grab");
       await setIssueReorderControl(request, {});
+      await expect
+        .poll(() => backlogIds(page))
+        .toEqual(["REEF-002", "REEF-003"]);
+      expect(await persistedBacklogRows(request)).toMatchObject([
+        { id: "REEF-002", priority: "medium", status: "backlog" },
+        { id: "REEF-003", priority: "low", status: "backlog" },
+      ]);
     },
   );
+});
+
+test.describe("Backlog List Rank reorder (REEF-706)", () => {
+  test.use({ scenario: "backlog_bulk_partial_failure" });
+
+  for (const input of ["pointer", "keyboard"]) {
+    test(`rejects a ${input} drop across Backlog priority groups`, async ({
+      page,
+      request,
+    }) => {
+      await openExistingWorkspace(page);
+      await page.goto(`${backlogListPath}&group=priority`);
+      const before = await persistedBacklogRows(request);
+      await expect(page.getByTestId("backlog-grip-REEF-002")).toBeVisible();
+      await expect(page.getByTestId("backlog-grip-REEF-003")).toBeVisible();
+      await expect(page.getByTestId("backlog-group-header")).toHaveCount(2);
+      await expect
+        .poll(() => backlogIds(page))
+        .toEqual(["REEF-002", "REEF-003"]);
+
+      const writes: string[] = [];
+      page.on("request", (browserRequest) => {
+        const path = new URL(browserRequest.url()).pathname;
+        if (
+          browserRequest.method() !== "GET" &&
+          path.startsWith("/api/issues/")
+        ) {
+          writes.push(`${browserRequest.method()} ${path}`);
+        }
+      });
+      if (input === "pointer") {
+        await dragGrip(page, "backlog-grip", "REEF-003", "REEF-002", (grip) =>
+          expect(grip).toHaveAttribute("aria-pressed", "true"),
+        );
+      } else {
+        await moveBacklogGrip(
+          page.getByTestId("backlog-grip-REEF-002"),
+          "ArrowDown",
+        );
+        await page.keyboard.press("Space");
+      }
+
+      await waitForPaint(page);
+      expect(
+        writes,
+        "cross-group drops must not send a reorder request",
+      ).toHaveLength(0);
+      await expect(
+        page
+          .getByRole("status")
+          .filter({ hasText: /No grouping/ })
+          .first(),
+      ).toBeVisible();
+      await expect(
+        page
+          .locator("p")
+          .filter({ hasText: /Switch to No grouping/ })
+          .filter({ hasText: /Press Space/ }),
+      ).toBeVisible();
+      const grip = page.getByTestId("backlog-grip-REEF-002");
+      await expect(grip).toHaveAccessibleDescription(/No grouping/);
+      await expect(grip).toHaveAccessibleDescription(
+        /Space.*Up and Down.*Escape/,
+      );
+      await expect(
+        page.getByRole("status").filter({ hasText: /moved to position/ }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByTestId("reorder-persistence-announcement"),
+      ).not.toContainText("position saved.");
+      await expect
+        .poll(() => backlogIds(page))
+        .toEqual(["REEF-002", "REEF-003"]);
+      expect(await persistedBacklogRows(request)).toEqual(before);
+      expect(writes).toEqual([]);
+    });
+  }
+
+  test("persists pointer and keyboard reorders within a Backlog priority group", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    const setup = await page.request.patch("/api/issues/REEF-001", {
+      data: {
+        vault: REEF_E2E_VAULT,
+        update: {
+          issue_id: "REEF-001",
+          patch: { status: "backlog", priority: "medium" },
+        },
+      },
+    });
+    expect(setup.ok()).toBeTruthy();
+    await page.goto(`${backlogListPath}&group=priority`);
+    await expect(page.getByTestId("backlog-group-header")).toHaveCount(2);
+    await expect
+      .poll(() => backlogIds(page))
+      .toEqual(["REEF-002", "REEF-001", "REEF-003"]);
+    await expect(page.getByTestId("backlog-grip-REEF-002")).toBeVisible();
+
+    const pointerResponse = waitForIssueReorder(page);
+    await dragGrip(page, "backlog-grip", "REEF-002", "REEF-001", () =>
+      waitForPaint(page),
+    );
+    expect((await pointerResponse).ok()).toBeTruthy();
+    await expect
+      .poll(() => backlogIds(page))
+      .toEqual(["REEF-001", "REEF-002", "REEF-003"]);
+    expect(await persistedBacklogRows(request)).toMatchObject([
+      { id: "REEF-003", priority: "low", status: "backlog" },
+      { id: "REEF-001", priority: "medium", status: "backlog" },
+      { id: "REEF-002", priority: "medium", status: "backlog" },
+    ]);
+
+    const grip = page.getByTestId("backlog-grip-REEF-001");
+    await moveBacklogGrip(grip, "ArrowDown");
+    const keyboardResponse = waitForIssueReorder(page);
+    await page.keyboard.press("Space");
+    expect((await keyboardResponse).ok()).toBeTruthy();
+    await expect
+      .poll(() => backlogIds(page))
+      .toEqual(["REEF-002", "REEF-001", "REEF-003"]);
+    expect(await persistedBacklogRows(request)).toMatchObject([
+      { id: "REEF-003", priority: "low", status: "backlog" },
+      { id: "REEF-002", priority: "medium", status: "backlog" },
+      { id: "REEF-001", priority: "medium", status: "backlog" },
+    ]);
+  });
+
+  test("restores keyboard grip focus and rolls back a failed ungrouped Backlog reorder", async ({
+    browser,
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    const path = `${backlogListPath}&group=none`;
+    await page.goto(path);
+    const issueId = "REEF-003";
+    const grip = page.getByRole("button", { name: `Reorder ${issueId}` });
+    const announcement = page.getByTestId("reorder-persistence-announcement");
+    const dragAnnouncement = page.locator(
+      '[role="status"][aria-live="assertive"]',
+    );
+    const initialOrder = ["REEF-003", "REEF-002"];
+    const savedOrder = ["REEF-002", "REEF-003"];
+    await expect.poll(() => backlogIds(page)).toEqual(initialOrder);
+
+    await moveBacklogGrip(grip, "ArrowDown");
+    const saved = waitForIssueReorder(page);
+    await page.keyboard.press("Space");
+    expect((await saved).ok()).toBeTruthy();
+    await expect(announcement).toHaveText(`${issueId}'s position saved.`);
+    await expect.poll(() => backlogIds(page)).toEqual(savedOrder);
+    await expect.soft(grip).toBeFocused();
+    const savedRows = await persistedBacklogRows(request);
+    expect(savedRows).toMatchObject([
+      { id: "REEF-002", priority: "medium", status: "backlog" },
+      { id: "REEF-003", priority: "low", status: "backlog" },
+    ]);
+
+    await moveBacklogGrip(grip, "ArrowUp");
+    await page.keyboard.press("Escape");
+    await expect(dragAnnouncement).toHaveText(
+      `Reordering ${issueId} cancelled.`,
+    );
+    await expect.soft(grip).toBeFocused();
+    await expect.poll(() => backlogIds(page)).toEqual(savedOrder);
+
+    await setIssueReorderControl(request, { hold: true, failures: 1 });
+    await moveBacklogGrip(grip, "ArrowUp");
+    const failed = waitForIssueReorder(page);
+    await page.keyboard.press("Space");
+    await waitForResponseHoldPending(request, "issue-reorder");
+    await expect(announcement).toHaveText(`Saving ${issueId}'s position…`);
+    await expect.poll(() => backlogIds(page)).toEqual(initialOrder);
+    await releaseResponseHold(request, "issue-reorder");
+    expect((await failed).ok()).toBeFalsy();
+    await expect(announcement).toHaveText(
+      `${issueId}'s position was not saved. The previous position is restored; retry is available.`,
+    );
+    await expect(
+      page.getByText("The order was reverted. Retry to move it again."),
+    ).toBeVisible();
+    await expect.poll(() => backlogIds(page)).toEqual(savedOrder);
+    expect(await persistedBacklogRows(request)).toEqual(savedRows);
+
+    await page.reload();
+    await expect.poll(() => backlogIds(page)).toEqual(savedOrder);
+
+    const freshContext = await browser.newContext({
+      baseURL: new URL(page.url()).origin,
+    });
+    try {
+      const freshPage = await freshContext.newPage();
+      await openExistingWorkspace(freshPage);
+      await freshPage.goto(path);
+      await expect.poll(() => backlogIds(freshPage)).toEqual(savedOrder);
+    } finally {
+      await freshContext.close();
+    }
+  });
 });
