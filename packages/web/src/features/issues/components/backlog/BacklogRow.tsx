@@ -103,6 +103,7 @@ export const BacklogRow = memo(function BacklogRow({
   const {
     attributes,
     listeners,
+    setActivatorNodeRef,
     setNodeRef,
     transform,
     transition,
@@ -129,6 +130,8 @@ export const BacklogRow = memo(function BacklogRow({
   );
   const selectionRunning = useIssueSelectionStore((state) => state.running);
   const rowRef = useRef<HTMLTableRowElement | null>(null);
+  const handleRef = useRef<HTMLButtonElement | null>(null);
+  const handledReorderFocus = useRef(focusRequest);
   const statusTriggerRef = useRef<HTMLButtonElement>(null);
   const priorityTriggerRef = useRef<HTMLButtonElement>(null);
   const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
@@ -154,6 +157,13 @@ export const BacklogRow = memo(function BacklogRow({
     },
     [setNodeRef],
   );
+  const setHandleRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      handleRef.current = node;
+      setActivatorNodeRef(node);
+    },
+    [setActivatorNodeRef],
+  );
 
   useEffect(() => {
     if (
@@ -163,7 +173,14 @@ export const BacklogRow = memo(function BacklogRow({
     ) {
       return;
     }
-    rowRef.current.focus({ preventScroll: true });
+    if (focusRequest.target === "reorder-handle") {
+      if (handledReorderFocus.current === focusRequest || !handleRef.current)
+        return;
+      handledReorderFocus.current = focusRequest;
+      handleRef.current.focus({ preventScroll: true });
+    } else {
+      rowRef.current.focus({ preventScroll: true });
+    }
     rowRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [focusRequest, issue.id]);
 
@@ -244,6 +261,7 @@ export const BacklogRow = memo(function BacklogRow({
       >
         {sortable ? (
           <button
+            ref={setHandleRef}
             type="button"
             aria-label={t("reorderGrip", { id: issue.id })}
             title={reorderHint}

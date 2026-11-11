@@ -890,11 +890,16 @@ competes with the Ask AI control or covers issue content.
 the issue-wide Rank meaning. Board columns are Critical, High, Medium, Low, and
 None; cards retain Rank order within a column. A same-column drag changes only
 Rank, while a cross-column drag changes Priority and the final Rank. Backlog
-List keeps the shared inline quick edit for Status, Priority, and Assignee,
-manual rank order, and drag-to-reorder when no explicit sort is active. These
-field triggers keep the same mutation, close-confirmation, cache, keyboard, and
-anchor behavior as List; Labels and planning fields are not exposed in this
-triage lens. Empty and no-match states are distinct: an empty backlog explains
+List keeps the shared inline quick edit for Status, Priority, and Assignee.
+In Rank order, you can move an issue within its Priority group. Choose No
+grouping to reorder the whole backlog. Reordering preserves Status and Priority.
+Press Space on the reorder handle to pick up or drop an issue, the Up or Down
+arrow to move it, and Escape to cancel. Saving or cancelling a keyboard move
+returns focus to the handle when the issue stays visible.
+
+The inline field triggers keep the same mutation, close-confirmation, cache,
+keyboard, and anchor behavior as List. The backlog does not expose Labels or
+planning fields. Empty and no-match states are distinct: an empty backlog explains
 how deferred work arrives there, while filtered-out results offer a Clear
 filters action.
 

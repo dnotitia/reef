@@ -1264,6 +1264,17 @@ test.describe("Backlog List Rank reorder (REEF-706)", () => {
           .first(),
       ).toBeVisible();
       await expect(
+        page
+          .locator("p")
+          .filter({ hasText: /Switch to No grouping/ })
+          .filter({ hasText: /Press Space/ }),
+      ).toBeVisible();
+      const grip = page.getByTestId("backlog-grip-REEF-002");
+      await expect(grip).toHaveAccessibleDescription(/No grouping/);
+      await expect(grip).toHaveAccessibleDescription(
+        /Space.*Up and Down.*Escape/,
+      );
+      await expect(
         page.getByRole("status").filter({ hasText: /moved to position/ }),
       ).toHaveCount(0);
       await expect(
@@ -1380,6 +1391,9 @@ test.describe("Backlog List Rank reorder (REEF-706)", () => {
     await expect(announcement).toHaveText(
       `${issueId}'s position was not saved. The previous position is restored; retry is available.`,
     );
+    await expect(
+      page.getByText("The order was reverted. Retry to move it again."),
+    ).toBeVisible();
     await expect.poll(() => backlogIds(page)).toEqual(savedOrder);
     expect(await persistedBacklogRows(request)).toEqual(savedRows);
 

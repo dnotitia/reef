@@ -60,11 +60,14 @@ import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import {
   type Announcements,
+  type CollisionDetection,
   DndContext,
+  type DragCancelEvent,
   type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -99,6 +102,21 @@ const BACKLOG_TABLE_WIDTH = issueTableWidth(BACKLOG_COLUMNS);
 const BACKLOG_STATUS: readonly string[] = ["backlog"];
 
 const REORDER_TOAST_ID = "backlog-reorder";
+
+type BacklogDrop =
+  | { kind: "move"; target: IssueReorderTarget; position: number }
+  | { kind: "cross-group" }
+  | { kind: "unchanged" };
+
+const detectGroupedDrop: CollisionDetection = (args) =>
+  args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
+
+function focusReorderHandle(issueId: string) {
+  useIssueKeyboardStore.getState().focusIssue("backlog", issueId, {
+    requestDomFocus: true,
+    target: "reorder-handle",
+  });
+}
 
 function backlogColumnClass(column: IssueTableColumnKey) {
   return cn(
@@ -348,28 +366,30 @@ export function BacklogView({
     staleWindowDays,
   ]);
 
-  const priorityGroups = useMemo(() => {
-    if (groupBy !== "priority") return null;
-    const descriptor = createIssueGroupDescriptor("priority", {
-      labels: {
-        none: groupT("group.none"),
-        status: {},
-        priority: priorityLabels,
+  const groupedByPriority = groupBy === "priority";
+  const groups = useMemo(() => {
+    const descriptor = createIssueGroupDescriptor(
+      groupedByPriority ? "priority" : "none",
+      {
+        labels: {
+          none: groupT("group.none"),
+          status: {},
+          priority: priorityLabels,
+        },
       },
-    });
+    );
     return descriptor
       .bucketsForIssues(visibleIssues)
-      .filter(({ issues: bucketIssues }) => bucketIssues.length > 0);
-  }, [groupBy, groupT, priorityLabels, visibleIssues]);
-
-  // The divider sits between the manually-ordered (ranked) rows and the unranked
-  // tail. Hidden when the backlog is entirely ranked or entirely unranked.
-  const firstUnrankedIndex = useMemo(
-    () => (isRankOrder ? visibleIssues.findIndex((i) => i.rank == null) : -1),
-    [isRankOrder, visibleIssues],
-  );
-  const showDivider =
-    firstUnrankedIndex > 0 && firstUnrankedIndex < visibleIssues.length;
+      .filter(({ issues }) => issues.length > 0)
+      .map(({ bucket, issues }) => ({
+        bucket,
+        issues,
+        sortableIds: issues.map((issue) => issue.id),
+        firstUnrankedIndex: isRankOrder
+          ? issues.findIndex((issue) => issue.rank == null)
+          : -1,
+      }));
+  }, [groupedByPriority, groupT, isRankOrder, priorityLabels, visibleIssues]);
 
   const sortableIds = useMemo(
     () => visibleIssues.map((i) => i.id),
@@ -386,11 +406,28 @@ export function BacklogView({
     };
   }, []);
 
+  const pendingHandleFocus = useRef<{ issueId: string; vault: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    const pending = pendingHandleFocus.current;
+    if (!pending) return;
+    if (pending.vault !== vault || !isRankOrder || filter.showArchived) {
+      pendingHandleFocus.current = null;
+      return;
+    }
+    if (!canReorder) return;
+    pendingHandleFocus.current = null;
+    if (
+      document.activeElement === document.body &&
+      sortableIds.includes(pending.issueId)
+    ) {
+      focusReorderHandle(pending.issueId);
+    }
+  }, [canReorder, filter.showArchived, isRankOrder, sortableIds, vault]);
+
   function runReorder(input: IssueReorderTarget) {
     setReorderAnnouncement(reorderT("reorderSaving", { id: input.issueId }));
-    useIssueKeyboardStore.getState().focusIssue("backlog", input.issueId, {
-      requestDomFocus: true,
-    });
     reorder.mutateAsync({ vault, scope: "backlog", ...input }).then(
       () => {
         toast.dismiss(REORDER_TOAST_ID);
@@ -418,46 +455,96 @@ export function BacklogView({
     );
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    // Rows are non-draggable unless `canReorder`. The reorder is computed against
-    // `orderedBacklog` (the full ranked backlog), not the filtered visible rows,
-    // so a drop under an active filter lands between the moved row's true global
-    // neighbors — no collision with or crossing of hidden ranked rows (REEF-176).
-    if (!canReorder) return;
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const target = buildIssueReorderTargetFromDrop(
-      orderedBacklog,
-      String(active.id),
-      String(over.id),
-    );
-    if (!target) return;
-    runReorder(target);
+  const resolveDrop = useCallback(
+    ({ active, over }: Pick<DragEndEvent, "active" | "over">): BacklogDrop => {
+      if (!canReorder || !over || active.id === over.id)
+        return { kind: "unchanged" };
+      const activeId = String(active.id);
+      const overId = String(over.id);
+      const source = groups.find(({ sortableIds }) =>
+        sortableIds.includes(activeId),
+      );
+      const destination = groups.find(({ sortableIds }) =>
+        sortableIds.includes(overId),
+      );
+      if (!source || !destination) return { kind: "unchanged" };
+      if (source !== destination) return { kind: "cross-group" };
+
+      const target = buildIssueReorderTargetFromDrop(
+        orderedBacklog,
+        activeId,
+        overId,
+      );
+      return target
+        ? {
+            kind: "move",
+            target,
+            position: destination.sortableIds.indexOf(overId) + 1,
+          }
+        : { kind: "unchanged" };
+    },
+    [canReorder, groups, orderedBacklog],
+  );
+
+  function restoreKeyboardHandle({ active, activatorEvent }: DragCancelEvent) {
+    if (activatorEvent.type !== "keydown") return;
+    const issueId = String(active.id);
+    if (canReorder) focusReorderHandle(issueId);
+    else pendingHandleFocus.current = { issueId, vault };
   }
 
-  const announcements = useMemo<Announcements>(() => {
-    const positionOf = (id: string | undefined) => {
-      if (!id) return null;
-      const index = orderedBacklog.findIndex((issue) => issue.id === id);
-      return index < 0 ? null : index + 1;
-    };
-    return {
+  function handleDragEnd(event: DragEndEvent) {
+    const drop = resolveDrop(event);
+    if (drop.kind !== "move") {
+      restoreKeyboardHandle(event);
+      return;
+    }
+    const { issueId } = drop.target;
+    if (event.activatorEvent.type === "keydown") {
+      pendingHandleFocus.current = { issueId, vault };
+    } else {
+      useIssueKeyboardStore.getState().focusIssue("backlog", issueId, {
+        requestDomFocus: true,
+      });
+    }
+    runReorder(drop.target);
+  }
+
+  const groupingHint = t("reorderHintNoGrouping", {
+    group: groupT("group.none"),
+  });
+  const keyboardInstructions = t("reorderKeyboardInstructions");
+  const dragInstructions = groupedByPriority
+    ? `${t("reorderWithinGroup")} ${groupingHint} ${keyboardInstructions}`
+    : keyboardInstructions;
+  const announcements = useMemo<Announcements>(
+    () => ({
       onDragStart: ({ active }) => t("dragStart", { id: String(active.id) }),
-      onDragOver: ({ active, over }) => {
-        const position = positionOf(over ? String(over.id) : undefined);
-        return position === null
-          ? undefined
-          : t("dragOver", { id: String(active.id), position });
+      onDragOver: (event) => {
+        const drop = resolveDrop(event);
+        if (drop.kind === "cross-group") return t("reorderWithinGroup");
+        if (drop.kind === "move") {
+          return t("dragOver", {
+            id: drop.target.issueId,
+            position: drop.position,
+          });
+        }
       },
-      onDragEnd: ({ active, over }) => {
-        const position = positionOf(over ? String(over.id) : undefined);
-        return position === null
-          ? undefined
-          : t("dragEnd", { id: String(active.id), position });
+      onDragEnd: (event) => {
+        const drop = resolveDrop(event);
+        if (drop.kind === "cross-group") return groupingHint;
+        if (drop.kind === "move") {
+          return t("dragEnd", {
+            id: drop.target.issueId,
+            position: drop.position,
+          });
+        }
+        return t("dragUnchanged", { id: String(event.active.id) });
       },
       onDragCancel: ({ active }) => t("dragCancel", { id: String(active.id) }),
-    };
-  }, [orderedBacklog, t]);
+    }),
+    [groupingHint, resolveDrop, t],
+  );
 
   const issueHref = useCallback(
     (id: string) => buildOpenIssueHref(vault, id, searchParams),
@@ -496,6 +583,11 @@ export function BacklogView({
         <span role="status" aria-live="polite" className="sr-only">
           {c("updatingResults")}
         </span>
+      )}
+      {isRankOrder && !filter.showArchived && !isError && count > 0 && (
+        <p className="px-3 py-1.5 text-xs text-muted-foreground">
+          {dragInstructions}
+        </p>
       )}
       {isPending ? (
         <div
@@ -568,16 +660,16 @@ export function BacklogView({
         >
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
-            accessibility={{ announcements }}
-            onDragEnd={handleDragEnd}
-            onDragCancel={(event) => {
-              useIssueKeyboardStore
-                .getState()
-                .focusIssue("backlog", String(event.active.id), {
-                  requestDomFocus: true,
-                });
+            collisionDetection={
+              groupedByPriority ? detectGroupedDrop : closestCenter
+            }
+            accessibility={{
+              announcements,
+              restoreFocus: false,
+              screenReaderInstructions: { draggable: dragInstructions },
             }}
+            onDragEnd={handleDragEnd}
+            onDragCancel={restoreKeyboardHandle}
           >
             <Table
               className="table-fixed"
@@ -591,51 +683,31 @@ export function BacklogView({
                 visibleIssueIds={sortableIds}
               />
               <TableBody ref={canReorder ? undefined : rowsRef}>
-                <SortableContext
-                  items={sortableIds}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {priorityGroups
-                    ? priorityGroups.map(({ bucket, issues: bucketIssues }) => (
-                        <Fragment key={bucket.id}>
-                          <BacklogGroupHeader
-                            bucketId={bucket.id}
-                            label={bucket.label}
-                            count={bucketIssues.length}
-                          />
-                          {bucketIssues.map((issue, index) => (
-                            <Fragment key={issue.id}>
-                              {isRankOrder &&
-                              bucketIssues.some((item) => item.rank != null) &&
-                              index ===
-                                bucketIssues.findIndex(
-                                  (item) => item.rank == null,
-                                ) ? (
-                                <BacklogUnrankedDivider />
-                              ) : null}
-                              <BacklogRow
-                                issue={issue}
-                                vault={vault}
-                                href={issueHref(issue.id)}
-                                logicalIds={sortableIds}
-                                sortable={canReorder}
-                                reorderHint={reorderHint}
-                                reorderState={
-                                  reorderIssueId === issue.id
-                                    ? reorderState
-                                    : null
-                                }
-                                onOpen={openIssue}
-                              />
-                            </Fragment>
-                          ))}
-                        </Fragment>
-                      ))
-                    : visibleIssues.map((issue, index) => (
+                {groups.map(
+                  ({
+                    bucket,
+                    issues,
+                    sortableIds: groupIds,
+                    firstUnrankedIndex,
+                  }) => (
+                    <SortableContext
+                      key={bucket.id}
+                      items={groupIds}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {groupedByPriority && (
+                        <BacklogGroupHeader
+                          bucketId={bucket.id}
+                          label={bucket.label}
+                          count={issues.length}
+                        />
+                      )}
+                      {issues.map((issue, index) => (
                         <Fragment key={issue.id}>
-                          {showDivider && index === firstUnrankedIndex && (
-                            <BacklogUnrankedDivider />
-                          )}
+                          {firstUnrankedIndex > 0 &&
+                            index === firstUnrankedIndex && (
+                              <BacklogUnrankedDivider />
+                            )}
                           <BacklogRow
                             issue={issue}
                             vault={vault}
@@ -650,7 +722,9 @@ export function BacklogView({
                           />
                         </Fragment>
                       ))}
-                </SortableContext>
+                    </SortableContext>
+                  ),
+                )}
               </TableBody>
             </Table>
           </DndContext>
