@@ -1,25 +1,22 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectTests, scheduleTests } from "./e2e-scheduling.mts";
-import { assertCurrentProductionBuild } from "./production-build.mjs";
+import {
+  e2eEnvironmentVariables,
+  readE2eEnvironment,
+} from "./e2e-environment.mjs";
+import { prepareE2eBuild } from "./production-build.mjs";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_WEB_URL = "http://localhost:7353";
-const DEFAULT_MOCK_URL = "http://127.0.0.1:7354";
 const PORT_STRIDE = 10;
 
 const { shardCount, selectedShard, passthroughArgs } = parseArgs(
   process.argv.slice(2),
 );
-const baseWebUrl = new URL(process.env.REEF_WEB_URL ?? DEFAULT_WEB_URL);
-const baseMockUrl = new URL(process.env.REEF_E2E_MOCK_URL ?? DEFAULT_MOCK_URL);
-const baseWebPort = Number(baseWebUrl.port || 80);
-const baseMockPort = Number(baseMockUrl.port || 80);
-const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const playwrightBin = resolve(
   PACKAGE_ROOT,
   "node_modules",
@@ -29,7 +26,7 @@ const playwrightBin = resolve(
 
 const start = performance.now();
 let interrupted = false;
-const children = new Set();
+const children = new Map();
 
 process.on("SIGINT", () => shutdown(130));
 process.on("SIGTERM", () => shutdown(143));
@@ -57,19 +54,7 @@ try {
     ),
   );
 
-  if (process.env.REEF_E2E_SKIP_BUILD !== "1" && !process.env.TURBO_HASH) {
-    await runOneShot("build", pnpmBin, [
-      "exec",
-      "turbo",
-      "run",
-      "build",
-      "--filter=@reef/web",
-    ]);
-  } else {
-    process.stdout.write("[e2e:shards] skipping Next.js build\n");
-  }
-  await assertCurrentProductionBuild();
-  await prepareStandaloneAssets();
+  await prepareE2eBuild(runOneShot);
 
   process.stdout.write(
     selectedShard
@@ -124,13 +109,10 @@ try {
   const executionStart = performance.now();
   const buildAndPreparationMs = executionStart - start;
   const results = await Promise.all(
-    shards.map(({ index, total }) => {
-      const portOffset = (index - 1) * PORT_STRIDE;
-      const webUrl = withPort(baseWebUrl, baseWebPort + portOffset);
-      const mockUrl = withPort(baseMockUrl, baseMockPort + portOffset);
-      return runShard(index, total, webUrl, mockUrl, plans[index - 1]);
-    }),
+    shards.map(({ index, total }) => runShard(index, total, plans[index - 1])),
   );
+
+  if (interrupted) process.exit();
 
   const durationMs = performance.now() - start;
   await writeFile(
@@ -200,6 +182,9 @@ function parseArgs(args, env = process.env) {
       continue;
     }
 
+    if (/^--ui(?:-host|-port)?(?:=|$)/u.test(arg)) {
+      throw new Error("Use dev:e2e for an interactive browser session.");
+    }
     passthroughArgs.push(arg);
   }
 
@@ -236,13 +221,7 @@ function parseShardSelector(value) {
   return { index, total };
 }
 
-function withPort(url, port) {
-  const next = new URL(url.toString());
-  next.port = String(port);
-  return next.toString().replace(/\/$/, "");
-}
-
-async function runShard(shard, total, webUrl, mockUrl, plan) {
+async function runShard(shard, total, plan) {
   const shardStart = performance.now();
   const projects = [];
   let code = 0;
@@ -250,13 +229,7 @@ async function runShard(shard, total, webUrl, mockUrl, plan) {
   for (const project of ["chromium", "visual-matrix", "sso"]) {
     if (interrupted) break;
     if (!plan.tests.some((test) => test.project === project)) continue;
-    const result = await runProjectShard(
-      shard,
-      total,
-      webUrl,
-      mockUrl,
-      project,
-    );
+    const result = await runProjectShard(shard, total, project);
     projects.push(result);
     code ||= result.code;
   }
@@ -275,7 +248,11 @@ async function runShard(shard, total, webUrl, mockUrl, plan) {
   };
 }
 
-function runProjectShard(shard, total, webUrl, mockUrl, project) {
+function runProjectShard(shard, total, project) {
+  const environment = readE2eEnvironment(process.env, {
+    authMode: project === "sso" ? "sso" : "local",
+    portOffset: (shard - 1) * PORT_STRIDE,
+  });
   const projectStart = performance.now();
   const prefix = `[e2e:${shard}/${total}]`;
   const args = [
@@ -288,7 +265,7 @@ function runProjectShard(shard, total, webUrl, mockUrl, project) {
   ];
 
   process.stdout.write(
-    `${prefix} REEF_WEB_URL=${webUrl} REEF_E2E_MOCK_URL=${mockUrl}\n`,
+    `${prefix} REEF_WEB_URL=${environment.webOrigin} REEF_E2E_MOCK_URL=${environment.fixtureOrigin}\n`,
   );
 
   const child = spawn(playwrightBin, args, {
@@ -307,15 +284,11 @@ function runProjectShard(shard, total, webUrl, mockUrl, project) {
         project,
         "report.json",
       ),
-      REEF_E2E_AUTH_MODE: project === "sso" ? "sso" : "local",
-      REEF_WEB_URL: webUrl,
-      REEF_E2E_MOCK_URL: mockUrl,
-      REEF_E2E_WEB_COMMAND:
-        "PORT={port} node .next/standalone/packages/web/server.js",
+      ...e2eEnvironmentVariables(environment),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  children.add(child);
+  children.set(child, "SIGINT");
 
   pipeWithPrefix(child.stdout, process.stdout, prefix);
   pipeWithPrefix(child.stderr, process.stderr, prefix);
@@ -340,7 +313,7 @@ function runOneShot(name, command, args, env = process.env) {
     env,
     stdio: name === "collect" ? ["ignore", "ignore", "inherit"] : "inherit",
   });
-  children.add(child);
+  children.set(child, "SIGTERM");
 
   return new Promise((resolve, reject) => {
     child.on("exit", (code, signal) => {
@@ -356,33 +329,6 @@ function runOneShot(name, command, args, env = process.env) {
       );
     });
   });
-}
-
-async function prepareStandaloneAssets() {
-  const standaloneWebRoot = resolve(
-    PACKAGE_ROOT,
-    ".next",
-    "standalone",
-    "packages",
-    "web",
-  );
-  const standaloneStatic = resolve(standaloneWebRoot, ".next", "static");
-  await rm(standaloneStatic, { force: true, recursive: true });
-  await cp(resolve(PACKAGE_ROOT, ".next", "static"), standaloneStatic, {
-    recursive: true,
-  });
-
-  const standalonePublic = resolve(standaloneWebRoot, "public");
-  await rm(standalonePublic, { force: true, recursive: true });
-  try {
-    await cp(resolve(PACKAGE_ROOT, "public"), standalonePublic, {
-      recursive: true,
-    });
-  } catch (err) {
-    if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) {
-      throw err;
-    }
-  }
 }
 
 function pipeWithPrefix(readable, writable, prefix) {
@@ -404,8 +350,9 @@ function pipeWithPrefix(readable, writable, prefix) {
 }
 
 function shutdown(code) {
+  if (interrupted) return;
   interrupted = true;
   process.exitCode = code;
-  for (const child of children) child.kill("SIGTERM");
-  setTimeout(() => process.exit(code), 1000).unref();
+  for (const [child, signal] of children) child.kill(signal);
+  setTimeout(() => process.exit(code), 5_000).unref();
 }

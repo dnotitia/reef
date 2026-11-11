@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { readE2eEnvironment } from "../../../scripts/e2e-environment.mjs";
 import { startSsoFixture } from "./mock-sso.mjs";
 
 import {
@@ -52,14 +53,16 @@ import {
   E2E_REEF_SCHEMA_FINGERPRINT,
 } from "./mock-installation.mjs";
 
-const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
-const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
+const environment = readE2eEnvironment();
+const fixtureUrl = new URL(environment.fixtureOrigin);
+const PORT = Number(fixtureUrl.port || 80);
+const HOST = fixtureUrl.hostname.replace(/^\[|\]$/gu, "");
 const AUTH_PROBE_FAILURE_STATUSES = new Set([500, 503]);
 
 let state = createState("configured");
 const sso =
-  process.env.REEF_E2E_AUTH_MODE === "sso"
-    ? await startSsoFixture(() => state)
+  environment.authMode === "sso"
+    ? await startSsoFixture(() => state, environment)
     : null;
 
 const server = createServer(async (req, res) => {
@@ -950,6 +953,7 @@ server.listen(PORT, HOST, () => {
   process.stdout.write(
     `reef e2e fixture server listening on ${HOST}:${PORT}\n`,
   );
+  process.send?.("ready");
 });
 
 process.on("SIGTERM", () => {

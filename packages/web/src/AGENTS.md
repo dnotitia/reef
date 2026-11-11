@@ -31,8 +31,8 @@
   static-code inspection.
 - When an agent starts `pnpm --filter @reef/web run dev:e2e` for browser runtime
   verification, keep that terminal/session attached and inspect its stdout/stderr
-  while exercising the UI. Treat `[dev:e2e]` fixture messages, Next.js compile or
-  runtime errors, fixture-server failures, and pino `request`/`response` lines
+  while exercising the UI. Treat `[dev:e2e]` messages, Next.js build or runtime
+  errors, fixture-server failures, and pino `request`/`response` lines
   for `/api/*` as part of the debugging signal.
 - If the server was started in a user-owned terminal that the agent cannot read,
   do not claim to have inspected stdout; verify the URL/browser behavior directly

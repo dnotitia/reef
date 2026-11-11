@@ -1,8 +1,9 @@
 import { type APIRequestContext, type Page, expect } from "@playwright/test";
+import { DEFAULT_FIXTURE_ORIGIN } from "../../../scripts/e2e-environment.mjs";
 import fixtureLogin from "./fixture-login.json";
 
 export const E2E_MOCK_URL =
-  process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
+  process.env.REEF_E2E_MOCK_URL ?? DEFAULT_FIXTURE_ORIGIN;
 export const REPORTS_FIXTURE_NOW = "2026-06-30T00:00:00.000Z";
 
 export const fixtureReaderLogin = {

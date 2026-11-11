@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { cp, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,5 +83,36 @@ export async function assertCurrentProductionBuild() {
     throw new Error(
       "The production build ID differs from its provenance; run pnpm run build",
     );
+  }
+}
+
+export async function prepareE2eBuild(runOneShot) {
+  if (process.env.REEF_E2E_SKIP_BUILD !== "1" && !process.env.TURBO_HASH) {
+    const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+    await runOneShot("build", pnpm, [
+      "exec",
+      "turbo",
+      "run",
+      "build",
+      "--filter=@reef/web",
+    ]);
+  }
+  await assertCurrentProductionBuild();
+
+  const standalone = resolve(PACKAGE_ROOT, ".next/standalone/packages/web");
+  const staticAssets = resolve(standalone, ".next/static");
+  await rm(staticAssets, { force: true, recursive: true });
+  await cp(resolve(PACKAGE_ROOT, ".next/static"), staticAssets, {
+    recursive: true,
+  });
+
+  const publicAssets = resolve(standalone, "public");
+  await rm(publicAssets, { force: true, recursive: true });
+  try {
+    await cp(resolve(PACKAGE_ROOT, "public"), publicAssets, {
+      recursive: true,
+    });
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
   }
 }

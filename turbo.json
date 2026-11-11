@@ -65,25 +65,13 @@
     },
     "test:e2e": {
       "cache": false,
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$"],
-      "passThroughEnv": [
-        "REEF_E2E_*",
-        "REEF_WEB_URL",
-        "REEF_E2E_MOCK_URL",
-        "REEF_E2E_WEB_COMMAND"
-      ]
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$"]
     },
     "test:e2e:sharded": {
       "cache": false,
       "dependsOn": ["build"],
-      "inputs": ["$TURBO_DEFAULT$"],
-      "passThroughEnv": [
-        "REEF_E2E_*",
-        "REEF_WEB_URL",
-        "REEF_E2E_MOCK_URL",
-        "REEF_E2E_WEB_COMMAND"
-      ]
+      "inputs": ["$TURBO_DEFAULT$"]
     },
     "//#toolchain:check:root": {
       "cache": false,

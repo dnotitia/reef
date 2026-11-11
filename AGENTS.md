@@ -175,10 +175,9 @@ metadata.
   isolated full suite (`pnpm --filter @reef/web run test:e2e:sharded`) after the
   non-E2E gate and before opening or updating a PR, not just the focused spec
   for the path you changed.
-  Use `pnpm --filter @reef/web run test:e2e` only for focused, single-server
-  local debugging. A change to shared fixtures or the vault-skill version can
-  break a sibling hermetic spec you never opened, and that only surfaces in the
-  sharded CI run otherwise.
+  Use `pnpm --filter @reef/web run test:e2e` with Playwright filters for
+  focused, single-shard runs. Changes to shared fixtures or the vault-skill
+  version can break specs outside the focused run.
 - Reef's automated validation uses the mock AKB harness; Reef scripts and CI do
   not checkout, provision, or start AKB. Verify a real AKB integration only
   through an externally prepared endpoint.

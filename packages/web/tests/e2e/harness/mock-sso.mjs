@@ -6,9 +6,9 @@ import { createRedisFixture } from "./mock-redis.mjs";
 import { ssoFixtureConfig } from "./mock-sso-config.mjs";
 
 /** TLS termination and external OIDC/Redis fixtures; Reef handlers are untouched. */
-export async function startSsoFixture(getState) {
-  const webUrl = new URL(process.env.REEF_WEB_URL);
-  const config = ssoFixtureConfig(webUrl.href, process.env.REEF_E2E_MOCK_URL);
+export async function startSsoFixture(getState, { webOrigin, fixtureOrigin }) {
+  const webUrl = new URL(webOrigin);
+  const config = ssoFixtureConfig(webOrigin, fixtureOrigin);
   const oidc = createOidcFixture(config, getState);
   const redis = createRedisFixture();
   const proxy = createServer(
@@ -34,7 +34,7 @@ export async function startSsoFixture(getState) {
       }
       const upstream = request(
         {
-          hostname: webUrl.hostname,
+          hostname: webUrl.hostname.replace(/^\[|\]$/gu, ""),
           port: webUrl.port,
           path: `${url.pathname}${url.search}`,
           method: req.method,

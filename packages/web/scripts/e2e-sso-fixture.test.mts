@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { request } from "node:https";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { createRedisFixture } from "../tests/e2e/harness/mock-redis.mjs";
 import { startSsoFixture } from "../tests/e2e/harness/mock-sso.mjs";
 import { connectAuthV2Redis } from "../src/server/auth-v2/redisRuntime";
@@ -19,9 +19,10 @@ it("proxies paths only to the configured Reef server and rejects alternate desti
   const address = web.address();
   if (!address || typeof address === "string") throw new Error("missing port");
   const port = address.port;
-  vi.stubEnv("REEF_WEB_URL", `http://127.0.0.1:${port}`);
-  vi.stubEnv("REEF_E2E_MOCK_URL", `http://127.0.0.1:${port + 1}`);
-  const fixture = await startSsoFixture(() => ({}));
+  const fixture = await startSsoFixture(() => ({}), {
+    webOrigin: `http://127.0.0.1:${port}`,
+    fixtureOrigin: `http://127.0.0.1:${port + 1}`,
+  });
   const ca = await readFile(
     new URL("../tests/e2e/harness/sso/localhost-cert.pem", import.meta.url),
   );
@@ -69,7 +70,6 @@ it("proxies paths only to the configured Reef server and rejects alternate desti
     await new Promise<void>((resolve, reject) =>
       web.close((error) => (error ? reject(error) : resolve())),
     );
-    vi.unstubAllEnvs();
   }
 });
 
