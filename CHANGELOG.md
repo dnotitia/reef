@@ -29,6 +29,11 @@ issues, not public GitHub issues.
 - Keep Reef SSO sessions available for retry when Keycloak returns HTTP 429
   or 503 during token refresh.
 
+### Operational
+
+- Allow production web builds to fetch fonts through configured proxies and
+  use custom CA bundles while Turbo runs in strict mode.
+
 ## v0.19.2 - 2026-11-04
 
 ### Fixed
