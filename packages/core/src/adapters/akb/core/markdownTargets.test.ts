@@ -64,12 +64,12 @@ describe("resolveAkbMarkdownTarget", () => {
     );
   });
 
-  it("uses the shared parsed path while preserving the canonical target", async () => {
-    const target = "akb://reef-test/coll/a/doc/b/doc/c.md";
+  it("reads the target vault while preserving the canonical target", async () => {
+    const target = "akb://knowledge/coll/a/doc/b/doc/plan #2%.md";
     request.mockResolvedValueOnce({
       uri: target,
-      vault: "reef-test",
-      path: "a/doc/b/c.md",
+      vault: "knowledge",
+      path: "a/doc/b/plan #2%.md",
       title: "Nested guide",
       type: "document",
       status: "active",
@@ -84,21 +84,30 @@ describe("resolveAkbMarkdownTarget", () => {
       status: "available",
     });
     expect(request).toHaveBeenCalledWith(
-      "/api/v1/documents/reef-test/a/doc/b/c.md",
-      { resource: "document a/doc/b/c.md" },
+      "/api/v1/documents/knowledge/a/doc/b/plan%20%232%25.md",
+      { resource: "document a/doc/b/plan #2%.md" },
     );
   });
 
-  it("does not request cross-vault or unsupported targets", async () => {
+  it("does not request cross-vault files or invalid targets", async () => {
     const repeatedMalformedMarkers = `akb://reef-test/coll/${"a/doc/".repeat(64)}a\n/doc/guide.md`;
 
     await expect(
       resolveAkbMarkdownTarget({
         adapter,
         vault: "reef-test",
-        target: "akb://other/coll/docs/doc/guide.md",
+        target: "akb://other/coll/docs/file/guide",
       }),
     ).resolves.toMatchObject({ status: "unavailable", reason: "cross-vault" });
+    for (const target of [
+      "akb://../doc/guide.md",
+      "akb://knowledge/doc/../guide.md",
+      "akb://knowledge/coll/docs//private/doc/guide.md",
+    ]) {
+      await expect(
+        resolveAkbMarkdownTarget({ adapter, vault: "reef-test", target }),
+      ).resolves.toMatchObject({ status: "unavailable" });
+    }
     await expect(
       resolveAkbMarkdownTarget({
         adapter,
@@ -121,16 +130,43 @@ describe("resolveAkbMarkdownTarget", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it("distinguishes deleted and inaccessible resources", async () => {
+  it("returns the same result for missing and forbidden documents", async () => {
+    const target = "akb://knowledge/doc/guide.md";
     request
       .mockRejectedValueOnce(new NotFoundError({ resource: "document" }))
+      .mockRejectedValueOnce(new AuthError({ origin: "akb", status: 403 }));
+
+    const missing = await resolveAkbMarkdownTarget({
+      adapter,
+      vault: "reef-test",
+      target,
+    });
+    const forbidden = await resolveAkbMarkdownTarget({
+      adapter,
+      vault: "reef-test",
+      target,
+    });
+
+    expect(missing).toEqual({
+      target,
+      kind: "document",
+      status: "unavailable",
+      reason: "inaccessible",
+    });
+    expect(forbidden).toEqual(missing);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains deleted and inaccessible results for files", async () => {
+    request
+      .mockRejectedValueOnce(new NotFoundError({ resource: "file" }))
       .mockRejectedValueOnce(new AuthError({ origin: "akb", status: 403 }));
 
     await expect(
       resolveAkbMarkdownTarget({
         adapter,
         vault: "reef-test",
-        target: DOCUMENT_URI,
+        target: FILE_URI,
       }),
     ).resolves.toMatchObject({ status: "unavailable", reason: "deleted" });
     await expect(

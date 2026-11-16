@@ -20,6 +20,8 @@ issues, not public GitHub issues.
   from your accessible workspaces. Filter the snapshots, preview a selection,
   and send it to the conversation that owns the App.
 - Open a parent issue from the Parent section while editing a child issue.
+- Open AKB document links from other vaults in issue descriptions when the
+  current user can read the document. (REEF-710)
 
 ### Fixed
 

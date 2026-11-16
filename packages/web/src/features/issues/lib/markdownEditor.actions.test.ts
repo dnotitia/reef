@@ -247,14 +247,6 @@ describe("issue Markdown adapters", () => {
       runtimeUrl: `/api/assets/${ASSET_ID}?vault=reef-test`,
     });
     await expect(
-      resolver.resolve("akb://other/coll/docs/doc/guide.md", {
-        vault: "reef-test",
-      }),
-    ).resolves.toMatchObject({
-      status: "unavailable",
-      reason: "cross-vault",
-    });
-    await expect(
       resolver.resolve("akb://reef-test/coll/docs/doc/guide.md", {
         vault: "reef-test",
       }),
@@ -278,8 +270,8 @@ describe("issue Markdown adapters", () => {
     expect(mockApiFetch).toHaveBeenCalledTimes(3);
   });
 
-  it("checks document and file access before returning a runtime link", async () => {
-    const documentUri = "akb://reef-test/coll/docs/doc/guide.md";
+  it("checks cross-vault document and local file access through the source workspace", async () => {
+    const documentUri = "akb://knowledge/coll/docs%20/doc/guide.md";
     const fileUri = "akb://reef-test/coll/docs/file/incident-log";
     const resolver = createMarkdownTargetResolver({
       vault: "reef-test",
@@ -317,7 +309,8 @@ describe("issue Markdown adapters", () => {
       target: documentUri,
       kind: "document",
       status: "available",
-      runtimeUrl: "https://akb.example/vault/reef-test/doc/docs%2Fguide.md",
+      runtimeUrl:
+        "https://akb.example/vault/knowledge/doc/docs%252520%2Fguide.md",
     });
     await expect(
       resolver.resolve(fileUri, { vault: "reef-test" }),
