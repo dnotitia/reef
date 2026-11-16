@@ -57,7 +57,7 @@
     "jose": "^6.2.9",
     "lucide-react": "^1.30.0",
     "mdast-util-from-markdown": "2.0.3",
-    "next": "16.4.1",
+    "next": "16.4.5",
     "next-intl": "4.13.5",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
