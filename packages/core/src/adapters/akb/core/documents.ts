@@ -169,9 +169,23 @@ export async function getAkbDocumentByPath({
   vault: string;
   path: string;
 }): Promise<DocumentResponse> {
+  const segments = path.split("/");
+  if (
+    segments.some(
+      (segment) =>
+        !segment ||
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("\\") ||
+        segment.includes("\0"),
+    )
+  ) {
+    throw new SchemaValidationError({ issues: ["Invalid AKB document path"] });
+  }
+  const encodedPath = segments.map(encodeURIComponent).join("/");
   return withSpan("akb.documents.get", { vault }, async () => {
     const payload = await adapter.request(
-      `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
+      `/api/v1/documents/${encodeURIComponent(vault)}/${encodedPath}`,
       { resource: `document ${path}` },
     );
     return ensureDocumentResponse(payload);

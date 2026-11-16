@@ -362,9 +362,10 @@ export function rememberSqlCall(state, vault, username, sql) {
 
 export function roleForVault(vault, state, username) {
   if (
-    state.scenario === "plugin_recent_issues" &&
-    vault.name === "reef-second" &&
-    username === "bob"
+    username === "bob" &&
+    ((state.scenario === "plugin_recent_issues" &&
+      vault.name === "reef-second") ||
+      (state.scenario === "markdown_fixture" && vault.name === "raw-vault"))
   ) {
     return null;
   }

@@ -350,13 +350,9 @@ export function createMarkdownTargetResolver(
       }
 
       const document = parseAkbDocumentUri(target);
-      const targetVault = akbVault(target);
       const vault = resolverVault(options, context);
       if (document) {
         const runtimeUrl = buildAkbDocumentUrl(options.akbWebBase, target);
-        if (vault && document.vault !== vault) {
-          return unavailable(target, "document", "cross-vault");
-        }
         if (!runtimeUrl) return unavailable(target, "document", "unknown");
         if (!vault) return unavailable(target, "document", "unknown");
         const access = await resolveStoredTargetAccess(
@@ -377,6 +373,7 @@ export function createMarkdownTargetResolver(
       }
 
       if (isAkbFileUri(target)) {
+        const targetVault = akbVault(target);
         if (vault && targetVault && targetVault !== vault) {
           return unavailable(target, "file", "cross-vault");
         }

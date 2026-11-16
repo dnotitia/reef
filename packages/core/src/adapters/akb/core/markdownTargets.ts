@@ -5,6 +5,7 @@ import {
 } from "../../../errors";
 import { AKB_FILE_URI_RE } from "../../../schemas/files";
 import type { MarkdownTargetAccessResult } from "../../../schemas/markdownTargets";
+import { VaultNameSchema } from "../../../schemas/workspace/config";
 import { getAkbDocumentByPath } from "./documents";
 import { parseAkbDocumentUri } from "./documentUri";
 import { getAkbFileMetadata } from "./files";
@@ -31,7 +32,11 @@ function unavailableForError(
   error: unknown,
 ): MarkdownTargetAccessResult {
   if (error instanceof NotFoundError) {
-    return unavailable(target, kind, "deleted");
+    return unavailable(
+      target,
+      kind,
+      kind === "document" ? "inaccessible" : "deleted",
+    );
   }
   if (error instanceof AuthError) {
     if (
@@ -59,15 +64,18 @@ export async function resolveAkbMarkdownTarget({
 }): Promise<MarkdownTargetAccessResult> {
   const document = parseAkbDocumentUri(target);
   if (document) {
-    if (document.vault !== vault) {
-      return unavailable(target, "document", "cross-vault");
+    if (!VaultNameSchema.safeParse(document.vault).success) {
+      return unavailable(target, "document", "unsupported");
     }
     try {
-      await getAkbDocumentByPath({
+      const result = await getAkbDocumentByPath({
         adapter,
-        vault,
+        vault: document.vault,
         path: document.path,
       });
+      if (result.vault !== document.vault || result.path !== document.path) {
+        return unavailable(target, "document", "unknown");
+      }
       return { target, kind: "document", status: "available" };
     } catch (error) {
       return unavailableForError(target, "document", error);

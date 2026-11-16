@@ -300,7 +300,14 @@ export function createScenarioVaults(scenario) {
     }
   } else if (scenario === "markdown_fixture") {
     vaults.set(REEF_VAULT, markdownFixtureVault(REEF_VAULT));
-    vaults.set("raw-vault", rawVault("raw-vault"));
+    const external = rawVault("raw-vault");
+    seedReferenceDocument(external, "docs/guide.md", {
+      title: "External guide",
+      type: "reference",
+      content: "A document in a vault without a Reef installation.",
+      tags: [],
+    });
+    vaults.set(external.name, external);
   } else if (scenario === "markdown_mentions") {
     vaults.set(REEF_VAULT, markdownMentionsVault(REEF_VAULT));
     vaults.set("raw-vault", rawVault("raw-vault"));

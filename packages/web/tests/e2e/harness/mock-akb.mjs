@@ -1130,6 +1130,9 @@ export async function handleAkb(req, res, url, state) {
     const docPath = decodeURIComponent(docMatch[2]);
     const existing = vault.documents.get(docPath);
     if (req.method === "GET") {
+      if (!roleForVault(vault, state, username)) {
+        return json(res, 403, { error: "vault membership required" });
+      }
       const issueDocument = docPath.match(/^issues\/(reef-\d+)\.md$/i);
       const readControl = issueDocument
         ? state.issueReadControls.get(

@@ -9,6 +9,7 @@ import {
 import {
   E2E_MOCK_URL,
   REEF_E2E_VAULT,
+  fixtureReaderLogin,
   openExistingWorkspace,
   readFixtureState,
   setMarkdownLinkSearchControl,
@@ -2047,7 +2048,8 @@ test.describe("Hermetic Markdown editor fixture", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("keeps rendered AKB targets out of Source serialization", async ({
+  test("opens readable cross-vault documents and keeps canonical Source", async ({
+    browser,
     page,
     request,
   }) => {
@@ -2063,10 +2065,14 @@ test.describe("Hermetic Markdown editor fixture", () => {
       .click();
     const source = page.locator('[data-markdown-mode="source"] textarea');
     const planUri = "akb://reef-e2e/coll/docs/doc/spec-overview.md";
-    const customUri = "akb://reef-e2e/coll/docs/doc/alpha-reference.md";
+    const customUri = "akb://raw-vault/coll/docs/doc/guide.md";
+    const missingUri = "akb://raw-vault/coll/docs/doc/missing.md";
+    const runtimeUrl =
+      "https://akb.e2e.test/vault/raw-vault/doc/docs%2Fguide.md";
     const authoredMarkdown = [
       String.raw`[\[Plan\] 260811 - 전체](${planUri})`,
       `[Custom title](${customUri})`,
+      `[Missing document](${missingUri})`,
     ].join("\n\n");
 
     await source.fill(authoredMarkdown);
@@ -2084,10 +2090,10 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "href",
       "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
     );
-    await expect(customLink).toHaveAttribute(
-      "href",
-      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Falpha-reference.md",
-    );
+    await expect(customLink).toHaveAttribute("href", runtimeUrl);
+    await expect(
+      editor.getByText("Missing document", { exact: true }),
+    ).toHaveAttribute("data-markdown-resolution", "unavailable");
     await expect(planLink).toHaveAttribute("target", "_blank");
     await expect(planLink).toHaveAttribute("rel", /noopener/);
     await expect(planLink).toHaveAttribute("rel", /noreferrer/);
@@ -2145,10 +2151,45 @@ test.describe("Hermetic Markdown editor fixture", () => {
       "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
     );
     await expect(customLink).toHaveAttribute("data-markdown-target", customUri);
-    await expect(customLink).toHaveAttribute(
-      "href",
-      "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Falpha-reference.md",
-    );
+    await expect(customLink).toHaveAttribute("href", runtimeUrl);
+    await page
+      .context()
+      .route(runtimeUrl, (route) =>
+        route.fulfill({ status: 200, body: "External guide" }),
+      );
+    const openedPage = page.context().waitForEvent("page");
+    await customLink.click();
+    const document = await openedPage;
+    await expect(document).toHaveURL(runtimeUrl);
+    await document.close();
+
+    const readerContext = await browser.newContext({
+      baseURL: new URL(page.url()).origin,
+    });
+    try {
+      const reader = await readerContext.newPage();
+      const login = await reader.request.post("/api/auth/akb/login", {
+        data: fixtureReaderLogin,
+      });
+      expect(login.status()).toBe(200);
+      await reader.goto(task.start_path ?? "");
+      const readerEditor = reader.locator(".reef-markdown-editor");
+      const forbidden = readerEditor.getByText("Custom title", { exact: true });
+      await expect(forbidden).toHaveAttribute(
+        "data-markdown-resolution",
+        "unavailable",
+      );
+      await expect(forbidden).toHaveAttribute("aria-disabled", "true");
+      await expect(forbidden).toHaveAttribute("href", "#");
+      await expect(
+        readerEditor.getByRole("link", { name: "[Plan] 260811 - 전체" }),
+      ).toHaveAttribute(
+        "href",
+        "https://akb.e2e.test/vault/reef-e2e/doc/docs%2Fspec-overview.md",
+      );
+    } finally {
+      await readerContext.close();
+    }
   });
 
   test("Source title links undo, redo, and persist canonical targets", async ({

@@ -427,6 +427,10 @@ while people and issue suggestions remain available from the loaded workspace
 data. Search loading, empty and error states, cancellation, and selection
 restoration stay in the shared editor.
 
+For a document link in the issue description, Reef checks the signed-in user's
+read access in the target vault. A readable document opens at the configured
+AKB web URL. A missing or unreadable document shows the same unavailable state.
+
 Issue Description Source mode keeps the shared editor header and disables
 WYSIWYG-only commands while Source Undo/Redo remain available. Bare AKB document
 URIs with a resolved title become Markdown links that preserve the canonical

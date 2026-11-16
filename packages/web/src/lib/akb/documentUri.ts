@@ -57,5 +57,7 @@ export function buildAkbDocumentUrl(
   const path = parts.collection
     ? `${parts.collection}/${parts.slug}`
     : parts.slug;
-  return `${base}/vault/${parts.vault}/doc/${encodeURIComponent(path)}`;
+  // The AKB document page decodes the router's path parameter once more.
+  const encodedPath = encodeURIComponent(path.replaceAll("%", "%25"));
+  return `${base}/vault/${encodeURIComponent(parts.vault)}/doc/${encodedPath}`;
 }
