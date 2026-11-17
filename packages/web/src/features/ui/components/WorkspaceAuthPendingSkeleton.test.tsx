@@ -129,7 +129,7 @@ describe("WorkspaceAuthPendingSkeleton", () => {
     const main = within(screen.getByTestId("app-shell-skeleton-main"));
 
     expect(main.queryByRole("heading", { name: "Settings" })).toBeNull();
-    expect(main.getByTestId("board-columns-skeleton")).toBeInTheDocument();
+    expect(main.queryByTestId("board-columns-skeleton")).toBeNull();
   });
 
   it("resolves routes after a route-like workspace slug", () => {
