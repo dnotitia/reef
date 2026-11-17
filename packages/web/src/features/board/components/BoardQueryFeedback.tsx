@@ -37,7 +37,7 @@ export function BoardQueryFeedback({
         role={failed ? "alert" : "status"}
         aria-live={failed ? "assertive" : "polite"}
         aria-atomic="true"
-        className="pointer-events-auto absolute right-6 bottom-4 z-20 max-w-sm rounded-md border border-border-subtle bg-surface-page/95 px-3 py-2 text-xs text-muted-foreground shadow-sm"
+        className="pointer-events-none absolute left-6 bottom-4 z-20 max-w-sm rounded-md border border-border-subtle bg-surface-page/95 px-3 py-2 text-xs text-muted-foreground shadow-sm"
       >
         {failed
           ? t("refreshError")
@@ -51,7 +51,7 @@ export function BoardQueryFeedback({
           <Button
             type="button"
             variant="link"
-            className="ml-2 h-auto p-0"
+            className="pointer-events-auto ml-2 h-auto p-0"
             aria-busy={retrying ? true : undefined}
             aria-disabled={retrying ? true : undefined}
             onClick={() => {

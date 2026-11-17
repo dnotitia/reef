@@ -369,6 +369,26 @@ test.describe("Hermetic board query feedback", () => {
           .filter({ hasText: "Could not update the board" }),
       ).toBeVisible();
       await expect(card).toBeFocused();
+      const feedbackBox = await feedback.boundingBox();
+      const aiBox = await page.getByTestId("ask-ai-fab").boundingBox();
+      if (!feedbackBox || !aiBox)
+        throw new Error("Missing feedback or Ask AI geometry");
+      expect(
+        feedbackBox.x + feedbackBox.width <= aiBox.x ||
+          feedbackBox.y + feedbackBox.height <= aiBox.y ||
+          feedbackBox.x >= aiBox.x + aiBox.width ||
+          feedbackBox.y >= aiBox.y + aiBox.height,
+      ).toBe(true);
+      expect(
+        await feedback.evaluate(
+          (element) => getComputedStyle(element).pointerEvents,
+        ),
+      ).toBe("none");
+      expect(
+        await feedback
+          .getByRole("button", { name: "Retry" })
+          .evaluate((element) => getComputedStyle(element).pointerEvents),
+      ).toBe("auto");
       expectHeaderTopsWithinPixel(headers, await readColumnHeaderRects(page));
       expect(await boardBody.evaluate((element) => element.scrollLeft)).toBe(
         scrollLeft,
