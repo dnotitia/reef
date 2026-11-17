@@ -1,7 +1,6 @@
 "use client";
 
-import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
-import { Button } from "@/components/ui/button";
+import { BoardLoadingFrame } from "@/components/BoardColumnsSkeleton";
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   kanbanToastId,
@@ -96,7 +95,6 @@ import {
   type KeyboardEvent,
   useDeferredValue,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -106,6 +104,8 @@ import { withVault } from "@/lib/workspaceHref";
 import { useBoardStore } from "../stores/useBoardStore";
 import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
+import { BoardQueryFeedback } from "./BoardQueryFeedback";
+import { getBoardQueryState } from "../lib/boardQueryState";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
 
@@ -192,7 +192,6 @@ export function KanbanBoard({
   const locale = useLocale();
   const statusLabels = useStatusLabels();
   const priorityLabels = usePriorityLabels();
-  const noMatchId = useId();
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -225,6 +224,8 @@ export function KanbanBoard({
     isFetching,
     isError,
     isPlaceholderData,
+    dataUpdatedAt,
+    errorUpdateCount,
     refetch,
   } = useIssueList(vault, query);
   // Placeholder data belongs to the previous query. Keep its filter and card
@@ -402,14 +403,21 @@ export function KanbanBoard({
   const hasActiveFilters =
     hasScopeFilters(filter, searchQuery, scope) ||
     Boolean(filter.showArchived || (scope === "active" && filter.showStale));
-  const showNoMatch =
-    !searchTransitionPending &&
-    !isFetching &&
-    !isError &&
-    visibleIssues.length === 0 &&
-    hasActiveFilters;
-  const resultsUpdating =
-    searchInputPending || searchTransitionPending || isPlaceholderData;
+  const queryState = getBoardQueryState({
+    hasData: issues !== undefined,
+    isError: isError || (dataUpdatedAt === 0 && errorUpdateCount > 0),
+    isFetching,
+    isPlaceholderData,
+    inputPending: searchInputPending || searchTransitionPending,
+    visibleCount: visibleIssues.length,
+    hasActiveFilters,
+    scope,
+  });
+  const queryUpdating =
+    queryState === "updating" ||
+    queryState === "refreshing" ||
+    (queryState === "refresh-error" && isFetching);
+  const resultsUpdating = queryState === "updating";
   const renderedOccurrences = useMemo(
     () =>
       issueGroups.flatMap(({ bucket, issues }) =>
@@ -488,8 +496,8 @@ export function KanbanBoard({
   const canReorderManualBoard =
     manualOrder &&
     !filter.showArchived &&
-    !isFetching &&
-    !isPlaceholderData &&
+    issues !== undefined &&
+    !queryUpdating &&
     !reorder.isPending;
   const canReorderBacklog =
     scope === "backlog" && canReorderManualBoard && !mutation.isPending;
@@ -899,9 +907,9 @@ export function KanbanBoard({
     };
   }, [backlogT, issueGroups, orderedBacklog, scope]);
 
-  if (isPending) {
+  if (queryState === "loading") {
     return (
-      <BoardColumnsSkeleton
+      <BoardLoadingFrame
         ariaLabel={t("columnsScrollRegion")}
         scope={scope}
         groupBy={effectiveGroupBy}
@@ -909,20 +917,14 @@ export function KanbanBoard({
     );
   }
 
-  if (
-    scope === "backlog" &&
-    !resultsUpdating &&
-    !isError &&
-    visibleIssues.length === 0 &&
-    !hasActiveFilters
-  ) {
+  if (queryState === "empty-backlog") {
     return <BacklogBoardEmpty vault={vault} />;
   }
 
   return (
     <div
       data-testid="kanban-board"
-      className="flex min-h-48 min-w-0 flex-1 flex-col"
+      className="relative flex min-h-48 min-w-0 flex-1 flex-col"
       onPointerMove={(event) => {
         lastPointerCoordinatesRef.current = {
           x: event.clientX,
@@ -940,28 +942,6 @@ export function KanbanBoard({
           className="top-0 bottom-auto"
         />
       </div>
-      {resultsUpdating && (
-        <span role="status" aria-live="polite" className="sr-only">
-          {common("updatingResults")}
-        </span>
-      )}
-      {isError && (
-        <div
-          className="mx-6 mt-4 rounded-md border border-destructive-focus/30 bg-destructive-fill/5 px-3 py-2 text-sm text-destructive-text"
-          role="alert"
-          aria-live="assertive"
-        >
-          {t("loadError")}{" "}
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto px-0 text-destructive-text"
-            onClick={() => void refetch()}
-          >
-            {common("retry")}
-          </Button>
-        </div>
-      )}
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollisionDetection}
@@ -1003,6 +983,7 @@ export function KanbanBoard({
                   : null
               }
               issues={issues}
+              countState={queryState === "initial-error" ? "unknown" : "known"}
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}
               assignees={assignees}
@@ -1031,40 +1012,17 @@ export function KanbanBoard({
               }
             />
           ))}
-          {showNoMatch && (
-            <div className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center">
-              <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-surface-page/95 px-5 py-4 text-center backdrop-blur-sm">
-                <section
-                  data-testid="kanban-no-matches"
-                  className="pointer-events-none flex flex-col items-center"
-                  aria-labelledby={`${noMatchId}-title`}
-                  aria-describedby={`${noMatchId}-description`}
-                >
-                  <h2
-                    id={`${noMatchId}-title`}
-                    className="text-sm font-semibold text-foreground"
-                  >
-                    {t("noMatchTitle")}
-                  </h2>
-                  <p
-                    id={`${noMatchId}-description`}
-                    className="mt-1 text-xs text-muted-foreground"
-                  >
-                    {t("noMatchDescription")}
-                  </p>
-                </section>
-                <Button
-                  className="pointer-events-auto mt-3"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => useIssueStore.getState().clearFilter()}
-                >
-                  {common("clearFilters")}
-                </Button>
-              </div>
-            </div>
-          )}
+          {queryState === "initial-error" ||
+          queryState === "no-match" ||
+          queryState === "empty-active" ? (
+            <BoardQueryFeedback
+              state={queryState}
+              vault={vault}
+              manualOrder={manualOrder}
+              retrying={isFetching}
+              onRetry={() => void refetch()}
+            />
+          ) : null}
         </div>
         <DragOverlay
           className="reef-drag-overlay"
@@ -1079,6 +1037,16 @@ export function KanbanBoard({
           ) : null}
         </DragOverlay>
       </DndContext>
+      {(queryUpdating || queryState === "refresh-error") &&
+      !(queryState === "refreshing" && reorder.isPending) ? (
+        <BoardQueryFeedback
+          state={queryState}
+          vault={vault}
+          manualOrder={manualOrder}
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
+      ) : null}
       <CloseIssueDialog
         open={pendingClose !== null}
         issueId={pendingClose?.issue.id ?? ""}

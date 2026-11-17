@@ -44,6 +44,7 @@ export interface KanbanColumnProps {
   continuityKey?: string | null;
   restoreAnchor?: BoardViewportAnchor | null;
   issues: IssueListItem[];
+  countState?: "known" | "unknown";
   /**
    * Blocked-issue ids precomputed once by the board (see `computeBlockedIds`).
    * The column resolves each card's blocked badge with `Set.has` (O(1)) and
@@ -72,6 +73,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   continuityKey = null,
   restoreAnchor = null,
   issues,
+  countState = "known",
   blockedIds = EMPTY_BLOCKED_IDS,
   planningCatalog,
   assignees,
@@ -367,16 +369,18 @@ export const KanbanColumn = memo(function KanbanColumn({
       data-group-by={bucket.groupBy}
       data-group-value={bucket.value ?? "none"}
       aria-label={
-        bucket.epic
-          ? t("epicColumnLabel", {
-              id: bucket.epic.id,
-              title: bucket.epic.title,
-              status: statusLabels[bucket.epic.status],
-              count: issues.length,
-              done: bucket.progress?.done ?? 0,
-              total: bucket.progress?.total ?? issues.length,
-            })
-          : `${bucket.label}, ${issues.length}`
+        countState === "unknown"
+          ? t("columnCountUnavailable", { column: bucket.label })
+          : bucket.epic
+            ? t("epicColumnLabel", {
+                id: bucket.epic.id,
+                title: bucket.epic.title,
+                status: statusLabels[bucket.epic.status],
+                count: issues.length,
+                done: bucket.progress?.done ?? 0,
+                total: bucket.progress?.total ?? issues.length,
+              })
+            : `${bucket.label}, ${issues.length}`
       }
       className={cn(
         "flex h-full min-w-0 w-full flex-col rounded-lg border border-border bg-surface-subtle p-2 lg:w-80 lg:shrink-0",
@@ -413,7 +417,7 @@ export const KanbanColumn = memo(function KanbanColumn({
           )}
         </h3>
         <span className="ml-auto shrink-0 type-compact-mono text-muted-foreground">
-          {issues.length}
+          {countState === "known" ? issues.length : t("countUnavailable")}
         </span>
         {epic ? (
           <button

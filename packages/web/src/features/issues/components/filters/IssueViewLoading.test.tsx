@@ -12,11 +12,12 @@ describe("IssueViewLoading", () => {
   it("keeps the board's column and card structure while its code loads", () => {
     renderLoading(<IssueViewLoading name="board" />);
 
-    expect(screen.getByTestId("issues-board-loading")).toHaveAttribute(
+    expect(screen.getByTestId("board-columns-skeleton")).toHaveAttribute(
       "aria-busy",
       "true",
     );
-    expect(screen.getByTestId("board-columns-skeleton")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading board");
+    expect(screen.getByRole("status").closest('[aria-busy="true"]')).toBeNull();
     expect(screen.getAllByTestId("kanban-group-header").length).toBeGreaterThan(
       1,
     );

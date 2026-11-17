@@ -508,6 +508,7 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325/570)", () => 
         `Saving ${movedIssueId}'s position…`,
       );
       expect(await progressBar.count()).toBe(0);
+      await expect(page.getByTestId("kanban-query-feedback")).toHaveCount(0);
       expect(
         await page.getByText("Updating results…", { exact: true }).count(),
       ).toBe(0);

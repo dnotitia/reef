@@ -25,6 +25,11 @@ issues, not public GitHub issues.
 
 ### Fixed
 
+- Distinguish initial Board loading, background refresh, failed queries, and
+  successful empty active boards. Keep cached cards during refresh failures,
+  explain paused Manual ordering, and provide retry or Backlog recovery in
+  English and Korean. (REEF-712)
+
 - Keep Rank moves within the current Priority group in Backlog List. Switch to
   No grouping to reorder the whole backlog. Keyboard moves return focus to the
   reorder handle after saving or cancelling.
