@@ -1,6 +1,7 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { test } from "../harness/workspace-fixture";
 import {
+  continueToWorkspace,
   openExistingWorkspace,
   readFixtureState,
   releaseAuthProbe,
@@ -248,16 +249,20 @@ test.extend({ scenario: "sprint_rollover" })(
     await page.setViewportSize({ width: 1440, height: 1000 });
     await signInThroughApi(page);
     await setResponseHold(request, "issue-list", true);
-    await page.goto("/workspace/reef-e2e/issues?view=list");
-    await expect(page.getByTestId("view-switcher-board")).toBeEnabled();
     const chunkStarted = Promise.withResolvers<void>();
     const releaseChunk = Promise.withResolvers<void>();
     await page.route("**/_next/static/chunks/*.js", async (route) => {
-      chunkStarted.resolve();
-      await releaseChunk.promise;
-      await route.continue();
+      const response = await route.fetch();
+      if (/"data-testid"\s*:\s*"kanban-board"/u.test(await response.text())) {
+        chunkStarted.resolve();
+        await releaseChunk.promise;
+      }
+      await route.fulfill({ response });
     });
     try {
+      await page.goto("/workspace/reef-e2e/issues?view=list");
+      await continueToWorkspace(page);
+      await expect(page.getByTestId("view-switcher-board")).toBeEnabled();
       await page.getByTestId("view-switcher-board").click();
       await chunkStarted.promise;
       await expect(page.getByTestId("issues-board-loading")).toBeVisible();
