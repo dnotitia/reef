@@ -1260,15 +1260,17 @@ test.describe("large Board column virtualization", () => {
     await page.goto(`/workspace/${LARGE_VAULT}/issues?view=board`);
     await advanceQueryRetries(
       page,
-      page
-        .locator('[role="alert"]')
-        .filter({ hasText: "Failed to load some issues." }),
+      page.locator('[role="alert"]').filter({
+        hasText: "Could not load the board. Issue counts are unavailable.",
+      }),
     );
     await expect(
-      page
-        .locator('[role="alert"]')
-        .filter({ hasText: "Failed to load some issues." }),
-    ).toContainText("Failed to load some issues.", { timeout: 20_000 });
+      page.locator('[role="alert"]').filter({
+        hasText: "Could not load the board. Issue counts are unavailable.",
+      }),
+    ).toContainText("Could not load the board. Issue counts are unavailable.", {
+      timeout: 20_000,
+    });
     const failedBoardRequestCount = boardRequests.length;
     expect(failedBoardRequestCount).toBeGreaterThan(0);
     expect(
