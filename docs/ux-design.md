@@ -814,10 +814,22 @@ Kanban columns use the subtle surface for their group frame, while repeated issu
 cards use the card surface; cards do not use the brighter elevated surface.
 While a same-vault search or filter query is resolving, the Board keeps the
 previous cards visible and shows the shared teal progress hairline with a polite
-"Updating results…" status. Background list revalidation after a card move stays
-scoped to that card's reorder feedback; it does not show the result-progress
-hairline across the Board. A new user-driven query still shows result progress
-while its replacement data loads.
+"Updating results…" status. Background list revalidation keeps cached cards,
+column headers, scroll positions, and focus in place. A compact corner status
+explains that the Board is updating and that Manual ordering is paused while
+the query is in flight. It does not show the result-progress hairline across
+the Board. A new user-driven query still shows result progress while its
+replacement data loads. Reorder persistence feedback remains scoped to the card.
+
+Code and initial data waits share a visible, polite loading explanation outside
+the busy column region. An initial query error keeps the columns with unknown
+counts and offers Retry. A refresh error keeps previously loaded cards and their
+counts with a separate retry notice. Neither error is a confirmed empty result.
+Only a settled successful query can show a no-match or active-empty explanation.
+The active-empty overlay says there are no active issues, points to the existing
+New issue button, and links to Backlog. It does not claim the workspace is empty.
+This active-empty guidance supersedes REEF-473's earlier passive-empty policy.
+All feedback stays outside normal layout flow and never moves focus.
 
 When grouped by Epic, each root Epic is one flat column with read-only group
 dragging. Its header shows the Epic id, full title, own status, visible
@@ -916,11 +928,12 @@ their own native keyboard behavior. Search has an explicit accessible name,
 selection controls remain visible without hover, and loading or retryable
 errors are announced through live status surfaces.
 
-The board shows a column-skeleton while loading, the list and backlog show row
-skeletons, and timeline/settings have route-level skeletons shaped to their
-content. A soft inline notice appears if some issues fail to load (cached data
-is still shown). An unconfigured workspace shows a "Configure a workspace in
-Settings" empty state.
+The board shows a column-skeleton with a loading explanation while waiting for
+code or initial data. The list and backlog show row skeletons, and
+timeline/settings have route-level skeletons shaped to their content. Board
+errors distinguish unavailable initial results from failed cache refreshes;
+other issue views keep their existing cached-data notices. An unconfigured
+workspace shows a "Configure a workspace in Settings" empty state.
 
 **Filter toolbar menus.** Display is a compact checkable menu with independent
 Show archived and Show completed toggles; it stays open while the PM changes
@@ -1362,6 +1375,7 @@ CTA placement belongs to the surrounding page composition, not to the shared
 | My Work: populated | None | Global summary, queue, and queue-only workspace filter | Open work is available |
 | Planning: true empty | Primary create/continue | One existing filled `PageHeader` New button | The selected planning kind has no entries |
 | Reports: true empty | Primary create/continue | One filled `PageHeader` New issue button opens the shared issue creation flow; the section frame remains passive | Reports has no active issues |
+| Board: active empty | Recovery | Compact overlay points to the existing New issue button and includes a View backlog link | A successful unfiltered active query has no visible issues |
 | Board: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches |
 | Inbox: normal empty | Passive | No CTA | There is no notification to review |
 | Workspace navigation | Navigation | Existing sidebar Issues link and Issues view switcher | All My Work states; navigation is not duplicated in an empty frame |

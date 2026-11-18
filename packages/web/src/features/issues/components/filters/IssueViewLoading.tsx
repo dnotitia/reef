@@ -1,6 +1,6 @@
 "use client";
 
-import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
+import { BoardLoadingFrame } from "@/components/BoardColumnsSkeleton";
 import { BacklogTableSkeleton } from "@/features/issues/components/filters/BacklogTableSkeleton";
 import { IssueListViewSkeleton } from "@/features/issues/components/list/IssueListViewSkeleton";
 import { TimelineViewSkeleton } from "@/features/timeline/components/TimelineGridSkeleton";
@@ -33,6 +33,17 @@ export function IssueViewLoading({
     );
   }
 
+  if (name === "board") {
+    return (
+      <div
+        data-testid="issues-board-loading"
+        className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
+        <BoardLoadingFrame />
+      </div>
+    );
+  }
+
   return (
     <div
       data-testid={`issues-${name}-loading`}
@@ -42,7 +53,6 @@ export function IssueViewLoading({
       className="flex min-h-0 min-w-0 flex-1 overflow-hidden"
     >
       <span className="sr-only">{common("loading")}</span>
-      {name === "board" ? <BoardColumnsSkeleton /> : null}
       {name === "list" ? <IssueListViewSkeleton /> : null}
       {name === "backlog" ? <BacklogTableSkeleton /> : null}
       {name === "timeline" ? <TimelineViewSkeleton /> : null}

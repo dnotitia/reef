@@ -1576,7 +1576,6 @@
     }
   },
   "board": {
-    "loadError": "일부 이슈를 불러오지 못했습니다. 캐시된 데이터가 있으면 표시합니다.",
     "columnsScrollRegion": "보드 열",
     "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
     "updateErrorDescription": "보드가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
@@ -1588,7 +1587,18 @@
     "activeSprint": "활성 스프린트",
     "openSprintDetails": "{name} 스프린트 상세 열기",
     "openEpic": "에픽 {id}: {title} 열기",
-    "epicColumnLabel": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료"
+    "epicColumnLabel": "에픽 {id}: {title}; 상태 {status}; 하위 이슈 {count}개 표시; {total}개 중 {done}개 완료·종료",
+    "loading": "보드를 불러오는 중…",
+    "loadingDescription": "이슈를 조회하고 있습니다. 잠시만 기다려 주세요.",
+    "initialError": "보드를 불러오지 못했습니다. 이슈 개수를 확인할 수 없습니다.",
+    "refreshError": "보드를 갱신하지 못했습니다. 이전에 불러온 이슈를 표시합니다.",
+    "refreshing": "보드를 갱신하는 중…",
+    "refreshingReorderPaused": "보드 갱신이 끝날 때까지 수동 정렬을 사용할 수 없습니다.",
+    "emptyActiveTitle": "활성 이슈가 없습니다",
+    "emptyActiveDescription": "새 이슈 버튼으로 이슈를 만들거나 백로그에서 예정된 작업을 확인하세요.",
+    "viewBacklog": "백로그 보기",
+    "countUnavailable": "확인 불가",
+    "columnCountUnavailable": "{column}, 이슈 개수 확인 불가"
   },
   "inbox": {
     "pageTitle": "받은 알림",

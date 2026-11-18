@@ -126,3 +126,26 @@ export function BoardColumnsSkeleton({
     </div>
   );
 }
+
+export function BoardLoadingFrame(props: BoardColumnsSkeletonProps) {
+  const t = useTranslations("board");
+  return (
+    <div className="relative flex min-h-0 min-w-0 flex-1">
+      <BoardColumnsSkeleton
+        {...props}
+        ariaLabel={props.ariaLabel ?? t("columnsScrollRegion")}
+      />
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center"
+      >
+        <div className="rounded-md border border-border-subtle bg-surface-page/95 px-4 py-3 text-center text-sm text-muted-foreground">
+          <p>{t("loading")}</p>
+          <p className="mt-1 text-xs">{t("loadingDescription")}</p>
+        </div>
+      </div>
+    </div>
+  );
+}

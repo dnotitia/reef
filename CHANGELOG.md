@@ -25,6 +25,10 @@ issues, not public GitHub issues.
 
 ### Fixed
 
+- Distinguish initial Board loading, background refresh, failed queries, and
+  successful empty active boards. Keep cached cards during refresh failures,
+  explain paused Manual ordering, and provide retry or Backlog recovery in
+  English and Korean. (REEF-712)
 - Keep sign-in feedback active while destination navigation is pending,
   align the root loading frame with the Issues header, filters, and board, and
   show pending sidebar controls as unavailable. Preserve URL filters after a

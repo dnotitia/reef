@@ -1361,7 +1361,6 @@
     }
   },
   "board": {
-    "loadError": "Failed to load some issues. Displaying cached data if available.",
     "columnsScrollRegion": "Board columns",
     "updateErrorTitle": "Couldn't update issue",
     "updateErrorDescription": "The board was reverted. Retry to move it again.",
@@ -1373,7 +1372,18 @@
     "activeSprint": "Active sprint",
     "openSprintDetails": "Open {name} sprint details",
     "openEpic": "Open Epic {id}: {title}",
-    "epicColumnLabel": "Epic {id}: {title}; status {status}; {count} visible children; {done} of {total} done or closed"
+    "epicColumnLabel": "Epic {id}: {title}; status {status}; {count} visible children; {done} of {total} done or closed",
+    "loading": "Loading board…",
+    "loadingDescription": "Fetching issues. This may take a moment.",
+    "initialError": "Could not load the board. Issue counts are unavailable.",
+    "refreshError": "Could not update the board. Previously loaded issues are still shown.",
+    "refreshing": "Updating board…",
+    "refreshingReorderPaused": "Manual ordering is paused until the board finishes updating.",
+    "emptyActiveTitle": "No active issues",
+    "emptyActiveDescription": "Create an issue using New issue, or check the backlog for planned work.",
+    "viewBacklog": "View backlog",
+    "countUnavailable": "Unknown",
+    "columnCountUnavailable": "{column}, issue count unavailable"
   },
   "inbox": {
     "pageTitle": "Inbox",

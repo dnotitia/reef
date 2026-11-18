@@ -398,7 +398,7 @@ test.describe("Hermetic sprint rollover workflow", () => {
       await advanceQueryRetries(page, boardError);
       await expect(boardError).toBeVisible({ timeout: 10_000 });
       await expect(boardError).toContainText(
-        "Failed to load some issues. Displaying cached data if available.",
+        "Could not update the board. Previously loaded issues are still shown.",
       );
       const retryButton = boardError.getByRole("button", {
         name: "Retry",
