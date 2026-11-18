@@ -347,7 +347,9 @@ describe("KanbanBoard filtering and rendering", () => {
 
     expect(await screen.findByText("API cleanup")).toBeInTheDocument();
     expect(screen.queryByText("UI board polish")).toBeNull();
-    const requestedUrl = mockApiFetch.mock.calls[0]?.[0] as string;
+    const requestedUrl = mockApiFetch.mock.calls
+      .map(([url]) => String(url))
+      .find((url) => url.startsWith("/api/issues?"));
     expect(requestedUrl).toContain("sort_field=rank");
     expect(requestedUrl).not.toContain("q=");
     expect(

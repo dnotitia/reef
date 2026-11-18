@@ -6,6 +6,7 @@ import {
   releaseResponseHold,
   REEF_E2E_VAULT,
   openExistingWorkspace,
+  signInThroughApi,
   readFixtureState,
   setAuthControl,
   setIssueListFailure,
@@ -215,6 +216,61 @@ async function captureIssueViewGeometry(
 }
 
 test.describe("Hermetic issues board hydration (REEF-315)", () => {
+  test("loads the selected Board data while the Board code is pending", async ({
+    page,
+  }) => {
+    const path = `/workspace/${REEF_E2E_VAULT}/issues`;
+    await signInThroughApi(page);
+    await page.goto(`${path}?view=list&status=todo&sort=title&order=asc`);
+    await expect(page.getByTestId("issue-list-scroll-container")).toBeVisible();
+    await expect(
+      page.getByText("Review monitored-repo findings"),
+    ).toBeVisible();
+
+    const chunkRequested = Promise.withResolvers<void>();
+    const releaseChunk = Promise.withResolvers<void>();
+    const chunks = "**/_next/static/chunks/*.js";
+    const holdChunk = async (route: import("@playwright/test").Route) => {
+      chunkRequested.resolve();
+      await releaseChunk.promise;
+      await route.continue();
+    };
+    await page.route(chunks, holdChunk);
+    try {
+      const boardResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/issues" &&
+          url.searchParams.get("vault") === REEF_E2E_VAULT &&
+          url.searchParams.getAll("status").join(",") === "todo" &&
+          url.searchParams.get("sort_field") === "title" &&
+          url.searchParams.get("sort_order") === "asc" &&
+          !url.searchParams.has("limit")
+        );
+      });
+      await page.getByTestId("view-switcher-board").click();
+      await chunkRequested.promise;
+      const response = await boardResponse;
+      expect(response.ok()).toBe(true);
+      expect((await response.json()).issues).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: "REEF-101" })]),
+      );
+      await expect(page.getByTestId("issues-board-loading")).toBeVisible();
+      await expect(page.locator(card)).toHaveCount(0);
+
+      releaseChunk.resolve();
+      const issueCard = page.locator(card).filter({
+        hasText: "Review monitored-repo findings",
+      });
+      await issueCard.click();
+      await expect(page).toHaveURL(/\/issues\/REEF-101/);
+    } finally {
+      releaseChunk.resolve();
+      await page.unroute(chunks, holdChunk);
+    }
+  });
+
   for (const view of ["list", "timeline"] as const) {
     test(`keeps fixed issue chrome while the ${view} view code loads`, async ({
       page,

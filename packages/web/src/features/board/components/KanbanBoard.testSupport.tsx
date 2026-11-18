@@ -148,6 +148,23 @@ import type { IssueMetadata } from "@reef/core";
 
 export const mockApiFetch = vi.mocked(apiFetch);
 
+export function mockIssueRows(issues: IssueMetadata[]) {
+  mockApiFetch.mockImplementation(async (url) => {
+    const { pathname } = new URL(
+      url instanceof Request ? url.url : url,
+      "http://reef.test",
+    );
+    switch (pathname) {
+      case "/api/issues":
+        return Response.json({ issues });
+      case "/api/issues/relations":
+        return Response.json({ relations: [] });
+      default:
+        return new Response(null, { status: 404 });
+    }
+  });
+}
+
 export const ISSUES: IssueMetadata[] = [
   {
     id: "REEF-001",
@@ -250,6 +267,12 @@ export function resetKanbanBoardMocks() {
   });
 }
 
-const { KanbanBoard } = await import("./KanbanBoard");
+const { KanbanBoard: Board } = await import("./KanbanBoard");
+const { useBoardIssueList } = await import("../hooks/useBoardIssueList");
 
-export { KanbanBoard };
+export function KanbanBoard(
+  props: Omit<React.ComponentProps<typeof Board>, "boardIssues">,
+) {
+  const boardIssues = useBoardIssueList(props);
+  return <Board {...props} boardIssues={boardIssues} />;
+}

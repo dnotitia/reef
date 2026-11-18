@@ -6,6 +6,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { KanbanBoardProps } from "@/features/board/components/KanbanBoard";
+import { useBoardIssueList } from "@/features/board/hooks/useBoardIssueList";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
 import { ScopeSwitcher } from "@/features/issues/components/filters/ScopeSwitcher";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
@@ -86,6 +88,28 @@ const KanbanBoard = dynamic(
     ),
   },
 );
+
+function WorkspaceBoard({
+  filtersRestored,
+  filtersReady,
+  ...props
+}: Omit<KanbanBoardProps, "boardIssues"> & {
+  filtersRestored: boolean;
+  filtersReady: boolean;
+}) {
+  const boardIssues = useBoardIssueList({
+    vault: props.vault,
+    scope: props.scope,
+    fixedSprintId: props.fixedSprintId,
+    enabled: filtersReady,
+  });
+  return (
+    <KanbanBoard
+      {...props}
+      boardIssues={filtersRestored ? boardIssues : null}
+    />
+  );
+}
 
 const loadIssueListTable = () =>
   import("@/features/issues/components/list/IssueListTable").then(
@@ -287,36 +311,33 @@ export function IssuesWorkspace({
     fixedSprintId && parsedView.layout === "timeline"
       ? "board"
       : parsedView.layout;
-  const shouldFetchRolloverIssues =
-    !fixedSprintId &&
-    (rolloverOpen || (scope === "active" && layout === "board"));
-  const rolloverIssueQuery = useIssueList(vault, undefined, {
-    enabled: shouldFetchRolloverIssues,
-  });
   const activeSprint = selectActiveSprint(
     planningCatalogQuery.data?.sprints ?? [],
   );
   const rolloverResumes = planningCatalogQuery.data?.rollover_resumes ?? [];
+  const overdueSprintMayHaveCandidates =
+    activeSprint !== null &&
+    shouldShowSprintRolloverNudge({
+      sprint: activeSprint,
+      issues: [
+        { sprint_id: activeSprint.id, status: "todo", archived_at: null },
+      ],
+      now: renderTime,
+    });
+  const shouldFetchRolloverIssues =
+    !fixedSprintId &&
+    (rolloverOpen ||
+      (scope === "active" &&
+        layout === "board" &&
+        overdueSprintMayHaveCandidates));
+  const rolloverIssueQuery = useIssueList(vault, undefined, {
+    enabled: shouldFetchRolloverIssues,
+  });
   const rolloverIssueState = rolloverIssueQuery.isError
     ? "error"
     : rolloverIssueQuery.isPending || !rolloverIssueQuery.data
       ? "loading"
       : "available";
-  // Ask the shared nudge policy whether this sprint could show a nudge, using
-  // one carry-forward issue only while the real issue list is still unknown.
-  const mayShowRolloverNudge =
-    activeSprint !== null &&
-    shouldShowSprintRolloverNudge({
-      sprint: activeSprint,
-      issues: rolloverIssueQuery.data ?? [
-        {
-          sprint_id: activeSprint.id,
-          status: "todo",
-          archived_at: null,
-        },
-      ],
-      now: renderTime,
-    });
   const planningCatalogIsLoading =
     !planningCatalogQuery.data &&
     (planningCatalogQuery.isPending || planningCatalogQuery.isFetching);
@@ -328,7 +349,8 @@ export function IssuesWorkspace({
     scope === "active" &&
     layout === "board" &&
     (planningCatalogIsLoading ||
-      (mayShowRolloverNudge && (rolloverIssuesAreLoading || now === null)));
+      (overdueSprintMayHaveCandidates &&
+        (rolloverIssuesAreLoading || now === null)));
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -360,6 +382,8 @@ export function IssuesWorkspace({
   }, [layout]);
 
   const {
+    filtersRestored,
+    filtersReady,
     skipNextSave,
     groupBy,
     setGroupBy,
@@ -527,8 +551,10 @@ export function IssuesWorkspace({
             }
           >
             {layout === "board" ? (
-              <KanbanBoard
+              <WorkspaceBoard
                 vault={vault}
+                filtersRestored={filtersRestored}
+                filtersReady={filtersReady}
                 continuityKey={boardContinuityKey}
                 scope={scope}
                 groupBy={groupBy}

@@ -25,6 +25,8 @@ issues, not public GitHub issues.
 
 ### Fixed
 
+- Start the selected Kanban Board's issue query while its code loads, so its
+  first cards or empty state can appear sooner. (REEF-713)
 - Distinguish initial Board loading, background refresh, failed queries, and
   successful empty active boards. Keep cached cards during refresh failures,
   explain paused Manual ordering, and provide retry or Backlog recovery in
