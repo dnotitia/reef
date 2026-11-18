@@ -14,6 +14,7 @@ import {
   KanbanBoard,
   dndHarness,
   mockApiFetch,
+  mockIssueRows,
   resetKanbanBoardMocks,
   wrap,
 } from "./KanbanBoard.testSupport";
@@ -42,18 +43,13 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          issues: FILTER_ISSUES.map((issue) =>
-            issue.id === "REEF-010"
-              ? { ...issue, rank: 2000 }
-              : issue.id === "REEF-013"
-                ? { ...issue, rank: 1000 }
-                : issue,
-          ),
-        }),
-        { status: 200 },
+    mockIssueRows(
+      FILTER_ISSUES.map((issue) =>
+        issue.id === "REEF-010"
+          ? { ...issue, rank: 2000 }
+          : issue.id === "REEF-013"
+            ? { ...issue, rank: 1000 }
+            : issue,
       ),
     );
 
@@ -81,21 +77,12 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          // The title comparator is owned by the server's ICU collation; the
-          // board should not re-sort just the loaded rows after pagination.
-          issues: [
-            FILTER_ISSUES[3],
-            FILTER_ISSUES[0],
-            FILTER_ISSUES[1],
-            FILTER_ISSUES[2],
-          ],
-        }),
-        { status: 200 },
-      ),
-    );
+    mockIssueRows([
+      FILTER_ISSUES[3],
+      FILTER_ISSUES[0],
+      FILTER_ISSUES[1],
+      FILTER_ISSUES[2],
+    ]);
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
 
@@ -111,9 +98,7 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      Response.json({ issues: [FILTER_ISSUES[3], FILTER_ISSUES[0]] }),
-    );
+    mockIssueRows([FILTER_ISSUES[3], FILTER_ISSUES[0]]);
     render(wrap(<KanbanBoard vault="reef-acme" />));
     const ui = await screen.findByText("UI board polish");
     const backend = await screen.findByText("Backend blocker");
@@ -135,7 +120,7 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
         { ...FILTER_ISSUES[0], id: "TEAM_2-1000" },
         { ...FILTER_ISSUES[3], id: "TEAM_2-999" },
       ];
-      mockApiFetch.mockResolvedValue(Response.json({ issues: rows }));
+      mockIssueRows(rows);
       render(wrap(<KanbanBoard vault="reef-acme" />));
       await screen.findByText("UI board polish");
       await screen.findByText("Backend blocker");

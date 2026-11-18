@@ -208,6 +208,7 @@ describe("IssuesWorkspace", () => {
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
+
     mockUsePlanningCatalog.mockReturnValue({
       data: {
         sprints: [],
@@ -415,6 +416,36 @@ describe("IssuesWorkspace", () => {
     expect(screen.queryByTestId("issue-bulk-action-bar")).toBeNull();
     expect(screen.queryByTestId("list-body")).toBeNull();
     expect(screen.queryByTestId("timeline-body")).toBeNull();
+    expect(
+      mockUseIssueList.mock.calls.some(
+        ([, query, options]) => !query && options.enabled,
+      ),
+    ).toBe(false);
+  });
+
+  it("enables only the workflow-compatible query for an active board URL", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "status=backlog&sort=title&order=asc",
+    );
+    render(wrap(<IssuesWorkspace />));
+
+    await waitFor(() =>
+      expect(mockUseIssueList).toHaveBeenCalledWith(
+        "reef-acme",
+        {
+          status: ["todo", "in_progress", "in_review", "done", "closed"],
+          sort_field: "title",
+          sort_order: "asc",
+        },
+        { enabled: true },
+      ),
+    );
+    expect(
+      mockUseIssueList.mock.calls.some(
+        ([, query, options]) =>
+          query?.status.includes("backlog") && options.enabled,
+      ),
+    ).toBe(false);
   });
 
   it("routes search input pending into the active result surface", async () => {
@@ -679,10 +710,10 @@ describe("IssuesWorkspace", () => {
     expect(screen.queryByTestId("sort-control")).toBeNull();
   });
 
-  it("falls back to the board view for an unrecognized ?view=", () => {
+  it("falls back to the board view for an unrecognized ?view=", async () => {
     navigationState.searchParams = new URLSearchParams("view=bogus");
     render(wrap(<IssuesWorkspace />));
-    expect(screen.getByTestId("board-body")).toBeInTheDocument();
+    expect(await screen.findByTestId("board-body")).toBeInTheDocument();
   });
 
   it("shows the shared pick-workspace empty state and no toolbar/body when no vault", () => {

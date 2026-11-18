@@ -10,11 +10,17 @@ import { mockIssues } from "@/__stories__/fixtures";
  */
 import type { Meta, StoryObj } from "@storybook/react";
 import { http, HttpResponse } from "msw";
-import { KanbanBoard } from "./KanbanBoard";
+import { KanbanBoard, type KanbanBoardProps } from "./KanbanBoard";
+import { useBoardIssueList } from "../hooks/useBoardIssueList";
 
-const meta: Meta<typeof KanbanBoard> = {
+function BoardStory(props: Omit<KanbanBoardProps, "boardIssues">) {
+  const boardIssues = useBoardIssueList(props);
+  return <KanbanBoard {...props} boardIssues={boardIssues} />;
+}
+
+const meta: Meta<typeof BoardStory> = {
   title: "Features/Board/KanbanBoard",
-  component: KanbanBoard,
+  component: BoardStory,
   parameters: {
     layout: "fullscreen",
   },
@@ -24,7 +30,7 @@ const meta: Meta<typeof KanbanBoard> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof KanbanBoard>;
+type Story = StoryObj<typeof BoardStory>;
 
 /**
  * Default — 6 mock issues spread across all 5 statuses.

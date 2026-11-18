@@ -9,6 +9,7 @@ import {
   KanbanBoard,
   dndHarness,
   mockApiFetch,
+  mockIssueRows,
   resetKanbanBoardMocks,
   wrap,
 } from "./KanbanBoard.testSupport";
@@ -199,9 +200,7 @@ describe("KanbanBoard drag and status updates", () => {
   );
 
   it("does not PATCH when the card is dropped outside a status column", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: ISSUES }), { status: 200 }),
-    );
+    mockIssueRows(ISSUES);
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
     await screen.findByText("Open A");
@@ -357,9 +356,7 @@ describe("KanbanBoard drag and status updates", () => {
   });
 
   it("prefers a card collision over its enclosing Board column", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
-    );
+    mockIssueRows(FILTER_ISSUES);
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
     await screen.findByText("UI board polish");
@@ -392,9 +389,7 @@ describe("KanbanBoard drag and status updates", () => {
 
   it("disables the Board drop settle animation for reduced-motion users", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
-    );
+    mockIssueRows(FILTER_ISSUES);
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
     await screen.findByText("UI board polish");

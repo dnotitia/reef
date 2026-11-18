@@ -10,15 +10,9 @@ import {
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { useReorderBacklog } from "@/features/issues/hooks/mutations/useReorderBacklog";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
-import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
-import { useWorkflowStatusGuard } from "@/features/issues/hooks/view/useWorkflowStatusGuard";
-import {
-  buildIssueQuery,
-  buildManualIssueQuery,
-} from "@/features/issues/lib/buildIssueQuery";
 import {
   buildBulkIssuePatch,
   type BulkIssueOperation,
@@ -106,6 +100,7 @@ import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { BoardQueryFeedback } from "./BoardQueryFeedback";
 import { getBoardQueryState } from "../lib/boardQueryState";
+import type { useBoardIssueList } from "../hooks/useBoardIssueList";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
 
@@ -158,8 +153,9 @@ const boardCollisionDetection: CollisionDetection = (args) => {
   return issueCollision ? [issueCollision] : collisions;
 };
 
-interface KanbanBoardProps {
+export interface KanbanBoardProps {
   vault: string;
+  boardIssues: ReturnType<typeof useBoardIssueList>;
   continuityKey?: string | null;
   scope?: IssueScope;
   groupBy?: IssueGroupBy;
@@ -167,13 +163,27 @@ interface KanbanBoardProps {
   searchInputPending?: boolean;
 }
 
+export function KanbanBoard({
+  boardIssues,
+  ...props
+}: Omit<KanbanBoardProps, "boardIssues"> & {
+  boardIssues: KanbanBoardProps["boardIssues"] | null;
+}) {
+  return boardIssues ? (
+    <KanbanBoardContent {...props} boardIssues={boardIssues} />
+  ) : (
+    <BoardLoadingFrame scope={props.scope} groupBy={props.groupBy} />
+  );
+}
+
 /**
  * Issues grouped into 5 columns by status with drag-and-drop via
  * @dnd-kit/core. User-driven board edits allow moving an issue to any valid
  * status column, matching the issue detail status picker.
  */
-export function KanbanBoard({
+function KanbanBoardContent({
   vault,
+  boardIssues: { issueList, displaySearchQuery },
   continuityKey = null,
   scope = "active",
   groupBy,
@@ -182,7 +192,6 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const effectiveGroupBy =
     groupBy ?? (scope === "backlog" ? "priority" : "status");
-  useWorkflowStatusGuard(scope === "active");
   const t = useTranslations("board");
   const groupT = useTranslations("issues.filters");
   const backlogT = useTranslations("issues.backlog");
@@ -196,7 +205,6 @@ export function KanbanBoard({
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const searchTransitionPending = deferredSearchQuery !== searchQuery;
-  const settledSearchQueryRef = useRef(searchQuery);
   const scopedFilter = useMemo(() => {
     const scoped = filterForIssueScope(filter, scope);
     return fixedSprintId
@@ -204,16 +212,6 @@ export function KanbanBoard({
       : scoped;
   }, [filter, fixedSprintId, scope]);
   const manualOrder = isManualOrdering(filter);
-  // Server-side narrows the transfer (facets + free-text search); the client
-  // pipeline below still applies due/label/dependency residuals and grouping.
-  // The whole-vault relation projection backs blocker badges + the dependency
-  // filter so they stay correct over the server-filtered subset.
-  const query = useMemo(() => {
-    if (manualOrder) {
-      return buildManualIssueQuery(filter, scope, fixedSprintId);
-    }
-    return buildIssueQuery(filter, searchQuery, scope, fixedSprintId);
-  }, [filter, fixedSprintId, manualOrder, scope, searchQuery]);
   // The Board keeps the complete issue projection for group counts, keyboard
   // traversal, and canonical Manual-order anchors. Bound card DOM here; defer
   // cursor loading until those contracts can be represented incrementally.
@@ -227,18 +225,7 @@ export function KanbanBoard({
     dataUpdatedAt,
     errorUpdateCount,
     refetch,
-  } = useIssueList(vault, query);
-  // Placeholder data belongs to the previous query. Keep its filter and card
-  // set visible until the replacement arrives, while the updating signal tells
-  // the user that the latest intent is still converging.
-  const displaySearchQuery = isPlaceholderData
-    ? settledSearchQueryRef.current
-    : searchQuery;
-  useEffect(() => {
-    if (!isPending && !isFetching && !isPlaceholderData) {
-      settledSearchQueryRef.current = searchQuery;
-    }
-  }, [isFetching, isPending, isPlaceholderData, searchQuery]);
+  } = issueList;
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);

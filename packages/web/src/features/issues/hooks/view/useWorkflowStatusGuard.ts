@@ -21,7 +21,7 @@ const WORKFLOW_STATUS_SET: ReadonlySet<string> = new Set(
  * re-runs with nothing left to remove. The list view does not use this guard, so
  * it keeps the full status set.
  */
-export function useWorkflowStatusGuard(enabled = true): void {
+export function useWorkflowStatusGuard(enabled = true): boolean {
   const status = useIssueStore((state) => state.filter.status);
   const setFilter = useIssueStore((state) => state.setFilter);
 
@@ -33,4 +33,6 @@ export function useWorkflowStatusGuard(enabled = true): void {
       setFilter({ status: allowed.length ? allowed : undefined });
     }
   }, [enabled, status, setFilter]);
+
+  return !enabled || !status?.some((value) => !WORKFLOW_STATUS_SET.has(value));
 }

@@ -929,7 +929,12 @@ selection controls remain visible without hover, and loading or retryable
 errors are announced through live status surfaces.
 
 The board shows a column-skeleton with a loading explanation while waiting for
-code or initial data. The list and backlog show row skeletons, and
+code or initial data. In a signed-in workspace, the selected Board can load
+its code while Reef resolves the URL or saved filters. The issue request can
+start once the filters are ready. The server checks workspace access before
+reading issues. The request uses the same workspace, scope, filters, and
+ordering as the rendered Board.
+The list and backlog show row skeletons, and
 timeline/settings have route-level skeletons shaped to their content. Board
 errors distinguish unavailable initial results from failed cache refreshes;
 other issue views keep their existing cached-data notices. An unconfigured

@@ -13,7 +13,13 @@ import {
 } from "@reef/core";
 import { type UserSortField, naturalSortOrder } from "@reef/core/fields";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type RefObject, useCallback, useEffect, useRef } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import {
   parseIssueGroupBy,
@@ -323,6 +329,24 @@ function normalizeParams(query: string): string {
   return params.toString();
 }
 
+function issueRequestParams(searchParams: URLSearchParams): string {
+  const requestParams = new URLSearchParams();
+  for (const key of ISSUE_QUERY_KEYS) {
+    if (
+      key === "columns" ||
+      key === "stale" ||
+      key === "labels" ||
+      key === "dep"
+    ) {
+      continue;
+    }
+    for (const value of searchParams.getAll(key).sort()) {
+      requestParams.append(key, value);
+    }
+  }
+  return requestParams.toString();
+}
+
 /**
  * Mirrors issue list/board filters via URL query params, and restores
  * the per-vault last-used filter from IndexedDB when the URL carries none
@@ -344,6 +368,8 @@ function normalizeParams(query: string): string {
 export function useIssueUrlSync(options?: {
   preserveFilterOnNonListRoute?: boolean;
 }): {
+  filtersRestored: boolean;
+  filtersReady: boolean;
   skipNextSave: RefObject<boolean>;
   groupBy: IssueGroupBy;
   setGroupBy: (groupBy: IssueGroupBy) => void;
@@ -361,6 +387,9 @@ export function useIssueUrlSync(options?: {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const [restoredVault, setRestoredVault] = useState<string | null>(null);
+  const requestedFilters = issueRequestParams(searchParams);
+  const [appliedFilters, setAppliedFilters] = useState<string | null>(null);
   const { scope, layout: view } = parseIssueViewState(searchParams);
   const groupBy = parseIssueGroupBy(
     searchParams.get(GROUP_QUERY_KEY),
@@ -418,6 +447,7 @@ export function useIssueUrlSync(options?: {
       // later (possibly unmounted) switch is still detected.
       if (vault && filterVault === null) {
         useIssueStore.setState({ filterVault: vault });
+        setRestoredVault(vault);
       }
       return;
     }
@@ -438,6 +468,7 @@ export function useIssueUrlSync(options?: {
         searchQueryResetToken: state.searchQueryResetToken + 1,
       }));
       initialized.current = true;
+      setRestoredVault(vault || null);
       return;
     }
 
@@ -512,6 +543,7 @@ export function useIssueUrlSync(options?: {
         }
       } finally {
         settled = true;
+        if (!aborted) setRestoredVault(restoringVault);
       }
     })();
 
@@ -536,9 +568,11 @@ export function useIssueUrlSync(options?: {
       if (pendingExplicitUrl.current === currentQuery) {
         pendingExplicitUrl.current = null;
         lastUrlQuery.current = currentQuery;
+        setAppliedFilters(requestedFilters);
       }
       return;
     }
+    setAppliedFilters(requestedFilters);
     if (lastUrlQuery.current === null) {
       lastUrlQuery.current = currentQuery;
       return;
@@ -567,7 +601,13 @@ export function useIssueUrlSync(options?: {
       filterVault: vault || null,
       searchQueryResetToken: state.searchQueryResetToken + 1,
     }));
-  }, [pathname, preserveFilterOnNonListRoute, searchParams, vault]);
+  }, [
+    pathname,
+    preserveFilterOnNonListRoute,
+    requestedFilters,
+    searchParams,
+    vault,
+  ]);
 
   useEffect(() => {
     if (!initialized.current) return;
@@ -731,7 +771,10 @@ export function useIssueUrlSync(options?: {
     [pathname, router, searchParams, vault],
   );
 
+  const filtersRestored = restoredVault === vault;
   return {
+    filtersRestored,
+    filtersReady: filtersRestored && appliedFilters === requestedFilters,
     skipNextSave,
     groupBy,
     setGroupBy,
