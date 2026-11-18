@@ -1091,6 +1091,14 @@ account authority. After either path succeeds, the previous account's workspace-
 reconciled away. There is no GitHub-OAuth sign-in, popup, or
 management-repository selection.
 
+Password submission keeps its signing-in label, spinner, and disabled inputs
+until destination navigation commits. Rejected credentials and request
+failures restore the inputs for retry. A successful response does not make the
+still-mounted form available for another submission while navigation is pending.
+If an explicit destination keeps the login page mounted, its controls become
+available after that navigation commits. When a workspace session
+expires, the safe login destination retains its query filters.
+
 After session validation, reef checks the user's accessible workspaces before
 showing onboarding. The workspace list reports only whether Reef's app
 installation is confirmed active for that member; it does not load installation
@@ -1105,6 +1113,16 @@ is confirmed inactive, it opens that workspace's entry guidance so the user can
 recheck access. An unknown availability result with no confirmed active
 workspace keeps onboarding paused behind an explicit retry state rather than
 claiming the account is empty.
+
+Root authentication and workspace resolution use the same Issues header,
+filter toolbar, sprint pending frame, and board skeleton as the default Issues
+destination. Known workspace routes keep their destination-specific skeleton.
+The static shell requires explicit destination content. Pending sidebar
+navigation is dimmed and non-focusable, and New issue is a disabled button.
+These placeholders expose no protected data or unknown workspace name. Ready
+controls respond on their first activation. The current tab's sidebar width
+is retained during root resolution. Resolved data may remove a sprint notice
+that does not apply; that is a data-dependent layout change.
 
 Users with no active workspace and no remembered inactive workspace enter
 `/onboarding` only after every accessible workspace's activity state is known.

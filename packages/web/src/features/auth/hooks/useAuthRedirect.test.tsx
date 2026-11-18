@@ -45,6 +45,7 @@ describe("useAuthRedirect", () => {
     vi.clearAllMocks();
     __resetAuthCoordinatorForTests();
     pathnameRef.current = "/workspace/raw-vault/issues";
+    window.history.replaceState(null, "", "/workspace/raw-vault/issues");
     snapshotPendingAkbAccountError.mockReturnValue(undefined);
     accountDeniedHandler.current = undefined;
   });
@@ -102,6 +103,21 @@ describe("useAuthRedirect", () => {
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith(
         "/login?redirect=%2Fworkspace%2Fraw-vault%2Fissues",
+      );
+    });
+  });
+
+  it("preserves query filters through session expiry", async () => {
+    getAkbSessionStatus.mockResolvedValue({ state: "inactive" });
+    const destination =
+      "/workspace/raw-vault/issues?view=board&priority=high&sort=updated_at&order=desc";
+    window.history.replaceState(null, "", destination);
+
+    renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        `/login?redirect=${encodeURIComponent(destination)}`,
       );
     });
   });

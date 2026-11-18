@@ -28,11 +28,13 @@ vi.mock("@/features/onboarding/hooks/useWorkspaceAutoResume", () => ({
 }));
 
 import RootPage from "./page";
+import { useViewStore } from "@/features/ui/stores/useViewStore";
 
 afterEach(() => {
   cleanup();
   useAuthRedirect.mockClear();
   useWorkspaceAutoResume.mockClear();
+  useViewStore.setState({ sidebarCollapsed: false });
 });
 
 describe("apps/web root page", () => {
@@ -41,6 +43,9 @@ describe("apps/web root page", () => {
 
     // The visual first paint is the board shell skeleton…
     expect(screen.getByTestId("app-shell-skeleton")).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
+    expect(screen.getByTestId("issues-skeleton-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("new-issue-trigger")).toBeDisabled();
     // …while the loading announcement survives just as an sr status, so
     // assistive tech still hears a loading state without a bare visible line.
     const status = screen.getByRole("status");
@@ -58,9 +63,26 @@ describe("apps/web root page", () => {
 
       expect(screen.getByTestId("app-shell-skeleton")).toBeInTheDocument();
       expect(screen.getByTestId("board-columns-skeleton")).toBeInTheDocument();
+      expect(screen.getByTestId("issues-skeleton-toolbar")).toBeInTheDocument();
       expect(screen.queryByTestId("workspace-resume-loading")).toBeNull();
     },
   );
+
+  it("preserves the current tab's collapsed sidebar during workspace resolution", () => {
+    useAuthRedirect.mockReturnValue("active");
+    useWorkspaceAutoResume.mockReturnValue({
+      status: "pending",
+      retry: vi.fn(),
+    });
+    useViewStore.setState({ sidebarCollapsed: true });
+
+    render(<RootPage />);
+
+    expect(screen.getByTestId("app-shell-skeleton-sidebar")).not.toHaveClass(
+      "md:w-60",
+    );
+    expect(screen.getByTestId("issues-skeleton-toolbar")).toBeInTheDocument();
+  });
 
   it("keeps workspace resume errors and retry inside the app shell", () => {
     useAuthRedirect.mockReturnValue("active");

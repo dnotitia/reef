@@ -74,7 +74,9 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
             })
           : mode === "workspace"
             ? buildPathWithParams("/login", {
-                redirect: normalizeSafeRedirect(pathname),
+                redirect: normalizeSafeRedirect(
+                  `${pathname}${window.location.search}`,
+                ),
               })
             : "/login",
       );

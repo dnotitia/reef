@@ -1,6 +1,5 @@
 "use client";
 
-import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { AuthVerificationFallback } from "@/features/auth/components/AuthVerificationFallback";
 import {
   retryAuthSession,
@@ -28,8 +27,5 @@ export default function RootPage() {
     );
   }
 
-  if (authStatus !== "active" || resume.status === "disabled") {
-    return <AppShellSkeleton />;
-  }
   return <WorkspaceResumeShell status={resume.status} onRetry={resume.retry} />;
 }

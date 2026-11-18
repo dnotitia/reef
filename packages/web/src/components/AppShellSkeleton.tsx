@@ -1,14 +1,11 @@
-import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import {
   SIDEBAR_ASIDE_CLASS,
   SIDEBAR_BRAND_HEADER_CLASS,
   SIDEBAR_NAV_ACTIVE_CLASS,
-  SIDEBAR_NAV_INACTIVE_CLASS,
   type SIDEBAR_NAV_ITEMS,
   SIDEBAR_PERSONAL_NAV_ITEMS,
   SIDEBAR_NAV_LINK_CLASS,
   SIDEBAR_WORKSPACE_NAV_ITEMS,
-  SIDEBAR_TOGGLE_CLASS,
 } from "@/components/sidebarChrome";
 import { Button } from "@/components/ui/button";
 import { ReefMark } from "@/components/ui/reef-mark";
@@ -19,19 +16,6 @@ import { useTranslations } from "next-intl";
 
 type SidebarNavKey = (typeof SIDEBAR_NAV_ITEMS)[number]["labelKey"];
 
-/**
- * First-paint shell shown while the root route resolves its session/workspace
- * redirect. Mirrors the dashboard's sidebar + board frame so the initial paint
- * reads as "loading the board" instead of a bare centered "Loading…" — the
- * board is the most common post-redirect destination for a returning user.
- *
- * The default board's placeholder bars are decorative (aria-hidden), while its
- * fixed column labels remain available to assistive technology. A sibling sr
- * `role="status"` carries the loading announcement so assistive technology
- * still hears a loading state during a slow redirect instead of a blank page.
- * Auth-pending destination content may supply its own static labels and single
- * loading announcement in the main slot. (REEF-097 AC2)
- */
 export function AppShellSkeleton({
   content,
   announce = true,
@@ -39,14 +23,14 @@ export function AppShellSkeleton({
   sidebarCollapsed = false,
 }: {
   /** Static, non-interactive destination chrome for an auth-pending route. */
-  content?: ReactNode;
+  content: ReactNode;
   /** Route content owns the single loading announcement when supplied. */
   announce?: boolean;
   /** URL-resolved active destination, when the auth-pending route is known. */
   activeNav?: SidebarNavKey;
   /** Preserve the mounted dashboard's desktop sidebar width during pending auth. */
   sidebarCollapsed?: boolean;
-} = {}) {
+}) {
   const c = useTranslations("common");
   const nav = useTranslations("nav");
   return (
@@ -57,9 +41,6 @@ export function AppShellSkeleton({
     >
       {announce && <output className="sr-only">{c("loading")}</output>}
 
-      {/* Static shell chrome stays readable while the auth/workspace gate is
-          pending. It uses the same mark, button, navigation, and typography
-          classes as DashboardShell, but remains inert before hydration. */}
       <aside
         data-testid="app-shell-skeleton-sidebar"
         aria-label={nav("sidebarLandmark")}
@@ -93,7 +74,7 @@ export function AppShellSkeleton({
           </div>
           {!sidebarCollapsed && (
             <span
-              className={cn("sr-only md:not-sr-only", SIDEBAR_TOGGLE_CLASS)}
+              className="sr-only h-8 w-8 items-center justify-center rounded-md text-muted-foreground opacity-50 md:not-sr-only md:inline-flex"
               aria-hidden="true"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -104,30 +85,25 @@ export function AppShellSkeleton({
           className={cn("pt-3", sidebarCollapsed ? "px-1.5" : "px-1.5 md:px-2")}
         >
           <Button
-            asChild
+            type="button"
+            disabled
             size="sm"
+            data-testid="new-issue-trigger"
+            aria-label={nav("newIssue")}
+            title={nav("newIssue")}
             className={cn(
               "w-full text-center",
               sidebarCollapsed ? "px-0" : "px-0 md:px-2.5",
             )}
           >
-            <span
-              data-testid="new-issue-trigger"
-              aria-label={nav("newIssue")}
-              title={nav("newIssue")}
-            >
-              <Plus className="h-3.5 w-3.5 shrink-0" />
-              {!sidebarCollapsed && (
-                <span
-                  className={cn(
-                    "sr-only",
-                    !sidebarCollapsed && "md:not-sr-only",
-                  )}
-                >
-                  {nav("newIssue")}
-                </span>
-              )}
-            </span>
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            {!sidebarCollapsed && (
+              <span
+                className={cn("sr-only", !sidebarCollapsed && "md:not-sr-only")}
+              >
+                {nav("newIssue")}
+              </span>
+            )}
           </Button>
         </div>
         <nav
@@ -211,12 +187,13 @@ export function AppShellSkeleton({
                       <span
                         data-testid={`sidebar-nav-${testId}`}
                         aria-current={isActive ? "page" : undefined}
+                        aria-disabled="true"
                         className={cn(
                           SIDEBAR_NAV_LINK_CLASS,
                           isActive
                             ? SIDEBAR_NAV_ACTIVE_CLASS
-                            : SIDEBAR_NAV_INACTIVE_CLASS,
-                          "cursor-default",
+                            : "text-muted-foreground",
+                          "cursor-default opacity-50",
                           sidebarCollapsed
                             ? "h-9 justify-center px-0"
                             : "h-9 justify-center px-0 md:h-auto md:justify-start md:px-3",
@@ -254,11 +231,7 @@ export function AppShellSkeleton({
           data-testid="app-shell-skeleton-main"
           className="min-w-0 flex-1 overflow-auto bg-surface-page"
         >
-          {content ?? (
-            <div className="flex min-h-0 min-w-0 h-full">
-              <BoardColumnsSkeleton />
-            </div>
-          )}
+          {content}
         </main>
       </div>
     </div>
