@@ -8,7 +8,7 @@ import { apiFetch } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { CURRENT_USER_QUERY_KEY } from "../hooks/useCurrentUser";
 
 export interface LoginFormProps {
@@ -23,11 +23,18 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [navigationPending, startNavigation] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const busy = isSubmitting || navigationPending;
+
+  useEffect(() => {
+    if (error && !busy) passwordRef.current?.focus();
+  }, [error, busy]);
 
   async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (busy) return;
     setError(null);
     setIsSubmitting(true);
     try {
@@ -53,8 +60,10 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
         await queryClient.invalidateQueries({
           queryKey: CURRENT_USER_QUERY_KEY,
         });
-        router.push(redirectTo);
-        router.refresh();
+        startNavigation(() => {
+          router.push(redirectTo);
+          router.refresh();
+        });
         return;
       }
 
@@ -86,7 +95,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
           required
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          disabled={isSubmitting}
+          disabled={busy}
           data-testid="login-username"
         />
       </div>
@@ -96,13 +105,14 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
         </label>
         <Input
           id="login-password"
+          ref={passwordRef}
           type="password"
           name="password"
           autoComplete="current-password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          disabled={isSubmitting}
+          disabled={busy}
           data-testid="login-password"
         />
       </div>
@@ -115,15 +125,15 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={isSubmitting} data-testid="login-submit">
-        {isSubmitting && (
+      <Button type="submit" disabled={busy} data-testid="login-submit">
+        {busy && (
           <Spinner
             aria-hidden="true"
             className="size-3.5"
             data-testid="login-submit-spinner"
           />
         )}
-        <span>{isSubmitting ? t("signingIn") : t("signIn")}</span>
+        <span>{busy ? t("signingIn") : t("signIn")}</span>
       </Button>
     </form>
   );

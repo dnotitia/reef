@@ -7,13 +7,12 @@ describe("AppShellSkeleton", () => {
   it("keeps the loading rail and board frame on the live shell width contract", () => {
     render(
       <IntlTestProvider>
-        <AppShellSkeleton />
+        <AppShellSkeleton content={<div data-testid="pending-content" />} />
       </IntlTestProvider>,
     );
 
     const sidebar = screen.getByTestId("app-shell-skeleton-sidebar");
     const main = screen.getByTestId("app-shell-skeleton-main");
-    const board = screen.getByTestId("board-columns-skeleton");
     const workspaceGroup = screen.getByTestId("sidebar-workspace-group");
     const workspacePlaceholder = screen.getByTestId(
       "sidebar-workspace-placeholder",
@@ -22,14 +21,12 @@ describe("AppShellSkeleton", () => {
     expect(sidebar).toHaveClass("w-14", "md:w-60", "shrink-0");
     expect(sidebar.querySelector(".reef-shimmer")).toBeNull();
     expect(main).toHaveClass("min-w-0", "overflow-auto");
-    expect(board).toHaveClass(
-      "min-w-0",
-      "overflow-x-hidden",
-      "overflow-y-auto",
+    expect(main).toContainElement(screen.getByTestId("pending-content"));
+    expect(screen.getByTestId("new-issue-trigger")).toBeDisabled();
+    expect(screen.getByTestId("sidebar-nav-issues")).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
-    expect(
-      board.querySelector('.reef-shimmer[aria-hidden="true"]'),
-    ).not.toBeNull();
     expect(screen.getByText("reef")).toBeInTheDocument();
     expect(workspaceGroup).toHaveClass(
       "mt-2",
@@ -59,7 +56,7 @@ describe("AppShellSkeleton", () => {
   it("preserves a collapsed desktop sidebar while auth is pending", () => {
     render(
       <IntlTestProvider>
-        <AppShellSkeleton sidebarCollapsed />
+        <AppShellSkeleton content={null} sidebarCollapsed />
       </IntlTestProvider>,
     );
 

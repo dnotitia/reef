@@ -237,7 +237,7 @@ export function WorkspaceAuthPendingSkeleton({
             routeSegments={routeSegments}
             searchParams={searchParams}
           />
-        ) : undefined
+        ) : null
       }
       announce={!hasContent}
     />

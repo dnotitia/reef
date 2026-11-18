@@ -25,6 +25,10 @@ issues, not public GitHub issues.
 
 ### Fixed
 
+- Keep sign-in feedback active while destination navigation is pending,
+  align the root loading frame with the Issues header, filters, and board, and
+  show pending sidebar controls as unavailable. Preserve URL filters after a
+  session expires and the user signs in again. (REEF-711)
 - Keep Rank moves within the current Priority group in Backlog List. Switch to
   No grouping to reorder the whole backlog. Keyboard moves return focus to the
   reorder handle after saving or cancelling.

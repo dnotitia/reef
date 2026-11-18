@@ -175,7 +175,6 @@ test.describe("SSO companion cutover", { tag: "@sso" }, () => {
 issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
   const issueListPath = "/workspace/reef-e2e/issues?view=list";
   const detailPath = "/workspace/reef-e2e/issues/REEF-101?view=list";
-  const restoredDetailPath = "/workspace/reef-e2e/issues/REEF-101";
 
   async function completeSsoLogin(
     page: import("@playwright/test").Page,
@@ -226,7 +225,7 @@ issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
       });
       await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await invalidSessionProbe;
-      await completeSsoLogin(page, restoredDetailPath);
+      await completeSsoLogin(page, detailPath);
       await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
       await expect(
         page.locator('[data-testid="issue-title-input"]'),
@@ -238,7 +237,8 @@ issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
       await page.locator('[data-testid="issue-close"]').click();
       await page.waitForURL(
         (url) =>
-          url.pathname === "/workspace/reef-e2e/issues" && url.search === "",
+          url.pathname === "/workspace/reef-e2e/issues" &&
+          url.search === "?view=list",
         { timeout: 10_000 },
       );
       await page
@@ -249,7 +249,7 @@ issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
       await page.waitForURL(
         (url) =>
           url.pathname === "/workspace/reef-e2e/issues/REEF-104" &&
-          url.search === "",
+          url.search === "?view=list",
         { timeout: 10_000 },
       );
       await expect(
@@ -262,7 +262,8 @@ issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
       await page.locator('[data-testid="issue-close"]').click();
       await page.waitForURL(
         (url) =>
-          url.pathname === "/workspace/reef-e2e/issues" && url.search === "",
+          url.pathname === "/workspace/reef-e2e/issues" &&
+          url.search === "?view=list",
         { timeout: 10_000 },
       );
       await page
@@ -271,7 +272,7 @@ issueTest.describe("SSO issue restoration", { tag: "@sso" }, () => {
       await page.waitForURL(
         (url) =>
           url.pathname === "/workspace/reef-e2e/issues/REEF-101" &&
-          url.search === "",
+          url.search === "?view=list",
         { timeout: 10_000 },
       );
       await expect(

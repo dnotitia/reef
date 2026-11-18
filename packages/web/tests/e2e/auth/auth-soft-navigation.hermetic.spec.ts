@@ -389,7 +389,7 @@ test.describe("auth soft navigation", () => {
     expect(firstVisit).toEqual({ invalidated: null, status: 401 });
 
     await page.goto(`${PLANNING_PATH}?kind=sprints`);
-    await expectLogin(page, PLANNING_PATH);
+    await expectLogin(page, `${PLANNING_PATH}?kind=sprints`);
     await expect(page.locator('[data-testid="planning-skeleton"]')).toHaveCount(
       0,
     );

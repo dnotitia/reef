@@ -1,8 +1,14 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
+import { type ReactElement, Suspense, use, useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -19,6 +25,36 @@ vi.mock("@/lib/akb/accountReconcile", () => ({
 }));
 
 import { LoginForm } from "./LoginForm";
+
+function Destination({ ready }: { ready: Promise<void> }) {
+  use(ready);
+  return <div data-testid="destination" />;
+}
+
+function LoginNavigation({
+  ready,
+  redirectTo = "/",
+}: {
+  ready: Promise<void>;
+  redirectTo?: string;
+}) {
+  const [navigating, setNavigating] = useState(false);
+  useEffect(() => {
+    push.mockImplementation(() => setNavigating(true));
+    return () => {
+      push.mockReset();
+    };
+  }, []);
+  return (
+    <Suspense fallback={null}>
+      {navigating ? (
+        <Destination ready={ready} />
+      ) : (
+        <LoginForm redirectTo={redirectTo} />
+      )}
+    </Suspense>
+  );
+}
 
 function makeQueryClient() {
   return new QueryClient({
@@ -63,8 +99,9 @@ describe("LoginForm", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
+    const destination = Promise.withResolvers<void>();
     const { invalidateSpy } = renderWithQueryClient(
-      <LoginForm redirectTo="/issues" />,
+      <LoginNavigation ready={destination.promise} redirectTo="/issues" />,
     );
     const identityRefreshed = Promise.withResolvers<void>();
     invalidateSpy.mockReturnValueOnce(identityRefreshed.promise);
@@ -89,6 +126,15 @@ describe("LoginForm", () => {
     });
     expect(push).toHaveBeenCalledWith("/issues");
     expect(refresh).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("login-submit")).toBeDisabled();
+    expect(screen.getByTestId("login-username")).toBeDisabled();
+    expect(screen.getByTestId("login-password")).toBeDisabled();
+    expect(screen.getByTestId("login-submit-spinner")).toBeInTheDocument();
+    fireEvent.submit(screen.getByTestId("akb-login-form"));
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await act(async () => destination.resolve());
+    expect(screen.getByTestId("destination")).toBeInTheDocument();
+    expect(screen.queryByTestId("akb-login-form")).toBeNull();
   });
 
   it("keeps auth controls accessible before and during submit", async () => {
@@ -121,6 +167,23 @@ describe("LoginForm", () => {
     });
   });
 
+  it("recovers the form when a successful navigation stays on the login page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ user: { id: "user-1" } })),
+        ),
+    );
+    renderWithQueryClient(<LoginForm redirectTo="/login" />);
+    await fillAndSubmit();
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/login"));
+    expect(screen.getByTestId("login-submit")).toBeEnabled();
+    expect(screen.queryByTestId("login-submit-spinner")).toBeNull();
+  });
+
   it("surfaces the backend error and does not reconcile on a failed sign-in", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: "Invalid username or password." }), {
@@ -138,6 +201,32 @@ describe("LoginForm", () => {
     expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "polite");
     expect(reconcileAkbAccount).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+    expect(screen.getByTestId("login-submit")).toBeEnabled();
+    expect(screen.getByTestId("login-username")).toBeEnabled();
+    expect(screen.getByTestId("login-password")).toBeEnabled();
+    expect(screen.queryByTestId("login-submit-spinner")).toBeNull();
+  });
+
+  it("restores inputs and allows another attempt after a network failure", async () => {
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const destination = Promise.withResolvers<void>();
+    renderWithQueryClient(<LoginNavigation ready={destination.promise} />);
+    await fillAndSubmit();
+
+    await screen.findByRole("alert");
+    expect(screen.getByTestId("login-submit")).toBeEnabled();
+    expect(screen.getByTestId("login-username")).toHaveValue("alice");
+    expect(screen.getByTestId("login-password")).toHaveValue("pw");
+    expect(screen.getByTestId("login-password")).toHaveFocus();
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ user: { id: "user-1" } })),
+    );
+    await userEvent.click(screen.getByTestId("login-submit"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("login-submit")).toBeDisabled();
+    await act(async () => destination.resolve());
   });
 
   it("wipes AKB-scoped browser state when login reports an account denial", async () => {
